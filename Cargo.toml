@@ -1,0 +1,14 @@
+[package]
+name = "hapi-rs"
+version = "0.1.0"
+authors = ["Alex Rusev <hou.alexx@gmail.com>"]
+edition = "2018"
+
+[lib]
+# bindgen generates rust docstrings for C code which breaks `cargo test`
+doctest = false
+
+[build-dependencies]
+bindgen = "0.55.1"
+
+[dependencies]
