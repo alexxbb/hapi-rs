@@ -1,0 +1,2 @@
+[build]
+rustflags = ["-Clink-args=-Wl,-rpath=/net/apps/rhel7/houdini/hfs18.5.351/dsolib"]
