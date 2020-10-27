@@ -31,5 +31,4 @@ fn main() {
         .expect("Couldn't write bindings!");
     println!("cargo:rustc-link-search={}", LIBS);
     println!("cargo:rustc-link-lib=dylib=HAPI");
-    // -Clink-args=-Wl,-rpath=/shots/spi/home/lib/SpComp2/VnP3/rhel7-gcc63-ice36/v2/lib"
 }

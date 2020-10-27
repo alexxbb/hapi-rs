@@ -1,15 +1,18 @@
 extern crate hapi_rs as he;
 
-use std::ptr::null;
+use std::ptr::{null, null_mut};
 
 // type null_char = *const std::os::raw::c_char;
 
 unsafe fn main_() {
     let cook_options = he::HAPI_CookOptions_Create();
-    let c = he::HAPI_Initialize(
-        null(),
-        &cook_options as *const he::HAPI_CookOptions,
-        false as i8,
+    let mut session = std::mem::MaybeUninit::uninit();
+    he::HAPI_CreateInProcessSession(session.as_mut_ptr());
+    let session = session.assume_init();
+    let _c = he::HAPI_Initialize(
+        &session as *const _,
+        &cook_options as *const _,
+        0,
         -1,
         null(),
         null(),
@@ -18,7 +21,7 @@ unsafe fn main_() {
         null(),
     );
 
-    he::HAPI_Cleanup(null());
+    he::HAPI_Cleanup(&session as *const _);
 }
 
 fn main() {
