@@ -10,8 +10,8 @@ mod paths {
 
 #[cfg(target_os = "linux")]
 mod paths {
-    pub static HAPI_INCLUDE: &str = "/net/apps/rhel7/houdini/hfs18.5.351/toolkit/include/HAPI/";
-    pub static LIBS: &str = "/net/apps/rhel7/houdini/hfs18.5.351/dsolib";
+    pub static HAPI_INCLUDE: &str = "/net/apps/rhel7/houdini/hfs18.0.530/toolkit/include/HAPI/";
+    pub static LIBS: &str = "/net/apps/rhel7/houdini/hfs18.0.530/dsolib";
 }
 
 use paths::*;

@@ -9,10 +9,10 @@ unsafe fn main_() {
     let mut session = std::mem::MaybeUninit::uninit();
     he::HAPI_CreateInProcessSession(session.as_mut_ptr());
     let session = session.assume_init();
-    let _c = he::HAPI_Initialize(
+    let res = he::HAPI_Initialize(
         &session as *const _,
         &cook_options as *const _,
-        0,
+        1,
         -1,
         null(),
         null(),
@@ -20,8 +20,10 @@ unsafe fn main_() {
         null(),
         null(),
     );
+    dbg!(res);
 
-    he::HAPI_Cleanup(&session as *const _);
+    let r = he::HAPI_Cleanup(&session as *const _);
+    dbg!(r);
 }
 
 fn main() {
