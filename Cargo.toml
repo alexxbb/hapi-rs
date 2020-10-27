@@ -8,6 +8,10 @@ edition = "2018"
 # bindgen generates rust docstrings for C code which breaks `cargo test`
 doctest = false
 
+[[bin]]
+name = "dev"
+path = "src/dev/simple.rs"
+
 [build-dependencies]
 bindgen = "0.55.1"
 
