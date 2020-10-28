@@ -2,7 +2,7 @@ use crate::ffi;
 
 
 pub enum HAPI_Error {
-    SUCCESS(ffi::HAPI_Result),
+    SUCCESS,
     FAILURE(ffi::HAPI_Result),
     ALREADY_INITIALIZED(ffi::HAPI_Result),
     NOT_INITIALIZED(ffi::HAPI_Result),
@@ -28,12 +28,11 @@ pub enum HAPI_Error {
 impl From<ffi::HAPI_Result> for HAPI_Error {
     fn from(e: ffi::HAPI_Result) -> HAPI_Error {
         match e {
-            ffi::HAPI_Result_HAPI_RESULT_USER_INTERRUPTED =>
-                HAPI_Error::USER_INTERRUPTED(ffi::HAPI_Result_HAPI_RESULT_USER_INTERRUPTED),
-            ffi::HAPI_Result_HAPI_RESULT_SUCCESS =>
-                HAPI_Error::SUCCESS(ffi::HAPI_Result_HAPI_RESULT_SUCCESS),
-            ffi::HAPI_Result_HAPI_RESULT_FAILURE =>
-                HAPI_Error::FAILURE(ffi::HAPI_Result_HAPI_RESULT_FAILURE),
+            ffi::HAPI_Result::HAPI_RESULT_SUCCESS =>
+                HAPI_Error::SUCCESS,
+            e @ ffi::HAPI_Result::HAPI_RESULT_FAILURE =>
+                HAPI_Error::FAILURE(e),
+            _ => todo!()
         }
     }
 }

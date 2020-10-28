@@ -5,8 +5,11 @@ use std::ptr::{null};
 // type null_char = *const std::os::raw::c_char;
 
 unsafe fn main_() {
-    let cook_options = he::CookOptionsBuilder::new().split_geos_by_attribute(true).build();
-    // let mut session = std::mem::MaybeUninit::uninit();
+    // let cook_options = he::CookOptionsBuilder::new().split_geos_by_attribute(true).build();
+    let mut session = he::Session::new_in_process();
+    if session.is_err() {
+        eprintln!("Ooops")
+    }
     // he::HAPI_CreateInProcessSession(session.as_mut_ptr());
     // let session = session.assume_init();
     // let res = he::HAPI_Initialize(

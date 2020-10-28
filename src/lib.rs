@@ -2,15 +2,17 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-mod cookoptions;
-// mod session;
-// mod errors;
+// mod cookoptions;
+mod session;
+mod errors;
 
 mod ffi {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
-pub use cookoptions::CookOptionsBuilder;
+pub use session::Session;
+
+// pub use cookoptions::CookOptionsBuilder;
 
 #[cfg(test)]
 mod tests {}

@@ -23,6 +23,8 @@ fn main() {
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
         .clang_arg(format!("-I/{}", HAPI_INCLUDE))
+        .default_enum_style("rust_non_exhaustive".parse().unwrap())
+
         .generate().expect("Oops");
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
