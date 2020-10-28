@@ -4,14 +4,13 @@ use std::ptr::{null};
 
 // type null_char = *const std::os::raw::c_char;
 
-unsafe fn main_() {
-    // let cook_options = he::CookOptionsBuilder::new().split_geos_by_attribute(true).build();
-    let mut session = he::Session::new_in_process();
-    if session.is_err() {
-        eprintln!("Ooops")
-    }
-    // he::HAPI_CreateInProcessSession(session.as_mut_ptr());
-    // let session = session.assume_init();
+fn main_() -> he::Result<()> {
+    let cook_options = he::CookOptions::default();
+    let session = he::Session::new_in_process()?;
+    let mut res = he::Initializer::new();
+    res.set_env_files(&["/foo", "/bar"]);
+    res.initialize()?;
+    dbg!(session);
     // let res = he::HAPI_Initialize(
     //     &session as *const _,
     //     &cook_options as *const _,
@@ -25,8 +24,11 @@ unsafe fn main_() {
     // );
     //
     // let r = he::HAPI_Cleanup(&session as *const _);
+    Ok(())
 }
 
 fn main() {
-    unsafe { main_() }
+    if let Err(_) = main_() {
+        eprintln!("{}", he::HAPI_Error::error_string(None))
+    }
 }

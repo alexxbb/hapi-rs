@@ -1,6 +1,9 @@
 use crate::ffi;
 
+pub type Result<T> = std::result::Result<T, HAPI_Error>;
 
+
+#[derive(Debug)]
 pub enum HAPI_Error {
     SUCCESS,
     FAILURE(ffi::HAPI_Result),
@@ -24,6 +27,22 @@ pub enum HAPI_Error {
     USER_INTERRUPTED(ffi::HAPI_Result),
     INVALID_SESSION(ffi::HAPI_Result)
 }
+
+impl HAPI_Error {
+    pub fn error_string(session: Option<&crate::session::Session>) -> String {
+        crate::status::get_last_error(session.map(|v|v.ptr())).expect("Could not retrieve last error")
+    }
+}
+
+// impl std::fmt::Display for HAPI_Error {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//
+//     }
+// }
+//
+// impl std::error::Error for HAPI_Error {
+//
+// }
 
 impl From<ffi::HAPI_Result> for HAPI_Error {
     fn from(e: ffi::HAPI_Result) -> HAPI_Error {

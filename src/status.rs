@@ -2,8 +2,10 @@ use crate::ffi;
 use std::mem::MaybeUninit;
 use std::ptr::null;
 
+use crate::errors::HAPI_Error;
 
-pub fn get_last_error(session: Option<*const ffi::HAPI_Session>) -> Result<String, i32> {
+
+pub fn get_last_error(session: Option<*const ffi::HAPI_Session>) -> Result<String, HAPI_Error> {
     use ffi::HAPI_StatusType::HAPI_STATUS_CALL_RESULT;
     use ffi::HAPI_StatusVerbosity::HAPI_STATUSVERBOSITY_0;
     unsafe {
@@ -23,10 +25,10 @@ pub fn get_last_error(session: Option<*const ffi::HAPI_Session>) -> Result<Strin
                     // SAFETY: casting to u8 to i8 (char)?
                     buf.as_mut_ptr() as *mut i8, length) {
                     ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(String::from_utf8_unchecked(buf)),
-                    _ => Err(771)
+                    e => Err(e.into())
                 }
             }
-            _ => Err(777)
+            e => Err(e.into())
         }
     }
 }
