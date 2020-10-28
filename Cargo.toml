@@ -16,3 +16,4 @@ path = "src/dev/simple.rs"
 bindgen = "0.55.1"
 
 [dependencies]
+#jemallocator = "0.3.2"
