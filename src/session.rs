@@ -9,7 +9,7 @@ use std::rc::Rc;
 pub type Result<T> = std::result::Result<T, HAPI_Error>;
 
 use std::path::Path;
-use std::ffi::{CString, CStr};
+use std::ffi::{CString};
 
 fn join_paths<I>(files: I) -> String
     where I: IntoIterator,
@@ -95,10 +95,10 @@ impl<'a> Initializer<'a> {
         self.aud_dso_path.replace(CString::new(paths).expect("Zero byte"));
     }
 
-    pub fn with_cook_thread(&mut self, thread: bool) {
+    pub fn set_cook_thread(&mut self, thread: bool) {
         self.cook_thread = thread;
     }
-    pub fn with_cook_options(&mut self, opts: &'a CookOptions) {
+    pub fn set_cook_options(&mut self, opts: &'a CookOptions) {
         self.cook_opt.replace(opts);
     }
 
