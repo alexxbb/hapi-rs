@@ -2,7 +2,7 @@ use bindgen;
 use std::env;
 use std::path::PathBuf;
 
-#[cfg(target_os = "darwin")]
+#[cfg(target_os = "macos")]
 mod paths {
     pub static HAPI_INCLUDE: &str = "/Applications/Houdini/Houdini18.5.351/Frameworks/Houdini.framework/Versions/Current/Resources/toolkit/include/HAPI";
     pub static LIBS: &str = "/Applications/Houdini/Houdini18.5.351/Frameworks/Houdini.framework/Versions/Current/Libraries/";

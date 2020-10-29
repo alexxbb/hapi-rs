@@ -1,4 +1,4 @@
-use crate::ffi;
+use crate::{ffi, ConstPtr};
 use std::mem::MaybeUninit;
 use crate::errors::HAPI_Error;
 use std::ptr::null;
@@ -128,7 +128,7 @@ impl Session {
                 ffi::HAPI_Result::HAPI_RESULT_SUCCESS => {
                     Ok(Rc::new(Session { inner: s.assume_init() }))
                 }
-                e => Err(e.into())
+                e => Err(HAPI_Error::new(e, s.assume_init().ptr()))
             }
         }
     }

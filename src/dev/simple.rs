@@ -14,7 +14,7 @@ fn main_() -> he::Result<()> {
 }
 
 fn main() {
-    if let Err(_) = main_() {
-        eprintln!("{}", he::HAPI_Error::error_string(None))
+    if let Err(e) = main_() {
+        eprintln!("{}", e)
     }
 }
