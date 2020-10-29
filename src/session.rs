@@ -1,6 +1,7 @@
 use crate::{ffi, ConstPtr};
 use std::mem::MaybeUninit;
-use crate::errors::HAPI_Error;
+use crate::errors::{HAPI_Error};
+use crate::ok_result;
 use std::ptr::null;
 use crate::cookoptions::CookOptions;
 use std::rc::Rc;
@@ -114,7 +115,7 @@ impl<'a> Initializer<'a> {
                 self.img_dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
                 self.aud_dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
             );
-            result.into()
+            ok_result!(result, self.session.ptr())
         }
     }
 }
@@ -122,13 +123,14 @@ impl<'a> Initializer<'a> {
 
 impl Session {
     pub fn new_in_process() -> Result<Rc<Session>> {
-        let mut s = MaybeUninit::uninit();
+        let mut ses = MaybeUninit::uninit();
         unsafe {
-            match ffi::HAPI_CreateInProcessSession(s.as_mut_ptr()) {
+            match ffi::HAPI_CreateInProcessSession(ses.as_mut_ptr()) {
                 ffi::HAPI_Result::HAPI_RESULT_SUCCESS => {
-                    Ok(Rc::new(Session { inner: s.assume_init() }))
+                    Ok(Rc::new(Session { inner: ses.assume_init() }))
                 }
-                e => Err(HAPI_Error::new(e, s.assume_init().ptr()))
+                // SAFETY: If above failed, would session be properly init?
+                e => Err(HAPI_Error::new(e, ses.assume_init().const_ptr()))
             }
         }
     }

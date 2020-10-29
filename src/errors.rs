@@ -45,6 +45,7 @@ impl HAPI_Error {
     }
 }
 
+
 impl std::fmt::Display for HAPI_Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let last_error = get_last_error(self.session).expect("Could not retrieve last error");
@@ -79,6 +80,16 @@ pub fn get_last_error(session: *const ffi::HAPI_Session) -> Result<String> {
             e => Err(HAPI_Error::new(e, session))
         }
     }
+}
+
+#[macro_export]
+macro_rules! ok_result {
+    ($hapi_result:ident, $session:expr) => {
+        match $hapi_result {
+            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(()),
+            e => Err(HAPI_Error::new(e, $session))
+        }
+    };
 }
 
 impl std::error::Error for HAPI_Error {}

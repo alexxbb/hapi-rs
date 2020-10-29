@@ -5,5 +5,4 @@
 #]
 #/Applications/Houdini/Houdini18.5.351/Frameworks/Houdini.framework/Versions/Current/Libraries/libHAPI.dylib
 [build]
-[target.'cfg(target_os = "linux"))']
 rustflags = ["-Clink-args=-Wl,-rpath=/net/apps/rhel7/houdini/hfs18.0.530/dsolib"]

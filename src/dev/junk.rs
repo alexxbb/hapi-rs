@@ -1,8 +1,13 @@
-struct Foo{}
+use std::rc::Rc;
+use std::time::Instant;
+struct Foo{s: String}
 fn main() {
-    let foo = Foo{};
-    let p1 = &foo as *const Foo;
-    let p2 = p1;
-    let p3 = p2;
-    dbg!([p1, p2, p3]);
+    let foo = Foo{s: "d".to_string()};
+    let rc = Rc::new(foo);
+
+    let s = Instant::now();
+    for _ in 0..1000 {
+        let clone = rc.clone();
+    }
+    println!("Elapsed: {}", s.elapsed().as_nanos());
 }
