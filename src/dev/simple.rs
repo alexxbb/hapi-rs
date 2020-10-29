@@ -2,6 +2,7 @@ extern crate hapi_rs as he;
 
 use std::mem::MaybeUninit;
 use he::char_ptr;
+use he::ffi;
 
 
 fn main_() -> he::Result<()> {
@@ -22,7 +23,14 @@ fn main_() -> he::Result<()> {
         );
 
         match r {
-            he::ffi::HAPI_Result::HAPI_RESULT_SUCCESS => {
+            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => {
+                let lib_id= lib_id.assume_init();
+                let mut sh = MaybeUninit::uninit();
+                let r = ffi::HAPI_GetAvailableAssets(session.const_ptr(), lib_id, sh.as_mut_ptr(), 1);
+                assert!(matches!(r, he::ffi::HAPI_Result::HAPI_RESULT_SUCCESS));
+                let sh = sh.assume_init();
+                println!("Available assets: {}", he::get_string(sh, session.const_ptr())?);
+
                 let hip = char_ptr!("/mcp/foo.hip");
                 let r = he::ffi::HAPI_SaveHIPFile(session.const_ptr(), hip, true as i8);
                 assert!(matches!(r, he::ffi::HAPI_Result::HAPI_RESULT_SUCCESS));

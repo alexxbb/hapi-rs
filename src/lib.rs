@@ -22,11 +22,14 @@ mod session;
 mod errors;
 mod status;
 mod extentions;
+mod asset;
+mod stringhandle;
 
 
 pub use session::{Session, Initializer};
 pub use cookoptions::CookOptions;
 pub use errors::{HAPI_Error, Result};
+pub use stringhandle::get_string;
 pub(crate) use extentions::*;
 
 #[cfg(test)]
