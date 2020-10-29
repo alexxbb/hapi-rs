@@ -28,6 +28,12 @@ pub enum HAPI_Error {
     INVALID_SESSION(ffi::HAPI_Result),
 }
 
+// #[derive(Debug)]
+// pub struct  HAPI_Error {
+//     session:
+//
+// }
+
 impl HAPI_Error {
     pub fn error_string(session: Option<&crate::session::Session>) -> String {
         crate::status::get_last_error(session.map(|v| v.ptr())).expect("Could not retrieve last error")

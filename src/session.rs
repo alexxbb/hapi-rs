@@ -3,6 +3,7 @@ use std::mem::MaybeUninit;
 use crate::errors::HAPI_Error;
 use std::ptr::null;
 use crate::cookoptions::CookOptions;
+use std::rc::Rc;
 
 pub type Result<T> = std::result::Result<T, HAPI_Error>;
 
@@ -38,7 +39,7 @@ impl Drop for Session {
 }
 
 pub struct Initializer<'a> {
-    session: Option<&'a Session>,
+    session: Rc<Session>,
     cook_opt: Option<&'a CookOptions>,
     cook_thread: bool,
     env_files: Option<CString>,
@@ -49,8 +50,8 @@ pub struct Initializer<'a> {
 }
 
 impl<'a> Initializer<'a> {
-    pub fn new() -> Initializer<'a> {
-        Initializer { session: None, cook_opt: None, cook_thread: false, env_files: None, otl_path: None, dso_path: None, img_dso_path: None, aud_dso_path: None }
+    pub fn new(session: Rc<Session>) -> Initializer<'a> {
+        Initializer { session, cook_opt: None, cook_thread: false, env_files: None, otl_path: None, dso_path: None, img_dso_path: None, aud_dso_path: None }
     }
 
     pub fn set_houdini_env_files<Files>(&mut self, files: Files)
@@ -93,10 +94,17 @@ impl<'a> Initializer<'a> {
         self.aud_dso_path.replace(CString::new(paths).expect("Zero byte"));
     }
 
+    pub fn with_cook_thread(&mut self, thread: bool) {
+        self.cook_thread = thread;
+    }
+    pub fn with_cook_options(&mut self, opts: &'a CookOptions) {
+        self.cook_opt.replace(opts);
+    }
+
     pub fn initialize(self) -> Result<()> {
         unsafe {
             let result = ffi::HAPI_Initialize(
-                self.session.map(|s| s.ptr()).unwrap_or(null()),
+                self.session.ptr(),
                 self.cook_opt.map(|o| o.ptr()).unwrap_or(CookOptions::default().ptr()),
                 self.cook_thread as i8,
                 -1,
@@ -112,44 +120,13 @@ impl<'a> Initializer<'a> {
 }
 
 
-// impl<'a, Files> Initializer<'a, Files>
-//     where Files: IntoIterator,
-//           Files::Item: AsRef<Path>
-// {
-//     pub fn new() -> Initializer<'a, Files> {
-//         Initializer { session: None, cook_opt: None, cook_thread: false, env_files: None }
-//     }
-//     pub fn with_cook_thread(&mut self, thread: bool) -> &mut Self {
-//         self.cook_thread = thread;
-//         self
-//     }
-//     pub fn with_session(&mut self, session: &'a Session) -> &mut Self {
-//         self.session.replace(session);
-//         self
-//     }
-//
-//     pub fn with_cook_options(&mut self, opts: &'a CookOptions) -> &mut Self {
-//         self.cook_opt.replace(opts);
-//         self
-//     }
-//     pub fn with_env_files<Files>(&mut self, files: Files) -> &mut Self
-//     where Files: IntoIterator,
-//           Files::Item: AsRef<Path>
-//     {
-//         self.env_files.replace(files);
-//         self
-//     }
-//
-//     }
-// }
-
 impl Session {
-    pub fn new_in_process() -> Result<Session> {
+    pub fn new_in_process() -> Result<Rc<Session>> {
         let mut s = MaybeUninit::uninit();
         unsafe {
             match ffi::HAPI_CreateInProcessSession(s.as_mut_ptr()) {
                 ffi::HAPI_Result::HAPI_RESULT_SUCCESS => {
-                    Ok(Session { inner: s.assume_init() })
+                    Ok(Rc::new(Session { inner: s.assume_init() }))
                 }
                 e => Err(e.into())
             }
