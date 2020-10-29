@@ -25,12 +25,12 @@ pub enum HAPI_Error {
     ASSET_INVALID(ffi::HAPI_Result),
     NODE_INVALID(ffi::HAPI_Result),
     USER_INTERRUPTED(ffi::HAPI_Result),
-    INVALID_SESSION(ffi::HAPI_Result)
+    INVALID_SESSION(ffi::HAPI_Result),
 }
 
 impl HAPI_Error {
     pub fn error_string(session: Option<&crate::session::Session>) -> String {
-        crate::status::get_last_error(session.map(|v|v.ptr())).expect("Could not retrieve last error")
+        crate::status::get_last_error(session.map(|v| v.ptr())).expect("Could not retrieve last error")
     }
 }
 
@@ -52,6 +52,15 @@ impl From<ffi::HAPI_Result> for HAPI_Error {
             e @ ffi::HAPI_Result::HAPI_RESULT_FAILURE =>
                 HAPI_Error::FAILURE(e),
             _ => todo!()
+        }
+    }
+}
+
+impl From<ffi::HAPI_Result> for Result<()> {
+    fn from(e: ffi::HAPI_Result) -> Result<()> {
+        match e {
+            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(()),
+            e => Err(e.into()),
         }
     }
 }

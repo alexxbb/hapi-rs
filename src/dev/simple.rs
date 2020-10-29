@@ -8,7 +8,7 @@ fn main_() -> he::Result<()> {
     let cook_options = he::CookOptions::default();
     let session = he::Session::new_in_process()?;
     let mut res = he::Initializer::new();
-    res.set_env_files(&["/foo", "/bar"]);
+    res.set_houdini_env_files(&["/foo", "/bar"]);
     res.initialize()?;
     dbg!(session);
     // let res = he::HAPI_Initialize(

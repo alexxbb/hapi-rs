@@ -9,7 +9,7 @@ pub type Result<T> = std::result::Result<T, HAPI_Error>;
 use std::path::Path;
 use std::ffi::{CString, CStr};
 
-fn join_paths<'a, I>(files: I) -> String
+fn join_paths<I>(files: I) -> String
     where I: IntoIterator,
           I::Item: AsRef<Path>
 {
@@ -34,19 +34,55 @@ pub struct Initializer<'a> {
     cook_opt: Option<&'a CookOptions>,
     cook_thread: bool,
     env_files: Option<CString>,
+    otl_path: Option<CString>,
+    dso_path: Option<CString>,
+    img_dso_path: Option<CString>,
+    aud_dso_path: Option<CString>,
 }
 
 impl<'a> Initializer<'a> {
     pub fn new() -> Initializer<'a> {
-        Initializer { session: None, cook_opt: None, cook_thread: false, env_files: None }
+        Initializer { session: None, cook_opt: None, cook_thread: false, env_files: None, otl_path: None, dso_path: None, img_dso_path: None, aud_dso_path: None }
     }
 
-    pub fn set_env_files<Files>(&mut self, files: Files)
+    pub fn set_houdini_env_files<Files>(&mut self, files: Files)
         where Files: IntoIterator,
               Files::Item: AsRef<Path>
     {
         let paths = join_paths(files);
         self.env_files.replace(CString::new(paths).expect("Zero byte"));
+    }
+
+    pub fn set_otl_search_paths<P>(&mut self, paths: P)
+        where P: IntoIterator,
+              P::Item: AsRef<Path>
+    {
+        let paths = join_paths(paths);
+        self.otl_path.replace(CString::new(paths).expect("Zero byte"));
+    }
+
+    pub fn set_dso_search_paths<P>(&mut self, paths: P)
+        where P: IntoIterator,
+              P::Item: AsRef<Path>
+    {
+        let paths = join_paths(paths);
+        self.dso_path.replace(CString::new(paths).expect("Zero byte"));
+    }
+
+    pub fn set_image_search_paths<P>(&mut self, paths: P)
+        where P: IntoIterator,
+              P::Item: AsRef<Path>
+    {
+        let paths = join_paths(paths);
+        self.img_dso_path.replace(CString::new(paths).expect("Zero byte"));
+    }
+
+    pub fn set_audio_search_paths<P>(&mut self, paths: P)
+        where P: IntoIterator,
+              P::Item: AsRef<Path>
+    {
+        let paths = join_paths(paths);
+        self.aud_dso_path.replace(CString::new(paths).expect("Zero byte"));
     }
 
     pub fn initialize(self) -> Result<()> {
@@ -57,14 +93,14 @@ impl<'a> Initializer<'a> {
                 self.cook_thread as i8,
                 -1,
                 self.env_files.map(|p| p.as_ptr()).unwrap_or(null()),
-                null(),
-                null(),
-                null(),
-                null(),
+                self.otl_path.map(|p| p.as_ptr()).unwrap_or(null()),
+                self.dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
+                self.img_dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
+                self.aud_dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
             );
+            result.into()
         }
 
-        Ok(())
     }
 }
 
