@@ -1,0 +1,6 @@
+#rustflags = [
+#    "-lHAPI",
+#    "-L",
+#    "/Applications/Houdini/Houdini18.5.351/Frameworks/Houdini.framework/Versions/Current/Libraries"
+#]
+#/Applications/Houdini/Houdini18.5.351/Frameworks/Houdini.framework/Versions/Current/Libraries/libHAPI.dylib
