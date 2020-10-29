@@ -29,6 +29,14 @@ pub struct Session {
     inner: ffi::HAPI_Session
 }
 
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        eprintln!("Dropping session");
+        unsafe { ffi::HAPI_Cleanup(&self.inner as *const _); }
+    }
+}
+
 pub struct Initializer<'a> {
     session: Option<&'a Session>,
     cook_opt: Option<&'a CookOptions>,
@@ -100,7 +108,6 @@ impl<'a> Initializer<'a> {
             );
             result.into()
         }
-
     }
 }
 
