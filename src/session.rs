@@ -105,7 +105,7 @@ impl<'a> Initializer<'a> {
     pub fn initialize(self) -> Result<()> {
         unsafe {
             let result = ffi::HAPI_Initialize(
-                self.session.ptr(),
+                self.session.const_ptr(),
                 self.cook_opt.map(|o| o.ptr()).unwrap_or(CookOptions::default().ptr()),
                 self.cook_thread as i8,
                 -1,
@@ -115,7 +115,7 @@ impl<'a> Initializer<'a> {
                 self.img_dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
                 self.aud_dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
             );
-            ok_result!(result, self.session.ptr())
+            ok_result!(result, self.session.const_ptr())
         }
     }
 }
@@ -136,13 +136,13 @@ impl Session {
     }
 
     #[inline]
-    pub fn ptr(&self) -> *const ffi::HAPI_Session {
-        &self.inner as *const ffi::HAPI_Session
+    pub fn const_ptr(&self) -> *const ffi::HAPI_Session {
+        self.inner.const_ptr()
     }
 
     #[inline]
     pub fn mut_ptr(&mut self) -> *mut ffi::HAPI_Session {
-        self.ptr() as *mut ffi::HAPI_Session
+        self.const_ptr() as *mut ffi::HAPI_Session
     }
 }
 

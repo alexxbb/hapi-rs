@@ -73,7 +73,11 @@ pub fn get_last_error(session: *const ffi::HAPI_Session) -> Result<String> {
                     session, HAPI_STATUS_CALL_RESULT,
                     // SAFETY: casting to u8 to i8 (char)?
                     buf.as_mut_ptr() as *mut i8, length) {
-                    ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(String::from_utf8_unchecked(buf)),
+                    ffi::HAPI_Result::HAPI_RESULT_SUCCESS =>
+                        {
+                            let cs = std::ffi::CStr::from_bytes_with_nul_unchecked(&buf);
+                            Ok(cs.to_str().unwrap().to_owned())
+                        },
                     e => Err(HAPI_Error::new(e, session))
                 }
             }

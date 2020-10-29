@@ -3,8 +3,18 @@
 #![allow(non_snake_case)]
 
 #![allow(dead_code)]
-mod ffi {
+
+pub mod ffi {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+}
+
+#[macro_export]
+macro_rules! char_ptr {
+    ($lit:expr) => {{
+        use std::os::raw::c_char;
+        use std::ffi::CStr;
+        unsafe { CStr::from_ptr(concat!($lit, "\0").as_ptr() as *const c_char).as_ptr() }
+    }}
 }
 
 mod cookoptions;
