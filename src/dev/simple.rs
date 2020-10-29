@@ -1,26 +1,34 @@
 extern crate hapi_rs as he;
 
-use std::ptr::null;
+use std::ptr::{null};
 
 // type null_char = *const std::os::raw::c_char;
 
-unsafe fn main_() {
-    let cook_options = he::HAPI_CookOptions_Create();
-    let c = he::HAPI_Initialize(
-        null(),
-        &cook_options as *const he::HAPI_CookOptions,
-        false as i8,
-        -1,
-        null(),
-        null(),
-        null(),
-        null(),
-        null(),
-    );
-
-    he::HAPI_Cleanup(null());
+fn main_() -> he::Result<()> {
+    let cook_options = he::CookOptions::default();
+    let session = he::Session::new_in_process()?;
+    let mut res = he::Initializer::new();
+    res.set_env_files(&["/foo", "/bar"]);
+    res.initialize()?;
+    dbg!(session);
+    // let res = he::HAPI_Initialize(
+    //     &session as *const _,
+    //     &cook_options as *const _,
+    //     1,
+    //     -1,
+    //     null(),
+    //     null(),
+    //     null(),
+    //     null(),
+    //     null(),
+    // );
+    //
+    // let r = he::HAPI_Cleanup(&session as *const _);
+    Ok(())
 }
 
 fn main() {
-    unsafe { main_() }
+    if let Err(_) = main_() {
+        eprintln!("{}", he::HAPI_Error::error_string(None))
+    }
 }

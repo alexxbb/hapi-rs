@@ -9,10 +9,15 @@ edition = "2018"
 doctest = false
 
 [[bin]]
-name = "dev"
+name = "simple"
 path = "src/dev/simple.rs"
+
+[[bin]]
+name = "junk"
+path = "src/dev/junk.rs"
 
 [build-dependencies]
 bindgen = "0.55.1"
 
 [dependencies]
+#jemallocator = "0.3.2"
