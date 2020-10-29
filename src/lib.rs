@@ -6,6 +6,7 @@ mod cookoptions;
 mod session;
 mod errors;
 mod status;
+mod extentions;
 
 mod ffi {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
@@ -14,6 +15,7 @@ mod ffi {
 pub use session::{Session, Initializer};
 pub use cookoptions::CookOptions;
 pub use errors::{HAPI_Error, Result};
+pub(crate) use extentions::*;
 
 #[cfg(test)]
 mod tests {}
