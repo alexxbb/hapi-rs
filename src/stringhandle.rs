@@ -1,4 +1,4 @@
-use crate::errors::{HAPI_Error, Result};
+use crate::errors::{HAPI_Error, Result, Kind};
 use crate::ffi::{
     HAPI_GetString, HAPI_GetStringBufLength, HAPI_Result, HAPI_Session, HAPI_StringHandle,
 };
@@ -19,10 +19,10 @@ pub fn get_string(handle: HAPI_StringHandle, session: *const HAPI_Session) -> Re
                         let cstr = CString::from_raw(ptr);
                         Ok(cstr.to_string_lossy().to_string())
                     }
-                    e => Err(HAPI_Error::new(e, session)),
+                    e => Err(HAPI_Error::new(Kind::Hapi(e), Some(session))),
                 }
             }
-            e => Err(HAPI_Error::new(e, session)),
+            e => Err(HAPI_Error::new(Kind::Hapi(e), Some(session))),
         }
     }
 }

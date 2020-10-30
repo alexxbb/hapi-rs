@@ -36,7 +36,7 @@ fn main_() -> he::Result<()> {
                 assert!(matches!(r, he::ffi::HAPI_Result::HAPI_RESULT_SUCCESS));
             },
             e => {
-                let e = he::HAPI_Error::new(e, session.const_ptr());
+                let e = he::HAPI_Error::new(he::Kind::Hapi(e), Some(session.const_ptr()));
                 println!("{}", e);
             }
         }

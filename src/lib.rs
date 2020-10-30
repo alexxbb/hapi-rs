@@ -24,11 +24,12 @@ mod status;
 mod extentions;
 mod asset;
 mod stringhandle;
+mod node;
 
 
 pub use session::{Session, Initializer};
 pub use cookoptions::CookOptions;
-pub use errors::{HAPI_Error, Result};
+pub use errors::{HAPI_Error, Result, Kind};
 pub use stringhandle::get_string;
 pub(crate) use extentions::*;
 
