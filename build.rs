@@ -18,14 +18,18 @@ use paths::*;
 
 fn main() {
     if cfg!(target_os = "linux") {
-        std::env::set_var("LIBCLANG_PATH", "/shots/spi/home/software/packages/llvm/11.0.0/gcc-6.3/lib");
+        std::env::set_var(
+            "LIBCLANG_PATH",
+            "/shots/spi/home/software/packages/llvm/11.0.0/gcc-6.3/lib",
+        );
     }
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
         .clang_arg(format!("-I/{}", HAPI_INCLUDE))
         .default_enum_style("rust_non_exhaustive".parse().unwrap())
         .layout_tests(false)
-        .generate().expect("Oops");
+        .generate()
+        .expect("Oops");
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings

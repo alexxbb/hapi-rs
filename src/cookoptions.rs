@@ -27,12 +27,13 @@ pub struct CookOptions {
 
 impl Default for CookOptions {
     fn default() -> CookOptions {
-        CookOptions { inner: unsafe { ffi::HAPI_CookOptions_Create() } }
+        CookOptions {
+            inner: unsafe { ffi::HAPI_CookOptions_Create() },
+        }
     }
 }
 
 impl CookOptions {
-    
     #[inline]
     pub fn ptr(&self) -> *const ffi::HAPI_CookOptions {
         &self.inner as *const ffi::HAPI_CookOptions

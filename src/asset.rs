@@ -1,4 +1,4 @@
-use crate::ffi::{HAPI_GetAvailableAssets, HAPI_AssetLibraryId};
+use crate::ffi::{HAPI_AssetLibraryId, HAPI_GetAvailableAssets};
 
 // pub fn HAPI_GetAvailableAssets(
 //     session: *const HAPI_Session,

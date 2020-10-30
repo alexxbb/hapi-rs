@@ -1,4 +1,4 @@
-use crate::errors::{HAPI_Error, Result, Kind};
+use crate::errors::{HAPI_Error, Kind, Result};
 use crate::ffi::{
     HAPI_GetString, HAPI_GetStringBufLength, HAPI_Result, HAPI_Session, HAPI_StringHandle,
 };
