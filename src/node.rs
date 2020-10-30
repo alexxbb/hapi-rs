@@ -2,16 +2,12 @@ use crate::errors::{HAPI_Error, Kind, Result};
 use crate::ffi;
 use std::ffi::CString;
 use std::mem::MaybeUninit;
+use crate::stringhandle::get_string;
 
 #[derive(Debug, Clone)]
 pub struct Node {
     pub(crate) ffi_id: ffi::HAPI_NodeId,
     pub(crate) ffi_session: *const ffi::HAPI_Session,
-}
-
-pub struct NodeInfo<'a> {
-    pub(crate) id: ffi::HAPI_NodeInfo,
-    pub node: &'a Node,
 }
 
 impl Node {
@@ -61,3 +57,23 @@ impl Node {
         }
     }
 }
+
+pub struct NodeInfo<'a> {
+    pub(crate) id: ffi::HAPI_NodeInfo,
+    pub node: &'a Node,
+}
+
+impl NodeInfo<'_> {
+    pub fn node_name(&self) -> Result<String> {
+        get_string(self.id.nameSH, self.node.ffi_session)
+    }
+
+    pub fn node_path(&self) -> Result<String> {
+        get_string(self.id.internalNodePathSH, self.node.ffi_session)
+    }
+
+    pub fn node_type(&self) -> ffi::HAPI_NodeType {
+        self.id.type_
+    }
+}
+
