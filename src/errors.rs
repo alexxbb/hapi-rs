@@ -106,11 +106,11 @@ pub fn get_last_error(session: *const ffi::HAPI_Session) -> Result<String> {
     }
 }
 
-// impl From<std::ffi::NulError> for HAPI_Error {
-//     fn from(e: NulError) -> Self {
-//         HAPI_Error::new(Kind::NullByte, None)
-//     }
-// }
+impl From<std::ffi::NulError> for HAPI_Error {
+    fn from(e: std::ffi::NulError) -> Self {
+        HAPI_Error::new(Kind::NullByte, None)
+    }
+}
 
 #[macro_export]
 macro_rules! ok_result {
