@@ -2,7 +2,6 @@ use crate::errors::{HAPI_Error, Result};
 use crate::ffi::{
     HAPI_GetString, HAPI_GetStringBufLength, HAPI_Result, HAPI_Session, HAPI_StringHandle,
 };
-use crate::session::Session;
 use std::ffi::CString;
 use std::mem::MaybeUninit;
 
