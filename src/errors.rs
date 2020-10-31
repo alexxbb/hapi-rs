@@ -103,8 +103,8 @@ pub fn get_last_error(session: *const ffi::HAPI_Session) -> Result<String> {
                     length,
                 ) {
                     ffi::HAPI_Result::HAPI_RESULT_SUCCESS => {
-                        let cs = std::ffi::CStr::from_bytes_with_nul_unchecked(&buf);
-                        Ok(cs.to_str().unwrap().to_owned())
+                        buf.truncate(length as usize);
+                        Ok(String::from_utf8_unchecked(buf))
                     }
                     e => Err(HAPI_Error::new(Kind::Hapi(e), Some(session))),
                 }
@@ -121,12 +121,23 @@ impl From<std::ffi::NulError> for HAPI_Error {
 }
 
 #[macro_export]
-macro_rules! ok_result {
+macro_rules! hapi_ok {
     ($hapi_result:expr, $session:expr) => {
         match $hapi_result {
             ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(()),
             e => Err(HAPI_Error::new(Kind::Hapi(e), Some($session))),
         }
+    };
+}
+
+#[macro_export]
+macro_rules! hapi_err {
+    ($hapi_result:expr, $session:expr) => {
+        Err(HAPI_Error::new(Kind::Hapi($hapi_result), Some($session)))
+    };
+
+    ($hapi_result:expr) => {
+        Err(HAPI_Error::new(Kind::Hapi($hapi_result), None))
     };
 }
 

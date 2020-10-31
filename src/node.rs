@@ -1,8 +1,9 @@
 use crate::errors::{HAPI_Error, Kind, Result};
 use crate::ffi;
+use crate::hapi_err;
+use crate::stringhandle::get_string;
 use std::ffi::CString;
 use std::mem::MaybeUninit;
-use crate::stringhandle::get_string;
 
 #[derive(Debug, Clone)]
 pub struct Node {
@@ -39,7 +40,7 @@ impl Node {
                     })
                 }
 
-                e => Err(HAPI_Error::new(Kind::Hapi(e), Some(session))),
+                e => hapi_err!(e, session),
             }
         }
     }
@@ -52,7 +53,7 @@ impl Node {
                     let id = id.assume_init();
                     Ok(NodeInfo { id, node: self })
                 }
-                e => Err(HAPI_Error::new(Kind::Hapi(e), Some(self.ffi_session))),
+                e => hapi_err!(e, self.ffi_session),
             }
         }
     }
@@ -76,4 +77,3 @@ impl NodeInfo<'_> {
         self.id.type_
     }
 }
-

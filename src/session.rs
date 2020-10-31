@@ -1,6 +1,6 @@
 use crate::cookoptions::CookOptions;
 use crate::errors::{HAPI_Error, Kind};
-use crate::ok_result;
+use crate::{hapi_ok, hapi_err};
 use crate::{ffi, ConstPtr};
 use std::mem::MaybeUninit;
 use std::ptr::null;
@@ -138,7 +138,7 @@ impl<'a> Initializer<'a> {
                 self.img_dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
                 self.aud_dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
             );
-            ok_result!(result, self.session.const_ptr())
+            hapi_ok!(result, self.session.const_ptr())
         }
     }
 }
@@ -151,7 +151,7 @@ impl Session {
                 ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(Rc::new(Session {
                     inner: ses.assume_init(),
                 })),
-                e => Err(HAPI_Error::new(Kind::Hapi(e), None)),
+                e => hapi_err!(e)
             }
         }
     }

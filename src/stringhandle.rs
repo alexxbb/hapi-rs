@@ -2,8 +2,8 @@ use crate::errors::{HAPI_Error, Kind, Result};
 use crate::ffi::{
     HAPI_GetString, HAPI_GetStringBufLength, HAPI_Result, HAPI_Session, HAPI_StringHandle,
 };
-use std::ffi::CString;
 use std::mem::MaybeUninit;
+use std::os::raw::c_char;
 
 pub fn get_string(handle: HAPI_StringHandle, session: *const HAPI_Session) -> Result<String> {
     unsafe {
@@ -11,13 +11,12 @@ pub fn get_string(handle: HAPI_StringHandle, session: *const HAPI_Session) -> Re
         match HAPI_GetStringBufLength(session, handle, length.as_mut_ptr()) {
             HAPI_Result::HAPI_RESULT_SUCCESS => {
                 let length = length.assume_init();
-                let buffer = Vec::<u8>::with_capacity(length as usize);
-                let buffer = CString::from_vec_unchecked(buffer);
-                let ptr = buffer.into_raw();
+                let mut buffer = Vec::<u8>::with_capacity(length as usize);
+                let ptr = buffer.as_mut_ptr() as *mut c_char;
                 match HAPI_GetString(session, handle, ptr, length) {
                     HAPI_Result::HAPI_RESULT_SUCCESS => {
-                        let cstr = CString::from_raw(ptr);
-                        Ok(cstr.to_string_lossy().to_string())
+                        buffer.truncate(length as usize);
+                        Ok(String::from_utf8_unchecked(buffer))
                     }
                     e => Err(HAPI_Error::new(Kind::Hapi(e), Some(session))),
                 }
