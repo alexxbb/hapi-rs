@@ -7,15 +7,8 @@ pub mod ffi {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
-#[macro_export]
-macro_rules! char_ptr {
-    ($lit:expr) => {{
-        use std::ffi::CStr;
-        use std::os::raw::c_char;
-        unsafe { CStr::from_ptr(concat!($lit, "\0").as_ptr() as *const c_char).as_ptr() }
-    }};
-}
-
+#[macro_use]
+mod macros;
 mod asset;
 mod cookoptions;
 mod errors;
@@ -28,13 +21,21 @@ mod stringhandle;
 pub use cookoptions::CookOptions;
 pub use errors::{HAPI_Error, Kind, Result};
 pub(crate) use extentions::*;
+pub use node::{Node, NodeInfo};
 pub use session::{Initializer, Session};
 pub use stringhandle::get_string;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn foo() {
-        assert_eq!(1, 1)
+
+impl ffi::HAPI_HandleInfo {
+    pub fn name(&self, session: *const ffi::HAPI_Session) -> Result<String> {
+        get_string(self.nameSH, session)
+    }
+
+    pub fn type_name(&self, session: *const ffi::HAPI_Session) -> Result<String> {
+        get_string(self.typeNameSH, session)
+    }
+
+    pub fn binding_count(&self) -> i32 {
+        self.bindingsCount
     }
 }

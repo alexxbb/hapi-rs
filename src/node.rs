@@ -51,7 +51,7 @@ impl Node {
             match r {
                 ffi::HAPI_Result::HAPI_RESULT_SUCCESS => {
                     let id = id.assume_init();
-                    Ok(NodeInfo { id, node: self })
+                    Ok(NodeInfo { inner: id, node: self })
                 }
                 e => hapi_err!(e, self.ffi_session),
             }
@@ -59,21 +59,27 @@ impl Node {
     }
 }
 
+#[derive(Debug)]
 pub struct NodeInfo<'a> {
-    pub(crate) id: ffi::HAPI_NodeInfo,
+    pub(crate) inner: ffi::HAPI_NodeInfo,
     pub node: &'a Node,
 }
 
 impl NodeInfo<'_> {
-    pub fn node_name(&self) -> Result<String> {
-        get_string(self.id.nameSH, self.node.ffi_session)
-    }
-
-    pub fn node_path(&self) -> Result<String> {
-        get_string(self.id.internalNodePathSH, self.node.ffi_session)
-    }
-
-    pub fn node_type(&self) -> ffi::HAPI_NodeType {
-        self.id.type_
-    }
+    _inner_filed!(nameSH, node_name, node.ffi_session, Result<String>);
+    _inner_filed!(internalNodePathSH, node_path, node.ffi_session, Result<String>);
+    _inner_filed!(type_, node_type, ffi::HAPI_NodeType);
+    _inner_filed!(isValid, is_valid, bool);
+    _inner_filed!(parmCount, parm_count, i32);
+    _inner_filed!(totalCookCount, total_cook_count, i32);
+    _inner_filed!(uniqueHoudiniNodeId, unique_node_id, i32);
+    _inner_filed!(parmIntValueCount, parm_int_value_count, i32);
+    _inner_filed!(parmFloatValueCount, parm_flt_value_count, i32);
+    _inner_filed!(parmStringValueCount, parm_str_value_count, i32);
+    _inner_filed!(parmChoiceCount, parm_choice_count, i32);
+    _inner_filed!(childNodeCount, child_node_count, i32);
+    _inner_filed!(inputCount, input_count, i32);
+    _inner_filed!(outputCount, output_count, i32);
+    _inner_filed!(createdPostAssetLoad, create_post_asset_load, bool);
+    _inner_filed!(isTimeDependent, is_time_dependent, bool);
 }

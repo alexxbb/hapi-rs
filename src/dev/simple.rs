@@ -34,6 +34,8 @@ fn main_() -> he::Result<()> {
                     "Available assets: {}",
                     he::get_string(sh, session.const_ptr())?
                 );
+                let n = he::Node::create("d", "l", session.const_ptr(), true, None).unwrap();
+                let info = n.info().unwrap();
 
                 let hip = char_ptr!("/mcp/foo.hip");
                 let r = he::ffi::HAPI_SaveHIPFile(session.const_ptr(), hip, true as i8);
