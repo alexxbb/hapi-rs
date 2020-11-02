@@ -1,5 +1,6 @@
 use std::env;
 use std::path::PathBuf;
+// #[path="build_ext.rs"] mod ext;
 
 #[cfg(target_os = "macos")]
 mod paths {
@@ -31,9 +32,12 @@ fn main() {
         .expect("Oops");
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let bindings_rs = out_path.join("bindings.rs");
+    // let extension_rs = out_path.join("extension.rs");
     bindings
-        .write_to_file(out_path.join("bindings.rs"))
+        .write_to_file(&bindings_rs)
         .expect("Couldn't write bindings!");
+    // ext::write_extension(&bindings_rs, &extension_rs);
     println!("cargo:rustc-link-search={}", LIBS);
     println!("cargo:rustc-link-lib=dylib=HAPI");
 }

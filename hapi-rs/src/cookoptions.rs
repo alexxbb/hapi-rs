@@ -1,12 +1,12 @@
 use crate::ffi;
 
-pub enum PackedPrimInstancingMode {
-    INVALID,
-    DISABLED,
-    HIERARCHY,
-    FLAT,
-    MAX,
-}
+// pub enum PackedPrimInstancingMode {
+//     INVALID,
+//     DISABLED,
+//     HIERARCHY,
+//     FLAT,
+//     MAX,
+// }
 
 pub struct CookOptions {
     inner: ffi::HAPI_CookOptions,

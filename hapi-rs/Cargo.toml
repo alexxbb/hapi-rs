@@ -1,0 +1,10 @@
+[package]
+name = "hapi-rs"
+version = "0.1.0"
+authors = ["Alex Rusev <hou.alexx@gmail.com>"]
+edition = "2018"
+
+
+[dependencies]
+hapi-sys = {path="../hapi-sys"}
+paste = "1.0.2"

@@ -1,23 +1,7 @@
-[package]
-name = "hapi-rs"
-version = "0.1.0"
-authors = ["Alex Rusev <hou.alexx@gmail.com>"]
-edition = "2018"
-
-[lib]
-# bindgen generates rust docstrings for C code which breaks `cargo test`
-doctest = false
-
-[[bin]]
-name = "simple"
-path = "src/dev/simple.rs"
-
-[[bin]]
-name = "junk"
-path = "src/dev/junk.rs"
-
-[build-dependencies]
-bindgen = "0.55.1"
-
-[dependencies]
-#jemallocator = "0.3.2"
+[workspace]
+members = [
+    "hapi-sys",
+    "hapi-rs",
+    "dev",
+    "bindgen_ext"
+]

@@ -1,4 +1,4 @@
-use crate::errors::{HAPI_Error, Kind, Result};
+use crate::errors::{HapiError, Kind, Result};
 use crate::ffi::{
     HAPI_GetString, HAPI_GetStringBufLength, HAPI_Result, HAPI_Session, HAPI_StringHandle,
 };
@@ -18,10 +18,10 @@ pub fn get_string(handle: HAPI_StringHandle, session: *const HAPI_Session) -> Re
                         buffer.truncate(length as usize);
                         Ok(String::from_utf8_unchecked(buffer))
                     }
-                    e => Err(HAPI_Error::new(Kind::Hapi(e), Some(session))),
+                    e => Err(HapiError::new(Kind::Hapi(e), Some(session))),
                 }
             }
-            e => Err(HAPI_Error::new(Kind::Hapi(e), Some(session))),
+            e => Err(HapiError::new(Kind::Hapi(e), Some(session))),
         }
     }
 }

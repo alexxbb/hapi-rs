@@ -1,12 +1,12 @@
 use crate::cookoptions::CookOptions;
-use crate::errors::{HAPI_Error, Kind};
+use crate::errors::{HapiError, Kind};
 use crate::{hapi_ok, hapi_err};
 use crate::{ffi, ConstPtr};
 use std::mem::MaybeUninit;
 use std::ptr::null;
 use std::rc::Rc;
 
-pub type Result<T> = std::result::Result<T, HAPI_Error>;
+pub type Result<T> = std::result::Result<T, HapiError>;
 
 use std::ffi::CString;
 use std::path::Path;

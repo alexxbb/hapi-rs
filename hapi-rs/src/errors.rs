@@ -1,10 +1,10 @@
 use crate::ffi;
 use std::cell::Cell;
 
-pub type Result<T> = std::result::Result<T, HAPI_Error>;
+pub type Result<T> = std::result::Result<T, HapiError>;
 
 #[derive(Debug)]
-pub struct HAPI_Error {
+pub struct HapiError {
     pub kind: Kind,
     pub(crate) session: Option<Cell<*const ffi::HAPI_Session>>,
 }
@@ -50,20 +50,21 @@ impl Kind {
             Kind::Hapi(HAPI_RESULT_USER_INTERRUPTED) => "USER_INTERRUPTED",
             Kind::Hapi(HAPI_RESULT_INVALID_SESSION) => "INVALID_SESSION",
             Kind::NullByte => "String contains null byte!",
+            Kind::Hapi(_) => unreachable!()
         }
     }
 }
 
-impl HAPI_Error {
-    pub fn new(kind: Kind, session: Option<*const ffi::HAPI_Session>) -> HAPI_Error {
-        HAPI_Error {
+impl HapiError {
+    pub fn new(kind: Kind, session: Option<*const ffi::HAPI_Session>) -> HapiError {
+        HapiError {
             kind,
             session: session.map(|s| Cell::new(s)),
         }
     }
 }
 
-impl std::fmt::Display for HAPI_Error {
+impl std::fmt::Display for HapiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
             Kind::Hapi(_) => {
@@ -106,17 +107,17 @@ pub fn get_last_error(session: *const ffi::HAPI_Session) -> Result<String> {
                         buf.truncate(length as usize);
                         Ok(String::from_utf8_unchecked(buf))
                     }
-                    e => Err(HAPI_Error::new(Kind::Hapi(e), Some(session))),
+                    e => Err(HapiError::new(Kind::Hapi(e), Some(session))),
                 }
             }
-            e => Err(HAPI_Error::new(Kind::Hapi(e), Some(session))),
+            e => Err(HapiError::new(Kind::Hapi(e), Some(session))),
         }
     }
 }
 
-impl From<std::ffi::NulError> for HAPI_Error {
+impl From<std::ffi::NulError> for HapiError {
     fn from(_: std::ffi::NulError) -> Self {
-        HAPI_Error::new(Kind::NullByte, None)
+        HapiError::new(Kind::NullByte, None)
     }
 }
 
@@ -125,7 +126,7 @@ macro_rules! hapi_ok {
     ($hapi_result:expr, $session:expr) => {
         match $hapi_result {
             ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(()),
-            e => Err(HAPI_Error::new(Kind::Hapi(e), Some($session))),
+            e => Err(HapiError::new(Kind::Hapi(e), Some($session))),
         }
     };
 }
@@ -133,12 +134,12 @@ macro_rules! hapi_ok {
 #[macro_export]
 macro_rules! hapi_err {
     ($hapi_result:expr, $session:expr) => {
-        Err(HAPI_Error::new(Kind::Hapi($hapi_result), Some($session)))
+        Err(HapiError::new(Kind::Hapi($hapi_result), Some($session)))
     };
 
     ($hapi_result:expr) => {
-        Err(HAPI_Error::new(Kind::Hapi($hapi_result), None))
+        Err(HapiError::new(Kind::Hapi($hapi_result), None))
     };
 }
 
-impl std::error::Error for HAPI_Error {}
+impl std::error::Error for HapiError {}

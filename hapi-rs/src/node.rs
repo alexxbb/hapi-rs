@@ -1,4 +1,4 @@
-use crate::errors::{HAPI_Error, Kind, Result};
+use crate::errors::{HapiError, Kind, Result};
 use crate::ffi;
 use crate::hapi_err;
 use crate::stringhandle::get_string;
