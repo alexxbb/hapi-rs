@@ -8,4 +8,4 @@ edition = "2018"
 
 [dependencies]
 
-hapi-rs = {path = "../hapi-rs" }
+#hapi-rs = {path = "../hapi-rs" }

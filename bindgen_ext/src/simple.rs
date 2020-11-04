@@ -1,4 +1,5 @@
 pub type HAPI_NodeId = ::std::os::raw::c_int;
+pub type HAPI_PartId = ::std::os::raw::c_int;
 pub type HAPI_StringHandle = ::std::os::raw::c_int;
 pub type HAPI_Bool = ::std::os::raw::c_char;
 pub enum HAPI_NodeType {
@@ -34,4 +35,24 @@ pub struct HAPI_NodeInfo {
     pub outputCount: ::std::os::raw::c_int,
     pub createdPostAssetLoad: HAPI_Bool,
     pub isTimeDependent: HAPI_Bool,
+}
+
+pub enum HAPI_PartType {
+    HAPI_PARTTYPE_INVALID = -1,
+    HAPI_PARTTYPE_MESH = 0,
+    HAPI_PARTTYPE_CURVE = 1,
+}
+
+pub struct HAPI_PartInfo {
+    pub id: HAPI_PartId,
+    pub nameSH: HAPI_StringHandle,
+    pub type_: HAPI_PartType,
+    pub faceCount: ::std::os::raw::c_int,
+    pub vertexCount: ::std::os::raw::c_int,
+    pub pointCount: ::std::os::raw::c_int,
+    pub attributeCounts: [::std::os::raw::c_int; 4usize],
+    pub isInstanced: HAPI_Bool,
+    pub instancedPartCount: ::std::os::raw::c_int,
+    pub instanceCount: ::std::os::raw::c_int,
+    pub hasChanged: HAPI_Bool,
 }

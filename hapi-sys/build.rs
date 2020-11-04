@@ -27,6 +27,8 @@ fn main() {
         .header("wrapper.h")
         .clang_arg(format!("-I/{}", HAPI_INCLUDE))
         .default_enum_style("rust_non_exhaustive".parse().unwrap())
+        .prepend_enum_name(false)
+        .generate_comments(false)
         .layout_tests(false)
         .generate()
         .expect("Oops");
@@ -38,6 +40,7 @@ fn main() {
         .write_to_file(&bindings_rs)
         .expect("Couldn't write bindings!");
     // ext::write_extension(&bindings_rs, &extension_rs);
+    std::fs::copy(bindings_rs, "/tmp/hapi.rs");
     println!("cargo:rustc-link-search={}", LIBS);
     println!("cargo:rustc-link-lib=dylib=HAPI");
 }
