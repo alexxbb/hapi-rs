@@ -6,6 +6,7 @@ use std::fs::read_to_string;
 use std::io::Write;
 // use once_cell::sync::Lazy;
 use syn;
+use syn::export::fmt::Display;
 use syn::spanned::Spanned;
 use syn::{
     parse::{Parse, ParseStream},
@@ -31,18 +32,14 @@ pub fn return_type(fld: &syn::Field) -> ReturnType {
     match &fld.ty {
         Type::Array(val) => ReturnType::new(fld_c, quote! {#val}),
         Type::Path(path) => {
-            match path.path.get_ident() {
-                // Simple return type
-                Some(idn) => {
-                    let name = idn.to_string();
-                    match name.as_ref() {
-                        "HAPI_Bool" => ReturnType::new(fld_c, quote! {bool}),
-                        _ => ReturnType::new(fld_c, quote! {#idn}),
-                    }
-                }
-                // Path
-                None => ReturnType::new(fld_c, quote! {#path}),
-            }
+            let last = &path.path.segments.last().as_ref().unwrap().ident;
+            let rust_type = match last.to_string().as_ref() {
+                "c_int" => quote! {i32},
+                "HAPI_Bool" => quote! {bool},
+                other => quote! {#last},
+            };
+            println!("Last: {}", rust_type.to_string());
+            ReturnType::new(fld_c, quote! {#path})
         }
         e => ReturnType::new(fld_c, quote! {#e}),
     }

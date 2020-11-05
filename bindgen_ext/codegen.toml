@@ -1,0 +1,3 @@
+[enums]
+HAPI_PartType = {name="auto", field=-1}
+[structs]

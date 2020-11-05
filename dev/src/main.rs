@@ -18,6 +18,47 @@ mod ffi {
         HAPI_GeoInfo::default()
     }
 }
+pub enum HAPI_License {
+    HAPI_LICENSE_NONE = 0,
+    HAPI_LICENSE_HOUDINI_ENGINE = 1,
+}
+
+pub enum Licence {
+    NONE = 0,
+    HOUDINI_ENGINE = 1,
+}
+
+impl From<HAPI_License> for Licence {
+    fn from(e: HAPI_License) -> Self {
+        match e {
+            HAPI_License::HAPI_LICENSE_NONE => Licence::NONE,
+            HAPI_License::HAPI_LICENSE_HOUDINI_ENGINE => Licence::HOUDINI_ENGINE,
+        }
+    }
+}
+
+impl From<Licence> for HAPI_License {
+    fn from(e: Licence) -> Self {
+        match e {
+            Licence::HOUDINI_ENGINE => HAPI_License::HAPI_LICENSE_HOUDINI_ENGINE,
+            Licence::NONE => HAPI_License::HAPI_LICENSE_NONE,
+        }
+    }
+}
+
+// impl From<HAPI_License> for Licence {
+//     fn from(e: HAPI_License) -> Self {
+//         match e {
+//             HAPI_License::HAPI_LICENSE_NONE => Licence::NONE,
+//             HAPI_License::HAPI_LICENSE_HOUDINI_ENGINE => Licence::HOUDINI_ENGINE,
+//         }
+//     }
+//
+// }
+
+pub trait StringEval {
+    fn eval_string(&self, hdl: i32, session: &str) -> String;
+}
 
 #[derive(Debug)]
 struct GeoInfo(ffi::HAPI_GeoInfo);
@@ -25,6 +66,15 @@ struct GeoInfo(ffi::HAPI_GeoInfo);
 impl GeoInfo {
     pub fn is_editable(&self) -> i32 {
         self.0.isEditable
+    }
+    pub fn name(&self) -> String {
+        self.eval_string(10, "Hello")
+    }
+}
+
+impl StringEval for GeoInfo {
+    fn eval_string(&self, hdl: i32, session: &str) -> String {
+        todo!()
     }
 }
 
@@ -45,13 +95,15 @@ impl GeoInfoBuilder {
 
 impl Default for GeoInfoBuilder {
     fn default() -> Self {
-        GeoInfoBuilder{inner: ffi::HAPI_GeoInfoBuilder_Create()}
+        GeoInfoBuilder {
+            inner: ffi::HAPI_GeoInfoBuilder_Create(),
+        }
     }
 }
 
 fn main() {
-    let mut b = GeoInfoBuilder::default()
-        .set_editable(true)
-        .build();
-    dbg!(b);
+    let mut b = GeoInfoBuilder::default().set_editable(true).build();
+    // dbg!(b);
+    let s = Licence::HOUDINI_ENGINE;
+    let s: HAPI_License = s.into();
 }

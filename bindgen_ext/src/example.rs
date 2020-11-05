@@ -1,4 +1,6 @@
 mod ffi {
+    pub type HAPI_StringHandle = i32;
+    pub struct Session{}
     #[repr(C)]
     #[derive(Debug, Copy, Clone, Default)]
     pub struct HAPI_GeoInfo {
@@ -15,17 +17,68 @@ mod ffi {
         pub partCount: ::std::os::raw::c_int,
     }
 
+    pub enum HAPI_PartType {
+        HAPI_PARTTYPE_INVALID = -1,
+        HAPI_PARTTYPE_MESH = 0,
+        HAPI_PARTTYPE_CURVE = 1,
+
+    }
     pub fn HAPI_GeoInfoBuilder_Create() -> HAPI_GeoInfo {
         HAPI_GeoInfo::default()
     }
+
+}
+
+pub enum PartType {
+    INVALID,
+    MESH,
+    CURVE
+}
+
+impl From<ffi::HAPI_PartType> for PartType {
+    fn from(e: ffi::HAPI_PartType) -> Self {
+        match e {
+            ffi::HAPI_PartType::HAPI_PARTTYPE_INVALID => PartType::INVALID,
+            ffi::HAPI_PartType::HAPI_PARTTYPE_CURVE => PartType::CURVE,
+            ffi::HAPI_PartType::HAPI_PARTTYPE_MESH=> PartType::MESH,
+        }
+    }
+
+}
+
+impl From<PartType> for ffi::HAPI_PartType {
+    fn from(e: PartType) -> Self {
+        match e {
+            PartType::INVALID => ffi::HAPI_PartType::HAPI_PARTTYPE_INVALID,
+            PartType::CURVE => ffi::HAPI_PartType::HAPI_PARTTYPE_CURVE,
+            PartType::MESH => ffi::HAPI_PartType::HAPI_PARTTYPE_MESH,
+        }
+    }
+
 }
 
 #[derive(Debug)]
-struct GeoInfo(ffi::HAPI_GeoInfo);
+struct GeoInfo {
+    inner: ffi::HAPI_GeoInfo,
+    session: ffi::Session
+}
 
 impl GeoInfo {
     pub fn is_editable(&self) -> i32 {
-        self.0.isEditable
+        self.inner.isEditable
+    }
+    pub fn name(&self) -> String {
+        self.eval_string(self.inner.nameSH, self.session)
+    }
+}
+
+pub trait HAPI_StringEval {
+    fn eval_string(hdl: ffi::HAPI_StringHandle, session: *const ffi::Session);
+}
+
+impl HAPI_StringEval for GeoInfo {
+    fn eval_string(hdl: ffi::HAPI_StringHandle, session: *const ffi::Session) {
+        unimplemented!()
     }
 }
 
@@ -41,14 +94,6 @@ impl GeoInfoBuilder {
     fn set_editable(mut self, val: bool) -> Self {
         self.inner.isEditable = val as i32;
         self
-    }
-}
-
-impl Default for GeoInfoBuilder {
-    fn default() -> Self {
-        GeoInfoBuilder {
-            inner: ffi::HAPI_GeoInfoBuilder_Create(),
-        }
     }
 }
 
