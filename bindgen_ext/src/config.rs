@@ -8,10 +8,17 @@ pub struct CodeGenInfo {
     structs: HashMap<String, StructOption>,
 }
 
-#[derive(Deserialize, Debug)]
+impl CodeGenInfo {
+    pub fn enum_opt(&self, name: impl AsRef<str>) -> Option<EnumOptions> {
+        self.enums.get(name.as_ref()).map(|o|o.clone())
+    }
+}
+
+
+#[derive(Deserialize, Debug, Clone)]
 pub struct EnumOptions {
-    name: String,
-    field: i32,
+    pub rename: String,
+    pub variant: i32,
 }
 
 #[derive(Deserialize, Debug)]

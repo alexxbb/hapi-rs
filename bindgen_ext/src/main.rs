@@ -2,6 +2,9 @@ use proc_macro2::{Span, TokenStream, TokenTree};
 use quote::{format_ident, quote, ToTokens};
 use std::fs::read_to_string;
 use std::io::Write;
+#[macro_use]
+use log::{info, debug, warn, error};
+use pretty_env_logger;
 use syn;
 use syn::spanned::Spanned;
 use syn::{
@@ -22,8 +25,10 @@ fn rustfmt(path: &str) {
 }
 
 fn main() {
+    pretty_env_logger::init();
     let cfg = config::read_config();
     let bindings_rs = "bindgen_ext/src/simple.rs";
+    let bindings_rs = "hapi.rs";
     assert!(std::path::Path::new(bindings_rs).exists());
     let source = read_to_string(bindings_rs).unwrap();
     let mut tree: syn::File = syn::parse_file(&source).expect("Could not parse source");
