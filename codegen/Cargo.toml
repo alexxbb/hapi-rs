@@ -1,5 +1,5 @@
 [package]
-name = "bindgen_ext"
+name = "codegen"
 version = "0.1.0"
 authors = ["Alex Rusev <hou.alexx@gmail.com>"]
 edition = "2018"
@@ -16,3 +16,6 @@ toml = "0.5.7"
 serde = {version = "1.0.117", features = ["serde_derive"]}
 log = "0.4.11"
 pretty_env_logger = "0.4.0"
+bindgen = "0.55.1"
+getopts = "0.2.21"
+anyhow = "1.0.34"

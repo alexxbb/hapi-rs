@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "hapi-sys",
+#    "hapi-sys",
     "hapi-rs",
     "dev",
-    "bindgen_ext"
+    "codegen"
 ]
