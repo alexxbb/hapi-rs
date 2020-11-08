@@ -31,6 +31,7 @@ pub fn run_bindgen(incl: &str, header: &str, outdir: &str) -> Result<()> {
         .default_enum_style("rust_non_exhaustive".parse().unwrap())
         .prepend_enum_name(false)
         .generate_comments(false)
+        .disable_name_namespacing()
         .layout_tests(false)
         .generate().map_err(|_|anyhow!("Bindgen generate failed"))?;
 

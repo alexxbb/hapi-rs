@@ -1,44 +1,44 @@
 [enums]
-# variant = n  [ positive n means keep n elements of the variant name from the end ]
-# variant = -n [ negative n means strip n elements of the variant name from the start ]
-HAPI_PartType = { rename = "auto", variant = 1 }
-HAPI_NodeType = { rename = "auto", variant = 1 }
-HAPI_License = { rename = "auto", variant = 2 }
-HAPI_StatusType = { rename = "auto", variant = 2 }
-HAPI_StatusVerbosity = { rename = "auto", variant = 1 }
-HAPI_Result = { rename = "auto", variant = -2 }
-HAPI_ErrorCode = { rename = "auto", variant = 1 }
-HAPI_SessionType = { rename = "auto", variant = 1 }
-HAPI_State = { rename = "auto", variant = 2 }
-HAPI_PackedPrimInstancingMode = { rename = "auto", variant = 1 }
-HAPI_Permissions = { rename = "auto", variant = 2 }
-HAPI_RampType = { rename = "auto", variant = 1 }
-HAPI_ParmType = { rename = "auto", variant = 1 }
-HAPI_PrmScriptType = { rename = "auto", variant = 2 }
-HAPI_ChoiceListType = { rename = "auto", variant = 1 }
-HAPI_PresetType = { rename = "auto", variant = 1 }
-HAPI_NodeFlags = { rename = "auto", variant = 1 }
-HAPI_GroupType = { rename = "auto", variant = 1 }
-HAPI_AttributeOwner = { rename = "auto", variant = 1 }
-HAPI_CurveType = { rename = "auto", variant = 1 }
-HAPI_VolumeType = { rename = "auto", variant = 1 }
-HAPI_VolumeVisualType = { rename = "auto", variant = 1 }
-HAPI_StorageType = { rename = "auto", variant = 1 }
-HAPI_AttributeTypeInfo = { rename = "auto", variant = 1 }
-HAPI_GeoType = { rename = "auto", variant = 1 }
-HAPI_InputType = { rename = "auto", variant = 1 }
-HAPI_CurveOrders = { rename = "auto", variant = 1 }
-HAPI_TransformComponent = { rename = "auto", variant = 1 }
-HAPI_RSTOrder = { rename = "auto", variant = 1 }
-HAPI_XYZOrder = { rename = "auto", variant = 1 }
-HAPI_ImageDataFormat = { rename = "auto", variant = 1 }
-HAPI_ImagePacking = { rename = "auto", variant = 1 }
-HAPI_EnvIntType = { rename = "auto", variant = 2 }
-HAPI_SessionEnvIntType = { rename = "auto", variant = 1 }
-HAPI_CacheProperty = { rename = "auto", variant = 2 }
-HAPI_HeightFieldSampling = { rename = "auto", variant = 1 }
-HAPI_PDG_State = { rename = "auto", variant = 1 }
-HAPI_PDG_EventType = { rename = "auto", variant = 3 }
-HAPI_PDG_WorkitemState = { rename = "auto", variant = 1 }
+# mode = n  [ positive n means strip n elements of the name from the front ]
+# mode = -n [ negative n means keep n elements of the name from the end ]
+HAPI_PartType = { rename = "auto", mode = -1 }
+HAPI_NodeType = { rename = "auto", mode = -1 }
+HAPI_License = { rename = "auto", mode = -2 }
+HAPI_StatusType = { rename = "auto", mode = -2 }
+HAPI_StatusVerbosity = { rename = "auto", mode = -1 }
+HAPI_Result = { rename = "auto", mode = 2 }
+HAPI_ErrorCode = { rename = "auto", mode = -1 }
+HAPI_SessionType = { rename = "auto", mode = -1 }
+HAPI_State = { rename = "auto", mode = -2 }
+HAPI_PackedPrimInstancingMode = { rename = "auto", mode = -1 }
+HAPI_Permissions = { rename = "auto", mode = -2 }
+HAPI_RampType = { rename = "auto", mode = -1 }
+HAPI_ParmType = { rename = "auto", mode = -1 }
+HAPI_PrmScriptType = { rename = "auto", mode = -2 }
+HAPI_ChoiceListType = { rename = "auto", mode = -1 }
+HAPI_PresetType = { rename = "auto", mode = -1 }
+HAPI_NodeFlags = { rename = "auto", mode = -1 }
+HAPI_GroupType = { rename = "auto", mode = -1 }
+HAPI_AttributeOwner = { rename = "auto", mode = -1 }
+HAPI_CurveType = { rename = "auto", mode = -1 }
+HAPI_VolumeType = { rename = "auto", mode = -1 }
+HAPI_VolumeVisualType = { rename = "auto", mode = -1 }
+HAPI_StorageType = { rename = "auto", mode = -1 }
+HAPI_AttributeTypeInfo = { rename = "auto", mode = -1 }
+HAPI_GeoType = { rename = "auto", mode = -1 }
+HAPI_InputType = { rename = "auto", mode = -1 }
+HAPI_CurveOrders = { rename = "auto", mode = -1 }
+HAPI_TransformComponent = { rename = "auto", mode = -1 }
+HAPI_RSTOrder = { rename = "auto", mode = -1 }
+HAPI_XYZOrder = { rename = "auto", mode = -1 }
+HAPI_ImageDataFormat = { rename = "auto", mode = -1 }
+HAPI_ImagePacking = { rename = "auto", mode = -1 }
+HAPI_EnvIntType = { rename = "auto", mode = -2 }
+HAPI_SessionEnvIntType = { rename = "auto", mode = -1 }
+HAPI_CacheProperty = { rename = "auto", mode = -2 }
+HAPI_HeightFieldSampling = { rename = "auto", mode = -1 }
+HAPI_PDG_State = { rename = "auto", mode = -1 }
+HAPI_PDG_EventType = { rename = "auto", mode = -3 }
+HAPI_PDG_WorkitemState = { rename = "auto", mode = -1 }
 
 [structs]

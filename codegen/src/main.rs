@@ -1,6 +1,10 @@
 use anyhow::{anyhow, Result};
 use getopts;
+mod auto;
 mod bindgen;
+mod config;
+mod enums;
+mod helpers;
 
 fn print_help(opts: &getopts::Options) {
     println!("{}", opts.usage("hapi-gen"))
@@ -21,13 +25,20 @@ fn main() -> Result<()> {
             std::process::exit(1);
         }
     };
-    let header = opts.opt_str("wrapper").unwrap_or("wrapper.h".to_string());
-    if ! std::path::Path::new(&header).exists() {
-        eprintln!("Can't find wrapper.h");
-        std::process::exit(1);
-    }
-    bindgen::run_bindgen(&opts.opt_str("include").unwrap(),
-    &opts.opt_str("wrapper").unwrap(),
-    &opts.opt_str("outdir").unwrap())?;
+    let include = opts
+        .opt_str("include")
+        .ok_or_else(|| anyhow!("Must provide include"))?;
+    let wrapper = opts
+        .opt_str("wrapper")
+        .ok_or_else(|| anyhow!("Must provide wrapper"))?;
+    let outdir = opts
+        .opt_str("outdir")
+        .ok_or_else(|| anyhow!("Must provide outdir"))?;
+    let conf = opts
+        .opt_str("config")
+        .ok_or_else(|| anyhow!("Must provide codegen.toml"))?;
+    let cg = config::read_config(&conf);
+    bindgen::run_bindgen(&include, &wrapper, &outdir)?;
+    auto::write_auto(&outdir, cg)?;
     Ok(())
 }
