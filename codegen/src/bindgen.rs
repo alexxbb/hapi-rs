@@ -1,7 +1,6 @@
 use bindgen::Builder;
 use std::path::{Path, PathBuf};
 use anyhow::{Result, anyhow};
-// #[path="build_ext.rs"] mod ext;
 
 #[cfg(target_os = "macos")]
 mod paths {
@@ -31,6 +30,11 @@ pub fn run_bindgen(incl: &str, header: &str, outdir: &str) -> Result<()> {
         .default_enum_style("rust_non_exhaustive".parse().unwrap())
         .prepend_enum_name(false)
         .generate_comments(false)
+        .derive_copy(false)
+        .derive_debug(true)
+        .derive_hash(false)
+        .derive_eq(false)
+        .derive_partialeq(false)
         .disable_name_namespacing()
         .layout_tests(false)
         .generate().map_err(|_|anyhow!("Bindgen generate failed"))?;

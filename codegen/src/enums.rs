@@ -17,20 +17,12 @@ impl EnumInfo {
     fn new(enm: &ItemEnum, cg: EnumOptions) -> EnumInfo {
         let ffi_ident = enm.ident.clone();
         let ffi_name = ffi_ident.to_string();
-        let new_name = match cg.rename.as_ref() {
-            "auto" => ffi_name.strip_prefix("HAPI_").unwrap().to_owned(),
-            n => n.to_owned(),
-        };
-        let new_ident = Ident::new(&new_name, Span::call_site());
+        let new_ident = Ident::new(cg.new_name(&ffi_name), Span::call_site());
         let new_variants: Vec<_> = enm.variants
             .iter()
             .map(|v| {
                 let n = v.ident.to_string();
                 let mut var_name = helpers::strip_long_name(&n, cg.mode);
-                // let is_digit = var_name.chars().take(1).map(|c| c.is_digit(10)).any(|v| v);
-                // if is_digit {
-                //     var_name = helpers::strip_long_name(&n, cg.mode + 1)
-                // }
                 let mut var = v.clone();
                 var.ident = Ident::new(var_name, Span::call_site());
                 var

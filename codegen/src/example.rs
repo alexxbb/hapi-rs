@@ -29,36 +29,9 @@ mod ffi {
 
 }
 
-pub enum PartType {
-    INVALID,
-    MESH,
-    CURVE
-}
-
-impl From<ffi::HAPI_PartType> for PartType {
-    fn from(e: ffi::HAPI_PartType) -> Self {
-        match e {
-            ffi::HAPI_PartType::HAPI_PARTTYPE_INVALID => PartType::INVALID,
-            ffi::HAPI_PartType::HAPI_PARTTYPE_CURVE => PartType::CURVE,
-            ffi::HAPI_PartType::HAPI_PARTTYPE_MESH=> PartType::MESH,
-        }
-    }
-
-}
-
-impl From<PartType> for ffi::HAPI_PartType {
-    fn from(e: PartType) -> Self {
-        match e {
-            PartType::INVALID => ffi::HAPI_PartType::HAPI_PARTTYPE_INVALID,
-            PartType::CURVE => ffi::HAPI_PartType::HAPI_PARTTYPE_CURVE,
-            PartType::MESH => ffi::HAPI_PartType::HAPI_PARTTYPE_MESH,
-        }
-    }
-
-}
 
 #[derive(Debug)]
-struct GeoInfo {
+pub struct GeoInfo {
     inner: ffi::HAPI_GeoInfo,
     session: ffi::Session
 }

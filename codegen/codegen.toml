@@ -6,7 +6,7 @@ HAPI_NodeType = { rename = "auto", mode = -1 }
 HAPI_License = { rename = "auto", mode = -2 }
 HAPI_StatusType = { rename = "auto", mode = -2 }
 HAPI_StatusVerbosity = { rename = "auto", mode = -1 }
-HAPI_Result = { rename = "auto", mode = 2 }
+HAPI_Result = { rename = "HapiResult", mode = 2 }
 HAPI_ErrorCode = { rename = "auto", mode = -1 }
 HAPI_SessionType = { rename = "auto", mode = -1 }
 HAPI_State = { rename = "auto", mode = -2 }
@@ -37,8 +37,8 @@ HAPI_EnvIntType = { rename = "auto", mode = -2 }
 HAPI_SessionEnvIntType = { rename = "auto", mode = -1 }
 HAPI_CacheProperty = { rename = "auto", mode = -2 }
 HAPI_HeightFieldSampling = { rename = "auto", mode = -1 }
-HAPI_PDG_State = { rename = "auto", mode = -1 }
-HAPI_PDG_EventType = { rename = "auto", mode = -3 }
-HAPI_PDG_WorkitemState = { rename = "auto", mode = -1 }
+HAPI_PDG_State = { rename = "PdgState", mode = -1 }
+HAPI_PDG_EventType = { rename = "PdgEventType", mode = -3 }
+HAPI_PDG_WorkitemState = { rename = "PdgWorkitemState", mode = -1 }
 
 [structs]

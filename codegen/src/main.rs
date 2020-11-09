@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use getopts;
-mod auto;
+mod ext;
 mod bindgen;
 mod config;
 mod enums;
@@ -39,6 +39,6 @@ fn main() -> Result<()> {
         .ok_or_else(|| anyhow!("Must provide codegen.toml"))?;
     let cg = config::read_config(&conf);
     bindgen::run_bindgen(&include, &wrapper, &outdir)?;
-    auto::write_auto(&outdir, cg)?;
+    ext::write_extension(&outdir, cg)?;
     Ok(())
 }

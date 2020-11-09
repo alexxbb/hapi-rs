@@ -6,5 +6,3 @@ edition = "2018"
 
 
 [dependencies]
-hapi-sys = {path="../hapi-sys"}
-paste = "1.0.2"
