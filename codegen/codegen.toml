@@ -13,7 +13,7 @@ HAPI_State = { rename = "auto", mode = -2 }
 HAPI_PackedPrimInstancingMode = { rename = "auto", mode = -1 }
 HAPI_Permissions = { rename = "auto", mode = -2 }
 HAPI_RampType = { rename = "auto", mode = -1 }
-HAPI_ParmType = { rename = "auto", mode = -1 }
+HAPI_ParmType = { rename = "auto", mode = 2 }
 HAPI_PrmScriptType = { rename = "auto", mode = -2 }
 HAPI_ChoiceListType = { rename = "auto", mode = -1 }
 HAPI_PresetType = { rename = "auto", mode = -1 }
