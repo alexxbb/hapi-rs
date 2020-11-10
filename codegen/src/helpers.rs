@@ -1,19 +1,29 @@
 use log::{error, warn};
 use serde::Deserialize;
+use heck;
+use heck::SnakeCase;
 
 #[derive(Deserialize, Debug, Copy, Clone)]
-pub enum Mode {
+pub enum StripMode {
     StripFront(u8), // 1: FOO_BAR_ZOO => BAR_ZOO
     KeepTail(u8),   // 1: FOO_BAR_ZOO => ZOO
 }
 
-pub fn strip_long_name(name: &str, mode: Mode) -> &str {
+#[derive(Debug, Copy, Clone)]
+pub enum CaseMode {
+    EnumVariant,
+    StructField,
+    Function,
+    Item,
+}
+
+pub fn strip_long_name(name: &str, mode: StripMode) -> &str {
     let mut iter = name.match_indices('_');
     let elem = match mode {
-        Mode::KeepTail(i) => {
+        StripMode::KeepTail(i) => {
             iter.nth_back((i - 1) as usize)
         }
-        Mode::StripFront(i) => {
+        StripMode::StripFront(i) => {
             iter.nth((i - 1) as usize)
         },
     };
@@ -31,10 +41,28 @@ pub fn strip_long_name(name: &str, mode: Mode) -> &str {
         }
         Some(c) if c.is_digit(10) => {
           strip_long_name(name, match mode {
-              Mode::StripFront(v) => Mode::StripFront(v + 1),
-              Mode::KeepTail(v) => Mode::KeepTail(v + 1),
+              StripMode::StripFront(v) => StripMode::StripFront(v + 1),
+              StripMode::KeepTail(v) => StripMode::KeepTail(v + 1),
           })
         }
         Some(_) => new_name
+    }
+}
+
+pub fn change_case(name: &str, mode: CaseMode) -> String {
+    use CaseMode::*;
+    match mode {
+        EnumVariant | Item => {
+            use heck::CamelCase;
+            name.to_camel_case()
+        },
+        Function => {
+            use heck::SnakeCase;
+            name.to_snake_case()
+        }
+        StructField => {
+            use heck::SnakeCase;
+            name.to_snake_case()
+        }
     }
 }

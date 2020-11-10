@@ -1,5 +1,5 @@
 use crate::helpers;
-use crate::helpers::Mode;
+use crate::helpers::StripMode;
 use serde::Deserialize;
 use std::collections::HashMap;
 use toml;
@@ -20,18 +20,18 @@ impl CodeGenInfo {
 pub struct EnumOptions {
     pub rename: String,
     #[serde(deserialize_with = "mode")]
-    pub mode: helpers::Mode,
+    pub mode: StripMode,
 }
 
-fn mode<'de, D>(d: D) -> Result<Mode, D::Error>
+fn mode<'de, D>(d: D) -> Result<StripMode, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
     let num = i32::deserialize(d)?;
     Ok(if num < 0 {
-        helpers::Mode::KeepTail(num.abs() as u8)
+        StripMode::KeepTail(num.abs() as u8)
     } else {
-        helpers::Mode::StripFront(num as u8)
+        StripMode::StripFront(num as u8)
     })
 }
 

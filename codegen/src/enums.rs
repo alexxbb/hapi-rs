@@ -3,7 +3,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use log::warn;
 use syn::{Item, ItemEnum, Variant, Attribute};
-use crate::helpers;
+use crate::helpers::*;
 
 struct EnumInfo {
     ffi_ident: Ident,
@@ -22,9 +22,10 @@ impl EnumInfo {
             .iter()
             .map(|v| {
                 let n = v.ident.to_string();
-                let mut var_name = helpers::strip_long_name(&n, cg.mode);
+                let mut var_name = strip_long_name(&n, cg.mode);
+                let var_name = change_case(var_name, CaseMode::EnumVariant);
                 let mut var = v.clone();
-                var.ident = Ident::new(var_name, Span::call_site());
+                var.ident = Ident::new(&var_name, Span::call_site());
                 var
             })
             .collect();
