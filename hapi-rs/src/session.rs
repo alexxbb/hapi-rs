@@ -39,7 +39,7 @@ impl Session {
             let result = ffi::HAPI_Initialize(
                 &self.inner as *const _,
                 co.const_ptr(),
-                0,
+                1,
                 -1,
                 null(),
                 null(),

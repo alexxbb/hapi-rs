@@ -6,3 +6,4 @@ edition = "2018"
 
 
 [dependencies]
+#enum_primitive = "0.1.1"

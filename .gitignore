@@ -4,3 +4,5 @@ Cargo.lock
 build
 _build
 hapi-rs/src/auto/*
+*.hda
+*.otl
