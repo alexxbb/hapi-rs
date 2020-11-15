@@ -42,3 +42,25 @@ HAPI_PDG_EventType = { rename = "PdgEventType", mode = -3 }
 HAPI_PDG_WorkitemState = { rename = "PdgWorkitemState", mode = -1 }
 
 [structs]
+#HAPI_AssetInfo = { rename = "auto", builder = false}
+#HAPI_NodeInfo{
+#HAPI_ParmInfo{
+#HAPI_ParmChoiceInfo{
+#HAPI_HandleInfo{
+#HAPI_HandleBindingInfo{
+#HAPI_ObjectInfo{
+#HAPI_GeoInfo{
+#HAPI_PartInfo{
+#HAPI_AttributeInfo{
+#HAPI_MaterialInfo{
+#HAPI_ImageInfo{
+#HAPI_VolumeInfo{
+#HAPI_VolumeTileInfo{
+#HAPI_VolumeVisualInfo{
+#HAPI_CurveInfo{
+#HAPI_BoxInfo{
+#HAPI_SphereInfo{
+#HAPI_PDG_EventInfo{
+#HAPI_PDG_WorkitemInfo{
+#HAPI_PDG_WorkitemResultInfo{
+#HAPI_SessionSyncInfo{

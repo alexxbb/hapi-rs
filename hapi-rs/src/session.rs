@@ -1,6 +1,7 @@
 use crate::auto::rusty::SessionType;
 use crate::ffi;
 use super::errors::*;
+use crate::cookoptions::CookOptions;
 use std::mem::MaybeUninit;
 
 #[derive(Debug)]
@@ -9,6 +10,9 @@ pub struct Session {
 }
 
 impl Session {
+    pub fn const_ptr(&self) -> *const ffi::HAPI_Session {
+        &self.inner as *const _
+    }
     pub fn session_type(&self) -> SessionType {
         self.inner.type_.into()
     }
@@ -26,6 +30,24 @@ impl Session {
                 }),
                 e => hapi_err!(e)
             }
+        }
+    }
+    pub fn initialize(&self) -> Result<()> {
+        let co = CookOptions::default();
+        use std::ptr::null;
+        unsafe {
+            let result = ffi::HAPI_Initialize(
+                &self.inner as *const _,
+                co.const_ptr(),
+                0,
+                -1,
+                null(),
+                null(),
+                null(),
+                null(),
+                null(),
+            );
+            hapi_ok!(result, &self.inner as *const _)
         }
     }
 }
