@@ -14,8 +14,8 @@ impl HoudiniNode {
     pub fn delete_node(self) -> Result<()> {
         use HoudiniNode::*;
         let (id, session) = match &self {
-            SopNode(n) => (n.id, n.session.ffi_ptr()),
-            ObjNode(n) => (n.id, n.session.ffi_ptr()),
+            SopNode(n) => (n.id, n.session.handle().ffi_ptr()),
+            ObjNode(n) => (n.id, n.session.handle().ffi_ptr()),
         };
         unsafe {
             let res = ffi::HAPI_DeleteNode(session, id);

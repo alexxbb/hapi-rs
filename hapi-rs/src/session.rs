@@ -1,24 +1,33 @@
-use crate::auto::rusty::SessionType;
-use crate::ffi;
 use super::errors::*;
 use crate::cookoptions::CookOptions;
+use crate::ffi;
 use std::mem::MaybeUninit;
+use std::sync::Arc;
 
 #[derive(Debug)]
+pub struct SessionHandle {
+    inner: ffi::HAPI_Session,
+}
+
+#[derive(Debug, Clone)]
 pub struct Session {
-    pub(crate) inner: ffi::HAPI_Session,
+    handle: Arc<SessionHandle>,
+}
+
+impl SessionHandle {
+    #[inline]
+    pub fn ffi_ptr(&self) -> *const ffi::HAPI_Session {
+        &self.inner as *const _
+    }
 }
 
 impl Session {
-    pub fn const_ptr(&self) -> *const ffi::HAPI_Session {
-        &self.inner as *const _
-    }
-    pub fn session_type(&self) -> SessionType {
-        self.inner.type_.into()
+    pub fn handle(&self) -> &Arc<SessionHandle> {
+        &self.handle
     }
 
     pub fn ffi_ptr(&self) -> *const ffi::HAPI_Session {
-        &self.inner as *const _
+        self.handle.ffi_ptr()
     }
 
     pub fn new_in_process() -> Result<Session> {
@@ -26,9 +35,11 @@ impl Session {
         unsafe {
             match ffi::HAPI_CreateInProcessSession(ses.as_mut_ptr()) {
                 ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(Session {
-                    inner: ses.assume_init(),
+                    handle: Arc::new(SessionHandle {
+                        inner: ses.assume_init(),
+                    }),
                 }),
-                e => hapi_err!(e)
+                e => hapi_err!(e),
             }
         }
     }
@@ -37,7 +48,7 @@ impl Session {
         use std::ptr::null;
         unsafe {
             let result = ffi::HAPI_Initialize(
-                &self.inner as *const _,
+                self.handle.ffi_ptr(),
                 co.const_ptr(),
                 1,
                 -1,
@@ -47,21 +58,19 @@ impl Session {
                 null(),
                 null(),
             );
-            hapi_ok!(result, &self.inner as *const _)
+            hapi_ok!(result, self.handle.ffi_ptr())
         }
     }
 }
 
-impl Drop for Session {
+impl Drop for SessionHandle {
     fn drop(&mut self) {
-        eprintln!("Dropping session");
+        eprintln!("Dropping last SessionHandle");
+        eprintln!("HAPI_Cleanup");
         unsafe {
             use ffi::HAPI_Result::*;
-            if !matches!(
-                ffi::HAPI_Cleanup(&self.inner as *const _),
-                HAPI_RESULT_SUCCESS
-            ) {
-                eprintln!("Dropping session failed!");
+            if !matches!(ffi::HAPI_Cleanup(self.ffi_ptr()), HAPI_RESULT_SUCCESS) {
+                eprintln!("Dropping SessionHandle failed!");
             }
         }
     }

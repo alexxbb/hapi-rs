@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 hapi-rs = {path = "../hapi-rs" }
 smol = "1.2.4"
+once_cell = "1.5.2"

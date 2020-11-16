@@ -66,7 +66,7 @@ pub fn run() -> Result<()> {
         let otl = char_ptr!("/Users/alex/sandbox/rust/hapi/otls/sleeper.hda");
         let mut lib_id = MaybeUninit::uninit();
         let r = he::ffi::HAPI_LoadAssetLibraryFromFile(
-            session.const_ptr(),
+            session.ffi_ptr(),
             otl,
             false as i8,
             lib_id.as_mut_ptr(),
@@ -77,23 +77,23 @@ pub fn run() -> Result<()> {
                 let lib_id = lib_id.assume_init();
                 let mut num_assets = -1;
                 ffi::HAPI_GetAvailableAssetCount(
-                    session.const_ptr(),
+                    session.ffi_ptr(),
                     lib_id,
                     &mut num_assets as *mut _,
                 );
                 println!("Num assets: {}", num_assets);
                 let mut names = -1;
                 let r = ffi::HAPI_GetAvailableAssets(
-                    session.const_ptr(),
+                    session.ffi_ptr(),
                     lib_id,
                     &mut names as *mut _,
                     1,
                 );
                 let names = std::slice::from_raw_parts(&names as *const _, 1);
-                let asset_name = he::get_string(names[0], session.const_ptr())?;
+                let asset_name = he::get_string(names[0], session.ffi_ptr())?;
                 let mut id = MaybeUninit::uninit();
                 ffi::HAPI_CreateNode(
-                    session.const_ptr(),
+                    session.ffi_ptr(),
                     -1,
                     CString::from_vec_unchecked(asset_name.into_bytes()).as_ptr(),
                     char_ptr!("Sleeper"),
@@ -101,7 +101,7 @@ pub fn run() -> Result<()> {
                     id.as_mut_ptr(),
                 );
                 let id = id.assume_init();
-                let fut = CookFuture::cook(id, session.const_ptr());
+                let fut = CookFuture::cook(id, session.ffi_ptr());
                 match smol::block_on(fut) {
                     Ok(_) => println!("Done cooking!"),
                     Err(e) => {
@@ -110,7 +110,7 @@ pub fn run() -> Result<()> {
                 }
             }
             e => {
-                let e = HapiError::new(Kind::Hapi(e), Some(session.const_ptr()));
+                let e = HapiError::new(Kind::Hapi(e), Some(session.ffi_ptr()));
                 println!("{}", e);
             }
         }
