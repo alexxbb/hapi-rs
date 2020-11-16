@@ -1,12 +1,63 @@
 extern crate hapi_rs as he;
 
+use self::he::State;
 use he::char_ptr;
 use he::errors::{HapiError, Kind, Result};
 use he::ffi;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::mem::MaybeUninit;
+use std::pin::Pin;
 use std::ptr::null;
-use self::he::State;
+use std::task::{Context, Poll};
+use std::future::Future;
+use smol;
+
+struct CookFuture {
+    node_id: i32,
+    session: *const ffi::HAPI_Session,
+}
+
+impl CookFuture {
+    fn cook(node_id: i32, session: *const ffi::HAPI_Session) -> CookFuture {
+        unsafe {
+            let r = ffi::HAPI_CookNode(session, node_id, null());
+            assert!(matches!(r, ffi::HAPI_Result::HAPI_RESULT_SUCCESS));
+        }
+        CookFuture { node_id, session }
+    }
+
+    fn state(&self) -> State {
+        let status = unsafe {
+            let mut status = MaybeUninit::uninit();
+            ffi::HAPI_GetStatus(
+                self.session,
+                ffi::HAPI_StatusType::HAPI_STATUS_COOK_STATE,
+                status.as_mut_ptr(),
+            );
+            status.assume_init()
+        };
+        State::from(status)
+    }
+}
+
+impl std::future::Future for CookFuture {
+    type Output = std::result::Result<State, ()>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.state() {
+            State::StateReady => Poll::Ready(Ok(State::StateReady)),
+            State::StateCooking | State::StartingCook => {
+                cx.waker().wake_by_ref();
+                Poll::Pending
+            },
+            State::CookErrors => Poll::Ready(Err(())),
+            s => {
+                eprintln!("State: {:?}", s);
+                Poll::Ready(Err(()))
+            }
+        }
+    }
+}
 
 pub fn run() -> Result<()> {
     let session = he::session::Session::new_in_process()?;
@@ -50,32 +101,13 @@ pub fn run() -> Result<()> {
                     id.as_mut_ptr(),
                 );
                 let id = id.assume_init();
-                let r = ffi::HAPI_CookNode(session.const_ptr(), id, null());
-                assert!(matches!(r, ffi::HAPI_Result::HAPI_RESULT_SUCCESS));
-                println!("Starting cooking");
-                loop {
-                    std::thread::sleep(std::time::Duration::from_secs(1));
-                    let mut status = MaybeUninit::uninit();
-                    ffi::HAPI_GetStatus(
-                        session.const_ptr(),
-                        ffi::HAPI_StatusType::HAPI_STATUS_COOK_STATE,
-                        status.as_mut_ptr(),
-                    );
-                    let status = status.assume_init();
-                    match he::State::from(status) {
-                        he::State::StateCooking => {println!("Cooking")},
-                        he::State::StateReady => {
-                            println!("Ready!");
-                            break
-                        },
-                        e => {dbg!(e);}
+                let fut = CookFuture::cook(id, session.const_ptr());
+                match smol::block_on(fut) {
+                    Ok(_) => println!("Done cooking!"),
+                    Err(e) => {
+                        eprintln!("Error: {:?}", e);
                     }
                 }
-                println!("Done cooking");
-
-                // let hip = char_ptr!("/tmp/foo.hip");
-                // let r = ffi::HAPI_SaveHIPFile(session.const_ptr(), hip, true as i8);
-                // assert!(matches!(r, ffi::HAPI_Result::HAPI_RESULT_SUCCESS));
             }
             e => {
                 let e = HapiError::new(Kind::Hapi(e), Some(session.const_ptr()));

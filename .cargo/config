@@ -1,4 +1,6 @@
 [target.'cfg(target_os = "linux")']
 rustflags = ["-Clink-args=-Wl,-rpath=/net/apps/rhel7/houdini/hfs18.0.530/dsolib"]
-[target.'cfg(target_os = "macos")']
-rustflags = "-Clink-args=-Wl,-rpath,/Applications/Houdini/Houdini18.0.597/Frameworks/Houdini.framework/Versions/Current/Libraries"
+[target.x86_64-apple-darwin]
+rustflags = ["-C",
+    "link-arg=-Wl,-rpath,/Applications/Houdini/Houdini18.0.597/Frameworks/Houdini.framework/Versions/Current/Libraries",
+]

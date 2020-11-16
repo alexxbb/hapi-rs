@@ -3,5 +3,6 @@ members = [
 #    "hapi-sys",
     "hapi-rs",
     "dev",
-    "codegen"
+    "codegen",
+    "async_test"
 ]
