@@ -1,6 +1,7 @@
 use crate::auto::bindings as ffi;
 use std::cell::Cell;
 
+// TODO: Rethink the design. Passing raw pointer to session may be not a good idea
 pub type Result<T> = std::result::Result<T, HapiError>;
 
 #[derive(Debug)]
@@ -143,3 +144,16 @@ macro_rules! hapi_err {
 }
 
 impl std::error::Error for HapiError {}
+
+impl ffi::HAPI_Result {
+    pub(crate) fn result(&self, session: *const ffi::HAPI_Session) -> Result<()> {
+        hapi_ok!(*self, session)
+        // match self {
+        //     ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(()),
+        //     e =>
+        //
+        // }
+        // HapiError::new(Kind::Hapi(*self), Some(session))
+    }
+}
+

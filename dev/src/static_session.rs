@@ -4,8 +4,8 @@ use he::session::Session;
 
 pub unsafe fn run() -> std::result::Result<(), Box<dyn Error>> {
     let ses = Session::new_in_process()?;
-    let ses2 = ses.clone();
-    let ses3 = ses.clone();
-    // ses.initialize()?;
+    ses.initialize()?;
+    ses.create_node("Object/geo", None, None)?;
+    ses.save_hip("/tmp/foo.hip")?;
     Ok(())
 }

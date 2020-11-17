@@ -1,7 +1,10 @@
 use super::errors::*;
 use crate::cookoptions::CookOptions;
 use crate::ffi;
+use crate::node::{HoudiniNode, NodeType};
+use std::ffi::CString;
 use std::mem::MaybeUninit;
+use std::ops::Deref;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -21,6 +24,7 @@ impl SessionHandle {
     }
 }
 
+// TODO: split session into SessionSync and SessionAsync
 impl Session {
     pub fn handle(&self) -> &Arc<SessionHandle> {
         &self.handle
@@ -59,6 +63,23 @@ impl Session {
                 null(),
             );
             hapi_ok!(result, self.handle.ffi_ptr())
+        }
+    }
+
+    pub fn create_node<T: Into<Vec<u8>>>(
+        &self,
+        name: T,
+        label: Option<T>,
+        parent: Option<HoudiniNode>,
+    ) -> Result<HoudiniNode> {
+        HoudiniNode::create_sync(name, label, parent, Arc::clone(&self.handle.clone()), false)
+    }
+
+    pub fn save_hip(&self, name: impl Into<Vec<u8>>) -> Result<()> {
+        unsafe {
+            let name = CString::from_vec_unchecked(name.into());
+            ffi::HAPI_SaveHIPFile(self.handle.ffi_ptr(), name.as_ptr(), 0)
+                .result(self.handle.ffi_ptr())
         }
     }
 }
