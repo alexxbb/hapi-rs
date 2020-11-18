@@ -4,23 +4,36 @@ use self::he::State;
 use he::char_ptr;
 use he::errors::{HapiError, Kind, Result};
 use he::ffi;
+use he::session::SessionHandle;
 use smol;
 use std::ffi::CString;
 use std::future::Future;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::ptr::null;
+use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::Duration;
+
+async fn ping() {
+    smol::Timer::after(std::time::Duration::from_millis(150)).await;
+    println!("Ping!");
+}
+
+async fn pong() {
+    smol::Timer::after(std::time::Duration::from_millis(160)).await;
+    println!("Pong!");
+}
 
 struct CookFuture {
     node_id: i32,
-    session: *const ffi::HAPI_Session,
+    session: Arc<SessionHandle>,
 }
 
 impl CookFuture {
-    fn cook(node_id: i32, session: *const ffi::HAPI_Session) -> CookFuture {
+    fn cook(node_id: i32, session: Arc<SessionHandle>) -> CookFuture {
         unsafe {
-            let r = ffi::HAPI_CookNode(session, node_id, null());
+            let r = ffi::HAPI_CookNode(session.ffi_ptr(), node_id, null());
             assert!(matches!(r, ffi::HAPI_Result::HAPI_RESULT_SUCCESS));
         }
         CookFuture { node_id, session }
@@ -30,7 +43,7 @@ impl CookFuture {
         let status = unsafe {
             let mut status = MaybeUninit::uninit();
             ffi::HAPI_GetStatus(
-                self.session,
+                self.session.ffi_ptr(),
                 ffi::HAPI_StatusType::HAPI_STATUS_COOK_STATE,
                 status.as_mut_ptr(),
             );
@@ -48,11 +61,11 @@ impl std::future::Future for CookFuture {
             State::StateReady => Poll::Ready(Ok(State::StateReady)),
             State::StateCooking | State::StartingCook => {
                 cx.waker().wake_by_ref();
+                eprintln!("Cooking...");
                 Poll::Pending
             }
             State::CookErrors => Poll::Ready(Err(())),
             s => {
-                eprintln!("State: {:?}", s);
                 Poll::Ready(Err(()))
             }
         }
@@ -89,12 +102,24 @@ pub unsafe fn run() -> Result<()> {
         id.as_mut_ptr(),
     );
     let id = id.assume_init();
-    let fut = CookFuture::cook(id, session.ffi_ptr());
-    match smol::block_on(fut) {
-        Ok(_) => println!("Done cooking!"),
-        Err(e) => {
-            eprintln!("Error: {:?}", e);
+    let cook = CookFuture::cook(id, session.handle().clone());
+    smol::spawn(async {
+        for _ in 0..10 {
+            ping().await;
         }
-    }
+    }).detach();
+    smol::spawn(async move {
+        loop {
+            match cook.state() {
+                State::StateReady => {println!("Cooking done"); return},
+                State::StateCooking => {
+                    println!("Waiting");
+                    smol::Timer::after(Duration::from_millis(100)).await;
+                },
+                _ => ()
+            };
+        }
+    }).detach();
+    // std::thread::sleep(std::time::Duration::from_secs(8));
     Ok(())
 }

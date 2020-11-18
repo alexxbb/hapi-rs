@@ -1,3 +1,4 @@
+#![allow(unused)]
 #[macro_use]
 pub mod errors;
 mod auto;
@@ -8,6 +9,7 @@ mod node;
 pub mod cookoptions;
 pub mod macros;
 mod stringhandle;
+mod asset;
 
 pub use stringhandle::get_string;
 pub use auto::rusty::*;

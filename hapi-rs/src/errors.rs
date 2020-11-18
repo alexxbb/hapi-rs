@@ -70,6 +70,7 @@ impl std::fmt::Display for HapiError {
         match self.kind {
             Kind::Hapi(_) => {
                 if let Some(session) = &self.session {
+                    // ffi::HAPI_IsSessionValid(session.get())
                     let last_error =
                         get_last_error(session.get()).expect("Could not retrieve last error");
                     write!(f, "{}: {}", self.kind.description(), last_error)
@@ -148,12 +149,6 @@ impl std::error::Error for HapiError {}
 impl ffi::HAPI_Result {
     pub(crate) fn result(&self, session: *const ffi::HAPI_Session) -> Result<()> {
         hapi_ok!(*self, session)
-        // match self {
-        //     ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(()),
-        //     e =>
-        //
-        // }
-        // HapiError::new(Kind::Hapi(*self), Some(session))
     }
 }
 
