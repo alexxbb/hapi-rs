@@ -1,12 +1,12 @@
 use super::errors::*;
 use crate::auto::bindings as ffi;
 pub use crate::auto::rusty::NodeType;
-use crate::session::SessionHandle;
 use crate::char_ptr;
-use std::mem::MaybeUninit;
-use std::sync::Arc;
+use crate::session::SessionHandle;
 use std::ffi::CString;
+use std::mem::MaybeUninit;
 use std::ptr::null;
+use std::sync::Arc;
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -45,7 +45,7 @@ impl HoudiniNode {
         name: T,
         label: Option<T>,
         parent: Option<HoudiniNode>,
-        session: Arc<SessionHandle>,
+        session: SessionHandle,
         cook: bool,
     ) -> Result<HoudiniNode> {
         let mut id = MaybeUninit::uninit();
@@ -65,25 +65,25 @@ impl HoudiniNode {
                 label_ptr,
                 cook as i8,
                 id.as_mut_ptr(),
-            ).result(session.ffi_ptr())?;
-            Ok(HoudiniNode::ObjNode(ObjNode{
+            )
+            .result(session.ffi_ptr())?;
+            Ok(HoudiniNode::ObjNode(ObjNode {
                 id: id.assume_init(),
-                session: Arc::clone(&session)
+                session,
             }))
         }
-
     }
 }
 
 #[derive(Debug)]
 pub struct SopNode {
     id: ffi::HAPI_NodeId,
-    session: Arc<SessionHandle>,
+    session: SessionHandle,
 }
 #[derive(Debug)]
 pub struct ObjNode {
     id: ffi::HAPI_NodeId,
-    session: Arc<SessionHandle>,
+    session: SessionHandle,
 }
 
 impl SopNode {

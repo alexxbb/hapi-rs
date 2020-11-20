@@ -14,3 +14,4 @@ mod asset;
 pub use stringhandle::get_string;
 pub use auto::rusty::*;
 pub use auto::bindings as ffi;
+pub use errors::Result;

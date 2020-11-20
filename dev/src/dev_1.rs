@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 extern crate hapi_rs as he;
 
 use self::he::State;
@@ -9,7 +10,7 @@ use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::ptr::null;
 use std::task::{Context, Poll};
-use std::future::Future;
+
 use smol;
 
 struct CookFuture {
@@ -83,7 +84,7 @@ pub fn run() -> Result<()> {
                 );
                 println!("Num assets: {}", num_assets);
                 let mut names = -1;
-                let r = ffi::HAPI_GetAvailableAssets(
+                let _r = ffi::HAPI_GetAvailableAssets(
                     session.ffi_ptr(),
                     lib_id,
                     &mut names as *mut _,
