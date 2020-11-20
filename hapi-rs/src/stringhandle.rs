@@ -15,7 +15,7 @@ pub fn get_string(handle: HAPI_StringHandle, session: *const HAPI_Session) -> Re
                 let ptr = buffer.as_mut_ptr() as *mut c_char;
                 match HAPI_GetString(session, handle, ptr, length) {
                     HAPI_Result::HAPI_RESULT_SUCCESS => {
-                        buffer.truncate(length as usize);
+                        buffer.truncate(length as usize - 1);
                         Ok(String::from_utf8_unchecked(buffer))
                     }
                     e => Err(HapiError::new(Kind::Hapi(e), Some(session))),

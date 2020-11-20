@@ -22,7 +22,7 @@ struct CookFuture {
 impl CookFuture {
     fn cook(node_id: i32, session: SessionHandle) -> CookFuture {
         unsafe {
-            let r = ffi::HAPI_CookNode(session.ffi_ptr(), node_id, null());
+            let r = ffi::HAPI_CookNode(session.ptr(), node_id, null());
             assert!(matches!(r, ffi::HAPI_Result::HAPI_RESULT_SUCCESS));
         }
         CookFuture { node_id, session }
@@ -32,7 +32,7 @@ impl CookFuture {
         let status = unsafe {
             let mut status = MaybeUninit::uninit();
             ffi::HAPI_GetStatus(
-                self.session.ffi_ptr(),
+                self.session.ptr(),
                 ffi::HAPI_StatusType::HAPI_STATUS_COOK_STATE,
                 status.as_mut_ptr(),
             );
@@ -64,7 +64,7 @@ impl std::future::Future for CookFuture {
 pub unsafe fn run() -> Result<()> {
     let session = he::session::Session::new_in_process()?;
     session.initialize()?;
-    let library = session.load_asset_file("/Users/alex/sandbox/rust/hapi/otls/sleeper.hda")?;
+    let library = session.load_asset_file("/Users/alex/sandbox/rust/hapi/otls/spaceship.otl")?;
     let names = library.get_asset_names()?;
     println!("{:?}", names);
 

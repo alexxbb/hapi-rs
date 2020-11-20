@@ -19,8 +19,8 @@ impl HoudiniNode {
     pub fn delete(self) -> Result<()> {
         use HoudiniNode::*;
         let (id, session) = match &self {
-            SopNode(n) => (n.id, n.session.ffi_ptr()),
-            ObjNode(n) => (n.id, n.session.ffi_ptr()),
+            SopNode(n) => (n.id, n.session.ptr()),
+            ObjNode(n) => (n.id, n.session.ptr()),
         };
         unsafe {
             let mut info = MaybeUninit::uninit();
@@ -59,14 +59,14 @@ impl HoudiniNode {
             }
             let name = CString::from_vec_unchecked(name.into());
             ffi::HAPI_CreateNode(
-                session.ffi_ptr(),
+                session.ptr(),
                 parent,
                 name.as_ptr(),
                 label_ptr,
                 cook as i8,
                 id.as_mut_ptr(),
             )
-            .result(session.ffi_ptr())?;
+            .result(session.ptr())?;
             Ok(HoudiniNode::ObjNode(ObjNode {
                 id: id.assume_init(),
                 session,

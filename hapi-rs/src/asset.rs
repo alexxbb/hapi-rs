@@ -17,12 +17,12 @@ impl AssetLibrary {
             let mut lib_id = MaybeUninit::uninit();
             let cs = CString::from_vec_unchecked(Vec::from(file));
             ffi::HAPI_LoadAssetLibraryFromFile(
-                session.ffi_ptr(),
+                session.ptr(),
                 cs.as_ptr(),
                 true as i8,
                 lib_id.as_mut_ptr(),
             )
-            .result(session.ffi_ptr())?;
+            .result(session.ptr())?;
             let lib_id = lib_id.assume_init();
             Ok(AssetLibrary { lib_id, session })
         }
@@ -32,11 +32,11 @@ impl AssetLibrary {
         unsafe {
             let mut num_assets = MaybeUninit::uninit();
             ffi::HAPI_GetAvailableAssetCount(
-                self.session.ffi_ptr(),
+                self.session.ptr(),
                 self.lib_id,
                 num_assets.as_mut_ptr(),
             )
-            .result(self.session.ffi_ptr())?;
+            .result(self.session.ptr())?;
             Ok(num_assets.assume_init())
         }
     }
@@ -46,7 +46,7 @@ impl AssetLibrary {
         let names = unsafe {
             let mut names = -1;
             let _r = ffi::HAPI_GetAvailableAssets(
-                self.session.ffi_ptr(),
+                self.session.ptr(),
                 self.lib_id,
                 &mut names as *mut _,
                 1,
@@ -55,7 +55,7 @@ impl AssetLibrary {
         };
         names
             .iter()
-            .map(|i| get_string(*i, self.session.ffi_ptr()))
+            .map(|i| get_string(*i, self.session.ptr()))
             .collect::<Result<Vec<_>>>()
     }
 }
