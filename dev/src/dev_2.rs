@@ -4,7 +4,7 @@ use self::he::State;
 use he::char_ptr;
 use he::errors::{Result};
 use he::ffi;
-use he::session::SessionHandle;
+use he::session::{Session, SessionHandle};
 use smol;
 use std::ffi::CString;
 
@@ -62,11 +62,11 @@ impl std::future::Future for CookFuture {
 }
 
 pub unsafe fn run() -> Result<()> {
-    let session = he::session::Session::new_in_process()?;
-    session.initialize()?;
-    let library = session.load_asset_file("/Users/alex/sandbox/rust/hapi/otls/spaceship.otl")?;
-    let names = library.get_asset_names()?;
-    println!("{:?}", names);
+    let session = Session::new_named_pipe("/tmp/hapi")?;
+    // session.initialize()?;
+    // let library = session.load_asset_file("/Users/alex/sandbox/rust/hapi/otls/spaceship.otl")?;
+    // let names = library.get_asset_names()?;
+    // println!("{:?}", names);
 
     // let mut id = MaybeUninit::uninit();
     // ffi::HAPI_CreateNode(

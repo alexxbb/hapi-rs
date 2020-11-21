@@ -8,6 +8,7 @@ pub type Result<T> = std::result::Result<T, HapiError>;
 pub struct HapiError {
     pub kind: Kind,
     pub(crate) session: Option<Cell<*const ffi::HAPI_Session>>,
+    pub message: Option<&'static str>,
 }
 
 #[derive(Debug)]
@@ -57,10 +58,15 @@ impl Kind {
 }
 
 impl HapiError {
-    pub fn new(kind: Kind, session: Option<*const ffi::HAPI_Session>) -> HapiError {
+    pub fn new(
+        kind: Kind,
+        session: Option<*const ffi::HAPI_Session>,
+        message: Option<&'static str>,
+    ) -> HapiError {
         HapiError {
             kind,
             session: session.map(|s| Cell::new(s)),
+            message,
         }
     }
 }
@@ -71,9 +77,21 @@ impl std::fmt::Display for HapiError {
             Kind::Hapi(_) => {
                 if let Some(session) = &self.session {
                     // ffi::HAPI_IsSessionValid(session.get())
-                    let last_error =
-                        get_last_error(session.get()).expect("Could not retrieve last error");
-                    write!(f, "{}: {}", self.kind.description(), last_error)
+                    let mut tmp = None;
+                    let last_error = if !session.get().is_null() {
+                        tmp = Some(
+                            get_last_error(session.get()).expect("Could not retrieve last error"),
+                        );
+                        Some(tmp.as_ref().unwrap().as_str())
+                    } else {
+                        None
+                    };
+                    write!(
+                        f,
+                        "{}: {}",
+                        self.kind.description(),
+                        last_error.or(self.message).unwrap_or("Zig")
+                    )
                 } else {
                     write!(f, "{}", self.kind.description())
                 }
@@ -109,46 +127,53 @@ pub fn get_last_error(session: *const ffi::HAPI_Session) -> Result<String> {
                         buf.truncate(length as usize);
                         Ok(String::from_utf8_unchecked(buf))
                     }
-                    e => Err(HapiError::new(Kind::Hapi(e), Some(session))),
+                    e => Err(HapiError::new(Kind::Hapi(e), Some(session), None)),
                 }
             }
-            e => Err(HapiError::new(Kind::Hapi(e), Some(session))),
+            e => Err(HapiError::new(Kind::Hapi(e), Some(session), None)),
         }
     }
 }
 
 impl From<std::ffi::NulError> for HapiError {
     fn from(_: std::ffi::NulError) -> Self {
-        HapiError::new(Kind::NullByte, None)
+        HapiError::new(Kind::NullByte, None, None)
     }
 }
 
 #[macro_export]
 macro_rules! hapi_ok {
-    ($hapi_result:expr, $session:expr) => {
+    ($hapi_result:expr, $session:expr, $message:expr) => {
         match $hapi_result {
             ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(()),
-            e => Err(HapiError::new(Kind::Hapi(e), Some($session))),
+            e => Err(HapiError::new(Kind::Hapi(e), Some($session), $message)),
         }
     };
 }
 
 #[macro_export]
 macro_rules! hapi_err {
-    ($hapi_result:expr, $session:expr) => {
-        Err(HapiError::new(Kind::Hapi($hapi_result), Some($session)))
+    ($hapi_result:expr, $session:expr, $message:expr) => {
+        Err(HapiError::new(
+            Kind::Hapi($hapi_result),
+            Some($session),
+            $expr,
+        ))
     };
 
     ($hapi_result:expr) => {
-        Err(HapiError::new(Kind::Hapi($hapi_result), None))
+        Err(HapiError::new(Kind::Hapi($hapi_result), None, None))
     };
 }
 
 impl std::error::Error for HapiError {}
 
 impl ffi::HAPI_Result {
-    pub(crate) fn result(&self, session: *const ffi::HAPI_Session) -> Result<()> {
-        hapi_ok!(*self, session)
+    pub(crate) fn result(
+        &self,
+        session: *const ffi::HAPI_Session,
+        message: Option<&'static str>,
+    ) -> Result<()> {
+        hapi_ok!(*self, session, message)
     }
 }
-

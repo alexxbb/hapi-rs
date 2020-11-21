@@ -6,6 +6,7 @@ use crate::node::{HoudiniNode, NodeType};
 use std::ffi::CString;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
+use std::ptr::null;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -44,6 +45,37 @@ impl Session {
             }
         }
     }
+
+    pub fn start_named_pipe_server(path: &str) -> Result<i32> {
+        let pid = unsafe {
+            let mut pid = MaybeUninit::uninit();
+            let cs = CString::from_vec_unchecked(path.into());
+            let opts = ffi::HAPI_ThriftServerOptions {
+                autoClose: 1,
+                timeoutMs: 1000.0,
+            };
+            ffi::HAPI_StartThriftNamedPipeServer(&opts as *const _, cs.as_ptr(), pid.as_mut_ptr())
+                .result(null(), Some("Could not start thrift server"))?;
+            pid.assume_init()
+        };
+        Ok(pid)
+    }
+
+    pub fn new_named_pipe(path: &str) -> Result<Session> {
+        let session = unsafe {
+            let mut handle = MaybeUninit::uninit();
+            let cs = CString::from_vec_unchecked(path.into());
+            ffi::HAPI_CreateThriftNamedPipeSession(handle.as_mut_ptr(), cs.as_ptr())
+                .result(null(), Some("Could not start piped session"))?;
+            handle.assume_init()
+        };
+        Ok(Session {
+            handle: SessionHandle {
+                inner: Arc::new(session),
+            },
+        })
+    }
+
     pub fn initialize(&self) -> Result<()> {
         let co = CookOptions::default();
         use std::ptr::null;
@@ -59,7 +91,7 @@ impl Session {
                 null(),
                 null(),
             );
-            hapi_ok!(result, self.handle.ptr())
+            hapi_ok!(result, self.handle.ptr(), None)
         }
     }
 
@@ -75,7 +107,7 @@ impl Session {
     pub fn save_hip(&self, name: &str) -> Result<()> {
         unsafe {
             let name = CString::from_vec_unchecked(name.into());
-            ffi::HAPI_SaveHIPFile(self.handle.ptr(), name.as_ptr(), 0).result(self.handle.ptr())
+            ffi::HAPI_SaveHIPFile(self.handle.ptr(), name.as_ptr(), 0).result(self.handle.ptr(), None)
         }
     }
 
@@ -83,7 +115,7 @@ impl Session {
         unsafe {
             let name = CString::from_vec_unchecked(name.into());
             ffi::HAPI_LoadHIPFile(self.handle.ptr(), name.as_ptr(), cook as i8)
-                .result(self.handle.ptr())
+                .result(self.handle.ptr(), None)
         }
     }
 
@@ -97,7 +129,7 @@ impl Session {
                 cook as i8,
                 id.as_mut_ptr(),
             )
-            .result(self.handle.ptr())?;
+            .result(self.handle.ptr(), None)?;
             Ok(id.assume_init())
         }
     }
@@ -107,7 +139,7 @@ impl Session {
     }
 
     pub fn interrupt(&self) -> Result<()> {
-        unsafe { ffi::HAPI_Interrupt(self.handle.ptr()).result(self.handle.ptr()) }
+        unsafe { ffi::HAPI_Interrupt(self.handle.ptr()).result(self.handle.ptr(), None) }
     }
 }
 
@@ -119,7 +151,10 @@ impl Drop for SessionHandle {
             unsafe {
                 use ffi::HAPI_Result::*;
                 if !matches!(ffi::HAPI_Cleanup(self.ptr()), HAPI_RESULT_SUCCESS) {
-                    eprintln!("Dropping SessionHandle failed!");
+                    eprintln!("HAPI_Cleanup failed!");
+                }
+                if !matches!(ffi::HAPI_CloseSession(self.ptr()), HAPI_RESULT_SUCCESS) {
+                    eprintln!("HAPI_CloseSession failed!");
                 }
             }
         }

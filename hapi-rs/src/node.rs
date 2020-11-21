@@ -24,12 +24,12 @@ impl HoudiniNode {
         };
         unsafe {
             let mut info = MaybeUninit::uninit();
-            ffi::HAPI_GetNodeInfo(session, id, info.as_mut_ptr()).result(session)?;
+            ffi::HAPI_GetNodeInfo(session, id, info.as_mut_ptr()).result(session, None)?;
             let info = info.assume_init();
             // if info.createdPostAssetLoad != 0 {
             //     unimplemented!()
             // }
-            ffi::HAPI_DeleteNode(session, id).result(session)
+            ffi::HAPI_DeleteNode(session, id).result(session, None)
         }
     }
 
@@ -66,7 +66,7 @@ impl HoudiniNode {
                 cook as i8,
                 id.as_mut_ptr(),
             )
-            .result(session.ptr())?;
+            .result(session.ptr(), None)?;
             Ok(HoudiniNode::ObjNode(ObjNode {
                 id: id.assume_init(),
                 session,

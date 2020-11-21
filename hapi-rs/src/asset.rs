@@ -22,7 +22,7 @@ impl AssetLibrary {
                 true as i8,
                 lib_id.as_mut_ptr(),
             )
-            .result(session.ptr())?;
+            .result(session.ptr(), None)?;
             let lib_id = lib_id.assume_init();
             Ok(AssetLibrary { lib_id, session })
         }
@@ -36,7 +36,7 @@ impl AssetLibrary {
                 self.lib_id,
                 num_assets.as_mut_ptr(),
             )
-            .result(self.session.ptr())?;
+            .result(self.session.ptr(), None)?;
             Ok(num_assets.assume_init())
         }
     }
