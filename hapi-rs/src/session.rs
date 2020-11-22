@@ -49,7 +49,7 @@ impl Session {
                 timeoutMs: 1000.0,
             };
             ffi::HAPI_StartThriftNamedPipeServer(&opts as *const _, cs.as_ptr(), pid.as_mut_ptr())
-                .result(null(), Some("Could not start thrift server"))?;
+                .with_message(Some("Could not start thrift server"))?;
             pid.assume_init()
         };
         Ok(pid)
@@ -60,7 +60,7 @@ impl Session {
             let mut handle = MaybeUninit::uninit();
             let cs = CString::new(path)?;
             ffi::HAPI_CreateThriftNamedPipeSession(handle.as_mut_ptr(), cs.as_ptr())
-                .result(null(), Some("Could not start piped session"))?;
+                .with_message(Some("Could not start piped session"))?;
             handle.assume_init()
         };
         Ok(Session {
@@ -84,7 +84,7 @@ impl Session {
                 null(),
                 null(),
             );
-            hapi_ok!(result, self.ptr(), None)
+            hapi_ok!(result, Some(self.clone()), None)
         }
     }
 
@@ -101,7 +101,7 @@ impl Session {
         unsafe {
             let name = CString::new(name)?;
             ffi::HAPI_SaveHIPFile(self.ptr(), name.as_ptr(), 0)
-                .result(self.ptr(), None)
+                .with_session(||self.clone())
         }
     }
 
@@ -109,7 +109,7 @@ impl Session {
         unsafe {
             let name = CString::new(name)?;
             ffi::HAPI_LoadHIPFile(self.ptr(), name.as_ptr(), cook as i8)
-                .result(self.ptr(), None)
+                .with_session(||self.clone())
         }
     }
 
@@ -123,7 +123,7 @@ impl Session {
                 cook as i8,
                 id.as_mut_ptr(),
             )
-            .result(self.ptr(), None)?;
+            .with_session(||self.clone())?;
             Ok(id.assume_init())
         }
     }
@@ -133,14 +133,14 @@ impl Session {
     }
 
     pub fn interrupt(&self) -> Result<()> {
-        unsafe { ffi::HAPI_Interrupt(self.ptr()).result(self.ptr(), None) }
+        unsafe { ffi::HAPI_Interrupt(self.ptr()).with_session(||self.clone())}
     }
 
     pub fn get_status(&self, flag: StatusType) -> Result<State> {
         let status = unsafe {
             let mut status = MaybeUninit::uninit();
             ffi::HAPI_GetStatus(self.ptr(), flag.into(), status.as_mut_ptr())
-                .result(self.ptr(), None)?;
+                .with_session(||self.clone())?;
             status.assume_init()
         };
         Ok(State::from(status))

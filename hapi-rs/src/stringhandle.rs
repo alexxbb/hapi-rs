@@ -21,14 +21,14 @@ pub fn get_string(handle: HAPI_StringHandle, session: *const HAPI_Session) -> Re
                     }
                     e => Err(HapiError::new(
                         Kind::Hapi(e),
-                        Some(session),
+                        None,
                         Some("Retrieving error string failed"),
                     )),
                 }
             }
             e => Err(HapiError::new(
                 Kind::Hapi(e),
-                Some(session),
+                None,
                 Some("Retrieving string length failed"),
             )),
         }

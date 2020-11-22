@@ -74,18 +74,17 @@ pub enum HoudiniNode {
 impl HoudiniNode {
     pub fn delete(self) -> Result<()> {
         use HoudiniNode::*;
-        let (id, session) = match &self {
-            SopNode(n) => (n.id, n.session.ptr()),
-            ObjNode(n) => (n.id, n.session.ptr()),
-        };
+        let (id, session) = self.strip();
         unsafe {
             let mut info = MaybeUninit::uninit();
-            ffi::HAPI_GetNodeInfo(session, id, info.as_mut_ptr()).result(session, None)?;
+            ffi::HAPI_GetNodeInfo(session.ptr(), id, info.as_mut_ptr())
+                .with_session(|| session.clone())?;
             let info = info.assume_init();
             // if info.createdPostAssetLoad != 0 {
             //     unimplemented!()
             // }
-            ffi::HAPI_DeleteNode(session, id).result(session, None)
+            ffi::HAPI_DeleteNode(session.ptr(), id)
+                .with_session(|| session.clone())
         }
     }
 
@@ -106,7 +105,8 @@ impl HoudiniNode {
     pub fn cook_blocking(&self) -> Result<()> {
         let (id, session) = self.strip();
         unsafe {
-            ffi::HAPI_CookNode(session.ptr(), id, null()).result(session.ptr(), None)?;
+            ffi::HAPI_CookNode(session.ptr(), id, null())
+                .with_session(||session.clone())?;
         }
         if session.unsync {
             loop {
@@ -144,7 +144,7 @@ impl HoudiniNode {
                 cook as i8,
                 id.as_mut_ptr(),
             )
-            .result(session.ptr(), None)?;
+            .with_session(||session.clone())?;
             Ok(id.assume_init())
         }
     }
