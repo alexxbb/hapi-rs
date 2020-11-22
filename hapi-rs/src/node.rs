@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 #[cfg(feature = "async")]
-mod async_ {
+mod _async {
     use super::*;
     pub struct CookFuture {
         node_id: i32,
@@ -98,25 +98,35 @@ impl HoudiniNode {
     }
 
     #[cfg(feature = "async")]
-    pub fn cook(&self) -> async_::CookFuture {
+    pub fn cook(&self) -> _async::CookFuture {
         let (id, session) = self.strip();
         debug_assert!(session.unsync, "Session is sync!");
-        async_::CookFuture::new(id, session.clone())
+        _async::CookFuture::new(id, session.clone())
     }
 
     pub fn cook_blocking(&self) -> Result<()> {
         let (id, session) = self.strip();
-        debug_assert!(!session.unsync, "Session is async!");
-        unsafe { ffi::HAPI_CookNode(session.ptr(), id, null()).result(session.ptr(), None) }
+        unsafe {
+            ffi::HAPI_CookNode(session.ptr(), id, null()).result(session.ptr(), None)?;
+        }
+        if session.unsync {
+            loop {
+                match session.get_status(StatusType::CookState)? {
+                    State::StateReady => break,
+                    _ => {}
+                }
+            }
+        }
+        Ok(())
     }
 
-    pub fn create(
+    fn _create(
         name: &str,
         label: Option<&str>,
         parent: Option<HoudiniNode>,
-        session: Session,
+        session: &Session,
         cook: bool,
-    ) -> Result<HoudiniNode> {
+    ) -> Result<i32> {
         let mut id = MaybeUninit::uninit();
         let parent = parent.map_or(-1, |n| n.strip().0);
         let mut label_ptr: *const std::os::raw::c_char = null();
@@ -136,11 +146,27 @@ impl HoudiniNode {
                 id.as_mut_ptr(),
             )
             .result(session.ptr(), None)?;
-            Ok(HoudiniNode::ObjNode(ObjNode {
-                id: id.assume_init(),
-                session,
-            }))
+            Ok(id.assume_init())
         }
+    }
+
+    pub fn create_blocking(
+        name: &str,
+        label: Option<&str>,
+        parent: Option<HoudiniNode>,
+        session: Session,
+        cook: bool,
+    ) -> Result<HoudiniNode> {
+        let id = HoudiniNode::_create(name, label, parent, &session, cook)?;
+        if session.unsync {
+            loop {
+                match session.get_status(StatusType::CookState)? {
+                    State::StateReady => break,
+                    _ => {}
+                }
+            }
+        }
+        Ok(HoudiniNode::ObjNode(ObjNode { id, session }))
     }
 }
 
@@ -155,8 +181,6 @@ pub struct ObjNode {
     session: Session,
 }
 
-impl SopNode {
-}
+impl SopNode {}
 
-impl ObjNode {
-}
+impl ObjNode {}

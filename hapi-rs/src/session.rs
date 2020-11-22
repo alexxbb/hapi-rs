@@ -13,7 +13,6 @@ use std::{
     ops::Deref,
     ptr::null,
     sync::Arc,
-    cell::Cell
 };
 
 #[derive(Debug, Clone)]
@@ -22,7 +21,6 @@ pub struct Session {
     pub unsync: bool,
 }
 
-// TODO: split session into SessionSync and SessionAsync?
 impl Session {
     #[inline]
     pub fn ptr(&self) -> *const ffi::HAPI_Session {
@@ -34,7 +32,7 @@ impl Session {
             match ffi::HAPI_CreateInProcessSession(ses.as_mut_ptr()) {
                 ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(Session {
                     handle: Arc::new(ses.assume_init()),
-                    unsync: unsync,
+                    unsync,
                 }),
                 e => hapi_err!(e),
             }
@@ -44,7 +42,7 @@ impl Session {
     pub fn start_named_pipe_server(path: &str) -> Result<i32> {
         let pid = unsafe {
             let mut pid = MaybeUninit::uninit();
-            let cs = CString::from_vec_unchecked(path.into());
+            let cs = CString::new(path)?;
             let opts = ffi::HAPI_ThriftServerOptions {
                 autoClose: 1,
                 timeoutMs: 1000.0,
@@ -59,7 +57,7 @@ impl Session {
     pub fn new_named_pipe(path: &str, unsync: bool) -> Result<Session> {
         let session = unsafe {
             let mut handle = MaybeUninit::uninit();
-            let cs = CString::from_vec_unchecked(path.into());
+            let cs = CString::new(path)?;
             ffi::HAPI_CreateThriftNamedPipeSession(handle.as_mut_ptr(), cs.as_ptr())
                 .result(null(), Some("Could not start piped session"))?;
             handle.assume_init()
@@ -89,18 +87,18 @@ impl Session {
         }
     }
 
-    pub fn create_node(
+    pub fn create_node_blocking(
         &self,
         name: &str,
         label: Option<&str>,
         parent: Option<HoudiniNode>,
     ) -> Result<HoudiniNode> {
-        HoudiniNode::create(name, label, parent, self.clone(), false)
+        HoudiniNode::create_blocking(name, label, parent, self.clone(), false)
     }
 
     pub fn save_hip(&self, name: &str) -> Result<()> {
         unsafe {
-            let name = CString::from_vec_unchecked(name.into());
+            let name = CString::new(name)?;
             ffi::HAPI_SaveHIPFile(self.ptr(), name.as_ptr(), 0)
                 .result(self.ptr(), None)
         }
@@ -108,7 +106,7 @@ impl Session {
 
     pub fn load_hip(&self, name: &str, cook: bool) -> Result<()> {
         unsafe {
-            let name = CString::from_vec_unchecked(name.into());
+            let name = CString::new(name)?;
             ffi::HAPI_LoadHIPFile(self.ptr(), name.as_ptr(), cook as i8)
                 .result(self.ptr(), None)
         }
@@ -116,7 +114,7 @@ impl Session {
 
     pub fn merge_hip(&self, name: &str, cook: bool) -> Result<i32> {
         unsafe {
-            let name = CString::from_vec_unchecked(name.into());
+            let name = CString::new(name)?;
             let mut id = MaybeUninit::uninit();
             ffi::HAPI_MergeHIPFile(
                 self.ptr(),
