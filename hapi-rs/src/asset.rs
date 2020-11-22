@@ -1,5 +1,5 @@
 use crate::auto::bindings as ffi;
-use crate::session::SessionHandle;
+use crate::session::Session;
 use crate::{get_string, Result};
 use std::ffi::CString;
 use std::mem::MaybeUninit;
@@ -8,11 +8,11 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 pub struct AssetLibrary {
     lib_id: ffi::HAPI_AssetLibraryId,
-    session: SessionHandle,
+    session: Session,
 }
 
 impl AssetLibrary {
-    pub fn from_file(file: &str, session: SessionHandle) -> Result<AssetLibrary> {
+    pub fn from_file(file: &str, session: Session) -> Result<AssetLibrary> {
         unsafe {
             let mut lib_id = MaybeUninit::uninit();
             let cs = CString::from_vec_unchecked(Vec::from(file));

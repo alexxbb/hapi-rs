@@ -1,28 +1,29 @@
 use super::errors::*;
 use crate::auto::bindings as ffi;
 pub use crate::auto::rusty::NodeType;
+use crate::auto::rusty::{State, StatusType};
 use crate::char_ptr;
-use crate::session::SessionHandle;
-use crate::auto::rusty::State;
+use crate::session::Session;
 use std::ffi::CString;
 use std::mem::MaybeUninit;
+use std::pin::Pin;
 use std::ptr::null;
 use std::sync::Arc;
-use std::task::{Poll, Context};
-use std::pin::Pin;
+use std::task::{Context, Poll};
 
 #[cfg(feature = "async")]
 mod async_ {
     use super::*;
     pub struct CookFuture {
         node_id: i32,
-        session: SessionHandle,
+        session: Session,
     }
 
     impl CookFuture {
-        pub fn new(node_id: i32, session: SessionHandle) -> CookFuture {
+        pub fn new(node_id: i32, session: Session) -> CookFuture {
             unsafe {
                 let r = ffi::HAPI_CookNode(session.ptr(), node_id, null());
+                eprintln!("Starting async cooking...");
                 assert!(matches!(r, ffi::HAPI_Result::HAPI_RESULT_SUCCESS));
             }
             CookFuture { node_id, session }
@@ -43,24 +44,25 @@ mod async_ {
     }
 
     impl std::future::Future for CookFuture {
-        type Output = std::result::Result<State, ()>;
+        type Output = Result<State>;
 
         fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            match self.state() {
-                State::StateReady => Poll::Ready(Ok(State::StateReady)),
-                State::StateCooking | State::StartingCook => {
-                    cx.waker().wake_by_ref();
-                    eprintln!("Cooking...");
-                    Poll::Pending
-                }
-                State::CookErrors => Poll::Ready(Err(())),
-                _s => {
-                    Poll::Ready(Err(()))
-                }
+            match self.session.get_status(StatusType::CookState) {
+                Err(e) => panic!("Temporary"),
+                Ok(s) => match s {
+                    State::StateReady => Poll::Ready(Ok(State::StateReady)),
+                    State::StateCooking | State::StartingCook => {
+                        cx.waker().wake_by_ref();
+                        Poll::Pending
+                    }
+                    State::CookErrors => {
+                        Poll::Ready(Err(HapiError::new(Kind::CookError, None, None)))
+                    }
+                    _s => Poll::Ready(Err(HapiError::new(Kind::CookError, None, None))),
+                },
             }
         }
     }
-
 }
 #[derive(Debug)]
 #[non_exhaustive]
@@ -88,31 +90,31 @@ impl HoudiniNode {
     }
 
     #[inline]
-    fn strip(&self) -> (ffi::HAPI_NodeId, &SessionHandle) {
+    fn strip(&self) -> (ffi::HAPI_NodeId, &Session) {
         match &self {
             HoudiniNode::SopNode(n) => (n.id, &n.session),
             HoudiniNode::ObjNode(n) => (n.id, &n.session),
         }
     }
 
-    #[cfg(not(feature = "async"))]
-    pub fn cook(&self) -> Result<()> {
-        let (id, session) = self.strip();
-        debug_assert!(session.sync.get(), "Session is async!");
-        unsafe { ffi::HAPI_CookNode(session.ptr(), id, null()).result(session.ptr(), None) }
-    }
-
     #[cfg(feature = "async")]
     pub fn cook(&self) -> async_::CookFuture {
         let (id, session) = self.strip();
+        debug_assert!(session.unsync, "Session is sync!");
         async_::CookFuture::new(id, session.clone())
+    }
+
+    pub fn cook_blocking(&self) -> Result<()> {
+        let (id, session) = self.strip();
+        debug_assert!(!session.unsync, "Session is async!");
+        unsafe { ffi::HAPI_CookNode(session.ptr(), id, null()).result(session.ptr(), None) }
     }
 
     pub fn create(
         name: &str,
         label: Option<&str>,
         parent: Option<HoudiniNode>,
-        session: SessionHandle,
+        session: Session,
         cook: bool,
     ) -> Result<HoudiniNode> {
         let mut id = MaybeUninit::uninit();
@@ -145,22 +147,16 @@ impl HoudiniNode {
 #[derive(Debug)]
 pub struct SopNode {
     id: ffi::HAPI_NodeId,
-    session: SessionHandle,
+    session: Session,
 }
 #[derive(Debug)]
 pub struct ObjNode {
     id: ffi::HAPI_NodeId,
-    session: SessionHandle,
+    session: Session,
 }
 
 impl SopNode {
-    fn sop_method(&self) {
-        println!("I'm a sop node")
-    }
 }
 
 impl ObjNode {
-    fn obj_method(&self) {
-        println!("I'm an obj node")
-    }
 }

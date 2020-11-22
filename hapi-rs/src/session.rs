@@ -1,13 +1,10 @@
 use crate::{
     asset::AssetLibrary,
+    auto::rusty::{State, StatusType},
     cookoptions::CookOptions,
     errors::*,
     ffi,
     node::{HoudiniNode, NodeType},
-    auto::rusty::{
-        State,
-        StatusType
-    },
 };
 #[rustfmt::skip]
 use std::{
@@ -20,42 +17,24 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
-pub struct SessionHandle {
-    inner: Arc<ffi::HAPI_Session>,
-    pub(crate) sync: Cell<bool>,
-}
-
-// Because of the Cell. Safe for internal use, but maybe revisit later.
-unsafe impl Send for SessionHandle {}
-unsafe impl Sync for SessionHandle {}
-
-#[derive(Debug)]
 pub struct Session {
-    handle: SessionHandle,
+    handle: Arc<ffi::HAPI_Session>,
+    pub unsync: bool,
 }
 
-impl SessionHandle {
+// TODO: split session into SessionSync and SessionAsync?
+impl Session {
     #[inline]
     pub fn ptr(&self) -> *const ffi::HAPI_Session {
-        self.inner.as_ref() as *const _
+        self.handle.as_ref() as *const _
     }
-}
-
-// TODO: split session into SessionSync and SessionAsync
-impl Session {
-    pub fn handle(&self) -> &SessionHandle {
-        &self.handle
-    }
-
-    pub fn new_in_process() -> Result<Session> {
+    pub fn new_in_process(unsync: bool) -> Result<Session> {
         let mut ses = MaybeUninit::uninit();
         unsafe {
             match ffi::HAPI_CreateInProcessSession(ses.as_mut_ptr()) {
                 ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(Session {
-                    handle: SessionHandle {
-                        sync: Cell::new(true),
-                        inner: Arc::new(ses.assume_init()),
-                    },
+                    handle: Arc::new(ses.assume_init()),
+                    unsync: unsync,
                 }),
                 e => hapi_err!(e),
             }
@@ -77,7 +56,7 @@ impl Session {
         Ok(pid)
     }
 
-    pub fn new_named_pipe(path: &str) -> Result<Session> {
+    pub fn new_named_pipe(path: &str, unsync: bool) -> Result<Session> {
         let session = unsafe {
             let mut handle = MaybeUninit::uninit();
             let cs = CString::from_vec_unchecked(path.into());
@@ -86,10 +65,8 @@ impl Session {
             handle.assume_init()
         };
         Ok(Session {
-            handle: SessionHandle {
-                sync: Cell::new(true),
-                inner: Arc::new(session),
-            },
+            handle: Arc::new(session),
+            unsync,
         })
     }
 
@@ -98,9 +75,9 @@ impl Session {
         use std::ptr::null;
         unsafe {
             let result = ffi::HAPI_Initialize(
-                self.handle.ptr(),
+                self.ptr(),
                 co.const_ptr(),
-                1,
+                self.unsync as i8,
                 -1,
                 null(),
                 null(),
@@ -108,8 +85,7 @@ impl Session {
                 null(),
                 null(),
             );
-            self.handle.sync.replace(false);
-            hapi_ok!(result, self.handle.ptr(), None)
+            hapi_ok!(result, self.ptr(), None)
         }
     }
 
@@ -119,22 +95,22 @@ impl Session {
         label: Option<&str>,
         parent: Option<HoudiniNode>,
     ) -> Result<HoudiniNode> {
-        HoudiniNode::create(name, label, parent, self.handle.clone(), false)
+        HoudiniNode::create(name, label, parent, self.clone(), false)
     }
 
     pub fn save_hip(&self, name: &str) -> Result<()> {
         unsafe {
             let name = CString::from_vec_unchecked(name.into());
-            ffi::HAPI_SaveHIPFile(self.handle.ptr(), name.as_ptr(), 0)
-                .result(self.handle.ptr(), None)
+            ffi::HAPI_SaveHIPFile(self.ptr(), name.as_ptr(), 0)
+                .result(self.ptr(), None)
         }
     }
 
     pub fn load_hip(&self, name: &str, cook: bool) -> Result<()> {
         unsafe {
             let name = CString::from_vec_unchecked(name.into());
-            ffi::HAPI_LoadHIPFile(self.handle.ptr(), name.as_ptr(), cook as i8)
-                .result(self.handle.ptr(), None)
+            ffi::HAPI_LoadHIPFile(self.ptr(), name.as_ptr(), cook as i8)
+                .result(self.ptr(), None)
         }
     }
 
@@ -143,42 +119,39 @@ impl Session {
             let name = CString::from_vec_unchecked(name.into());
             let mut id = MaybeUninit::uninit();
             ffi::HAPI_MergeHIPFile(
-                self.handle.ptr(),
+                self.ptr(),
                 name.as_ptr(),
                 cook as i8,
                 id.as_mut_ptr(),
             )
-            .result(self.handle.ptr(), None)?;
+            .result(self.ptr(), None)?;
             Ok(id.assume_init())
         }
     }
 
     pub fn load_asset_file(&self, file: &str) -> Result<AssetLibrary> {
-        AssetLibrary::from_file(file, self.handle.clone())
+        AssetLibrary::from_file(file, self.clone())
     }
 
     pub fn interrupt(&self) -> Result<()> {
-        unsafe { ffi::HAPI_Interrupt(self.handle.ptr()).result(self.handle.ptr(), None) }
+        unsafe { ffi::HAPI_Interrupt(self.ptr()).result(self.ptr(), None) }
     }
 
     pub fn get_status(&self, flag: StatusType) -> Result<State> {
         let status = unsafe {
             let mut status = MaybeUninit::uninit();
-            ffi::HAPI_GetStatus(
-                self.handle.ptr(),
-                flag.into(),
-                status.as_mut_ptr(),
-            ).result(self.handle.ptr(), None)?;
+            ffi::HAPI_GetStatus(self.ptr(), flag.into(), status.as_mut_ptr())
+                .result(self.ptr(), None)?;
             status.assume_init()
         };
         Ok(State::from(status))
     }
 }
 
-impl Drop for SessionHandle {
+impl Drop for Session {
     fn drop(&mut self) {
-        if Arc::strong_count(&self.inner) == 1 {
-            eprintln!("Dropping last SessionHandle");
+        if Arc::strong_count(&self.handle) == 1 {
+            eprintln!("Dropping last Session");
             eprintln!("HAPI_Cleanup");
             unsafe {
                 use ffi::HAPI_Result::*;

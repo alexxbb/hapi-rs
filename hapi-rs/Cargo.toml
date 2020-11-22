@@ -5,10 +5,10 @@ authors = ["Alex Rusev <hou.alexx@gmail.com>"]
 edition = "2018"
 
 [features]
-async = ["smol"]
+async = []
 default = []
 
 
 [dependencies]
-smol = { version = "1.2.4", optional = true }
+#smol = { version = "1.2.4", optional = true }
 

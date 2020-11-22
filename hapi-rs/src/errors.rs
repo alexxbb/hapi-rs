@@ -14,6 +14,7 @@ pub struct HapiError {
 #[derive(Debug)]
 pub enum Kind {
     Hapi(ffi::HAPI_Result),
+    CookError,
     NullByte,
 }
 
@@ -52,6 +53,7 @@ impl Kind {
             Kind::Hapi(HAPI_RESULT_USER_INTERRUPTED) => "USER_INTERRUPTED",
             Kind::Hapi(HAPI_RESULT_INVALID_SESSION) => "INVALID_SESSION",
             Kind::NullByte => "String contains null byte!",
+            Kind::CookError => "Cooking error",
             Kind::Hapi(_) => unreachable!(),
         }
     }
