@@ -101,6 +101,7 @@ impl std::fmt::Display for HapiError {
     }
 }
 
+// TODO cooking errors
 pub fn get_last_error(session: *const ffi::HAPI_Session) -> Result<String> {
     use ffi::HAPI_StatusType::HAPI_STATUS_CALL_RESULT;
     use ffi::HAPI_StatusVerbosity::HAPI_STATUSVERBOSITY_0;

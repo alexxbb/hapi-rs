@@ -1,18 +1,33 @@
-use super::errors::*;
-use crate::asset::AssetLibrary;
-use crate::cookoptions::CookOptions;
-use crate::ffi;
-use crate::node::{HoudiniNode, NodeType};
-use std::ffi::CString;
-use std::mem::MaybeUninit;
-use std::ops::Deref;
-use std::ptr::null;
-use std::sync::Arc;
+use crate::{
+    asset::AssetLibrary,
+    cookoptions::CookOptions,
+    errors::*,
+    ffi,
+    node::{HoudiniNode, NodeType},
+    auto::rusty::{
+        State,
+        StatusType
+    },
+};
+#[rustfmt::skip]
+use std::{
+    ffi::CString,
+    mem::MaybeUninit,
+    ops::Deref,
+    ptr::null,
+    sync::Arc,
+    cell::Cell
+};
 
 #[derive(Debug, Clone)]
 pub struct SessionHandle {
     inner: Arc<ffi::HAPI_Session>,
+    pub(crate) sync: Cell<bool>,
 }
+
+// Because of the Cell. Safe for internal use, but maybe revisit later.
+unsafe impl Send for SessionHandle {}
+unsafe impl Sync for SessionHandle {}
 
 #[derive(Debug)]
 pub struct Session {
@@ -38,6 +53,7 @@ impl Session {
             match ffi::HAPI_CreateInProcessSession(ses.as_mut_ptr()) {
                 ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(Session {
                     handle: SessionHandle {
+                        sync: Cell::new(true),
                         inner: Arc::new(ses.assume_init()),
                     },
                 }),
@@ -71,6 +87,7 @@ impl Session {
         };
         Ok(Session {
             handle: SessionHandle {
+                sync: Cell::new(true),
                 inner: Arc::new(session),
             },
         })
@@ -91,23 +108,25 @@ impl Session {
                 null(),
                 null(),
             );
+            self.handle.sync.replace(false);
             hapi_ok!(result, self.handle.ptr(), None)
         }
     }
 
-    pub fn create_node<T: Into<Vec<u8>>>(
+    pub fn create_node(
         &self,
-        name: T,
-        label: Option<T>,
+        name: &str,
+        label: Option<&str>,
         parent: Option<HoudiniNode>,
     ) -> Result<HoudiniNode> {
-        HoudiniNode::create_sync(name, label, parent, self.handle.clone(), false)
+        HoudiniNode::create(name, label, parent, self.handle.clone(), false)
     }
 
     pub fn save_hip(&self, name: &str) -> Result<()> {
         unsafe {
             let name = CString::from_vec_unchecked(name.into());
-            ffi::HAPI_SaveHIPFile(self.handle.ptr(), name.as_ptr(), 0).result(self.handle.ptr(), None)
+            ffi::HAPI_SaveHIPFile(self.handle.ptr(), name.as_ptr(), 0)
+                .result(self.handle.ptr(), None)
         }
     }
 
@@ -140,6 +159,19 @@ impl Session {
 
     pub fn interrupt(&self) -> Result<()> {
         unsafe { ffi::HAPI_Interrupt(self.handle.ptr()).result(self.handle.ptr(), None) }
+    }
+
+    pub fn get_status(&self, flag: StatusType) -> Result<State> {
+        let status = unsafe {
+            let mut status = MaybeUninit::uninit();
+            ffi::HAPI_GetStatus(
+                self.handle.ptr(),
+                flag.into(),
+                status.as_mut_ptr(),
+            ).result(self.handle.ptr(), None)?;
+            status.assume_init()
+        };
+        Ok(State::from(status))
     }
 }
 
