@@ -100,7 +100,6 @@ impl HoudiniNode {
     #[cfg(feature = "async")]
     pub fn cook(&self) -> _async::CookFuture {
         let (id, session) = self.strip();
-        debug_assert!(session.unsync, "Session is sync!");
         _async::CookFuture::new(id, session.clone())
     }
 

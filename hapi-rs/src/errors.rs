@@ -1,4 +1,7 @@
-use crate::auto::bindings as ffi;
+use crate::{
+    auto::bindings as ffi,
+    check_session
+};
 use std::cell::Cell;
 
 // TODO: Rethink the design. Passing raw pointer to session may be not a good idea
@@ -75,14 +78,16 @@ impl HapiError {
 
 impl std::fmt::Display for HapiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        dbg!(self);
         match self.kind {
             Kind::Hapi(_) => {
                 if let Some(session) = &self.session {
-                    // ffi::HAPI_IsSessionValid(session.get())
+                    let session = session.get();
+                    check_session!(session);
                     let mut tmp = None;
-                    let last_error = if !session.get().is_null() {
+                    let last_error = if !session.is_null() {
                         tmp = Some(
-                            get_last_error(session.get()).expect("Could not retrieve last error"),
+                            get_last_error(session).expect("Could not retrieve last error"),
                         );
                         Some(tmp.as_ref().unwrap().as_str())
                     } else {
@@ -114,27 +119,20 @@ pub fn get_last_error(session: *const ffi::HAPI_Session) -> Result<String> {
             HAPI_STATUS_CALL_RESULT,
             HAPI_STATUSVERBOSITY_0,
             length.as_mut_ptr(),
-        );
-        match res {
-            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => {
-                let length = length.assume_init();
-                let mut buf = vec![0u8; length as usize];
-                match ffi::HAPI_GetStatusString(
-                    session,
-                    HAPI_STATUS_CALL_RESULT,
-                    // SAFETY: casting to u8 to i8 (char)?
-                    buf.as_mut_ptr() as *mut i8,
-                    length,
-                ) {
-                    ffi::HAPI_Result::HAPI_RESULT_SUCCESS => {
-                        buf.truncate(length as usize);
-                        Ok(String::from_utf8_unchecked(buf))
-                    }
-                    e => Err(HapiError::new(Kind::Hapi(e), Some(session), None)),
-                }
-            }
-            e => Err(HapiError::new(Kind::Hapi(e), Some(session), None)),
-        }
+        )
+        .result(session, Some("GetStatusStringBufLength failed"))?;
+        let length = length.assume_init();
+        let mut buf = vec![0u8; length as usize];
+        ffi::HAPI_GetStatusString(
+            session,
+            HAPI_STATUS_CALL_RESULT,
+            // SAFETY: casting to u8 to i8 (char)?
+            buf.as_mut_ptr() as *mut i8,
+            length,
+        )
+        .result(session, Some("GetStatusString failed"))?;
+        buf.truncate(length as usize);
+        Ok(String::from_utf8_unchecked(buf))
     }
 }
 

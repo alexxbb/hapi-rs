@@ -3,6 +3,7 @@ use crate::{
     auto::rusty::{State, StatusType},
     cookoptions::CookOptions,
     errors::*,
+    check_session,
     ffi,
     node::{HoudiniNode, NodeType},
 };
@@ -151,11 +152,12 @@ impl Drop for Session {
         if Arc::strong_count(&self.handle) == 1 {
             eprintln!("Dropping last Session");
             eprintln!("HAPI_Cleanup");
+            check_session!(self.ptr());
             unsafe {
                 use ffi::HAPI_Result::*;
-                if !matches!(ffi::HAPI_Cleanup(self.ptr()), HAPI_RESULT_SUCCESS) {
-                    eprintln!("HAPI_Cleanup failed!");
-                }
+                // if !matches!(ffi::HAPI_Cleanup(self.ptr()), HAPI_RESULT_SUCCESS) {
+                //     eprintln!("HAPI_Cleanup failed!");
+                // }
                 if !matches!(ffi::HAPI_CloseSession(self.ptr()), HAPI_RESULT_SUCCESS) {
                     eprintln!("HAPI_CloseSession failed!");
                 }

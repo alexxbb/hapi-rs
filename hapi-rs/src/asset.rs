@@ -42,16 +42,16 @@ impl AssetLibrary {
     }
 
     pub fn get_asset_names(&self) -> Result<Vec<String>> {
-        let num_assets = self.get_asset_count()? as usize;
+        let num_assets = self.get_asset_count()?;
         let names = unsafe {
-            let mut names = -1;
-            let _r = ffi::HAPI_GetAvailableAssets(
+            let mut names = vec![0;num_assets as usize];
+            let r = ffi::HAPI_GetAvailableAssets(
                 self.session.ptr(),
                 self.lib_id,
-                &mut names as *mut _,
-                1,
-            );
-            std::slice::from_raw_parts(&names as *const _, num_assets)
+                names.as_mut_ptr(),
+                num_assets,
+            ).result(self.session.ptr(), None);
+            names
         };
         names
             .iter()

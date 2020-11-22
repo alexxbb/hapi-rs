@@ -1,6 +1,7 @@
 use crate::errors::{HapiError, Kind, Result};
 use crate::ffi::{
-    HAPI_GetString, HAPI_GetStringBufLength, HAPI_Result, HAPI_Session, HAPI_StringHandle,
+    HAPI_GetString, HAPI_GetStringBufLength, HAPI_IsSessionValid, HAPI_Result, HAPI_Session,
+    HAPI_StringHandle,
 };
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;

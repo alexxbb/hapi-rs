@@ -28,3 +28,16 @@ macro_rules! char_ptr {
         unsafe { CStr::from_ptr(concat!($lit, "\0").as_ptr() as *const c_char).as_ptr() }
     }};
 }
+
+#[macro_export]
+macro_rules! check_session {
+    ($session:expr) => {
+        use crate::ffi::{HAPI_IsSessionValid, HAPI_Result};
+        assert!(unsafe {
+            matches!(
+                HAPI_IsSessionValid($session),
+                HAPI_Result::HAPI_RESULT_SUCCESS
+            )
+        });
+    };
+}
