@@ -88,6 +88,16 @@ impl Session {
         }
     }
 
+    pub fn is_initialized(&self) -> Result<bool> {
+        unsafe {
+            match ffi::HAPI_IsInitialized(self.ptr()) {
+                ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(true),
+                ffi::HAPI_Result::HAPI_RESULT_NOT_INITIALIZED => Ok(false),
+                e => hapi_err!(e, None, Some("HAPI_IsInitialized failed"))
+            }
+        }
+    }
+
     pub fn create_node_blocking(
         &self,
         name: &str,

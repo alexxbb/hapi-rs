@@ -147,8 +147,8 @@ macro_rules! hapi_err {
     ($hapi_result:expr, $session:expr, $message:expr) => {
         Err(HapiError::new(
             Kind::Hapi($hapi_result),
-            Some($session),
-            $expr,
+            $session,
+            $message,
         ))
     };
 
@@ -160,12 +160,12 @@ macro_rules! hapi_err {
 impl std::error::Error for HapiError {}
 
 impl ffi::HAPI_Result {
-    pub(crate) fn err<F>(self, op: F) -> Result<()>
+    pub(crate) fn result<R, F>(self, op: F, ret: R) -> Result<R>
     where
         F: FnOnce() -> (Option<Session>, Option<&'static str>),
     {
         match self {
-            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(()),
+            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(ret),
             e => {
                 let (session, message) = op();
                 Err(HapiError::new(Kind::Hapi(e), session, message))
@@ -176,10 +176,10 @@ impl ffi::HAPI_Result {
         where
             F: FnOnce() -> Session,
     {
-        self.err(||(Some(op()), None))
+        self.result(||(Some(op()), None), ())
     }
 
     pub(crate) fn with_message(self, msg: Option<&'static str>) -> Result<()> {
-        self.err(||(None, msg))
+        self.result(||(None, msg), ())
     }
 }

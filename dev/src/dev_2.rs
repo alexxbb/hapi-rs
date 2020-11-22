@@ -6,7 +6,9 @@ use smol;
 
 pub unsafe fn run() -> Result<()> {
     let session = Session::new_named_pipe("/tmp/hapi", true)?;
-    session.initialize()?;
+    if !session.is_initialized()? {
+        session.initialize()?;
+    }
     let library = session.load_asset_file("/Users/alex/sandbox/rust/hapi/otls/spaceship.otl")?;
     let names = library.get_asset_names();
     println!("{:?}", names.as_ref().unwrap());
