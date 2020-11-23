@@ -1,7 +1,7 @@
+pub use crate::auto::rusty::HapiResult;
+use crate::auto::rusty::{StatusType, StatusVerbosity};
 use crate::{auto::bindings as ffi, check_session, session::Session};
-use std::cell::Cell;
 
-// TODO: Rethink the design. Passing raw pointer to session may be not a good idea
 pub type Result<T> = std::result::Result<T, HapiError>;
 
 #[derive(Debug)]
@@ -13,45 +13,39 @@ pub struct HapiError {
 
 #[derive(Debug)]
 pub enum Kind {
-    Hapi(ffi::HAPI_Result),
+    Hapi(HapiResult),
     CookError,
     NullByte,
 }
 
 impl Kind {
     fn description(&self) -> &str {
-        use ffi::HAPI_Result::*;
+        use HapiResult::*;
 
         match self {
-            Kind::Hapi(HAPI_RESULT_SUCCESS) => "SUCCESS",
-            Kind::Hapi(HAPI_RESULT_FAILURE) => "FAILURE",
-            Kind::Hapi(HAPI_RESULT_ALREADY_INITIALIZED) => "ALREADY_INITIALIZED",
-            Kind::Hapi(HAPI_RESULT_NOT_INITIALIZED) => "NOT_INITIALIZED",
-            Kind::Hapi(HAPI_RESULT_CANT_LOADFILE) => "CANT_LOADFILE",
-            Kind::Hapi(HAPI_RESULT_PARM_SET_FAILED) => "PARM_SET_FAILED",
-            Kind::Hapi(HAPI_RESULT_INVALID_ARGUMENT) => "PARM_SET_FAILED",
-            Kind::Hapi(HAPI_RESULT_CANT_LOAD_GEO) => "CANT_LOAD_GEO",
-            Kind::Hapi(HAPI_RESULT_CANT_GENERATE_PRESET) => "CANT_GENERATE_PRESET",
-            Kind::Hapi(HAPI_RESULT_CANT_LOAD_PRESET) => "CANT_LOAD_PRESET",
-            Kind::Hapi(HAPI_RESULT_ASSET_DEF_ALREADY_LOADED) => "ASSET_DEF_ALREADY_LOADED",
-            Kind::Hapi(HAPI_RESULT_NO_LICENSE_FOUND) => "NO_LICENSE_FOUND",
-            Kind::Hapi(HAPI_RESULT_DISALLOWED_NC_LICENSE_FOUND) => "DISALLOWED_NC_LICENSE_FOUND",
-            Kind::Hapi(HAPI_RESULT_DISALLOWED_NC_ASSET_WITH_C_LICENSE) => {
-                "DISALLOWED_NC_ASSET_WITH_C_LICENSE"
-            }
-            Kind::Hapi(HAPI_RESULT_DISALLOWED_NC_ASSET_WITH_LC_LICENSE) => {
-                "DISALLOWED_NC_ASSET_WITH_LC_LICENSE"
-            }
-            Kind::Hapi(HAPI_RESULT_DISALLOWED_LC_ASSET_WITH_C_LICENSE) => {
-                "DISALLOWED_LC_ASSET_WITH_C_LICENSE"
-            }
-            Kind::Hapi(HAPI_RESULT_DISALLOWED_HENGINEINDIE_W_3PARTY_PLUGIN) => {
+            Kind::Hapi(Success) => "SUCCESS",
+            Kind::Hapi(Failure) => "FAILURE",
+            Kind::Hapi(AlreadyInitialized) => "ALREADY_INITIALIZED",
+            Kind::Hapi(NotInitialized) => "NOT_INITIALIZED",
+            Kind::Hapi(CantLoadfile) => "CANT_LOADFILE",
+            Kind::Hapi(ParmSetFailed) => "PARM_SET_FAILED",
+            Kind::Hapi(InvalidArgument) => "PARM_SET_FAILED",
+            Kind::Hapi(CantLoadGeo) => "CANT_LOAD_GEO",
+            Kind::Hapi(CantGeneratePreset) => "CANT_GENERATE_PRESET",
+            Kind::Hapi(CantLoadPreset) => "CANT_LOAD_PRESET",
+            Kind::Hapi(AssetDefAlreadyLoaded) => "ASSET_DEF_ALREADY_LOADED",
+            Kind::Hapi(NoLicenseFound) => "NO_LICENSE_FOUND",
+            Kind::Hapi(DisallowedNcLicenseFound) => "DISALLOWED_NC_LICENSE_FOUND",
+            Kind::Hapi(DisallowedNcAssetWithCLicense) => "DISALLOWED_NC_ASSET_WITH_C_LICENSE",
+            Kind::Hapi(DisallowedNcAssetWithLcLicense) => "DISALLOWED_NC_ASSET_WITH_LC_LICENSE",
+            Kind::Hapi(DisallowedLcAssetWithCLicense) => "DISALLOWED_LC_ASSET_WITH_C_LICENSE",
+            Kind::Hapi(DisallowedHengineindieW3partyPlugin) => {
                 "DISALLOWED_HENGINEINDIE_W_3PARTY_PLUGIN"
             }
-            Kind::Hapi(HAPI_RESULT_ASSET_INVALID) => "ASSET_INVALID",
-            Kind::Hapi(HAPI_RESULT_NODE_INVALID) => "NODE_INVALID",
-            Kind::Hapi(HAPI_RESULT_USER_INTERRUPTED) => "USER_INTERRUPTED",
-            Kind::Hapi(HAPI_RESULT_INVALID_SESSION) => "INVALID_SESSION",
+            Kind::Hapi(AssetInvalid) => "ASSET_INVALID",
+            Kind::Hapi(NodeInvalid) => "NODE_INVALID",
+            Kind::Hapi(UserInterrupted) => "USER_INTERRUPTED",
+            Kind::Hapi(InvalidSession) => "INVALID_SESSION",
             Kind::NullByte => "String contains null byte!",
             Kind::CookError => "Cooking error",
             Kind::Hapi(_) => unreachable!(),
@@ -79,18 +73,20 @@ impl std::fmt::Display for HapiError {
             Kind::Hapi(_) => {
                 if let Some(session) = &self.session {
                     check_session!(session.ptr());
-                    let error = get_last_error(&session);
+                    let error = get_call_status(&session);
                     write!(
                         f,
                         "{}: {}",
                         self.kind.description(),
                         error
                             .ok()
-                            .or_else(||self.message.map(|s|s.to_string()))
-                            .unwrap_or_else(||String::from("Zig"))
+                            .or_else(|| self.message.map(|s| s.to_string()))
+                            .unwrap_or_else(|| String::from("Zig"))
                     )
+                } else if let Some(msg) = self.message {
+                    write!(f, "Kind:{}, Message: {}", self.kind.description(), msg)
                 } else {
-                    write!(f, "{}", self.kind.description())
+                    write!(f, "Kind:{}", self.kind.description())
                 }
             }
             _ => unreachable!(),
@@ -98,31 +94,53 @@ impl std::fmt::Display for HapiError {
     }
 }
 
-// TODO cooking errors
-pub fn get_last_error(session: &Session) -> Result<String> {
-    use ffi::HAPI_StatusType::HAPI_STATUS_CALL_RESULT;
-    use ffi::HAPI_StatusVerbosity::HAPI_STATUSVERBOSITY_0;
+#[inline]
+pub fn get_call_status(session: &Session) -> Result<String> {
+    get_status_string(
+        session,
+        StatusType::CallResult,
+        StatusVerbosity::Statusverbosity0,
+    )
+}
+
+pub fn get_cook_status(session: &Session) -> Result<String> {
+    get_status_string(
+        session,
+        StatusType::CookResult,
+        StatusVerbosity::Statusverbosity0,
+    )
+}
+
+fn get_status_string(
+    session: &Session,
+    type_: StatusType,
+    verbosity: StatusVerbosity,
+) -> Result<String> {
     unsafe {
         let mut length = std::mem::MaybeUninit::uninit();
         ffi::HAPI_GetStatusStringBufLength(
             session.ptr(),
-            HAPI_STATUS_CALL_RESULT,
-            HAPI_STATUSVERBOSITY_0,
+            type_.into(),
+            verbosity.into(),
             length.as_mut_ptr(),
         )
-        .with_message(Some("GetStatusStringBufLength failed"))?;
+        .result_with_message(Some("GetStatusStringBufLength failed"))?;
         let length = length.assume_init();
         let mut buf = vec![0u8; length as usize];
-        ffi::HAPI_GetStatusString(
-            session.ptr(),
-            HAPI_STATUS_CALL_RESULT,
-            // SAFETY: casting to u8 to i8 (char)?
-            buf.as_mut_ptr() as *mut i8,
-            length,
-        )
-        .with_message(Some("GetStatusString failed"))?;
-        buf.truncate(length as usize);
-        Ok(String::from_utf8_unchecked(buf))
+        if length > 0 {
+            ffi::HAPI_GetStatusString(
+                session.ptr(),
+                type_.into(),
+                // SAFETY: casting to u8 to i8 (char)?
+                buf.as_mut_ptr() as *mut i8,
+                length,
+            )
+            .result_with_message(Some("GetStatusString failed"))?;
+            buf.truncate(length as usize);
+            Ok(String::from_utf8_unchecked(buf))
+        } else {
+            Ok(String::new())
+        }
     }
 }
 
@@ -137,7 +155,7 @@ macro_rules! hapi_ok {
     ($hapi_result:expr, $session:expr, $message:expr) => {
         match $hapi_result {
             ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(()),
-            e => Err(HapiError::new(Kind::Hapi(e), $session, $message)),
+            e => Err(HapiError::new(Kind::Hapi(e.into()), $session, $message)),
         }
     };
 }
@@ -146,14 +164,14 @@ macro_rules! hapi_ok {
 macro_rules! hapi_err {
     ($hapi_result:expr, $session:expr, $message:expr) => {
         Err(HapiError::new(
-            Kind::Hapi($hapi_result),
+            Kind::Hapi($hapi_result.into()),
             $session,
             $message,
         ))
     };
 
     ($hapi_result:expr) => {
-        Err(HapiError::new(Kind::Hapi($hapi_result), None, None))
+        Err(HapiError::new(Kind::Hapi($hapi_result.into()), None, None))
     };
 }
 
@@ -168,18 +186,18 @@ impl ffi::HAPI_Result {
             ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(ret),
             e => {
                 let (session, message) = op();
-                Err(HapiError::new(Kind::Hapi(e), session, message))
+                Err(HapiError::new(Kind::Hapi(e.into()), session, message))
             }
         }
     }
-    pub(crate) fn with_session<F>(self, op: F) -> Result<()>
-        where
-            F: FnOnce() -> Session,
+    pub(crate) fn result_with_session<F>(self, op: F) -> Result<()>
+    where
+        F: FnOnce() -> Session,
     {
-        self.result(||(Some(op()), None), ())
+        self.result(|| (Some(op()), None), ())
     }
 
-    pub(crate) fn with_message(self, msg: Option<&'static str>) -> Result<()> {
-        self.result(||(None, msg), ())
+    pub(crate) fn result_with_message(self, msg: Option<&'static str>) -> Result<()> {
+        self.result(|| (None, msg), ())
     }
 }

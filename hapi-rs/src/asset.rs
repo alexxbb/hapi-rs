@@ -21,7 +21,7 @@ impl AssetLibrary {
                 cs.as_ptr(),
                 true as i8,
                 lib_id.as_mut_ptr(),
-            ).with_session(||session.clone())?;
+            ).result_with_session(||session.clone())?;
             let lib_id = lib_id.assume_init();
             Ok(AssetLibrary { lib_id, session })
         }
@@ -34,7 +34,7 @@ impl AssetLibrary {
                 self.session.ptr(),
                 self.lib_id,
                 num_assets.as_mut_ptr(),
-            ).with_session(||self.session.clone())?;
+            ).result_with_session(||self.session.clone())?;
             Ok(num_assets.assume_init())
         }
     }
@@ -48,12 +48,12 @@ impl AssetLibrary {
                 self.lib_id,
                 names.as_mut_ptr(),
                 num_assets,
-            ).with_session(||self.session.clone())?;
+            ).result_with_session(||self.session.clone())?;
             names
         };
         names
             .iter()
-            .map(|i| get_string(*i, self.session.ptr()))
+            .map(|i| get_string(*i, &self.session))
             .collect::<Result<Vec<_>>>()
     }
 }

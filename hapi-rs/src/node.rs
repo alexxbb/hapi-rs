@@ -78,13 +78,13 @@ impl HoudiniNode {
         unsafe {
             let mut info = MaybeUninit::uninit();
             ffi::HAPI_GetNodeInfo(session.ptr(), id, info.as_mut_ptr())
-                .with_session(|| session.clone())?;
+                .result_with_session(|| session.clone())?;
             let info = info.assume_init();
             // if info.createdPostAssetLoad != 0 {
             //     unimplemented!()
             // }
             ffi::HAPI_DeleteNode(session.ptr(), id)
-                .with_session(|| session.clone())
+                .result_with_session(|| session.clone())
         }
     }
 
@@ -106,7 +106,7 @@ impl HoudiniNode {
         let (id, session) = self.strip();
         unsafe {
             ffi::HAPI_CookNode(session.ptr(), id, null())
-                .with_session(||session.clone())?;
+                .result_with_session(||session.clone())?;
         }
         if session.unsync {
             loop {
@@ -144,7 +144,7 @@ impl HoudiniNode {
                 cook as i8,
                 id.as_mut_ptr(),
             )
-            .with_session(||session.clone())?;
+            .result_with_session(||session.clone())?;
             Ok(id.assume_init())
         }
     }
