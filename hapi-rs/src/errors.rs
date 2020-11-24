@@ -103,15 +103,15 @@ pub fn get_call_status(session: &Session) -> Result<String> {
     )
 }
 
-pub fn get_cook_status(session: &Session) -> Result<String> {
+pub fn get_cook_status(session: &Session, verbosity: StatusVerbosity) -> Result<String> {
     get_status_string(
         session,
         StatusType::CookResult,
-        StatusVerbosity::Statusverbosity0,
+        verbosity,
     )
 }
 
-fn get_status_string(
+pub fn get_status_string(
     session: &Session,
     type_: StatusType,
     verbosity: StatusVerbosity,

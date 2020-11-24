@@ -4,4 +4,4 @@
 #![allow(non_snake_case)]
 pub mod bindings;
 #[allow(dead_code)]
-pub(crate) mod rusty;
+pub mod rusty;

@@ -13,5 +13,6 @@ mod asset;
 
 pub use stringhandle::get_string;
 pub use auto::rusty::*;
+pub use auto::rusty as enums;
 pub use auto::bindings as ffi;
 pub use errors::Result;

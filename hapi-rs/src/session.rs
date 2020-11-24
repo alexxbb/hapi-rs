@@ -1,9 +1,9 @@
 use crate::{
     asset::AssetLibrary,
-    auto::rusty::{State, StatusType},
+    auto::rusty::{State, StatusType, StatusVerbosity},
+    check_session,
     cookoptions::CookOptions,
     errors::*,
-    check_session,
     ffi,
     node::{HoudiniNode, NodeType},
 };
@@ -21,7 +21,7 @@ use std::{
 pub struct Session {
     handle: Arc<ffi::HAPI_Session>,
     pub unsync: bool,
-    cleanup: bool
+    cleanup: bool,
 }
 
 impl Session {
@@ -36,7 +36,7 @@ impl Session {
                 ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(Session {
                     handle: Arc::new(ses.assume_init()),
                     unsync: false,
-                    cleanup: true
+                    cleanup: true,
                 }),
                 e => hapi_err!(e),
             }
@@ -69,7 +69,7 @@ impl Session {
         Ok(Session {
             handle: Arc::new(session),
             unsync: false,
-            cleanup: false
+            cleanup: false,
         })
     }
 
@@ -80,12 +80,13 @@ impl Session {
                 opts.cook_opt.const_ptr(),
                 opts.unsync as i8,
                 -1,
-                opts.env_files.map(|p|p.as_ptr()).unwrap_or(null()),
-                opts.otl_path.map(|p|p.as_ptr()).unwrap_or(null()),
-                opts.dso_path.map(|p|p.as_ptr()).unwrap_or(null()),
-                opts.img_dso_path.map(|p|p.as_ptr()).unwrap_or(null()),
-                opts.aud_dso_path.map(|p|p.as_ptr()).unwrap_or(null()),
-            ).result_with_session(||self.clone())
+                opts.env_files.map(|p| p.as_ptr()).unwrap_or(null()),
+                opts.otl_path.map(|p| p.as_ptr()).unwrap_or(null()),
+                opts.dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
+                opts.img_dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
+                opts.aud_dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
+            )
+            .result_with_session(|| self.clone())
         }
     }
 
@@ -94,7 +95,7 @@ impl Session {
             match ffi::HAPI_IsInitialized(self.ptr()) {
                 ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(true),
                 ffi::HAPI_Result::HAPI_RESULT_NOT_INITIALIZED => Ok(false),
-                e => hapi_err!(e, None, Some("HAPI_IsInitialized failed"))
+                e => hapi_err!(e, None, Some("HAPI_IsInitialized failed")),
             }
         }
     }
@@ -111,8 +112,7 @@ impl Session {
     pub fn save_hip(&self, name: &str) -> Result<()> {
         unsafe {
             let name = CString::new(name)?;
-            ffi::HAPI_SaveHIPFile(self.ptr(), name.as_ptr(), 0)
-                .result_with_session(||self.clone())
+            ffi::HAPI_SaveHIPFile(self.ptr(), name.as_ptr(), 0).result_with_session(|| self.clone())
         }
     }
 
@@ -120,7 +120,7 @@ impl Session {
         unsafe {
             let name = CString::new(name)?;
             ffi::HAPI_LoadHIPFile(self.ptr(), name.as_ptr(), cook as i8)
-                .result_with_session(||self.clone())
+                .result_with_session(|| self.clone())
         }
     }
 
@@ -128,33 +128,33 @@ impl Session {
         unsafe {
             let name = CString::new(name)?;
             let mut id = MaybeUninit::uninit();
-            ffi::HAPI_MergeHIPFile(
-                self.ptr(),
-                name.as_ptr(),
-                cook as i8,
-                id.as_mut_ptr(),
-            )
-            .result_with_session(||self.clone())?;
+            ffi::HAPI_MergeHIPFile(self.ptr(), name.as_ptr(), cook as i8, id.as_mut_ptr())
+                .result_with_session(|| self.clone())?;
             Ok(id.assume_init())
         }
     }
 
     pub fn load_asset_file(&self, file: &str) -> Result<AssetLibrary> {
-        AssetLibrary::from_file(file, self.clone())
+        AssetLibrary::from_file(self.clone(), file)
     }
 
     pub fn interrupt(&self) -> Result<()> {
-        unsafe { ffi::HAPI_Interrupt(self.ptr()).result_with_session(||self.clone())}
+        unsafe { ffi::HAPI_Interrupt(self.ptr()).result_with_session(|| self.clone()) }
     }
 
     pub fn get_status(&self, flag: StatusType) -> Result<State> {
         let status = unsafe {
             let mut status = MaybeUninit::uninit();
             ffi::HAPI_GetStatus(self.ptr(), flag.into(), status.as_mut_ptr())
-                .result_with_session(||self.clone())?;
+                .result_with_session(|| self.clone())?;
             status.assume_init()
         };
         Ok(State::from(status))
+    }
+
+    pub fn last_cook_error(&self, verbosity: Option<StatusVerbosity>) -> Result<String> {
+        let verbosity = verbosity.unwrap_or(StatusVerbosity::VerbosityErrors);
+        get_cook_status(self, verbosity)
     }
 }
 
@@ -180,9 +180,9 @@ impl Drop for Session {
 }
 
 fn join_paths<I>(files: I) -> String
-    where
-        I: IntoIterator,
-        I::Item: AsRef<Path>,
+where
+    I: IntoIterator,
+    I::Item: AsRef<Path>,
 {
     let mut buf = String::new();
     let mut iter = files.into_iter().peekable();
@@ -233,14 +233,13 @@ impl SessionOptions {
     // }
 
     pub fn otl_search_paths<I>(mut self, paths: I) -> Self
-        where
-            I: IntoIterator,
-            I::Item: AsRef<Path>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<Path>,
     {
         let paths = join_paths(paths);
         self.otl_path
-            .replace(CString::new(paths)
-                .expect("set_otl_search_paths: zero byte in string"));
+            .replace(CString::new(paths).expect("set_otl_search_paths: zero byte in string"));
         self
     }
 

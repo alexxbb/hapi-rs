@@ -1,5 +1,5 @@
 #![allow(non_upper_case_globals)]
-use crate::auto::rusty::{ParmType, State};
+use crate::auto::rusty::{ParmType, StatusVerbosity, State};
 use crate::auto::bindings as ffi;
 impl ParmType {
     pub const IntStart: ParmType = ParmType::Int;
@@ -16,6 +16,13 @@ impl ParmType {
     pub const ContainerEnd: ParmType = ParmType::FolderlistRadio;
     pub const NonvalueStart: ParmType = ParmType::Folder;
     pub const NonvalueEnd: ParmType = ParmType::Separator;
+}
+
+impl StatusVerbosity {
+        pub const VerbosityAll: Self = Self::Statusverbosity2;
+        pub const VerbosityErrors: Self = Self::Statusverbosity0;
+        pub const VerbosityWarnings: Self = Self::Statusverbosity1;
+        pub const VerbosityMessages: Self = Self::Statusverbosity2;
 }
 
 impl From<i32> for State {

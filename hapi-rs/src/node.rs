@@ -14,6 +14,7 @@ use std::task::{Context, Poll};
 #[cfg(feature = "async")]
 mod _async {
     use super::*;
+    #[must_use]
     pub struct CookFuture {
         node_id: i32,
         session: Session,
@@ -28,19 +29,6 @@ mod _async {
             }
             CookFuture { node_id, session }
         }
-
-        // pub fn complete(&self) -> std::result::Result<(), ()> {
-        //     eprintln!("Starting cooking");
-        //     loop {
-        //         match self.state() {
-        //             State::StateReady => break Ok(()),
-        //             State::StateCooking | State::StartingCook => {
-        //             }
-        //             State::CookErrors => break Err(()),
-        //             _s => {}
-        //         }
-        //     }
-        // }
     }
 
     impl std::future::Future for CookFuture {
@@ -64,7 +52,7 @@ mod _async {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum HoudiniNode {
     SopNode(SopNode),
@@ -169,12 +157,12 @@ impl HoudiniNode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SopNode {
     id: ffi::HAPI_NodeId,
     session: Session,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ObjNode {
     id: ffi::HAPI_NodeId,
     session: Session,

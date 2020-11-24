@@ -12,7 +12,7 @@ pub struct AssetLibrary {
 }
 
 impl AssetLibrary {
-    pub fn from_file(file: &str, session: Session) -> Result<AssetLibrary> {
+    pub fn from_file(session: Session, file: &str) -> Result<AssetLibrary> {
         unsafe {
             let mut lib_id = MaybeUninit::uninit();
             let cs = CString::from_vec_unchecked(Vec::from(file));
