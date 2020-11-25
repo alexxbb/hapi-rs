@@ -5,7 +5,7 @@ use crate::{
     cookoptions::CookOptions,
     errors::*,
     ffi,
-    node::{HoudiniNode, NodeType},
+    node::HoudiniNode,
 };
 #[rustfmt::skip]
 use std::{
@@ -74,10 +74,12 @@ impl Session {
     }
 
     pub fn initialize(&mut self, opts: SessionOptions) -> Result<()> {
+        self.unsync = opts.unsync;
+        self.cleanup = opts.cleanup;
         unsafe {
             ffi::HAPI_Initialize(
                 self.ptr(),
-                opts.cook_opt.const_ptr(),
+                opts.cook_opt.ptr(),
                 opts.unsync as i8,
                 -1,
                 opts.env_files.map(|p| p.as_ptr()).unwrap_or(null()),
@@ -88,6 +90,14 @@ impl Session {
             )
             .result_with_session(|| self.clone())
         }
+    }
+
+    pub fn cleanup(&self) -> Result<()> {
+        unsafe { ffi::HAPI_Cleanup(self.ptr()).result_with_session(|| self.clone()) }
+    }
+
+    pub fn close_session(&self) -> Result<()> {
+        unsafe { ffi::HAPI_CloseSession(self.ptr()).result_with_session(|| self.clone()) }
     }
 
     pub fn is_initialized(&self) -> Result<bool> {
@@ -151,10 +161,51 @@ impl Session {
         };
         Ok(State::from(status))
     }
+    pub fn is_cooking(&self) -> Result<bool> {
+        Ok(matches!(
+            self.get_status(StatusType::CookState)?,
+            State::StateCooking
+        ))
+    }
 
     pub fn last_cook_error(&self, verbosity: Option<StatusVerbosity>) -> Result<String> {
         let verbosity = verbosity.unwrap_or(StatusVerbosity::VerbosityErrors);
         get_cook_status(self, verbosity)
+    }
+
+    pub fn cooking_total_count(&self) -> Result<i32> {
+        unsafe {
+            let mut count = MaybeUninit::uninit();
+            ffi::HAPI_GetCookingTotalCount(self.ptr(), count.as_mut_ptr())
+                .result_with_session(|| self.clone())?;
+            Ok(count.assume_init())
+        }
+    }
+
+    pub fn cooking_current_count(&self) -> Result<i32> {
+        unsafe {
+            let mut count = MaybeUninit::uninit();
+            ffi::HAPI_GetCookingCurrentCount(self.ptr(), count.as_mut_ptr())
+                .result_with_session(|| self.clone())?;
+            Ok(count.assume_init())
+        }
+    }
+
+    pub fn get_connection_error(&self, clear: bool) -> Result<String> {
+        unsafe {
+            let mut length = MaybeUninit::uninit();
+            ffi::HAPI_GetConnectionErrorLength(length.as_mut_ptr())
+                .result_with_message(Some("HAPI_GetConnectionErrorLength failed"))?;
+            let length = length.assume_init();
+            if length > 0 {
+                let mut buf = vec![0u8; length as usize];
+                ffi::HAPI_GetConnectionError(buf.as_mut_ptr() as *mut _, length, clear as i8)
+                    .result_with_message(Some("HAPI_GetConnectionError failed"))?;
+                Ok(String::from_utf8_unchecked(buf))
+            } else {
+                Ok(String::new())
+            }
+        }
     }
 }
 
@@ -167,12 +218,12 @@ impl Drop for Session {
                 use ffi::HAPI_Result::*;
                 if self.cleanup {
                     eprintln!("HAPI_Cleanup");
-                    if !matches!(ffi::HAPI_Cleanup(self.ptr()), HAPI_RESULT_SUCCESS) {
-                        eprintln!("HAPI_Cleanup failed!");
+                    if let Err(e) = self.cleanup() {
+                        eprintln!("Cleanup failed in Drop: {}", e);
                     }
                 }
-                if !matches!(ffi::HAPI_CloseSession(self.ptr()), HAPI_RESULT_SUCCESS) {
-                    eprintln!("HAPI_CloseSession failed!");
+                if let Err(e) = self.close_session() {
+                    eprintln!("Closing session failed in Drop: {}", e);
                 }
             }
         }

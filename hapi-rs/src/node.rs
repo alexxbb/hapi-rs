@@ -1,15 +1,22 @@
-use super::errors::*;
-use crate::auto::bindings as ffi;
-pub use crate::auto::rusty::NodeType;
-use crate::auto::rusty::{State, StatusType};
-use crate::char_ptr;
-use crate::session::Session;
-use std::ffi::CString;
-use std::mem::MaybeUninit;
-use std::pin::Pin;
-use std::ptr::null;
-use std::sync::Arc;
-use std::task::{Context, Poll};
+use crate::{
+    auto::bindings as ffi,
+    auto::rusty::{
+        NodeType,
+        State,
+        StatusType
+    },
+    cookoptions::CookOptions,
+    errors::*,
+    session::Session,
+};
+use std::{
+    ffi::CString,
+    mem::MaybeUninit,
+    pin::Pin,
+    ptr::null,
+    sync::Arc,
+    task::{Context, Poll},
+};
 
 #[cfg(feature = "async")]
 mod _async {
@@ -71,8 +78,7 @@ impl HoudiniNode {
             // if info.createdPostAssetLoad != 0 {
             //     unimplemented!()
             // }
-            ffi::HAPI_DeleteNode(session.ptr(), id)
-                .result_with_session(|| session.clone())
+            ffi::HAPI_DeleteNode(session.ptr(), id).result_with_session(|| session.clone())
         }
     }
 
@@ -84,25 +90,21 @@ impl HoudiniNode {
         }
     }
 
-    #[cfg(feature = "async")]
-    pub fn cook(&self) -> _async::CookFuture {
+    /// https://github.com/sideeffects/HoudiniEngineForUnity/blob/5b2d34bd5a04513288f4991048bf9c5ecceacac5/Plugins/HoudiniEngineUnity/Scripts/Asset/HEU_HoudiniAsset.cs#L1536
+    pub fn cook(&self, options: Option<CookOptions>) -> Result<()> {
         let (id, session) = self.strip();
-        _async::CookFuture::new(id, session.clone())
+        let opt = options.map(|o| o.ptr()).unwrap_or(null());
+        unsafe {
+            ffi::HAPI_CookNode(session.ptr(), id, opt).result_with_session(|| session.clone())?;
+        }
+        Ok(())
     }
 
-    pub fn cook_blocking(&self) -> Result<()> {
-        let (id, session) = self.strip();
-        unsafe {
-            ffi::HAPI_CookNode(session.ptr(), id, null())
-                .result_with_session(||session.clone())?;
-        }
+    pub fn cook_blocking(&self, options: Option<CookOptions>) -> Result<()> {
+        self.cook(options)?;
+        let (_, session) = self.strip();
         if session.unsync {
-            loop {
-                match session.get_status(StatusType::CookState)? {
-                    State::StateReady => break,
-                    _ => {}
-                }
-            }
+            while session.is_cooking()? {}
         }
         Ok(())
     }
@@ -132,7 +134,7 @@ impl HoudiniNode {
                 cook as i8,
                 id.as_mut_ptr(),
             )
-            .result_with_session(||session.clone())?;
+            .result_with_session(|| session.clone())?;
             Ok(id.assume_init())
         }
     }

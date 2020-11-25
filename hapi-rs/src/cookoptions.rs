@@ -13,7 +13,7 @@ impl Default for CookOptions {
 }
 
 impl CookOptions {
-    pub fn const_ptr(&self) -> *const ffi::HAPI_CookOptions {
+    pub fn ptr(&self) -> *const ffi::HAPI_CookOptions {
         &self.inner as *const _
     }
 }
