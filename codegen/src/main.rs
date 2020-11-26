@@ -38,6 +38,9 @@ fn main() -> Result<()> {
         .opt_str("config")
         .ok_or_else(|| anyhow!("Must provide codegen.toml"))?;
     let cg = config::read_config(&conf);
+    if ! std::path::Path::new(&outdir).exists() {
+        return Err(anyhow!("Output directory {} doesn't exist", &outdir));
+    }
     bindgen::run_bindgen(&include, &wrapper, &outdir)?;
     ext::write_extension(&outdir, cg)?;
     Ok(())

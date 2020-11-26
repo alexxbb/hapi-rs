@@ -1,5 +1,21 @@
-#!/bin/zsh
+#!/bin/bash
 
-incl="/Applications/Houdini/Houdini18.0.597/Frameworks/Houdini.framework/Versions/Current/Resources/toolkit/include/HAPI"
+if [[ -z $HFS ]]; then
+	echo "Must source houdini_setup"
+	exit 1
+fi
 
-cargo run --package codegen -- --include $incl --outdir hapi-rs/src/auto --config codegen/codegen.toml --wrapper codegen/wrapper.h
+if [[ $(uname) == "Linux" ]]; then
+  incl=$HFS/toolkit/include/HAPI
+  export LIBCLANG_PATH=/shots/spi/home/software/packages/llvm/11.0.0/gcc-6.3/lib
+
+else
+  incl="/Applications/Houdini/Houdini18.0.597/Frameworks/Houdini.framework/Versions/Current/Resources/toolkit/include/HAPI"
+fi
+
+cargo run --release \
+--package codegen -- \
+--include "${incl}" \
+--wrapper codegen/wrapper.h \
+--outdir hapi-rs/src/auto \
+--config codegen/codegen.toml \

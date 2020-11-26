@@ -12,10 +12,10 @@ pub struct AssetLibrary {
 }
 
 impl AssetLibrary {
-    pub fn from_file(session: Session, file: &str) -> Result<AssetLibrary> {
+    pub fn from_file(session: Session, file: impl AsRef<std::path::Path>) -> Result<AssetLibrary> {
+        let cs = CString::new(file.as_ref().to_string_lossy().as_bytes().to_vec())?;
         unsafe {
             let mut lib_id = MaybeUninit::uninit();
-            let cs = CString::from_vec_unchecked(Vec::from(file));
             ffi::HAPI_LoadAssetLibraryFromFile(
                 session.ptr(),
                 cs.as_ptr(),
@@ -56,9 +56,5 @@ impl AssetLibrary {
         };
 
         get_string_batch(&handles, &self.session)
-        // handles
-        //     .iter()
-        //     .map(|i| get_string(*i, &self.session))
-        //     .collect::<Result<Vec<_>>>()
     }
 }

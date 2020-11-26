@@ -7,6 +7,7 @@ use dev_2::run;
 // use dev_3::run;
 fn main() {
     if let Err(e) = unsafe{run()} {
-        eprintln!("Error: {}", e)
+        eprintln!("Error: {}", e);
+        std::process::exit(1)
     }
 }

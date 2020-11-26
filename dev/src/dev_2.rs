@@ -1,6 +1,6 @@
 use hapi_rs::{
     errors::{HapiError, HapiResult, Kind, Result},
-    session::{Session, SessionOptions, CookResult},
+    session::{CookResult, Session, SessionOptions},
     StatusVerbosity,
 };
 
@@ -13,15 +13,16 @@ pub unsafe fn run() -> Result<()> {
             return Err(e);
         }
     }
-    let library = session.load_asset_file("/Users/alex/sandbox/rust/hapi/otls/cook_err_fatal.hda")?;
+    let otl = std::env::current_dir()
+        .unwrap()
+        .join("otls/nurbs_curve.hda");
+    let library = session.load_asset_file(otl)?;
     let names = library.get_asset_names()?;
     let node = session.create_node_blocking(&names[0], None, None)?;
     // println!("Need to cook: {}", session.cooking_total_count()?);
     // println!("Already cooked: {}", session.cooking_current_count()?);
     match node.cook_blocking(None)? {
-        CookResult::Succeeded => {
-            println!("Cooking Done!")
-        }
+        CookResult::Succeeded => println!("Cooking Done!"),
         CookResult::Warnings => {
             let w = session.get_cook_status(StatusVerbosity::VerbosityWarnings)?;
             println!("Warnings: {}", w);

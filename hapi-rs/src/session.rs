@@ -151,8 +151,8 @@ impl Session {
         }
     }
 
-    pub fn load_asset_file(&self, file: &str) -> Result<AssetLibrary> {
-        AssetLibrary::from_file(self.clone(), file)
+    pub fn load_asset_file(&self, file: impl AsRef<std::path::Path>) -> Result<AssetLibrary> {
+        AssetLibrary::from_file(self.clone(), file.as_ref())
     }
 
     pub fn interrupt(&self) -> Result<()> {
@@ -191,7 +191,7 @@ impl Session {
             )
             .result_with_message(Some("GetStatusStringBufLength failed"))?;
             let length = length.assume_init();
-            let mut buf = vec![0u8; length as usize];
+            let mut buf = vec![0u8; length as usize - 1];
             if length > 0 {
                 ffi::HAPI_GetStatusString(
                     self.ptr(),
