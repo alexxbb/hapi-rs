@@ -18,6 +18,13 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
+pub enum CookResult {
+    Succeeded,
+    Warnings,
+    Errored,
+}
+
+#[derive(Debug, Clone)]
 pub struct Session {
     handle: Arc<ffi::HAPI_Session>,
     pub unsync: bool,
@@ -161,16 +168,49 @@ impl Session {
         };
         Ok(State::from(status))
     }
+
     pub fn is_cooking(&self) -> Result<bool> {
         Ok(matches!(
             self.get_status(StatusType::CookState)?,
-            State::StateCooking
+            State::Cooking
         ))
     }
 
-    pub fn last_cook_error(&self, verbosity: Option<StatusVerbosity>) -> Result<String> {
-        let verbosity = verbosity.unwrap_or(StatusVerbosity::VerbosityErrors);
-        get_cook_status(self, verbosity)
+    pub fn get_status_string(
+        &self,
+        status: StatusType,
+        verbosity: StatusVerbosity,
+    ) -> Result<String> {
+        unsafe {
+            let mut length = std::mem::MaybeUninit::uninit();
+            ffi::HAPI_GetStatusStringBufLength(
+                self.ptr(),
+                status.into(),
+                verbosity.into(),
+                length.as_mut_ptr(),
+            )
+            .result_with_message(Some("GetStatusStringBufLength failed"))?;
+            let length = length.assume_init();
+            let mut buf = vec![0u8; length as usize];
+            if length > 0 {
+                ffi::HAPI_GetStatusString(
+                    self.ptr(),
+                    status.into(),
+                    // SAFETY: casting to u8 to i8 (char)?
+                    buf.as_mut_ptr() as *mut i8,
+                    length,
+                )
+                .result_with_message(Some("GetStatusString failed"))?;
+                buf.truncate(length as usize);
+                Ok(String::from_utf8_unchecked(buf))
+            } else {
+                Ok(String::new())
+            }
+        }
+    }
+
+    pub fn get_cook_status(&self, verbosity: StatusVerbosity) -> Result<String> {
+        self.get_status_string(StatusType::CookResult, verbosity)
     }
 
     pub fn cooking_total_count(&self) -> Result<i32> {
@@ -188,6 +228,24 @@ impl Session {
             ffi::HAPI_GetCookingCurrentCount(self.ptr(), count.as_mut_ptr())
                 .result_with_session(|| self.clone())?;
             Ok(count.assume_init())
+        }
+    }
+
+    pub fn cook_result(&self) -> Result<CookResult> {
+        if self.unsync {
+            loop {
+                match self.get_status(StatusType::CookState)? {
+                    State::Ready => break Ok(CookResult::Succeeded),
+                    State::ReadyWithFatalErrors => {
+                        self.interrupt()?;
+                        break Ok(CookResult::Errored);
+                    }
+                    State::ReadyWithCookErrors => break Ok(CookResult::Warnings),
+                    _ => {}
+                }
+            }
+        } else {
+            Ok(CookResult::Succeeded)
         }
     }
 

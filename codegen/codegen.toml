@@ -9,7 +9,7 @@ HAPI_StatusVerbosity = { rename = "auto", mode = -1 }
 HAPI_Result = { rename = "HapiResult", mode = 2 }
 HAPI_ErrorCode = { rename = "auto", mode = -1 }
 HAPI_SessionType = { rename = "auto", mode = -1 }
-HAPI_State = { rename = "auto", mode = -2 }
+HAPI_State = { rename = "auto", mode = 2 }
 HAPI_PackedPrimInstancingMode = { rename = "auto", mode = -1 }
 HAPI_Permissions = { rename = "auto", mode = -2 }
 HAPI_RampType = { rename = "auto", mode = -1 }

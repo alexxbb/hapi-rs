@@ -3,11 +3,12 @@ use crate::{
     auto::rusty::{
         NodeType,
         State,
-        StatusType
+        StatusType,
+        StatusVerbosity
     },
     cookoptions::CookOptions,
     errors::*,
-    session::Session,
+    session::{Session, CookResult},
 };
 use std::{
     ffi::CString,
@@ -18,47 +19,6 @@ use std::{
     task::{Context, Poll},
 };
 
-#[cfg(feature = "async")]
-mod _async {
-    use super::*;
-    #[must_use]
-    pub struct CookFuture {
-        node_id: i32,
-        session: Session,
-    }
-
-    impl CookFuture {
-        pub fn new(node_id: i32, session: Session) -> CookFuture {
-            unsafe {
-                let r = ffi::HAPI_CookNode(session.ptr(), node_id, null());
-                eprintln!("Starting async cooking...");
-                assert!(matches!(r, ffi::HAPI_Result::HAPI_RESULT_SUCCESS));
-            }
-            CookFuture { node_id, session }
-        }
-    }
-
-    impl std::future::Future for CookFuture {
-        type Output = Result<State>;
-
-        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            match self.session.get_status(StatusType::CookState) {
-                Err(e) => panic!("Temporary"),
-                Ok(s) => match s {
-                    State::StateReady => Poll::Ready(Ok(State::StateReady)),
-                    State::StateCooking | State::StartingCook => {
-                        cx.waker().wake_by_ref();
-                        Poll::Pending
-                    }
-                    State::CookErrors => {
-                        Poll::Ready(Err(HapiError::new(Kind::CookError, None, None)))
-                    }
-                    _s => Poll::Ready(Err(HapiError::new(Kind::CookError, None, None))),
-                },
-            }
-        }
-    }
-}
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum HoudiniNode {
@@ -100,14 +60,12 @@ impl HoudiniNode {
         Ok(())
     }
 
-    pub fn cook_blocking(&self, options: Option<CookOptions>) -> Result<()> {
+    pub fn cook_blocking(&self, options: Option<CookOptions>) -> Result<CookResult> {
         self.cook(options)?;
         let (_, session) = self.strip();
-        if session.unsync {
-            while session.is_cooking()? {}
-        }
-        Ok(())
+        session.cook_result()
     }
+
 
     fn _create(
         name: &str,
@@ -150,7 +108,7 @@ impl HoudiniNode {
         if session.unsync {
             loop {
                 match session.get_status(StatusType::CookState)? {
-                    State::StateReady => break,
+                    State::Ready => break,
                     _ => {}
                 }
             }

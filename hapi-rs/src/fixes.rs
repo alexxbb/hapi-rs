@@ -1,6 +1,6 @@
 #![allow(non_upper_case_globals)]
-use crate::auto::rusty::{ParmType, StatusVerbosity, State};
 use crate::auto::bindings as ffi;
+use crate::auto::rusty::{ParmType, State, StatusVerbosity};
 impl ParmType {
     pub const IntStart: ParmType = ParmType::Int;
     pub const IntEnd: ParmType = ParmType::Button;
@@ -19,24 +19,28 @@ impl ParmType {
 }
 
 impl StatusVerbosity {
-        pub const VerbosityAll: Self = Self::Statusverbosity2;
-        pub const VerbosityErrors: Self = Self::Statusverbosity0;
-        pub const VerbosityWarnings: Self = Self::Statusverbosity1;
-        pub const VerbosityMessages: Self = Self::Statusverbosity2;
+    pub const VerbosityAll: Self = Self::Statusverbosity2;
+    pub const VerbosityErrors: Self = Self::Statusverbosity0;
+    pub const VerbosityWarnings: Self = Self::Statusverbosity1;
+    pub const VerbosityMessages: Self = Self::Statusverbosity2;
+}
+
+impl State {
+    pub const MaxReadyState: State = State::ReadyWithCookErrors;
 }
 
 impl From<i32> for State {
     fn from(s: i32) -> Self {
         match s {
-            0 => State::StateReady,
-            1 => State::FatalErrors,
-            2 => State::CookErrors,
+            0 => State::Ready,
+            1 => State::ReadyWithFatalErrors,
+            2 => State::ReadyWithCookErrors,
             3 => State::StartingCook,
-            4=> State::StateCooking,
+            4 => State::Cooking,
             5 => State::StartingLoad,
-            6=>State::StateLoading,
-            7=>State::StateMax,
-            _=> unimplemented!()
+            6 => State::Loading,
+            7 => State::Max,
+            _ => unimplemented!(),
         }
     }
 }

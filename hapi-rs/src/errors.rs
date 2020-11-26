@@ -73,7 +73,10 @@ impl std::fmt::Display for HapiError {
             Kind::Hapi(_) => {
                 if let Some(session) = &self.session {
                     check_session!(session.ptr());
-                    let error = get_call_status(&session);
+                    let error = session.get_status_string(
+                        StatusType::CallResult,
+                        StatusVerbosity::Statusverbosity0,
+                    );
                     write!(
                         f,
                         "{}: {}",
@@ -90,56 +93,6 @@ impl std::fmt::Display for HapiError {
                 }
             }
             _ => unreachable!(),
-        }
-    }
-}
-
-#[inline]
-pub fn get_call_status(session: &Session) -> Result<String> {
-    get_status_string(
-        session,
-        StatusType::CallResult,
-        StatusVerbosity::Statusverbosity0,
-    )
-}
-
-pub fn get_cook_status(session: &Session, verbosity: StatusVerbosity) -> Result<String> {
-    get_status_string(
-        session,
-        StatusType::CookResult,
-        verbosity,
-    )
-}
-
-pub fn get_status_string(
-    session: &Session,
-    type_: StatusType,
-    verbosity: StatusVerbosity,
-) -> Result<String> {
-    unsafe {
-        let mut length = std::mem::MaybeUninit::uninit();
-        ffi::HAPI_GetStatusStringBufLength(
-            session.ptr(),
-            type_.into(),
-            verbosity.into(),
-            length.as_mut_ptr(),
-        )
-        .result_with_message(Some("GetStatusStringBufLength failed"))?;
-        let length = length.assume_init();
-        let mut buf = vec![0u8; length as usize];
-        if length > 0 {
-            ffi::HAPI_GetStatusString(
-                session.ptr(),
-                type_.into(),
-                // SAFETY: casting to u8 to i8 (char)?
-                buf.as_mut_ptr() as *mut i8,
-                length,
-            )
-            .result_with_message(Some("GetStatusString failed"))?;
-            buf.truncate(length as usize);
-            Ok(String::from_utf8_unchecked(buf))
-        } else {
-            Ok(String::new())
         }
     }
 }
