@@ -1,9 +1,9 @@
 #![allow(unused)]
+use log;
 #[macro_use]
 pub mod errors;
 mod auto;
 mod fixes;
-// mod design;
 pub mod session;
 pub mod node;
 pub mod cookoptions;

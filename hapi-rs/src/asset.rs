@@ -4,6 +4,7 @@ use crate::{stringhandle::*, Result};
 use std::ffi::CString;
 use std::mem::MaybeUninit;
 use std::path::Path;
+use log::debug;
 
 #[derive(Debug, Clone)]
 pub struct AssetLibrary {
@@ -13,7 +14,9 @@ pub struct AssetLibrary {
 
 impl AssetLibrary {
     pub fn from_file(session: Session, file: impl AsRef<std::path::Path>) -> Result<AssetLibrary> {
-        let cs = CString::new(file.as_ref().to_string_lossy().as_bytes().to_vec())?;
+        let path = file.as_ref().to_string_lossy();
+        debug!("Loading library: {}", &path);
+        let cs = CString::new(path.as_bytes().to_vec())?;
         unsafe {
             let mut lib_id = MaybeUninit::uninit();
             ffi::HAPI_LoadAssetLibraryFromFile(

@@ -17,6 +17,8 @@ use std::{
     path::Path
 };
 
+use log::{debug, warn};
+
 #[derive(Debug, Clone)]
 pub enum CookResult {
     Succeeded,
@@ -37,6 +39,7 @@ impl Session {
         self.handle.as_ref() as *const _
     }
     pub fn new_in_process() -> Result<Session> {
+        debug!("Creating new in-process session");
         let mut ses = MaybeUninit::uninit();
         unsafe {
             match ffi::HAPI_CreateInProcessSession(ses.as_mut_ptr()) {
@@ -51,6 +54,7 @@ impl Session {
     }
 
     pub fn start_named_pipe_server(path: &str) -> Result<i32> {
+        debug!("Starting named pipe server: {}", path);
         let pid = unsafe {
             let mut pid = MaybeUninit::uninit();
             let cs = CString::new(path)?;
@@ -66,6 +70,7 @@ impl Session {
     }
 
     pub fn new_named_pipe(path: &str) -> Result<Session> {
+        debug!("Creating new named piped session: {}", path);
         let session = unsafe {
             let mut handle = MaybeUninit::uninit();
             let cs = CString::new(path)?;
@@ -127,6 +132,7 @@ impl Session {
     }
 
     pub fn save_hip(&self, name: &str) -> Result<()> {
+        debug!("Saving hip file: {}", name);
         unsafe {
             let name = CString::new(name)?;
             ffi::HAPI_SaveHIPFile(self.ptr(), name.as_ptr(), 0).result_with_session(|| self.clone())
@@ -134,6 +140,7 @@ impl Session {
     }
 
     pub fn load_hip(&self, name: &str, cook: bool) -> Result<()> {
+        debug!("Loading hip file: {}", name);
         unsafe {
             let name = CString::new(name)?;
             ffi::HAPI_LoadHIPFile(self.ptr(), name.as_ptr(), cook as i8)
@@ -142,6 +149,7 @@ impl Session {
     }
 
     pub fn merge_hip(&self, name: &str, cook: bool) -> Result<i32> {
+        debug!("Merging hip file: {}", name);
         unsafe {
             let name = CString::new(name)?;
             let mut id = MaybeUninit::uninit();
