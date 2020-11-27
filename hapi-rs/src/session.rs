@@ -23,7 +23,7 @@ use log::{debug, warn, error};
 pub enum CookResult {
     Succeeded,
     Warnings,
-    Errored,
+    Errored(String),
 }
 
 #[derive(Debug, Clone)]
@@ -207,7 +207,6 @@ impl Session {
                 ffi::HAPI_GetStatusString(
                     self.ptr(),
                     status.into(),
-                    // SAFETY: casting to u8 to i8 (char)?
                     buf.as_mut_ptr() as *mut i8,
                     length,
                 )
@@ -249,7 +248,8 @@ impl Session {
                     State::Ready => break Ok(CookResult::Succeeded),
                     State::ReadyWithFatalErrors => {
                         self.interrupt()?;
-                        break Ok(CookResult::Errored);
+                        let err = self.get_cook_status(StatusVerbosity::VerbosityErrors)?;
+                        break Ok(CookResult::Errored(err));
                     }
                     State::ReadyWithCookErrors => break Ok(CookResult::Warnings),
                     _ => {}
