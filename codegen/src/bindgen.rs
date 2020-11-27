@@ -28,6 +28,8 @@ pub fn run_bindgen(incl: &str, header: &str, outdir: &str) -> Result<()> {
         .header(header)
         .clang_arg(format!("-I/{}", incl))
         .default_enum_style("rust_non_exhaustive".parse().unwrap())
+        .bitfield_enum("HAPI_NodeType")
+        .bitfield_enum("HAPI_NodeFlags")
         .prepend_enum_name(false)
         .generate_comments(false)
         .derive_copy(false)
