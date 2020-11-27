@@ -1,14 +1,10 @@
 use crate::{
     auto::bindings as ffi,
-    auto::rusty::{
-        NodeType,
-        State,
-        StatusType,
-        StatusVerbosity
-    },
+    auto::rusty::{State, StatusType, StatusVerbosity},
     cookoptions::CookOptions,
     errors::*,
-    session::{Session, CookResult},
+    session::{CookResult, Session},
+    stringhandle,
 };
 use std::{
     ffi::CString,
@@ -19,7 +15,10 @@ use std::{
     task::{Context, Poll},
 };
 
-use log::{debug};
+use log::{
+    debug, log_enabled,
+    Level::Debug
+};
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -44,6 +43,21 @@ impl HoudiniNode {
         }
     }
 
+    pub fn path(&self, relative_to: Option<HoudiniNode>) -> Result<String> {
+        let (id, session) = self.strip();
+        unsafe {
+            let mut sh = MaybeUninit::uninit();
+            ffi::HAPI_GetNodePath(
+                session.ptr(),
+                id,
+                relative_to.map(|n| n.strip().0).unwrap_or(-1),
+                sh.as_mut_ptr(),
+            )
+            .result_with_session(|| session.clone())?;
+            stringhandle::get_string(sh.assume_init(), &session)
+        }
+    }
+
     #[inline]
     fn strip(&self) -> (ffi::HAPI_NodeId, &Session) {
         match &self {
@@ -54,6 +68,9 @@ impl HoudiniNode {
 
     /// https://github.com/sideeffects/HoudiniEngineForUnity/blob/5b2d34bd5a04513288f4991048bf9c5ecceacac5/Plugins/HoudiniEngineUnity/Scripts/Asset/HEU_HoudiniAsset.cs#L1536
     pub fn cook(&self, options: Option<CookOptions>) -> Result<()> {
+        if log_enabled!(Debug) {
+            debug!("Cooking node: {}", self.path(None)?)
+        }
         let (id, session) = self.strip();
         let opt = options.map(|o| o.ptr()).unwrap_or(null());
         unsafe {
@@ -68,6 +85,26 @@ impl HoudiniNode {
         session.cook_result()
     }
 
+    pub fn cook_count(&self) -> Result<i32> {
+        let (id, session) = self.strip();
+        let mut count = MaybeUninit::uninit();
+        use ffi::HAPI_NodeFlags as nf;
+        use ffi::HAPI_NodeType as nt;
+        let node_type = nt::HAPI_NODETYPE_OBJ | nt::HAPI_NODETYPE_SOP;
+        let node_flag = nf::HAPI_NODEFLAGS_OBJ_GEOMETRY | nf::HAPI_NODEFLAGS_DISPLAY;
+        unsafe {
+            ffi::HAPI_GetTotalCookCount(
+                session.ptr(),
+                id,
+                node_type.0,
+                node_flag.0,
+                true as i8,
+                count.as_mut_ptr(),
+            )
+            .result_with_session(|| session.clone())?;
+            Ok(count.assume_init())
+        }
+    }
 
     fn _create(
         name: &str,

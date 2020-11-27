@@ -104,10 +104,10 @@ impl From<std::ffi::NulError> for HapiError {
 }
 
 #[macro_export]
-macro_rules! hapi_ok {
-    ($hapi_result:expr, $session:expr, $message:expr) => {
+macro_rules! hapi_result {
+    ($hapi_result:expr, $ret:expr, $session:expr, $message:expr) => {
         match $hapi_result {
-            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(()),
+            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok($ret),
             e => Err(HapiError::new(Kind::Hapi(e.into()), $session, $message)),
         }
     };
@@ -131,14 +131,14 @@ macro_rules! hapi_err {
 impl std::error::Error for HapiError {}
 
 impl ffi::HAPI_Result {
-    pub(crate) fn result<R, F>(self, op: F, ret: R) -> Result<R>
+    pub(crate) fn result<R, F>(self, ok: R, err: F) -> Result<R>
     where
         F: FnOnce() -> (Option<Session>, Option<&'static str>),
     {
         match self {
-            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(ret),
+            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(ok),
             e => {
-                let (session, message) = op();
+                let (session, message) = err();
                 Err(HapiError::new(Kind::Hapi(e.into()), session, message))
             }
         }
@@ -147,10 +147,10 @@ impl ffi::HAPI_Result {
     where
         F: FnOnce() -> Session,
     {
-        self.result(|| (Some(op()), None), ())
+        self.result((), || (Some(op()), None))
     }
 
     pub(crate) fn result_with_message(self, msg: Option<&'static str>) -> Result<()> {
-        self.result(|| (None, msg), ())
+        self.result((), || (None, msg))
     }
 }

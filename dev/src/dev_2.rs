@@ -19,17 +19,14 @@ pub unsafe fn run() -> Result<()> {
     let library = session.load_asset_file(otl)?;
     let names = library.get_asset_names()?;
     let node = session.create_node_blocking(&names[0], None, None)?;
-    // println!("Need to cook: {}", session.cooking_total_count()?);
-    // println!("Already cooked: {}", session.cooking_current_count()?);
     match node.cook_blocking(None)? {
         CookResult::Succeeded => println!("Cooking Done!"),
         CookResult::Warnings => {
             let w = session.get_cook_status(StatusVerbosity::VerbosityWarnings)?;
             println!("Warnings: {}", w);
         }
-        CookResult::Errored => {
-            let e = session.get_cook_status(StatusVerbosity::VerbosityErrors)?;
-            println!("Errors: {}", e);
+        CookResult::Errored(err) => {
+            println!("Errors: {}", err);
         }
     }
     Ok(())

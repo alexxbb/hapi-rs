@@ -17,7 +17,7 @@ use std::{
     path::Path
 };
 
-use log::{debug, warn, error};
+use log::{debug, error, warn};
 
 #[derive(Debug, Clone)]
 pub enum CookResult {
@@ -42,14 +42,13 @@ impl Session {
         debug!("Creating new in-process session");
         let mut ses = MaybeUninit::uninit();
         unsafe {
-            match ffi::HAPI_CreateInProcessSession(ses.as_mut_ptr()) {
-                ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(Session {
-                    handle: Arc::new(ses.assume_init()),
-                    unsync: false,
-                    cleanup: true,
-                }),
-                e => hapi_err!(e),
-            }
+            ffi::HAPI_CreateInProcessSession(ses.as_mut_ptr())
+                .result_with_message(Some("Session::new_in_process failed"))?;
+            Ok(Session {
+                handle: Arc::new(ses.assume_init()),
+                unsync: false,
+                cleanup: true,
+            })
         }
     }
 
@@ -185,6 +184,13 @@ impl Session {
             self.get_status(StatusType::CookState)?,
             State::Cooking
         ))
+    }
+
+    pub fn is_valid(&self) -> Result<bool> {
+        unsafe {
+            let res = ffi::HAPI_IsSessionValid(self.ptr());
+            hapi_result!(res, true, None, Some("Session::is_valid failed"))
+        }
     }
 
     pub fn get_status_string(
