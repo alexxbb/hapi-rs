@@ -17,7 +17,7 @@ use std::{
     path::Path
 };
 
-use log::{debug, warn};
+use log::{debug, warn, error};
 
 #[derive(Debug, Clone)]
 pub enum CookResult {
@@ -70,7 +70,7 @@ impl Session {
     }
 
     pub fn new_named_pipe(path: &str) -> Result<Session> {
-        debug!("Creating new named piped session: {}", path);
+        debug!("Creating named piped session: {}", path);
         let session = unsafe {
             let mut handle = MaybeUninit::uninit();
             let cs = CString::new(path)?;
@@ -86,6 +86,7 @@ impl Session {
     }
 
     pub fn initialize(&mut self, opts: SessionOptions) -> Result<()> {
+        debug!("Initializing session");
         self.unsync = opts.unsync;
         self.cleanup = opts.cleanup;
         unsafe {
@@ -105,10 +106,12 @@ impl Session {
     }
 
     pub fn cleanup(&self) -> Result<()> {
+        debug!("Cleaning session");
         unsafe { ffi::HAPI_Cleanup(self.ptr()).result_with_session(|| self.clone()) }
     }
 
     pub fn close_session(&self) -> Result<()> {
+        debug!("Closing session");
         unsafe { ffi::HAPI_CloseSession(self.ptr()).result_with_session(|| self.clone()) }
     }
 
@@ -278,18 +281,16 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) {
         if Arc::strong_count(&self.handle) == 1 {
-            eprintln!("Dropping last Session");
             check_session!(self.ptr());
             unsafe {
                 use ffi::HAPI_Result::*;
                 if self.cleanup {
-                    eprintln!("HAPI_Cleanup");
                     if let Err(e) = self.cleanup() {
-                        eprintln!("Cleanup failed in Drop: {}", e);
+                        error!("Cleanup failed in Drop: {}", e);
                     }
                 }
                 if let Err(e) = self.close_session() {
-                    eprintln!("Closing session failed in Drop: {}", e);
+                    error!("Closing session failed in Drop: {}", e);
                 }
             }
         }

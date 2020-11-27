@@ -19,6 +19,8 @@ use std::{
     task::{Context, Poll},
 };
 
+use log::{debug};
+
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum HoudiniNode {
@@ -83,6 +85,7 @@ impl HoudiniNode {
                 tmp = CString::from_vec_unchecked(lb.into());
                 label_ptr = tmp.as_ptr();
             }
+            debug!("Creating node: {}", name);
             let name = CString::from_vec_unchecked(name.into());
             ffi::HAPI_CreateNode(
                 session.ptr(),
