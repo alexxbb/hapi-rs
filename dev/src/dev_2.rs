@@ -1,7 +1,7 @@
 use hapi_rs::{
     errors::{HapiError, HapiResult, Kind, Result},
     session::{CookResult, Session, SessionOptions},
-    NodeFlags, NodeType, StatusVerbosity,
+    NodeFlags, NodeType, StatusVerbosity, HOUDINI_VERSION
 };
 
 pub unsafe fn run() -> Result<()> {
