@@ -2,12 +2,10 @@
 # mode = n  [ positive n means strip n elements of the name from the front ]
 # mode = -n [ negative n means keep n elements of the name from the end ]
 HAPI_PartType = { rename = "auto", mode = -1 }
-HAPI_NodeType = { rename = "auto", mode = -1 }
 HAPI_License = { rename = "auto", mode = -2 }
 HAPI_StatusType = { rename = "auto", mode = -2 }
 HAPI_StatusVerbosity = { rename = "auto", mode = -1 }
 HAPI_Result = { rename = "HapiResult", mode = 2 }
-HAPI_ErrorCode = { rename = "auto", mode = -1 }
 HAPI_SessionType = { rename = "auto", mode = -1 }
 HAPI_State = { rename = "auto", mode = 2 }
 HAPI_PackedPrimInstancingMode = { rename = "auto", mode = -1 }
@@ -17,7 +15,6 @@ HAPI_ParmType = { rename = "auto", mode = 2 }
 HAPI_PrmScriptType = { rename = "auto", mode = -2 }
 HAPI_ChoiceListType = { rename = "auto", mode = -1 }
 HAPI_PresetType = { rename = "auto", mode = -1 }
-HAPI_NodeFlags = { rename = "auto", mode = -1 }
 HAPI_GroupType = { rename = "auto", mode = -1 }
 HAPI_AttributeOwner = { rename = "auto", mode = -1 }
 HAPI_CurveType = { rename = "auto", mode = -1 }
@@ -40,6 +37,11 @@ HAPI_HeightFieldSampling = { rename = "auto", mode = -1 }
 HAPI_PDG_State = { rename = "PdgState", mode = -1 }
 HAPI_PDG_EventType = { rename = "PdgEventType", mode = -3 }
 HAPI_PDG_WorkitemState = { rename = "PdgWorkitemState", mode = -1 }
+
+[bitflags]
+HAPI_NodeType = { rename = "auto", mode = -1 }
+HAPI_NodeFlags = { rename = "auto", mode = -1 }
+HAPI_ErrorCode = { rename = "auto", mode = -1 }
 
 [structs]
 #HAPI_AssetInfo = { rename = "auto", builder = false}

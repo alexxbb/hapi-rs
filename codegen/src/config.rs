@@ -6,18 +6,21 @@ use toml;
 
 #[derive(Deserialize, Debug)]
 pub struct CodeGenInfo {
-    enums: HashMap<String, EnumOptions>,
-    structs: HashMap<String, StructOption>,
+    enums: HashMap<String, TypeOptions>,
+    bitflags: HashMap<String, TypeOptions>,
 }
 
 impl CodeGenInfo {
-    pub fn enum_opt(&self, name: impl AsRef<str>) -> Option<EnumOptions> {
+    pub fn enum_opt(&self, name: impl AsRef<str>) -> Option<TypeOptions> {
         self.enums.get(name.as_ref()).map(|o| o.clone())
+    }
+    pub fn flags_opt(&self, name: impl AsRef<str>) -> Option<TypeOptions> {
+        self.bitflags.get(name.as_ref()).map(|o| o.clone())
     }
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct EnumOptions {
+pub struct TypeOptions {
     pub rename: String,
     #[serde(deserialize_with = "mode")]
     pub mode: StripMode,
@@ -35,7 +38,7 @@ where
     })
 }
 
-impl EnumOptions {
+impl TypeOptions {
     pub fn new_name<'a>(&'a self, ffi_name: &'a str) -> &'a str {
         match self.rename.as_ref() {
             "auto" => ffi_name.strip_prefix("HAPI_").expect("Not a HAPI enum"),

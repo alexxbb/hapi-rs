@@ -1,7 +1,7 @@
 use hapi_rs::{
     errors::{HapiError, HapiResult, Kind, Result},
     session::{CookResult, Session, SessionOptions},
-    StatusVerbosity,
+    NodeFlags, NodeType, StatusVerbosity,
 };
 
 pub unsafe fn run() -> Result<()> {
@@ -29,5 +29,7 @@ pub unsafe fn run() -> Result<()> {
             println!("Errors: {}", err);
         }
     }
+    let cc = node.cook_count(-1, -1)?;
+    dbg!(cc);
     Ok(())
 }

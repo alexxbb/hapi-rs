@@ -1,4 +1,5 @@
 use crate::enums;
+use crate::bitflags;
 use crate::config::CodeGenInfo;
 use std::path::{Path, PathBuf};
 use anyhow::{Result, anyhow};
@@ -19,9 +20,10 @@ pub fn write_extension(outdir: &str, cg: CodeGenInfo) -> Result<()> {
     let source = std::fs::read_to_string(bindings_rs)?;
     let tree: syn::File = syn::parse_file(&source)?;
     let enum_tokens = enums::generate_enums(&tree.items, &cg);
+    let bitflag_tokens = bitflags::generate_bitflags(&tree.items, &cg);
     auto_f.write_all(b"/* Auto generated hapi-codegen */\n");
     auto_f.write_all(b"use crate::auto::bindings as ffi;\n");
-    for e in &enum_tokens {
+    for e in enum_tokens.iter().chain(bitflag_tokens.iter()) {
         auto_f.write_all(e.to_string().as_bytes());
     }
     rustfmt(&rusty_rs.to_string_lossy())?;

@@ -28,8 +28,9 @@ pub fn run_bindgen(incl: &str, header: &str, outdir: &str) -> Result<()> {
         .header(header)
         .clang_arg(format!("-I/{}", incl))
         .default_enum_style("rust_non_exhaustive".parse().unwrap())
-        .bitfield_enum("HAPI_NodeType")
-        .bitfield_enum("HAPI_NodeFlags")
+        .constified_enum_module("HAPI_NodeType")
+        .constified_enum_module("HAPI_NodeFlags")
+        .constified_enum_module("HAPI_ErrorCode")
         .prepend_enum_name(false)
         .generate_comments(false)
         .derive_copy(false)
@@ -45,6 +46,4 @@ pub fn run_bindgen(incl: &str, header: &str, outdir: &str) -> Result<()> {
     let bindings_rs = out_path.join("bindings.rs");
     bindings.write_to_file(&bindings_rs)?;
     Ok(())
-    // println!("cargo:rustc-link-search={}", LIBS);
-    // println!("cargo:rustc-link-lib=dylib=HAPI");
 }

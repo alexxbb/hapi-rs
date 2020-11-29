@@ -5,6 +5,7 @@ mod bindgen;
 mod config;
 mod enums;
 mod helpers;
+mod bitflags;
 
 fn print_help(opts: &getopts::Options) {
     println!("{}", opts.usage("hapi-gen"))

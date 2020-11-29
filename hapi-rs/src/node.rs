@@ -1,6 +1,6 @@
 use crate::{
     auto::bindings as ffi,
-    auto::rusty::{State, StatusType, StatusVerbosity},
+    auto::rusty::{State, StatusType, StatusVerbosity, NodeType, NodeFlags, NodeFlagsBits, NodeTypeBits},
     cookoptions::CookOptions,
     errors::*,
     session::{CookResult, Session},
@@ -85,19 +85,15 @@ impl HoudiniNode {
         session.cook_result()
     }
 
-    pub fn cook_count(&self) -> Result<i32> {
+    pub fn cook_count(&self, node_types: NodeFlagsBits, node_flags: NodeFlagsBits) -> Result<i32> {
         let (id, session) = self.strip();
         let mut count = MaybeUninit::uninit();
-        use ffi::HAPI_NodeFlags as nf;
-        use ffi::HAPI_NodeType as nt;
-        let node_type = nt::HAPI_NODETYPE_OBJ | nt::HAPI_NODETYPE_SOP;
-        let node_flag = nf::HAPI_NODEFLAGS_OBJ_GEOMETRY | nf::HAPI_NODEFLAGS_DISPLAY;
         unsafe {
             ffi::HAPI_GetTotalCookCount(
                 session.ptr(),
                 id,
-                node_type.0,
-                node_flag.0,
+                node_types,
+                node_flags,
                 true as i8,
                 count.as_mut_ptr(),
             )
