@@ -30,6 +30,6 @@ pub unsafe fn run() -> Result<()> {
         }
     }
     let cc = node.cook_count(-1, -1)?;
-    dbg!(cc);
+    let geo = session.create_node_blocking("Object/geo", None, None)?;
     Ok(())
 }

@@ -12,7 +12,8 @@ pub fn get_string(handle: i32, session: &Session) -> Result<String> {
         let length = length.assume_init();
         let mut buffer = vec![0u8; length as usize];
         let ptr = buffer.as_mut_ptr() as *mut c_char;
-        ffi::HAPI_GetString(session.ptr(), handle, ptr, length).result_with_message(None)?;
+        ffi::HAPI_GetString(session.ptr(), handle, ptr, length)
+            .result_with_message("get_string failed")?;
         buffer.truncate(length as usize - 1);
         Ok(String::from_utf8_unchecked(buffer))
     }

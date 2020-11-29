@@ -18,6 +18,7 @@ use std::{
 };
 
 use log::{debug, error, warn};
+use std::borrow::Cow;
 
 #[derive(Debug, Clone)]
 pub enum CookResult {
@@ -43,7 +44,7 @@ impl Session {
         let mut ses = MaybeUninit::uninit();
         unsafe {
             ffi::HAPI_CreateInProcessSession(ses.as_mut_ptr())
-                .result_with_message(Some("Session::new_in_process failed"))?;
+                .result_with_message("Session::new_in_process failed")?;
             Ok(Session {
                 handle: Arc::new(ses.assume_init()),
                 unsync: false,
@@ -62,7 +63,7 @@ impl Session {
                 timeoutMs: 1000.0,
             };
             ffi::HAPI_StartThriftNamedPipeServer(&opts as *const _, cs.as_ptr(), pid.as_mut_ptr())
-                .result_with_message(Some("Could not start thrift server"))?;
+                .result_with_message("Could not start thrift server")?;
             pid.assume_init()
         };
         Ok(pid)
@@ -74,7 +75,7 @@ impl Session {
             let mut handle = MaybeUninit::uninit();
             let cs = CString::new(path)?;
             ffi::HAPI_CreateThriftNamedPipeSession(handle.as_mut_ptr(), cs.as_ptr())
-                .result_with_message(Some("Could not start piped session"))?;
+                .result_with_message("Could not start piped session")?;
             handle.assume_init()
         };
         Ok(Session {
@@ -206,7 +207,7 @@ impl Session {
                 verbosity.into(),
                 length.as_mut_ptr(),
             )
-            .result_with_message(Some("GetStatusStringBufLength failed"))?;
+            .result_with_message("GetStatusStringBufLength failed")?;
             let length = length.assume_init();
             let mut buf = vec![0u8; length as usize - 1];
             if length > 0 {
@@ -216,7 +217,7 @@ impl Session {
                     buf.as_mut_ptr() as *mut i8,
                     length,
                 )
-                .result_with_message(Some("GetStatusString failed"))?;
+                .result_with_message("GetStatusString failed")?;
                 buf.truncate(length as usize);
                 Ok(String::from_utf8_unchecked(buf))
             } else {
@@ -270,12 +271,12 @@ impl Session {
         unsafe {
             let mut length = MaybeUninit::uninit();
             ffi::HAPI_GetConnectionErrorLength(length.as_mut_ptr())
-                .result_with_message(Some("HAPI_GetConnectionErrorLength failed"))?;
+                .result_with_message("HAPI_GetConnectionErrorLength failed")?;
             let length = length.assume_init();
             if length > 0 {
                 let mut buf = vec![0u8; length as usize];
                 ffi::HAPI_GetConnectionError(buf.as_mut_ptr() as *mut _, length, clear as i8)
-                    .result_with_message(Some("HAPI_GetConnectionError failed"))?;
+                    .result_with_message("HAPI_GetConnectionError failed")?;
                 Ok(String::from_utf8_unchecked(buf))
             } else {
                 Ok(String::new())

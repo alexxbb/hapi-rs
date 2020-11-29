@@ -1,13 +1,14 @@
 pub use crate::auto::rusty::HapiResult;
 use crate::auto::rusty::{StatusType, StatusVerbosity};
 use crate::{auto::bindings as ffi, check_session, session::Session};
+use std::borrow::Cow;
 
 pub type Result<T> = std::result::Result<T, HapiError>;
 
 #[derive(Debug)]
 pub struct HapiError {
     pub kind: Kind,
-    pub message: Option<&'static str>,
+    pub message: Option<Cow<'static, str>>,
     pub(crate) session: Option<Session>,
 }
 
@@ -57,7 +58,7 @@ impl HapiError {
     pub(crate) fn new(
         kind: Kind,
         session: Option<Session>,
-        message: Option<&'static str>,
+        message: Option<Cow<'static, str>>,
     ) -> HapiError {
         HapiError {
             kind,
@@ -83,10 +84,10 @@ impl std::fmt::Display for HapiError {
                         self.kind.description(),
                         error
                             .ok()
-                            .or_else(|| self.message.map(|s| s.to_string()))
+                            .or_else(|| self.message.as_ref().map(|s| s.to_string()))
                             .unwrap_or_else(|| String::from("Zig"))
                     )
-                } else if let Some(msg) = self.message {
+                } else if let Some(ref msg) = self.message {
                     write!(f, "Kind:{}, Message: {}", self.kind.description(), msg)
                 } else {
                     write!(f, "Kind:{}", self.kind.description())
@@ -108,7 +109,7 @@ macro_rules! hapi_result {
     ($hapi_result:expr, $ret:expr, $session:expr, $message:expr) => {
         match $hapi_result {
             ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok($ret),
-            e => Err(HapiError::new(Kind::Hapi(e.into()), $session, $message)),
+            e => Err(HapiError::new(Kind::Hapi(e.into()), $session, $message.map(|m| Cow::from(m)))),
         }
     };
 }
@@ -119,7 +120,7 @@ macro_rules! hapi_err {
         Err(HapiError::new(
             Kind::Hapi($hapi_result.into()),
             $session,
-            $message,
+            $message.map(|v|Cow::from(v)),
         ))
     };
 
@@ -131,12 +132,12 @@ macro_rules! hapi_err {
 impl std::error::Error for HapiError {}
 
 impl ffi::HAPI_Result {
-    pub(crate) fn result<R, F>(self, ok: R, err: F) -> Result<R>
-    where
-        F: FnOnce() -> (Option<Session>, Option<&'static str>),
+    pub(crate) fn to_result<R: Default, F>(self, err: F) -> Result<R>
+        where
+            F: FnOnce() -> (Option<Session>, Option<Cow<'static, str>>),
     {
         match self {
-            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(ok),
+            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(R::default()),
             e => {
                 let (session, message) = err();
                 Err(HapiError::new(Kind::Hapi(e.into()), session, message))
@@ -147,10 +148,10 @@ impl ffi::HAPI_Result {
     where
         F: FnOnce() -> Session,
     {
-        self.result((), || (Some(op()), None))
+        self.to_result(|| (Some(op()), None))
     }
 
-    pub(crate) fn result_with_message(self, msg: Option<&'static str>) -> Result<()> {
-        self.result((), || (None, msg))
+    pub(crate) fn result_with_message<M: Into<Cow<'static, str>>>(self, msg: M) -> Result<()> {
+        self.to_result(|| (None, Some(msg.into())))
     }
 }

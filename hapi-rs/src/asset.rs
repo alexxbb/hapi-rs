@@ -12,6 +12,8 @@ pub struct AssetLibrary {
     session: Session,
 }
 
+/// https://github.com/sideeffects/HoudiniEngineForUnity/blob/5b2d34bd5a04513288f4991048bf9c5ecceacac5/Plugins/HoudiniEngineUnity/Scripts/Asset/HEU_HoudiniAsset.cs#L1995
+
 impl AssetLibrary {
     pub fn from_file(session: Session, file: impl AsRef<std::path::Path>) -> Result<AssetLibrary> {
         let path = file.as_ref().to_string_lossy();
