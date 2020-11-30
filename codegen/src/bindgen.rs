@@ -33,7 +33,7 @@ pub fn run_bindgen(incl: &str, header: &str, outdir: &str) -> Result<()> {
         .constified_enum_module("HAPI_ErrorCode")
         .prepend_enum_name(false)
         .generate_comments(false)
-        .derive_copy(false)
+        .derive_copy(true)
         .derive_debug(true)
         .derive_hash(false)
         .derive_eq(false)
