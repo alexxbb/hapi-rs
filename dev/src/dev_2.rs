@@ -3,6 +3,7 @@ use hapi_rs::{
     session::{CookResult, Session, SessionOptions},
     NodeFlags, NodeType, StatusVerbosity, HOUDINI_VERSION
 };
+use hapi_rs::node::HoudiniNode;
 
 pub unsafe fn run() -> Result<()> {
     let mut session = Session::new_named_pipe("/tmp/hapi")?;
@@ -29,9 +30,13 @@ pub unsafe fn run() -> Result<()> {
             println!("Errors: {}", err);
         }
     }
+    node.cook_blocking(None)?;
+    let cc = node.cook_count(-1, -1)?;
+    println!("CC: {}", cc);
+    let info = node.info()?;
+    println!("{:#?}", info);
     let cc = node.cook_count(-1, -1)?;
     let geo = session.create_node_blocking("Object/geo", None, None)?;
-    let info = geo.info()?;
-    println!("{:#?}", info);
+    println!("Manager: {:?}", HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?);
     Ok(())
 }

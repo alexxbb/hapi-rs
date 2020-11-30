@@ -19,35 +19,80 @@ use std::{
 };
 
 use log::{debug, log_enabled, Level::Debug};
+use std::cell::RefCell;
+use std::fmt::Formatter;
 
 #[derive(Debug, Clone)]
+pub struct NodeHandle(pub(crate) ffi::HAPI_NodeId);
+
+pub(crate) fn read_node_info(
+    session: &Session,
+    handle: &NodeHandle,
+    info: &mut NodeInfo,
+) -> Result<()> {
+    unsafe {
+        ffi::HAPI_GetNodeInfo(session.ptr(), handle.0, &mut info.inner as *mut _)
+            .result_with_session(|| session.clone())?;
+    }
+    Ok(())
+}
+impl NodeHandle {
+    pub fn info(&self, session: &Session) -> Result<NodeInfo> {
+        let mut info = NodeInfo::default();
+        read_node_info(session, self, &mut info)?;
+        Ok(info)
+    }
+
+    pub fn fill_info(&self, session: &Session, info: &mut NodeInfo) -> Result<()> {
+        read_node_info(session, &self, info)
+    }
+
+    pub fn is_valid(&self, session: &Session) -> Result<bool> {
+        let uid = self.info(session)?.unique_houdini_node_id();
+        unsafe {
+            let mut answer = MaybeUninit::uninit();
+            ffi::HAPI_IsNodeValid(session.ptr(), self.0, uid, answer.as_mut_ptr())
+                .result_with_session(|| session.clone())?;
+            Ok(answer.assume_init() == 1)
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct HoudiniNode {
-    pub(crate) id: ffi::HAPI_NodeId,
+    pub(crate) handle: NodeHandle,
     pub session: Session,
 }
 
+impl std::fmt::Debug for HoudiniNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HoudiniNode")
+            .field("id", &self.handle.0)
+            .field("path", &self.path(None).unwrap())
+            .finish()
+    }
+}
+
 impl HoudiniNode {
+    pub(crate) fn new(session: Session, hdl: NodeHandle) -> Result<Self> {
+        Ok(HoudiniNode {
+            handle: hdl,
+            session,
+        })
+    }
     pub fn delete(self) -> Result<()> {
         unsafe {
-            ffi::HAPI_DeleteNode(self.session.ptr(), self.id)
+            ffi::HAPI_DeleteNode(self.session.ptr(), self.handle.0)
                 .result_with_session(|| self.session.clone())
         }
     }
 
-    pub fn info(&self) -> Result<NodeInfo<'_>> {
-        unsafe {
-            let info = ffi::HAPI_NodeInfo_Create();
-            ffi::HAPI_GetNodeInfo(self.session.ptr(), self.id, &info as *const _ as *mut _)
-                .result_with_session(|| self.session.clone())?;
-            Ok(NodeInfo::from_ffi(info, self))
-        }
+    pub fn info(&self) -> Result<NodeInfo> {
+        self.handle.info(&self.session)
     }
 
     pub fn is_valid(&self) -> Result<bool> {
-        Ok(self.info()?.is_valid)
-        // unsafe {
-        //     ffi::HAPI_IsNodeValid()
-        // }
+        Ok(self.info()?.is_valid())
     }
 
     pub fn path(&self, relative_to: Option<HoudiniNode>) -> Result<String> {
@@ -55,8 +100,8 @@ impl HoudiniNode {
             let mut sh = MaybeUninit::uninit();
             ffi::HAPI_GetNodePath(
                 self.session.ptr(),
-                self.id,
-                relative_to.map(|n| n.id).unwrap_or(-1),
+                self.handle.0,
+                relative_to.map(|n| n.handle.0).unwrap_or(-1),
                 sh.as_mut_ptr(),
             )
             .result_with_session(|| self.session.clone())?;
@@ -71,7 +116,7 @@ impl HoudiniNode {
         }
         let opt = options.map(|o| o.ptr()).unwrap_or(null());
         unsafe {
-            ffi::HAPI_CookNode(self.session.ptr(), self.id, opt)
+            ffi::HAPI_CookNode(self.session.ptr(), self.handle.0, opt)
                 .result_with_session(|| self.session.clone())?;
         }
         Ok(())
@@ -87,7 +132,7 @@ impl HoudiniNode {
         unsafe {
             ffi::HAPI_GetTotalCookCount(
                 self.session.ptr(),
-                self.id,
+                self.handle.0,
                 node_types,
                 node_flags,
                 true as i8,
@@ -102,13 +147,13 @@ impl HoudiniNode {
         name: &str,
         label: Option<&str>,
         parent: Option<HoudiniNode>,
-        session: &Session,
+        session: Session,
         cook: bool,
     ) -> Result<HoudiniNode> {
         let mut id = MaybeUninit::uninit();
-        let parent = parent.map_or(-1, |n| n.id);
+        let parent = parent.map_or(-1, |n| n.handle.0);
         let mut label_ptr: *const std::os::raw::c_char = null();
-        unsafe {
+        let id = unsafe {
             let mut tmp;
             if let Some(lb) = label {
                 tmp = CString::from_vec_unchecked(lb.into());
@@ -125,12 +170,9 @@ impl HoudiniNode {
                 id.as_mut_ptr(),
             )
             .result_with_session(|| session.clone())?;
-            let n = HoudiniNode {
-                id: id.assume_init(),
-                session: session.clone(),
-            };
-            Ok(n)
-        }
+            id.assume_init()
+        };
+        HoudiniNode::new(session, NodeHandle(id))
     }
 
     pub fn create_blocking(
@@ -140,7 +182,7 @@ impl HoudiniNode {
         session: Session,
         cook: bool,
     ) -> Result<HoudiniNode> {
-        let node = HoudiniNode::create(name, label, parent, &session, cook);
+        let node = HoudiniNode::create(name, label, parent, session.clone(), cook);
         if node.is_ok() && session.unsync {
             loop {
                 match session.get_status(StatusType::CookState)? {
@@ -150,5 +192,19 @@ impl HoudiniNode {
             }
         }
         node
+    }
+
+    pub fn get_manager_node(session: Session, node_type: i32) -> Result<HoudiniNode> {
+        let id = unsafe {
+            let mut id = MaybeUninit::uninit();
+            ffi::HAPI_GetManagerNodeId(session.ptr(), node_type, id.as_mut_ptr())
+                .result_with_session(|| session.clone())?;
+            id.assume_init()
+        };
+        HoudiniNode::new(session, NodeHandle(id))
+    }
+
+    pub fn parent_node(&self) -> Option<HoudiniNode> {
+        todo!()
     }
 }
