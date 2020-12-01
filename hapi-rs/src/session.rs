@@ -5,7 +5,7 @@ use crate::{
     cookoptions::CookOptions,
     errors::*,
     ffi,
-    node::HoudiniNode,
+    node::{HoudiniNode, NodeHandle},
 };
 #[rustfmt::skip]
 use std::{
@@ -129,7 +129,7 @@ impl Session {
         &self,
         name: &str,
         label: Option<&str>,
-        parent: Option<HoudiniNode>,
+        parent: Option<&NodeHandle>,
     ) -> Result<HoudiniNode> {
         HoudiniNode::create_blocking(name, label, parent, self.clone(), false)
     }

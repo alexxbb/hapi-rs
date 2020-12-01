@@ -16,9 +16,10 @@ pub unsafe fn run() -> Result<()> {
     }
     let otl = std::env::current_dir()
         .unwrap()
-        .join("otls/nurbs_curve.hda");
+        .join("otls/FourShapes.hda");
     let library = session.load_asset_file(otl)?;
     let names = library.get_asset_names()?;
+    let obj = HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?;
     let node = session.create_node_blocking(&names[0], None, None)?;
     match node.cook_blocking(None)? {
         CookResult::Succeeded => println!("Cooking Done!"),
@@ -36,7 +37,13 @@ pub unsafe fn run() -> Result<()> {
     let info = node.info()?;
     println!("{:#?}", info);
     let cc = node.cook_count(-1, -1)?;
-    let geo = session.create_node_blocking("Object/geo", None, None)?;
     println!("Manager: {:?}", HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?);
+    let children = node.get_children(-1, -1, true)?;
+    println!("Parent: {}", node.parent_node()?.info(&session)?.name(&session)?);
+    for ch in children {
+        let info = ch.info(&session)?;
+        println!("{}", info.name(&session)?)
+    }
+    // session.save_hip("/tmp/session.hip")?;
     Ok(())
 }

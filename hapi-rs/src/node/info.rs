@@ -1,4 +1,4 @@
-use crate::{errors::Result, ffi::*, stringhandle};
+use crate::{errors::Result, ffi::*, stringhandle, node::NodeHandle};
 use std::fmt::Formatter;
 
 pub struct NodeInfo {
@@ -28,6 +28,7 @@ const fn node_type_name(tp: i32) -> &'static str {
     }
 }
 
+/// TODO: Pass &Session to NodeInfo?
 impl std::fmt::Debug for NodeInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NodeInfo")
@@ -54,6 +55,20 @@ impl NodeInfo {
 
     pub fn unique_houdini_node_id(&self) -> i32 {
         self.inner.uniqueHoudiniNodeId
+    }
+
+    #[inline]
+    pub fn node_type(&self) -> i32 {
+        self.inner.type_
+    }
+
+    #[inline]
+    pub fn parent_id(&self) -> NodeHandle {
+        NodeHandle(self.inner.parentId)
+    }
+
+    pub fn name(&self, session: &crate::session::Session) -> Result<String> {
+        stringhandle::get_string(self.inner.nameSH, session)
     }
 
     // TODO implement methods

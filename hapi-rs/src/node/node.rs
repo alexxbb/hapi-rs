@@ -19,11 +19,10 @@ use std::{
 };
 
 use log::{debug, log_enabled, Level::Debug};
-use std::cell::RefCell;
 use std::fmt::Formatter;
 
 #[derive(Debug, Clone)]
-pub struct NodeHandle(pub(crate) ffi::HAPI_NodeId);
+pub struct NodeHandle(pub ffi::HAPI_NodeId);
 
 pub(crate) fn read_node_info(
     session: &Session,
@@ -43,7 +42,7 @@ impl NodeHandle {
         Ok(info)
     }
 
-    pub fn fill_info(&self, session: &Session, info: &mut NodeInfo) -> Result<()> {
+    pub fn read_info(&self, session: &Session, info: &mut NodeInfo) -> Result<()> {
         read_node_info(session, &self, info)
     }
 
@@ -60,7 +59,7 @@ impl NodeHandle {
 
 #[derive(Clone)]
 pub struct HoudiniNode {
-    pub(crate) handle: NodeHandle,
+    pub handle: NodeHandle,
     pub session: Session,
 }
 
@@ -146,12 +145,12 @@ impl HoudiniNode {
     pub fn create(
         name: &str,
         label: Option<&str>,
-        parent: Option<HoudiniNode>,
+        parent: Option<&NodeHandle>,
         session: Session,
         cook: bool,
     ) -> Result<HoudiniNode> {
         let mut id = MaybeUninit::uninit();
-        let parent = parent.map_or(-1, |n| n.handle.0);
+        let parent = parent.map_or(-1, |n| n.0);
         let mut label_ptr: *const std::os::raw::c_char = null();
         let id = unsafe {
             let mut tmp;
@@ -178,7 +177,7 @@ impl HoudiniNode {
     pub fn create_blocking(
         name: &str,
         label: Option<&str>,
-        parent: Option<HoudiniNode>,
+        parent: Option<&NodeHandle>,
         session: Session,
         cook: bool,
     ) -> Result<HoudiniNode> {
@@ -204,7 +203,73 @@ impl HoudiniNode {
         HoudiniNode::new(session, NodeHandle(id))
     }
 
-    pub fn parent_node(&self) -> Option<HoudiniNode> {
-        todo!()
+    pub fn get_object_nodes(&self) -> Result<Vec<NodeHandle>> {
+        todo!();
+        let node_info = self.info()?;
+        let node_id = match node_info.node_type() {
+            NodeType::Obj => node_info.parent_id(),
+            _ => self.handle.clone(),
+        };
+        let obj_infos = unsafe {
+            let mut count = MaybeUninit::uninit();
+            ffi::HAPI_ComposeObjectList(
+                self.session.ptr(),
+                self.handle.0,
+                null(),
+                count.as_mut_ptr(),
+            )
+            .result_with_session(|| self.session.clone())?;
+            let count = count.assume_init();
+            let mut obj_infos = vec![ffi::HAPI_ObjectInfo_Create(); count as usize];
+            ffi::HAPI_GetComposedObjectList(
+                self.session.ptr(),
+                self.handle.0,
+                obj_infos.as_mut_ptr(),
+                0,
+                count,
+            )
+            .result_with_session(|| self.session.clone())?;
+            obj_infos
+        };
+
+        Ok(obj_infos.iter().map(|i| NodeHandle(i.nodeId)).collect())
+    }
+
+    pub fn get_children(
+        &self,
+        types: NodeType::Type,
+        flags: NodeFlags::Type,
+        recursive: bool,
+    ) -> Result<Vec<NodeHandle>> {
+        let node_info = self.info()?;
+        let ids = unsafe {
+            let mut count = MaybeUninit::uninit();
+            ffi::HAPI_ComposeChildNodeList(
+                self.session.ptr(),
+                self.handle.0,
+                types,
+                flags,
+                recursive as i8,
+                count.as_mut_ptr(),
+            )
+            .result_with_session(|| self.session.clone())?;
+
+            let count = count.assume_init();
+            let mut obj_infos = vec![0i32; count as usize];
+            ffi::HAPI_GetComposedChildNodeList(
+                self.session.ptr(),
+                self.handle.0,
+                obj_infos.as_mut_ptr(),
+                count,
+            )
+            .result_with_session(|| self.session.clone())?;
+            obj_infos
+        };
+
+        Ok(ids.iter().map(|i| NodeHandle(*i)).collect())
+    }
+
+    pub fn parent_node(&self) -> Result<NodeHandle> {
+        Ok(self.info()?.parent_id())
     }
 }
