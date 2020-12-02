@@ -1,16 +1,10 @@
-use crate::{errors::Result, ffi::*, stringhandle, node::NodeHandle};
+use crate::inner_field;
+use crate::{errors::Result, ffi::*, node::NodeHandle, session::Session, stringhandle};
 use std::fmt::Formatter;
 
 pub struct NodeInfo {
     pub(crate) inner: HAPI_NodeInfo,
-}
-
-impl Default for NodeInfo {
-    fn default() -> Self {
-        unsafe {
-            NodeInfo{inner: HAPI_NodeInfo_Create()}
-        }
-    }
+    pub(crate) session: Session,
 }
 
 const fn node_type_name(tp: i32) -> &'static str {
@@ -28,69 +22,57 @@ const fn node_type_name(tp: i32) -> &'static str {
     }
 }
 
-/// TODO: Pass &Session to NodeInfo?
 impl std::fmt::Debug for NodeInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NodeInfo")
-            // .field("name", &self.node_name().unwrap())
-            // .field("type", &node_type_name(self.node_type))
-            // .field("is_valid", &self.is_valid)
-            // .field("total_cook_count", &self.total_cook_count)
-            // .field("parm_count", &self.parm_count)
-            // .field("time_dependent", &self.is_time_dependent)
-            // .field("input_count", &self.input_count)
-            // .field("output_count", &self.output_count)
+            .field("name", &self.name().unwrap())
+            .field("internal_path", &self.internal_path().unwrap())
+            .field("type", &node_type_name(self.node_type()))
+            .field("is_valid", &self.is_valid())
+            .field("time_dependent", &self.is_time_dependent())
+            .field("total_cook_count", &self.total_cook_count())
+            .field("parm_count", &self.parm_count())
+            .field("child_count", &self.child_node_count())
+            .field("input_count", &self.input_count())
+            .field("output_count", &self.output_count())
             .finish()
     }
 }
 
 impl NodeInfo {
-    pub(crate) fn from_ffi(info: HAPI_NodeInfo) -> Self {
-        NodeInfo { inner: info }
+    pub fn new(session: crate::session::Session) -> Self {
+        unsafe {
+            NodeInfo {
+                inner: HAPI_NodeInfo_Create(),
+                session,
+            }
+        }
     }
 
-    pub fn is_valid(&self) -> bool {
-        self.inner.isValid == 1
-    }
-
-    pub fn unique_houdini_node_id(&self) -> i32 {
-        self.inner.uniqueHoudiniNodeId
-    }
+    inner_field!(type_, node_type, i32);
+    inner_field!(isValid, is_valid, bool);
+    inner_field!(uniqueHoudiniNodeId, unique_node_id, i32);
+    inner_field!(totalCookCount, total_cook_count, i32);
+    inner_field!(childNodeCount, child_node_count, i32);
+    inner_field!(parmCount, parm_count, i32);
+    inner_field!(inputCount, input_count, i32);
+    inner_field!(outputCount, output_count, i32);
+    inner_field!(isTimeDependent, is_time_dependent, bool);
+    inner_field!(createdPostAssetLoad, created_post_asset_load, bool);
+    inner_field!(parmIntValueCount, parm_int_value_count, i32);
+    inner_field!(parmFloatValueCount, parm_float_value_count, i32);
+    inner_field!(parmStringValueCount, parm_string_value_count, i32);
+    inner_field!(parmChoiceCount, parm_choice_count, i32);
+    inner_field!(nameSH, name, Result<String>);
+    inner_field!(internalNodePathSH, internal_path, Result<String>);
 
     #[inline]
-    pub fn node_type(&self) -> i32 {
-        self.inner.type_
+    pub fn node_handle(&self) -> NodeHandle {
+        NodeHandle(self.inner.id)
     }
 
     #[inline]
     pub fn parent_id(&self) -> NodeHandle {
         NodeHandle(self.inner.parentId)
     }
-
-    pub fn name(&self, session: &crate::session::Session) -> Result<String> {
-        stringhandle::get_string(self.inner.nameSH, session)
-    }
-
-    // TODO implement methods
-    // pub node_type: i32,
-    // pub is_valid: bool,
-    // pub total_cook_count: i32,
-    // pub parm_count: i32,
-    // pub parm_int_value_count: i32,
-    // pub parm_float_value_count: i32,
-    // pub parm_string_value_count: i32,
-    // pub parm_choice_count: i32,
-    // pub child_node_count: i32,
-    // pub input_count: i32,
-    // pub output_count: i32,
-    // pub created_post_asset_load: bool,
-    // pub is_time_dependent: bool,
-
-    // pub fn node_name(&self) -> Result<String> {
-    //     stringhandle::get_string(self.name_sh, &self.node.session)
-    // }
-    //
-    // pub fn internal_path(&self) -> Result<String> {
-    //     stringhandle::get_string(self.internal_node_sh, &self.node.session)
-    // }
 }

@@ -39,10 +39,10 @@ pub unsafe fn run() -> Result<()> {
     let cc = node.cook_count(-1, -1)?;
     println!("Manager: {:?}", HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?);
     let children = node.get_children(-1, -1, true)?;
-    println!("Parent: {}", node.parent_node()?.info(&session)?.name(&session)?);
+    println!("Parent: {}", node.parent_node()?.info(&session)?.name()?);
     for ch in children {
         let info = ch.info(&session)?;
-        println!("{}", info.name(&session)?)
+        println!("{}", info.name()?)
     }
     // session.save_hip("/tmp/session.hip")?;
     Ok(())

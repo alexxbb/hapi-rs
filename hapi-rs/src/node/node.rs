@@ -31,13 +31,12 @@ pub(crate) fn read_node_info(
 ) -> Result<()> {
     unsafe {
         ffi::HAPI_GetNodeInfo(session.ptr(), handle.0, &mut info.inner as *mut _)
-            .result_with_session(|| session.clone())?;
+            .result_with_session(|| session.clone())
     }
-    Ok(())
 }
 impl NodeHandle {
     pub fn info(&self, session: &Session) -> Result<NodeInfo> {
-        let mut info = NodeInfo::default();
+        let mut info = NodeInfo::new(session.clone());
         read_node_info(session, self, &mut info)?;
         Ok(info)
     }
@@ -47,7 +46,7 @@ impl NodeHandle {
     }
 
     pub fn is_valid(&self, session: &Session) -> Result<bool> {
-        let uid = self.info(session)?.unique_houdini_node_id();
+        let uid = self.info(session)?.unique_node_id();
         unsafe {
             let mut answer = MaybeUninit::uninit();
             ffi::HAPI_IsNodeValid(session.ptr(), self.0, uid, answer.as_mut_ptr())
@@ -193,7 +192,7 @@ impl HoudiniNode {
         node
     }
 
-    pub fn get_manager_node(session: Session, node_type: i32) -> Result<HoudiniNode> {
+    pub fn get_manager_node(session: Session, node_type: NodeType::Type) -> Result<HoudiniNode> {
         let id = unsafe {
             let mut id = MaybeUninit::uninit();
             ffi::HAPI_GetManagerNodeId(session.ptr(), node_type, id.as_mut_ptr())

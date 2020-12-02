@@ -1,15 +1,16 @@
-macro_rules! _inner_filed {
+#[macro_export]
+macro_rules! inner_field {
     ($field_name:ident, $func_name:ident, bool) => {
         #[inline]
         pub fn $func_name(&self) -> bool {
-            self.inner.$field_name != 0
+            self.inner.$field_name == 1
         }
     };
 
-    ($field_name:ident, $func_name:ident, $fld:ident.$session:ident, Result<String>) => {
+    ($field_name:ident, $func_name:ident, Result<String>) => {
         #[inline]
         pub fn $func_name(&self) -> Result<String> {
-            get_string(self.inner.$field_name, self.$fld.$session)
+            crate::stringhandle::get_string(self.inner.$field_name, &self.session)
         }
     };
     ($field_name:ident, $func_name:ident, $ret:ty) => {
