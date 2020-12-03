@@ -6,6 +6,7 @@ mod config;
 mod enums;
 mod helpers;
 mod bitflags;
+mod structs;
 
 fn print_help(opts: &getopts::Options) {
     println!("{}", opts.usage("hapi-gen"))

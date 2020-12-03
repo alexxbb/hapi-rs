@@ -1,4 +1,4 @@
-use crate::config::{CodeGenInfo, TypeOptions};
+use crate::config::{CodeGenInfo, EnumOptions};
 use crate::helpers::*;
 use log::warn;
 use proc_macro2::{Ident, Span, TokenStream};
@@ -8,17 +8,17 @@ use syn::{Attribute, Item, ItemConst, ItemMod, ItemType, Variant, Type};
 struct FlagsInfo {
     ffi_ident: Ident,
     new_ident: Ident,
-    options: TypeOptions,
+    options: EnumOptions,
     attribs: Vec<Attribute>,
     flag_type: Box<Type>,
     new_consts: Vec<TokenStream>,
 }
 
 impl FlagsInfo {
-    fn new(imd: &ItemMod, cg: TypeOptions) -> FlagsInfo {
+    fn new(imd: &ItemMod, cg: EnumOptions, cfg: &CodeGenInfo) -> FlagsInfo {
         let ffi_ident = imd.ident.clone();
         let ffi_name = ffi_ident.to_string();
-        let new_ident = Ident::new(cg.new_name(&ffi_name), Span::call_site());
+        let new_ident = Ident::new(cfg.new_name(&ffi_name), Span::call_site());
         let (_, content) = imd.content.as_ref().expect("No content in bitflag mod");
         let mut new_consts = vec![];
         let mut flag_type = None;
@@ -72,10 +72,12 @@ pub fn generate_bitflags(items: &Vec<Item>, cfg: &CodeGenInfo) -> Vec<TokenStrea
     for item in items {
         if let Item::Mod(imd) = item {
             let name = imd.ident.to_string();
-            match cfg.flags_opt(&name) {
+            match cfg.enum_opt(&name) {
                 Some(opt) => {
-                    let fi = FlagsInfo::new(imd, opt);
-                    tokens.push(gen_new_mod(&fi));
+                    if matches!(opt.bitflag, Some(true)) {
+                        let fi = FlagsInfo::new(imd, opt, cfg);
+                        tokens.push(gen_new_mod(&fi));
+                    }
                 }
                 None => warn!("No config for mod {}", name),
             }

@@ -21,7 +21,7 @@ use std::{
 use log::{debug, log_enabled, Level::Debug};
 use std::fmt::Formatter;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct NodeHandle(pub ffi::HAPI_NodeId);
 
 pub(crate) fn read_node_info(
@@ -203,7 +203,6 @@ impl HoudiniNode {
     }
 
     pub fn get_object_nodes(&self) -> Result<Vec<NodeHandle>> {
-        todo!();
         let node_info = self.info()?;
         let node_id = match node_info.node_type() {
             NodeType::Obj => node_info.parent_id(),

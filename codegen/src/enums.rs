@@ -1,4 +1,4 @@
-use crate::config::{CodeGenInfo, TypeOptions};
+use crate::config::{CodeGenInfo, EnumOptions};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use log::warn;
@@ -8,16 +8,16 @@ use crate::helpers::*;
 struct EnumInfo {
     ffi_ident: Ident,
     new_ident: Ident,
-    options: TypeOptions,
+    options: EnumOptions,
     attribs: Vec<Attribute>,
     new_variants: Vec<Variant>,
 }
 
 impl EnumInfo {
-    fn new(enm: &ItemEnum, cg: TypeOptions) -> EnumInfo {
+    fn new(enm: &ItemEnum, cg: EnumOptions, cfg: &CodeGenInfo) -> EnumInfo {
         let ffi_ident = enm.ident.clone();
         let ffi_name = ffi_ident.to_string();
-        let new_ident = Ident::new(cg.new_name(&ffi_name), Span::call_site());
+        let new_ident = Ident::new(cfg.new_name(&ffi_name), Span::call_site());
         let new_variants: Vec<_> = enm.variants
             .iter()
             .map(|v| {
@@ -78,7 +78,7 @@ pub fn generate_enums(items: &Vec<Item>, cfg: &CodeGenInfo) -> Vec<TokenStream> 
                 let name = en.ident.to_string();
                 match cfg.enum_opt(&name) {
                     Some(opt) => {
-                        let e = EnumInfo::new(en, opt);
+                        let e = EnumInfo::new(en, opt, cfg);
                         tokens.push(gen_enum_body(&e));
                         tokens.push(gen_enum_impl(&e));
                     }

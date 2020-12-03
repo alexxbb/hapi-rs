@@ -34,7 +34,7 @@ pub fn run_bindgen(incl: &str, header: &str, outdir: &str) -> Result<()> {
         .prepend_enum_name(false)
         .generate_comments(false)
         .derive_copy(true)
-        .derive_debug(true)
+        .derive_debug(false)
         .derive_hash(false)
         .derive_eq(false)
         .derive_partialeq(false)
