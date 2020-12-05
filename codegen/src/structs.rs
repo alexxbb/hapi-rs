@@ -73,7 +73,7 @@ pub fn generate_structs(items: &Vec<Item>, cfg: &CodeGenInfo) -> Vec<TokenStream
             let name = s.ident.to_string();
             if let Some(opts) = cfg.struct_opt(&name) {
                 let info = StructInfo::new(s, opts, cfg);
-                dbg!(info);
+                // dbg!(info);
             }
         }
     }

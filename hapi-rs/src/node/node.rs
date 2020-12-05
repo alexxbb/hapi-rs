@@ -1,8 +1,9 @@
 use super::info::*;
 use crate::{
     auto::bindings as ffi,
+    auto::bindings::{NodeType, NodeTypeBits},
     auto::rusty::{
-        NodeFlags, NodeFlagsBits, NodeType, NodeTypeBits, State, StatusType, StatusVerbosity,
+        NodeFlags, NodeFlagsBits, State, StatusType, StatusVerbosity,
     },
     cookoptions::CookOptions,
     errors::*,
@@ -192,7 +193,7 @@ impl HoudiniNode {
         node
     }
 
-    pub fn get_manager_node(session: Session, node_type: NodeType::Type) -> Result<HoudiniNode> {
+    pub fn get_manager_node(session: Session, node_type: ffi::NodeType) -> Result<HoudiniNode> {
         let id = unsafe {
             let mut id = MaybeUninit::uninit();
             ffi::HAPI_GetManagerNodeId(session.ptr(), node_type, id.as_mut_ptr())
@@ -235,7 +236,7 @@ impl HoudiniNode {
 
     pub fn get_children(
         &self,
-        types: NodeType::Type,
+        types: NodeType,
         flags: NodeFlags::Type,
         recursive: bool,
     ) -> Result<Vec<NodeHandle>> {
@@ -245,7 +246,7 @@ impl HoudiniNode {
             ffi::HAPI_ComposeChildNodeList(
                 self.session.ptr(),
                 self.handle.0,
-                types,
+                types.0,
                 flags,
                 recursive as i8,
                 count.as_mut_ptr(),

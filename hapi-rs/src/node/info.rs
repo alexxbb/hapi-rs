@@ -1,14 +1,14 @@
 use crate::inner_field;
 use crate::{errors::Result, ffi::*, node::NodeHandle, session::Session, stringhandle};
 use std::fmt::Formatter;
+use crate::auto::bindings::NodeType;
 
 pub struct NodeInfo {
     pub(crate) inner: HAPI_NodeInfo,
     pub(crate) session: Session,
 }
 
-const fn node_type_name(tp: i32) -> &'static str {
-    use crate::auto::rusty::NodeType;
+const fn node_type_name(tp: NodeType) -> &'static str {
     match tp {
         NodeType::Sop => "Sop",
         NodeType::Obj => "Obj",
@@ -49,7 +49,7 @@ impl NodeInfo {
         }
     }
 
-    inner_field!(type_, node_type, i32);
+    inner_field!(type_, node_type, NodeType);
     inner_field!(isValid, is_valid, bool);
     inner_field!(uniqueHoudiniNodeId, unique_node_id, i32);
     inner_field!(totalCookCount, total_cook_count, i32);

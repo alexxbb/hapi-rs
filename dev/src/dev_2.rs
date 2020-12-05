@@ -1,7 +1,7 @@
 use hapi_rs::{
     errors::{HapiError, HapiResult, Kind, Result},
     session::{CookResult, Session, SessionOptions},
-    NodeFlags, NodeType, StatusVerbosity, HOUDINI_VERSION
+    NodeFlags, ffi::NodeType, StatusVerbosity, HOUDINI_VERSION
 };
 use hapi_rs::node::HoudiniNode;
 
@@ -38,7 +38,7 @@ pub unsafe fn run() -> Result<()> {
     println!("{:#?}", info);
     let cc = node.cook_count(-1, -1)?;
     println!("Manager: {:?}", HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?);
-    let children = node.get_children(-1, -1, true)?;
+    let children = node.get_children(NodeType::Any, -1, true)?;
     println!("Parent: {}", node.parent_node()?.info(&session)?.name()?);
     for ch in children {
         let info = ch.info(&session)?;
