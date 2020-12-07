@@ -1,11 +1,11 @@
 use anyhow::{anyhow, Result};
 use getopts;
-mod ext;
+use std::rc::Rc;
+use std::path::Path;
+
 mod bindgen;
 mod config;
-mod enums;
 mod helpers;
-mod bitflags;
 mod structs;
 
 fn print_help(opts: &getopts::Options) {
@@ -39,11 +39,22 @@ fn main() -> Result<()> {
     let conf = opts
         .opt_str("config")
         .ok_or_else(|| anyhow!("Must provide codegen.toml"))?;
-    let cg = config::read_config(&conf);
+    let cc = Rc::new(config::read_config(&conf));
     if ! std::path::Path::new(&outdir).exists() {
         return Err(anyhow!("Output directory {} doesn't exist", &outdir));
     }
-    bindgen::run_bindgen(&include, &wrapper, &outdir)?;
-    ext::write_extension(&outdir, cg)?;
+
+    let mut output = bindgen::run_bindgen(&include, &wrapper,Rc::clone(&cc))?;
+
+    let tree:syn::File = syn::parse_str(&output)?;
+    let struct_tokens = structs::generate_structs(&tree.items, &cc);
+    output.push_str("\n/* Auto generated with hapi-codegen */\n");
+    for e in struct_tokens.iter() {
+        output.push_str(&e.to_string());
+    }
+    let bindings_file = Path::new(&outdir).join("bindings.rs");
+    std::fs::write(&bindings_file, output.as_bytes()).expect("Writing bindings.rs failed");
+    helpers::rustfmt(bindings_file.as_path());
+
     Ok(())
 }

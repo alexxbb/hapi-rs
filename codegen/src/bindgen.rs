@@ -1,8 +1,9 @@
-use crate::helpers;
+use crate::config::CodeGenConfig;
 use anyhow::{anyhow, Result};
 use bindgen::callbacks::{EnumVariantValue, ParseCallbacks};
 use bindgen::Builder;
-use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use crate::helpers::*;
 
 #[cfg(target_os = "macos")]
 mod paths {
@@ -26,46 +27,59 @@ fn main() {
 }
 
 #[derive(Debug)]
-struct Renamer {}
+struct Rustifier {
+    cc: Rc<CodeGenConfig>,
+}
 
-impl ParseCallbacks for Renamer {
+impl Rustifier {
+    pub fn new(cc: Rc<CodeGenConfig>) -> Rustifier {
+        Rustifier { cc }
+    }
+}
+
+impl ParseCallbacks for Rustifier {
     fn enum_variant_name(
         &self,
         _enum_name: Option<&str>,
-        _original_variant_name: &str,
+        _variant_name: &str,
         _variant_value: EnumVariantValue,
     ) -> Option<String> {
-        match _enum_name {
-            Some(e) if e == "enum HAPI_NodeType" => {
-                let new = helpers::strip_long_name(
-                    _original_variant_name,
-                    helpers::StripMode::StripFront(2),
-                );
-                Some(helpers::change_case(new, helpers::CaseMode::EnumVariant))
+        if let Some(name) = _enum_name {
+            let name = name.strip_prefix("enum ").expect("Not enum?");
+            match self.cc.enum_opt(name) {
+                Some(opt) => {
+                    let striped = strip_long_name(_variant_name, opt.mode);
+                    let new = change_case(striped, CaseMode::EnumVariant);
+                    Some(new)
+                }
+                None => {
+                    println!("Missing enum config {}", name);
+                    None
+                }
             }
-            _ => None,
+
+        } else {
+            None
         }
     }
 
-    fn item_name(&self, _original_item_name: &str) -> Option<String> {
-        if _original_item_name == "HAPI_NodeType" {
-            return Some("NodeType".to_string());
-        } else if _original_item_name == "HAPI_NodeTypeBits" {
-            return Some("NodeTypeBits".to_string());
+    fn item_name(&self, _item_name: &str) -> Option<String> {
+        if let Some(en) = self.cc.enum_opt(_item_name) {
+            return Some(en.new_name(_item_name).to_string())
         }
         None
     }
 }
 
-pub fn run_bindgen(incl: &str, header: &str, outdir: &str) -> Result<()> {
+pub fn run_bindgen(incl: &str, header: &str, cgc: Rc<CodeGenConfig>) -> Result<String> {
+    let callbacks = Box::new(Rustifier::new(cgc));
     let bindings = bindgen::Builder::default()
         .header(header)
         .clang_arg(format!("-I/{}", incl))
         .default_enum_style("rust_non_exhaustive".parse().unwrap())
-        // .constified_enum_module("HAPI_NodeType")
         .bitfield_enum("NodeType")
-        .constified_enum_module("HAPI_NodeFlags")
-        .constified_enum_module("HAPI_ErrorCode")
+        .bitfield_enum("NodeFlags")
+        .bitfield_enum("ErrorCode")
         .prepend_enum_name(false)
         .generate_comments(false)
         .derive_copy(true)
@@ -74,13 +88,11 @@ pub fn run_bindgen(incl: &str, header: &str, outdir: &str) -> Result<()> {
         .derive_eq(false)
         .derive_partialeq(false)
         .disable_name_namespacing()
+        .rustfmt_bindings(false)
         .layout_tests(false)
-        .parse_callbacks(Box::new(Renamer {}))
+        .parse_callbacks(callbacks)
         .generate()
         .map_err(|_| anyhow!("Bindgen generate failed"))?;
 
-    let out_path = PathBuf::from(outdir);
-    let bindings_rs = out_path.join("bindings.rs");
-    bindings.write_to_file(&bindings_rs)?;
-    Ok(())
+    Ok(bindings.to_string())
 }

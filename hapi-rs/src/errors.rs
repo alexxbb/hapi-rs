@@ -1,7 +1,6 @@
-pub use crate::auto::rusty::HapiResult;
-use crate::auto::rusty::{StatusType, StatusVerbosity};
 use crate::{auto::bindings as ffi, check_session, session::Session};
 use std::borrow::Cow;
+pub use ffi::HapiResult;
 
 pub type Result<T> = std::result::Result<T, HapiError>;
 
@@ -75,8 +74,8 @@ impl std::fmt::Display for HapiError {
                 if let Some(session) = &self.session {
                     check_session!(session.ptr());
                     let error = session.get_status_string(
-                        StatusType::CallResult,
-                        StatusVerbosity::Statusverbosity0,
+                        ffi::StatusType::CallResult,
+                        ffi::StatusVerbosity::Statusverbosity0,
                     );
                     write!(
                         f,
@@ -108,7 +107,7 @@ impl From<std::ffi::NulError> for HapiError {
 macro_rules! hapi_result {
     ($hapi_result:expr, $ret:expr, $session:expr, $message:expr) => {
         match $hapi_result {
-            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok($ret),
+            HapiResult::Success => Ok($ret),
             e => Err(HapiError::new(Kind::Hapi(e.into()), $session, $message.map(|m| Cow::from(m)))),
         }
     };
@@ -131,13 +130,13 @@ macro_rules! hapi_err {
 
 impl std::error::Error for HapiError {}
 
-impl ffi::HAPI_Result {
+impl HapiResult {
     pub(crate) fn to_result<R: Default, F>(self, err: F) -> Result<R>
         where
             F: FnOnce() -> (Option<Session>, Option<Cow<'static, str>>),
     {
         match self {
-            ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(R::default()),
+            HapiResult::Success => Ok(R::default()),
             e => {
                 let (session, message) = err();
                 Err(HapiError::new(Kind::Hapi(e.into()), session, message))

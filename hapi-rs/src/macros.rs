@@ -33,15 +33,52 @@ macro_rules! char_ptr {
 #[macro_export]
 macro_rules! check_session {
     ($session:expr) => {
-        use crate::ffi::{HAPI_IsSessionValid, HAPI_Result};
+        use crate::ffi::{HAPI_IsSessionValid, HapiResult};
         assert!(
-            unsafe {
-                matches!(
-                    HAPI_IsSessionValid($session),
-                    HAPI_Result::HAPI_RESULT_SUCCESS
-                )
-            },
+            unsafe { matches!(HAPI_IsSessionValid($session), HapiResult::Success) },
             "Session is invalid!"
         );
+    };
+}
+
+#[macro_export]
+macro_rules! builder {
+    (
+        @name: $builder:ident, @ffi: $inner:ty, @default: $default:block, @result: $object:ident,
+        @setters: {
+            $($method:ident->$ffi_field:ident: $ret:ty),+ $(,)? // optional comma
+        }
+    ) => {
+        pub struct $builder($inner);
+        impl Default for $builder {
+            fn default() -> Self {
+                Self(unsafe { $default })
+            }
+        }
+        impl $builder {
+            $(pub fn $method(mut self, val: $ret) -> Self {
+                self.0.$ffi_field = val;
+                self
+            })+
+        }
+
+        impl $builder {
+            pub fn build(mut self) -> $object {
+                $object{inner: self.0}
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! wrap_ffi {
+    ($object:ident, $self_:ident, $($method:ident->$ret:ty $block:block),+ $(,)?) => {
+        impl $object {
+            $(
+                pub fn $method(&$self_) -> $ret {
+                    $block
+                }
+            )+
+        }
     };
 }

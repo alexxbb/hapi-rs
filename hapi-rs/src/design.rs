@@ -39,29 +39,7 @@ pub struct HAPI_AttributeInfo {
 // pub typeInfo: HAPI_AttributeTypeInfo,
 }
 
-struct Node {}
 struct AttribInfo(HAPI_AttributeInfo);
-
-impl Node {
-    fn add_attribute(name: &str, attr: AttribInfo) -> AttribInfo {
-        HAPI_AddAttribute(self.session, self.node_id, 0, name, attr.0 as *const _ );
-        attr
-    }
-
-    fn set_attribute<T, D: AsRef<[T]>>(name: &str, info: AttribInfo, data: D) {
-        match info.0.storage {
-            StorageType::Float => {
-                HAPI_SetAttributeFloatData(data.as_ref().as_ptr());
-            },
-            StorageType::Int64 => {
-                HAPI_SetAttributeInt64Data(data.as_ref().as_ptr());
-            },
-            .. => panic!()
-
-        }
-
-    }
-}
 
 macro_rules! storage {
     ($name:ident, $var:ident) => {

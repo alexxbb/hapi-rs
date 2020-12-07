@@ -1,11 +1,14 @@
 use hapi_rs::{
+    ffi,
     errors::{HapiError, HapiResult, Kind, Result},
-    session::{CookResult, Session, SessionOptions},
-    NodeFlags, ffi::NodeType, StatusVerbosity, HOUDINI_VERSION
+    session::{CookResult, Session, SessionOptions, StatusVerbosity},
+    node::{HoudiniNode, NodeFlags, NodeType},
+    HOUDINI_VERSION
 };
-use hapi_rs::node::HoudiniNode;
 
 pub unsafe fn run() -> Result<()> {
+    // let r = ffi::HAPI_AttributeInfo_Create();
+    // dbg!(r);
     let mut session = Session::new_named_pipe("/tmp/hapi")?;
     // session.cleanup()?;
     let opts = SessionOptions::default().otl_search_paths(&["/Users/alex/sandbox/rust/hapi/otls"]);
@@ -24,7 +27,7 @@ pub unsafe fn run() -> Result<()> {
     match node.cook_blocking(None)? {
         CookResult::Succeeded => println!("Cooking Done!"),
         CookResult::Warnings => {
-            let w = session.get_cook_status(StatusVerbosity::VerbosityWarnings)?;
+            let w = session.get_cook_status(StatusVerbosity::Warnings)?;
             println!("Warnings: {}", w);
         }
         CookResult::Errored(err) => {
@@ -32,13 +35,13 @@ pub unsafe fn run() -> Result<()> {
         }
     }
     node.cook_blocking(None)?;
-    let cc = node.cook_count(-1, -1)?;
+    let cc = node.cook_count(NodeType::Any, NodeFlags::Any)?;
     println!("CC: {}", cc);
     let info = node.info()?;
     println!("{:#?}", info);
-    let cc = node.cook_count(-1, -1)?;
+    let cc = node.cook_count(NodeType::Any, NodeFlags::Any)?;
     println!("Manager: {:?}", HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?);
-    let children = node.get_children(NodeType::Any, -1, true)?;
+    let children = node.get_children(NodeType::Any, NodeFlags::Any, true)?;
     println!("Parent: {}", node.parent_node()?.info(&session)?.name()?);
     for ch in children {
         let info = ch.info(&session)?;

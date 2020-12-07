@@ -5,12 +5,12 @@ use std::collections::HashMap;
 use toml;
 
 #[derive(Deserialize, Debug)]
-pub struct CodeGenInfo {
+pub struct CodeGenConfig {
     enums: HashMap<String, EnumOptions>,
     structs: HashMap<String, StructOptions>,
 }
 
-impl CodeGenInfo {
+impl CodeGenConfig {
     pub fn enum_opt(&self, name: impl AsRef<str>) -> Option<EnumOptions> {
         self.enums.get(name.as_ref()).map(|o| o.clone())
     }
@@ -26,12 +26,11 @@ impl CodeGenInfo {
         } else {
             None
         };
-
         match rename {
-            Some("auto") => ffi_name.strip_prefix("HAPI_").expect("Not a HAPI enum"),
-            Some(n) => n,
-            None => ffi_name,
+            Some(n) => new_name(n, ffi_name),
+            None => ffi_name
         }
+
     }
 }
 
@@ -51,6 +50,24 @@ pub struct EnumOptions {
     pub bitflag: Option<bool>,
 }
 
+pub fn new_name<'a>(rename: &'a str, name: &'a str) -> &'a str {
+    match rename {
+        "auto" => name.strip_prefix("HAPI_").expect("Not a HAPI enum"),
+        n => n,
+    }
+}
+
+impl StructOptions{
+    pub fn new_name<'a>(&'a self, name: &'a str) -> &'a str {
+        new_name(&self.rename, name)
+    }
+}
+impl EnumOptions{
+    pub fn new_name<'a>(&'a self, name: &'a str) -> &'a str {
+        new_name(&self.rename, name)
+    }
+}
+
 fn mode<'de, D>(d: D) -> Result<StripMode, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -63,9 +80,9 @@ where
     })
 }
 
-pub fn read_config(path: &str) -> CodeGenInfo {
+pub fn read_config(path: &str) -> CodeGenConfig {
     let s = std::fs::read_to_string(path).expect("Oops");
-    let mut info: CodeGenInfo;
+    let mut info: CodeGenConfig;
     match toml::from_str(&s) {
         Ok(c) => {
             info = c;

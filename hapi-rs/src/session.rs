@@ -1,12 +1,19 @@
 use crate::{
     asset::AssetLibrary,
-    auto::rusty::{State, StatusType, StatusVerbosity},
     check_session,
     cookoptions::CookOptions,
     errors::*,
     ffi,
     node::{HoudiniNode, NodeHandle},
 };
+
+use crate::ffi:: {
+    StatusType, State
+};
+pub use crate::ffi:: {
+    StatusVerbosity
+};
+
 #[rustfmt::skip]
 use std::{
     ffi::CString,
@@ -118,8 +125,8 @@ impl Session {
     pub fn is_initialized(&self) -> Result<bool> {
         unsafe {
             match ffi::HAPI_IsInitialized(self.ptr()) {
-                ffi::HAPI_Result::HAPI_RESULT_SUCCESS => Ok(true),
-                ffi::HAPI_Result::HAPI_RESULT_NOT_INITIALIZED => Ok(false),
+                ffi::HapiResult::Success => Ok(true),
+                ffi::HapiResult::NotInitialized => Ok(false),
                 e => hapi_err!(e, None, Some("HAPI_IsInitialized failed")),
             }
         }
@@ -255,7 +262,7 @@ impl Session {
                     State::Ready => break Ok(CookResult::Succeeded),
                     State::ReadyWithFatalErrors => {
                         self.interrupt()?;
-                        let err = self.get_cook_status(StatusVerbosity::VerbosityErrors)?;
+                        let err = self.get_cook_status(StatusVerbosity::Errors)?;
                         break Ok(CookResult::Errored(err));
                     }
                     State::ReadyWithCookErrors => break Ok(CookResult::Warnings),
@@ -290,7 +297,7 @@ impl Drop for Session {
         if Arc::strong_count(&self.handle) == 1 {
             check_session!(self.ptr());
             unsafe {
-                use ffi::HAPI_Result::*;
+                use ffi::HapiResult::*;
                 if self.cleanup {
                     if let Err(e) = self.cleanup() {
                         error!("Cleanup failed in Drop: {}", e);

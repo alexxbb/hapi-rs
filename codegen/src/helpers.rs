@@ -3,6 +3,13 @@ use serde::Deserialize;
 use heck;
 use heck::SnakeCase;
 
+pub fn rustfmt(path: &std::path::Path) -> std::io::Result<()> {
+    std::process::Command::new("rustfmt")
+        .arg(path)
+        .status()?;
+    Ok(())
+}
+
 #[derive(Deserialize, Debug, Copy, Clone)]
 pub enum StripMode {
     StripFront(u8), // 1: FOO_BAR_ZOO => BAR_ZOO

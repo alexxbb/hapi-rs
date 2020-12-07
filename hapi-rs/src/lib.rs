@@ -10,10 +10,9 @@ pub mod macros;
 pub mod node;
 pub mod session;
 mod stringhandle;
+mod attribute;
 
 pub use auto::bindings as ffi;
-pub use auto::rusty as enums;
-pub use auto::rusty::*;
 pub use errors::Result;
 pub use stringhandle::get_string;
 #[derive(Debug)]

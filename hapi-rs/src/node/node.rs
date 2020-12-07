@@ -1,15 +1,16 @@
 use super::info::*;
 use crate::{
     auto::bindings as ffi,
-    auto::bindings::{NodeType, NodeTypeBits},
-    auto::rusty::{
-        NodeFlags, NodeFlagsBits, State, StatusType, StatusVerbosity,
-    },
     cookoptions::CookOptions,
     errors::*,
     session::{CookResult, Session},
     stringhandle,
 };
+
+use ffi::{
+    State, StatusType, StatusVerbosity,
+};
+pub use crate::ffi::{NodeFlags, NodeType};
 use std::{
     ffi::CString,
     mem::MaybeUninit,
@@ -126,14 +127,14 @@ impl HoudiniNode {
         self.session.cook_result()
     }
 
-    pub fn cook_count(&self, node_types: NodeFlagsBits, node_flags: NodeFlagsBits) -> Result<i32> {
+    pub fn cook_count(&self, node_types: NodeType, node_flags: NodeFlags) -> Result<i32> {
         let mut count = MaybeUninit::uninit();
         unsafe {
             ffi::HAPI_GetTotalCookCount(
                 self.session.ptr(),
                 self.handle.0,
-                node_types,
-                node_flags,
+                node_types.0,
+                node_flags.0,
                 true as i8,
                 count.as_mut_ptr(),
             )
@@ -237,7 +238,7 @@ impl HoudiniNode {
     pub fn get_children(
         &self,
         types: NodeType,
-        flags: NodeFlags::Type,
+        flags: NodeFlags,
         recursive: bool,
     ) -> Result<Vec<NodeHandle>> {
         let node_info = self.info()?;
@@ -247,7 +248,7 @@ impl HoudiniNode {
                 self.session.ptr(),
                 self.handle.0,
                 types.0,
-                flags,
+                flags.0,
                 recursive as i8,
                 count.as_mut_ptr(),
             )
