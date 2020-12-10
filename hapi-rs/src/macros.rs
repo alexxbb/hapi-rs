@@ -45,11 +45,43 @@ macro_rules! setter {
 }
 
 macro_rules! wrap_ffi {
+    (_get_ $method:ident->$field:ident->bool) => {
+        #[inline]
+        pub fn $method(&self) -> bool {self.inner.$field == 1}
+    };
+
+    (_get_ $method:ident->$field:ident->Result<String>) => {
+        #[inline]
+        pub fn $method(&self, session: &Session) -> Result<String> {
+            session.get_string(self.inner.$field)
+        }
+    };
+
+    (_set_ $method:ident->$field:ident->Result<String>) => {
+        // Ignore string setter for builder
+    };
+
+    (_get_ $method:ident->$field:ident->$tp:ty) => {
+        #[inline]
+        pub fn $method(&self) -> $tp {self.inner.$field}
+    };
+
+    (_set_ $method:ident->$field:ident->bool) => {
+        pub fn $method(mut self, val: bool) -> Self {self.inner.$field = val as i8; self}
+    };
+    (_set_ $method:ident->$field:ident->$tp:ty) => {
+        pub fn $method(mut self, val: $tp) -> Self {self.inner.$field = val; self}
+    };
+
+    // Entry point
     (
-        @object: $object:ident @builder: $builder:ident @ffi: [$create_func:path=>$ffi_tp:ty]
+        @object: $object:ident
+        @builder: $builder:ident
+        @default: [$create_func:path=>$ffi_tp:ty]
         methods:
-            $($method:ident->$field:ident->$tp:tt);* $(;)?
+            $($method:ident->$field:ident->[$($tp:tt)*]);* $(;)?
     ) => {
+        use crate::{ session::Session };
         pub struct $builder{inner: $ffi_tp }
         impl Default for $builder {
             fn default() -> Self {
@@ -58,7 +90,7 @@ macro_rules! wrap_ffi {
         }
 
         impl $builder {
-            $(wrap_ffi!(_set_ $method->$field->$tp);)*
+            $(wrap_ffi!(_set_ $method->$field->$($tp)*);)*
 
             pub fn build(mut self) -> $object {
                 $object{inner: self.inner}
@@ -66,7 +98,7 @@ macro_rules! wrap_ffi {
         }
 
         impl $object {
-            $(wrap_ffi!(_get_ $method->$field->$tp);)*
+            $(wrap_ffi!(_get_ $method->$field->$($tp)*);)*
 
             pub fn ptr(&self) -> *const $ffi_tp {
                 &self.inner as *const _
@@ -78,20 +110,6 @@ macro_rules! wrap_ffi {
                 $builder::default().build()
             }
         }
-    };
-    (_get_ $method:ident->$field:ident->bool) => {
-        pub fn $method(&self) -> bool {self.inner.$field == 1}
-    };
-
-    (_get_ $method:ident->$field:ident->$tp:ty) => {
-        pub fn $method(&self) -> $tp {self.inner.$field}
-    };
-
-    (_set_ $method:ident->$field:ident->bool) => {
-        pub fn $method(mut self, val: bool) -> Self {self.inner.$field = val as i8; self}
-    };
-    (_set_ $method:ident->$field:ident->$tp:ty) => {
-        pub fn $method(mut self, val: $tp) -> Self {self.inner.$field = val; self}
     };
 }
 #[macro_export]
