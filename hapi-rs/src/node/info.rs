@@ -1,7 +1,6 @@
-use crate::inner_field;
+use crate::auto::bindings::NodeType;
 use crate::{errors::Result, ffi::*, node::NodeHandle, session::Session, stringhandle};
 use std::fmt::Formatter;
-use crate::auto::bindings::NodeType;
 
 pub struct NodeInfo {
     pub(crate) inner: HAPI_NodeInfo,
@@ -49,30 +48,22 @@ impl NodeInfo {
         }
     }
 
-    inner_field!(type_, node_type, NodeType);
-    inner_field!(isValid, is_valid, bool);
-    inner_field!(uniqueHoudiniNodeId, unique_node_id, i32);
-    inner_field!(totalCookCount, total_cook_count, i32);
-    inner_field!(childNodeCount, child_node_count, i32);
-    inner_field!(parmCount, parm_count, i32);
-    inner_field!(inputCount, input_count, i32);
-    inner_field!(outputCount, output_count, i32);
-    inner_field!(isTimeDependent, is_time_dependent, bool);
-    inner_field!(createdPostAssetLoad, created_post_asset_load, bool);
-    inner_field!(parmIntValueCount, parm_int_value_count, i32);
-    inner_field!(parmFloatValueCount, parm_float_value_count, i32);
-    inner_field!(parmStringValueCount, parm_string_value_count, i32);
-    inner_field!(parmChoiceCount, parm_choice_count, i32);
-    inner_field!(nameSH, name, Result<String>);
-    inner_field!(internalNodePathSH, internal_path, Result<String>);
-
-    #[inline]
-    pub fn node_handle(&self) -> NodeHandle {
-        NodeHandle(self.inner.id)
-    }
-
-    #[inline]
-    pub fn parent_id(&self) -> NodeHandle {
-        NodeHandle(self.inner.parentId)
-    }
+    fn_getter!(node_type, type_, NodeType);
+    fn_getter!(is_valid, isValid, bool);
+    fn_getter!(unique_node_id, uniqueHoudiniNodeId, i32);
+    fn_getter!(total_cook_count, totalCookCount, i32);
+    fn_getter!(child_node_count, childNodeCount, i32);
+    fn_getter!(parm_count, parmCount, i32);
+    fn_getter!(input_count, inputCount, i32);
+    fn_getter!(output_count, outputCount, i32);
+    fn_getter!(is_time_dependent, isTimeDependent, bool);
+    fn_getter!(created_post_asset_load, createdPostAssetLoad, bool);
+    fn_getter!(parm_int_value_count, parmIntValueCount, i32);
+    fn_getter!(parm_float_value_count, parmFloatValueCount, i32);
+    fn_getter!(parm_string_value_count, parmStringValueCount, i32);
+    fn_getter!(parm_choice_count, parmChoiceCount, i32);
+    fn_getter!(name, nameSH, Result<String>);
+    fn_getter!(internal_path, internalNodePathSH, Result<String>);
+    fn_getter!(self, node_handle, { NodeHandle(self.inner.id) } => NodeHandle);
+    fn_getter!(self, parent_id, { NodeHandle(self.inner.parentId) } => NodeHandle);
 }

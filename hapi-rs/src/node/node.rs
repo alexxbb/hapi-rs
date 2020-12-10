@@ -1,9 +1,8 @@
 use super::info::*;
 use crate::{
     auto::bindings as ffi,
-    cookoptions::CookOptions,
+    session::{Session, CookOptions, CookResult},
     errors::*,
-    session::{CookResult, Session},
     stringhandle,
 };
 

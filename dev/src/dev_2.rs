@@ -7,8 +7,6 @@ use hapi_rs::{
 };
 
 pub unsafe fn run() -> Result<()> {
-    // let r = ffi::HAPI_AttributeInfo_Create();
-    // dbg!(r);
     let mut session = Session::new_named_pipe("/tmp/hapi")?;
     // session.cleanup()?;
     let opts = SessionOptions::default().otl_search_paths(&["/Users/alex/sandbox/rust/hapi/otls"]);

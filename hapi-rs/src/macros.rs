@@ -1,26 +1,99 @@
 #[macro_export]
-macro_rules! inner_field {
-    ($field_name:ident, $func_name:ident, bool) => {
+macro_rules! fn_getter {
+    ($func_name:ident, $field_name:ident, bool) => {
         #[inline]
         pub fn $func_name(&self) -> bool {
             self.inner.$field_name == 1
         }
     };
 
-    ($field_name:ident, $func_name:ident, Result<String>) => {
+    ($func_name:ident, $field_name:ident, Result<String>) => {
         #[inline]
         pub fn $func_name(&self) -> Result<String> {
             crate::stringhandle::get_string(self.inner.$field_name, &self.session)
         }
     };
-    ($field_name:ident, $func_name:ident, $ret:ty) => {
+    ($func_name:ident, $field_name:ident, $ret:ty) => {
         #[inline]
         pub fn $func_name(&self) -> $ret {
             self.inner.$field_name
         }
     };
+
+    ($self_:ident, $func_name:ident, $block:block => $ret:ty ) => {
+        #[inline]
+        pub fn $func_name(&$self_) -> $ret {
+            $block
+        }
+    }
 }
 
+macro_rules! setter {
+    ($method:ident->$field:ident->bool) => {
+        pub fn $method(mut self, val: bool) -> Self {
+            self.0.$field = val as i8;
+            self
+        }
+    };
+
+    ($method:ident->$field:ident->$tp:ty) => {
+        pub fn $method(mut self, val: $tp) -> Self {
+            self.0.$field = val;
+            self
+        }
+    };
+}
+
+macro_rules! wrap_ffi {
+    (
+        @object: $object:ident @builder: $builder:ident @ffi: [$create_func:path=>$ffi_tp:ty]
+        methods:
+            $($method:ident->$field:ident->$tp:tt);* $(;)?
+    ) => {
+        pub struct $builder{inner: $ffi_tp }
+        impl Default for $builder {
+            fn default() -> Self {
+                Self{inner: unsafe { $create_func() }}
+            }
+        }
+
+        impl $builder {
+            $(wrap_ffi!(_set_ $method->$field->$tp);)*
+
+            pub fn build(mut self) -> $object {
+                $object{inner: self.inner}
+            }
+        }
+
+        impl $object {
+            $(wrap_ffi!(_get_ $method->$field->$tp);)*
+
+            pub fn ptr(&self) -> *const $ffi_tp {
+                &self.inner as *const _
+            }
+        }
+
+        impl Default for $object {
+            fn default() -> Self {
+                $builder::default().build()
+            }
+        }
+    };
+    (_get_ $method:ident->$field:ident->bool) => {
+        pub fn $method(&self) -> bool {self.inner.$field == 1}
+    };
+
+    (_get_ $method:ident->$field:ident->$tp:ty) => {
+        pub fn $method(&self) -> $tp {self.inner.$field}
+    };
+
+    (_set_ $method:ident->$field:ident->bool) => {
+        pub fn $method(mut self, val: bool) -> Self {self.inner.$field = val as i8; self}
+    };
+    (_set_ $method:ident->$field:ident->$tp:ty) => {
+        pub fn $method(mut self, val: $tp) -> Self {self.inner.$field = val; self}
+    };
+}
 #[macro_export]
 macro_rules! char_ptr {
     ($lit:expr) => {{
@@ -38,47 +111,5 @@ macro_rules! check_session {
             unsafe { matches!(HAPI_IsSessionValid($session), HapiResult::Success) },
             "Session is invalid!"
         );
-    };
-}
-
-#[macro_export]
-macro_rules! builder {
-    (
-        @name: $builder:ident, @ffi: $inner:ty, @default: $default:block, @result: $object:ident,
-        @setters: {
-            $($method:ident->$ffi_field:ident: $ret:ty),+ $(,)? // optional comma
-        }
-    ) => {
-        pub struct $builder($inner);
-        impl Default for $builder {
-            fn default() -> Self {
-                Self(unsafe { $default })
-            }
-        }
-        impl $builder {
-            $(pub fn $method(mut self, val: $ret) -> Self {
-                self.0.$ffi_field = val;
-                self
-            })+
-        }
-
-        impl $builder {
-            pub fn build(mut self) -> $object {
-                $object{inner: self.0}
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! wrap_ffi {
-    ($object:ident, $self_:ident, $($method:ident->$ret:ty $block:block),+ $(,)?) => {
-        impl $object {
-            $(
-                pub fn $method(&$self_) -> $ret {
-                    $block
-                }
-            )+
-        }
     };
 }

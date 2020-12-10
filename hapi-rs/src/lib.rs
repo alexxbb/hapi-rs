@@ -2,11 +2,11 @@
 use log;
 #[macro_use]
 pub mod errors;
+#[macro_use]
+mod macros;
 mod asset;
 mod auto;
-pub mod cookoptions;
 mod fixes;
-pub mod macros;
 pub mod node;
 pub mod session;
 mod stringhandle;
