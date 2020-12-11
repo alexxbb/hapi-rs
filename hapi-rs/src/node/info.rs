@@ -48,22 +48,27 @@ impl NodeInfo {
         }
     }
 
-    fn_getter!(node_type, type_, NodeType);
-    fn_getter!(is_valid, isValid, bool);
-    fn_getter!(unique_node_id, uniqueHoudiniNodeId, i32);
-    fn_getter!(total_cook_count, totalCookCount, i32);
-    fn_getter!(child_node_count, childNodeCount, i32);
-    fn_getter!(parm_count, parmCount, i32);
-    fn_getter!(input_count, inputCount, i32);
-    fn_getter!(output_count, outputCount, i32);
-    fn_getter!(is_time_dependent, isTimeDependent, bool);
-    fn_getter!(created_post_asset_load, createdPostAssetLoad, bool);
-    fn_getter!(parm_int_value_count, parmIntValueCount, i32);
-    fn_getter!(parm_float_value_count, parmFloatValueCount, i32);
-    fn_getter!(parm_string_value_count, parmStringValueCount, i32);
-    fn_getter!(parm_choice_count, parmChoiceCount, i32);
-    fn_getter!(name, nameSH, Result<String>);
-    fn_getter!(internal_path, internalNodePathSH, Result<String>);
-    fn_getter!(self, node_handle, { NodeHandle(self.inner.id) } => NodeHandle);
-    fn_getter!(self, parent_id, { NodeHandle(self.inner.parentId) } => NodeHandle);
+    pub fn name(&self) -> Result<String> {
+        self.session.get_string(self.inner.nameSH)
+    }
+    pub fn internal_path(&self) -> Result<String> {
+        self.session.get_string(self.inner.internalNodePathSH)
+    }
+
+    get!(node_type->type_->NodeType);
+    get!(is_valid->isValid->bool);
+    get!(unique_node_id->uniqueHoudiniNodeId->i32);
+    get!(total_cook_count->totalCookCount->i32);
+    get!(child_node_count->childNodeCount->i32);
+    get!(parm_count->parmCount->i32);
+    get!(input_count->inputCount->i32);
+    get!(output_count->outputCount->i32);
+    get!(is_time_dependent->isTimeDependent->bool);
+    get!(created_post_asset_load->createdPostAssetLoad->bool);
+    get!(parm_int_value_count->parmIntValueCount->i32);
+    get!(parm_float_value_count->parmFloatValueCount->i32);
+    get!(parm_string_value_count->parmStringValueCount->i32);
+    get!(parm_choice_count->parmChoiceCount->i32);
+    get!(node_handle->id->[handle: NodeHandle]);
+    get!(parent_id->parentId->[handle: NodeHandle]);
 }

@@ -1,15 +1,15 @@
 use super::info::*;
 use crate::{
     auto::bindings as ffi,
-    session::{Session, CookOptions, CookResult},
     errors::*,
+    parameter::Parameter,
+    session::{CookOptions, CookResult, Session},
     stringhandle,
 };
 
-use ffi::{
-    State, StatusType, StatusVerbosity,
-};
+pub use super::info::NodeInfo;
 pub use crate::ffi::{NodeFlags, NodeType};
+use ffi::{State, StatusType, StatusVerbosity};
 use std::{
     ffi::CString,
     mem::MaybeUninit,
@@ -21,6 +21,7 @@ use std::{
 
 use log::{debug, log_enabled, Level::Debug};
 use std::fmt::Formatter;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct NodeHandle(pub ffi::HAPI_NodeId);
@@ -270,5 +271,39 @@ impl HoudiniNode {
 
     pub fn parent_node(&self) -> Result<NodeHandle> {
         Ok(self.info()?.parent_id())
+    }
+
+    pub fn parameter(&self, name: &str) -> Result<Parameter<'_>> {
+        let node_info = self.info()?;
+        let parm_info = crate::parameter::ParmInfo::from_name(name, self)?;
+        Ok(Parameter::new(
+            Rc::new(node_info),
+            parm_info.inner,
+            &self.session,
+        ))
+    }
+
+    pub fn get_parameters(&self) -> Result<Vec<Parameter<'_>>> {
+        let info = self.info()?;
+
+        let infos = unsafe {
+            // TODO: expensive to call ..Create()?, maybe impl Default?
+            let mut parms = vec![ffi::HAPI_ParmInfo_Create(); info.parm_count() as usize];
+            ffi::HAPI_GetParameters(
+                self.session.ptr(),
+                self.handle.0,
+                parms.as_mut_ptr(),
+                0,
+                info.parm_count(),
+            )
+            .result_with_session(|| self.session.clone())?;
+            parms
+        };
+        let node_info = Rc::new(self.info()?);
+
+        Ok(infos
+            .into_iter()
+            .map(|i| Parameter::new(Rc::clone(&node_info), i, &self.session))
+            .collect())
     }
 }

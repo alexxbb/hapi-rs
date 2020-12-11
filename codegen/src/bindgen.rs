@@ -82,6 +82,7 @@ pub fn run_bindgen(incl: &str, header: &str, cgc: Rc<CodeGenConfig>) -> Result<S
         .bitfield_enum("ErrorCode")
         .prepend_enum_name(false)
         .generate_comments(false)
+        .raw_line("use strum_macros::AsRefStr;")
         .derive_copy(true)
         .derive_debug(true)
         .derive_hash(false)

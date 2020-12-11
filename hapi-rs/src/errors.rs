@@ -1,4 +1,4 @@
-use crate::{auto::bindings as ffi, check_session, session::Session};
+use crate::{auto::bindings as ffi, session::Session};
 use std::borrow::Cow;
 pub use ffi::HapiResult;
 

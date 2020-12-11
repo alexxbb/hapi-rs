@@ -1,31 +1,46 @@
-#[macro_export]
-macro_rules! fn_getter {
-    ($func_name:ident, $field_name:ident, bool) => {
+use crate::{node::NodeHandle, session::Session};
+
+macro_rules! get {
+
+    ($method:ident->$field:ident->bool) => {
         #[inline]
-        pub fn $func_name(&self) -> bool {
-            self.inner.$field_name == 1
+        pub fn $method(&self) -> bool {
+            self.inner.$field == 1
         }
     };
 
-    ($func_name:ident, $field_name:ident, Result<String>) => {
+    // wrap raw ids into handle i.e NodeHandle, ParmHandle etc
+    ($method:ident->$field:ident->[handle: $hdl:ident]) => {
         #[inline]
-        pub fn $func_name(&self) -> Result<String> {
-            crate::stringhandle::get_string(self.inner.$field_name, &self.session)
-        }
-    };
-    ($func_name:ident, $field_name:ident, $ret:ty) => {
-        #[inline]
-        pub fn $func_name(&self) -> $ret {
-            self.inner.$field_name
+        pub fn $method(&self) -> $hdl {
+            $hdl(self.inner.$field)
         }
     };
 
-    ($self_:ident, $func_name:ident, $block:block => $ret:ty ) => {
+    ($self_:ident, $method:ident->$block:block->$tp:ty) => {
         #[inline]
-        pub fn $func_name(&$self_) -> $ret {
+        pub fn $method(&$self_) -> $tp {
             $block
         }
-    }
+    };
+
+    ($method:ident->$field:ident->Result<String>) => {
+        #[inline]
+        pub fn $method(&self, session: &Session) -> Result<String> {
+            session.get_string(self.inner.$field)
+        }
+    };
+
+    ($method:ident->$field:ident->$tp:ty) => {
+        #[inline]
+        pub fn $method(&self) -> $tp {
+            self.inner.$field
+        }
+    };
+
+    ($method:ident->$field:ident->[$($tp:tt)*]) => {
+        get!($method->$field->[$($tp)*]);
+    };
 }
 
 macro_rules! setter {
@@ -46,15 +61,11 @@ macro_rules! setter {
 
 macro_rules! wrap_ffi {
     (_get_ $method:ident->$field:ident->bool) => {
-        #[inline]
-        pub fn $method(&self) -> bool {self.inner.$field == 1}
+        get!($method->$field->bool);
     };
 
     (_get_ $method:ident->$field:ident->Result<String>) => {
-        #[inline]
-        pub fn $method(&self, session: &Session) -> Result<String> {
-            session.get_string(self.inner.$field)
-        }
+        get!($method->$field->Result<String>);
     };
 
     (_set_ $method:ident->$field:ident->Result<String>) => {
@@ -62,8 +73,7 @@ macro_rules! wrap_ffi {
     };
 
     (_get_ $method:ident->$field:ident->$tp:ty) => {
-        #[inline]
-        pub fn $method(&self) -> $tp {self.inner.$field}
+        get!($method->$field->$tp);
     };
 
     (_set_ $method:ident->$field:ident->bool) => {
@@ -112,7 +122,7 @@ macro_rules! wrap_ffi {
         }
     };
 }
-#[macro_export]
+
 macro_rules! char_ptr {
     ($lit:expr) => {{
         use std::ffi::CStr;
@@ -121,7 +131,6 @@ macro_rules! char_ptr {
     }};
 }
 
-#[macro_export]
 macro_rules! check_session {
     ($session:expr) => {
         use crate::ffi::{HAPI_IsSessionValid, HapiResult};

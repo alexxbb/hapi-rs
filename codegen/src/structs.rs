@@ -7,13 +7,6 @@ use std::collections::HashMap;
 use syn::export::ToTokens;
 use syn::{Attribute, Fields, Item, ItemStruct, Type};
 
-static TYPEMAP: Lazy<HashMap<&str, &str>> = Lazy::new(|| {
-    let mut map = HashMap::new();
-    map.insert("HAPI_StringHandle", "Result<String>");
-    map.insert("HAPI_Bool", "bool");
-    map.insert("HAPI_Bool", "bool");
-    map
-});
 
 /// Rules
 /// check return type:
@@ -85,7 +78,6 @@ pub fn generate_structs(items: &Vec<Item>, cfg: &CodeGenConfig) -> Vec<TokenStre
         if let Item::Struct(s) = i {
             let name = s.ident.to_string();
             if let Some(opts) = cfg.struct_opt(&name) {
-                dbg!(&opts);
                 let info = StructInfo::new(s, opts, cfg);
                 let s = gen_struct(info);
                 tokens.push(s);

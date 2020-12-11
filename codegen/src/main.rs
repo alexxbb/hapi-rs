@@ -2,11 +2,13 @@ use anyhow::{anyhow, Result};
 use getopts;
 use std::rc::Rc;
 use std::path::Path;
+use quote::ToTokens;
 
 mod bindgen;
 mod config;
 mod helpers;
 mod structs;
+mod extra;
 
 fn print_help(opts: &getopts::Options) {
     println!("{}", opts.usage("hapi-gen"))
@@ -46,12 +48,14 @@ fn main() -> Result<()> {
 
     let mut output = bindgen::run_bindgen(&include, &wrapper,Rc::clone(&cc))?;
 
-    let tree:syn::File = syn::parse_str(&output)?;
-    let struct_tokens = structs::generate_structs(&tree.items, &cc);
-    output.push_str("\n/* Auto generated with hapi-codegen */\n");
-    for e in struct_tokens.iter() {
-        output.push_str(&e.to_string());
-    }
+    let mut tree:syn::File = syn::parse_str(&output)?;
+    extra::custom_derive(&mut tree.items);
+    let output = tree.into_token_stream().to_string();
+    // let struct_tokens = structs::generate_structs(&tree.items, &cc);
+    // output.push_str("\n/* Auto generated with hapi-codegen */\n");
+    // for e in struct_tokens.iter() {
+    //     output.push_str(&e.to_string());
+    // }
     let bindings_file = Path::new(&outdir).join("bindings.rs");
     std::fs::write(&bindings_file, output.as_bytes()).expect("Writing bindings.rs failed");
     helpers::rustfmt(bindings_file.as_path());

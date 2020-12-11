@@ -36,15 +36,15 @@ pub unsafe fn run() -> Result<()> {
     let cc = node.cook_count(NodeType::Any, NodeFlags::Any)?;
     println!("CC: {}", cc);
     let info = node.info()?;
-    println!("{:#?}", info);
     let cc = node.cook_count(NodeType::Any, NodeFlags::Any)?;
     println!("Manager: {:?}", HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?);
     let children = node.get_children(NodeType::Any, NodeFlags::Any, true)?;
     println!("Parent: {}", node.parent_node()?.info(&session)?.name()?);
     for ch in children {
         let info = ch.info(&session)?;
-        println!("{}", info.name()?)
+        // println!("{}", info.name()?)
     }
-    // session.save_hip("/tmp/session.hip")?;
+    assert!(node.parameter("foo_bar").is_err());
+    let scale = node.parameter("scale")?;
     Ok(())
 }

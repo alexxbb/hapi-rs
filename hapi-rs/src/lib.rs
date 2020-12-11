@@ -1,16 +1,16 @@
 #![allow(unused)]
 use log;
 #[macro_use]
-pub mod errors;
-#[macro_use]
 mod macros;
+#[macro_use]
+pub mod errors;
 mod asset;
 mod auto;
-mod fixes;
 pub mod node;
 pub mod session;
 mod stringhandle;
 mod attribute;
+mod parameter;
 
 pub use auto::bindings as ffi;
 pub use errors::Result;
