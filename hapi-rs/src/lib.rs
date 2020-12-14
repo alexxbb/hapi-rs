@@ -10,7 +10,7 @@ pub mod node;
 pub mod session;
 mod stringhandle;
 mod attribute;
-mod parameter;
+pub mod parameter;
 
 pub use auto::bindings as ffi;
 pub use errors::Result;

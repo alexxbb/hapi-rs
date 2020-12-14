@@ -3,8 +3,23 @@ use crate::{ffi, session::Session};
 use std::io::BufRead;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
+use std::ffi::CString;
 
 pub fn get_string(handle: i32, session: &Session) -> Result<String> {
+    unsafe {
+        let mut bytes = get_string_bytes(handle, session, false)?;
+        Ok(String::from_utf8_unchecked(bytes))
+    }
+}
+
+pub fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
+    unsafe {
+        let mut bytes = get_string_bytes(handle, session, true)?;
+        Ok(CString::from_vec_unchecked(bytes))
+    }
+}
+
+pub(crate) fn get_string_bytes(handle: i32, session: &Session, with_nul: bool) -> Result<Vec<u8>> {
     unsafe {
         let mut length = MaybeUninit::uninit();
         ffi::HAPI_GetStringBufLength(session.ptr(), handle, length.as_mut_ptr())
@@ -14,8 +29,10 @@ pub fn get_string(handle: i32, session: &Session) -> Result<String> {
         let ptr = buffer.as_mut_ptr() as *mut c_char;
         ffi::HAPI_GetString(session.ptr(), handle, ptr, length)
             .result_with_message("get_string failed")?;
-        buffer.truncate(length as usize - 1);
-        Ok(String::from_utf8_unchecked(buffer))
+        if !with_nul {
+            buffer.truncate(length as usize - 1);
+        }
+        Ok(buffer)
     }
 }
 

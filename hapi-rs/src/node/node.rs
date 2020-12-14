@@ -275,11 +275,13 @@ impl HoudiniNode {
 
     pub fn parameter(&self, name: &str) -> Result<Parameter<'_>> {
         let node_info = self.info()?;
-        let parm_info = crate::parameter::ParmInfo::from_name(name, self)?;
+        let name = CString::new(name)?;
+        let parm_info = crate::parameter::ParmInfo::from_name(&name, self)?;
         Ok(Parameter::new(
             Rc::new(node_info),
             parm_info.inner,
             &self.session,
+            Some(name)
         ))
     }
 
@@ -303,7 +305,7 @@ impl HoudiniNode {
 
         Ok(infos
             .into_iter()
-            .map(|i| Parameter::new(Rc::clone(&node_info), i, &self.session))
+            .map(|i| Parameter::new(Rc::clone(&node_info), i, &self.session, None))
             .collect())
     }
 }

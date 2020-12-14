@@ -3,6 +3,7 @@ use hapi_rs::{
     errors::{HapiError, HapiResult, Kind, Result},
     session::{CookResult, Session, SessionOptions, StatusVerbosity},
     node::{HoudiniNode, NodeFlags, NodeType},
+    parameter::*,
     HOUDINI_VERSION
 };
 
@@ -32,19 +33,20 @@ pub unsafe fn run() -> Result<()> {
             println!("Errors: {}", err);
         }
     }
-    node.cook_blocking(None)?;
-    let cc = node.cook_count(NodeType::Any, NodeFlags::Any)?;
-    println!("CC: {}", cc);
     let info = node.info()?;
     let cc = node.cook_count(NodeType::Any, NodeFlags::Any)?;
-    println!("Manager: {:?}", HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?);
     let children = node.get_children(NodeType::Any, NodeFlags::Any, true)?;
-    println!("Parent: {}", node.parent_node()?.info(&session)?.name()?);
     for ch in children {
         let info = ch.info(&session)?;
         // println!("{}", info.name()?)
     }
-    assert!(node.parameter("foo_bar").is_err());
-    let scale = node.parameter("scale")?;
+    assert!(node.parameter::<f32>("foo_bar").is_err());
+    let scale = node.parameter::<f32>("scale")?;
+    println!("Name: {}", scale.name()?);
+    // if let ParmValue::Float(v) = scale.get_value::<f32>()? {
+    //     println!("Value: {}", v);
+    // }
+    // let v = Parameter::all_parm_float_values(&node)?;
+    // dbg!(v);
     Ok(())
 }
