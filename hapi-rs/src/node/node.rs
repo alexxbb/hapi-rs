@@ -2,7 +2,7 @@ use super::info::*;
 use crate::{
     auto::bindings as ffi,
     errors::*,
-    parameter::Parameter,
+    parameter::*,
     session::{CookOptions, CookResult, Session},
     stringhandle,
 };
@@ -19,6 +19,7 @@ use std::{
     task::{Context, Poll},
 };
 
+use crate::auto::bindings::ParmType;
 use log::{debug, log_enabled, Level::Debug};
 use std::fmt::Formatter;
 use std::rc::Rc;
@@ -281,7 +282,7 @@ impl HoudiniNode {
             Rc::new(node_info),
             parm_info.inner,
             &self.session,
-            Some(name)
+            Some(name),
         ))
     }
 

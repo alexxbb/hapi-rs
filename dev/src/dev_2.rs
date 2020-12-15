@@ -40,13 +40,12 @@ pub unsafe fn run() -> Result<()> {
         let info = ch.info(&session)?;
         // println!("{}", info.name()?)
     }
-    assert!(node.parameter::<f32>("foo_bar").is_err());
-    let scale = node.parameter::<f32>("scale")?;
-    println!("Name: {}", scale.name()?);
-    // if let ParmValue::Float(v) = scale.get_value::<f32>()? {
-    //     println!("Value: {}", v);
-    // }
-    // let v = Parameter::all_parm_float_values(&node)?;
-    // dbg!(v);
+    if let Parameter::String(p) = node.parameter("visibleobjects")? {
+        println!("parm: {}", p.name()?);
+        if let ParmValue::Single(v) = p.get_value()? {
+            println!("single value: {}", v);
+        }
+
+    }
     Ok(())
 }

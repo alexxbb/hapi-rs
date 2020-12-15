@@ -8,33 +8,11 @@ use crate::{
     node::{HoudiniNode, NodeHandle, NodeInfo},
     session::Session,
 };
-use std::ffi::{CString, CStr};
+use std::borrow::Cow;
+use std::ffi::{CStr, CString};
 use std::fmt::Formatter;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
-
-impl Default for HAPI_ParmInfo {
-    fn default() -> Self {
-        unimplemented!()
-    }
-}
-
-pub(crate) fn read_info_from_handle(
-    session: &Session,
-    node_handle: &NodeHandle,
-    parm_handle: &ParmHandle,
-    info: &mut ParmInfo,
-) -> Result<()> {
-    unsafe {
-        HAPI_GetParmInfo(
-            session.ptr(),
-            node_handle.0,
-            parm_handle.0,
-            &mut info.inner as *mut _,
-        )
-        .result_with_session(|| session.clone())
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct ParmHandle(pub HAPI_ParmId);
@@ -60,48 +38,260 @@ impl ParmHandle {
             inner: unsafe { HAPI_ParmInfo_Create() },
             session: &node.session,
         };
-        read_info_from_handle(&node.session, &node.handle, self, &mut info)?;
+        unsafe {
+            HAPI_GetParmInfo(
+                node.session.ptr(),
+                node.handle.0,
+                info.inner.id,
+                &mut info.inner as *mut _,
+            )
+            .result_with_session(|| node.session.clone())?
+        }
         Ok(info)
     }
 }
 
-pub trait ParmValueType{}
-
-impl ParmValueType for f32{}
-
-pub struct Parameter<'session> {
-    pub info: ParmInfo<'session>,
-    session: &'session Session,
-    name: Option<CString>,
-    node: Rc<NodeInfo>,
+pub trait ParmBaseTrait<'s> {
+    type ValueType: Clone;
+    fn base(&self) -> &ParameterBase<'s>;
+    fn array_index(&self) -> i32;
+    fn values_array(&self) -> Result<Vec<Self::ValueType>>;
+    fn single_value(&self) -> Result<Self::ValueType>;
 }
 
-impl std::fmt::Debug for Parameter<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Parameter[{name} of type {type}]",
-               name=self.info.name().unwrap(),
-                type=self.info.parm_type().as_ref())
+pub trait ParameterTrait<'s>: ParmBaseTrait<'s> {
+    fn name(&self) -> Result<String>;
+    fn get_value(&self) -> Result<ParmValue<<Self as ParmBaseTrait<'s>>::ValueType>>;
+}
+
+impl<'s, T> ParameterTrait<'s> for T
+where
+    T: ParmBaseTrait<'s>,
+{
+    fn name(&self) -> Result<String> {
+        self.base().name()
+    }
+
+    fn get_value(&self) -> Result<ParmValue<<T as ParmBaseTrait<'s>>::ValueType>> {
+        let index = self.array_index();
+        let size = self.base().info.size();
+        if size == 1 {
+            return Ok(ParmValue::Single(self.single_value()?));
+        } else {
+            let mut values = self.values_array()?;
+            debug_assert_eq!(values.len(), size as usize);
+            Ok(match size {
+                1 => ParmValue::Single(values.pop().unwrap()),
+                2 => ParmValue::Tuple2((values.remove(0), values.remove(0))),
+                3 => ParmValue::Tuple3((values.remove(0), values.remove(0), values.remove(0))),
+                4 => ParmValue::Tuple4((
+                    values.remove(0),
+                    values.remove(0),
+                    values.remove(0),
+                    values.remove(0),
+                )),
+                _ => ParmValue::Array(values),
+            })
+        }
     }
 }
 
+pub struct ParameterBase<'session> {
+    pub info: ParmInfo<'session>,
+    pub session: &'session Session,
+    pub name: Option<CString>,
+    pub node: Rc<NodeInfo>,
+}
+pub struct FloatParameter<'session> {
+    base: ParameterBase<'session>,
+}
+
+pub struct IntParameter<'session> {
+    base: ParameterBase<'session>,
+}
+
+pub struct StringParameter<'session> {
+    base: ParameterBase<'session>,
+}
+
+#[derive(Debug)]
 pub enum ParmValue<T> {
-    Value(T),
+    Single(T),
     Tuple2((T, T)),
     Tuple3((T, T, T)),
     Tuple4((T, T, T, T)),
     Array(Vec<T>),
-    // Int(i32),
-    // Float(f32),
-    // String(String),
-    // Tuple2((T, T)),
-    // Tuple3((T, T, T)),
-    // Tuple4((T, T, T, T)),
-    // Array(Vec<T>),
-    // Node(HoudiniNode),
 }
 
+pub enum Parameter<'session> {
+    Float(FloatParameter<'session>),
+    Int(IntParameter<'session>),
+    String(StringParameter<'session>),
+    Other,
+}
 
 impl<'session> Parameter<'session> {
+    pub(crate) fn new(
+        node: Rc<NodeInfo>,
+        info: HAPI_ParmInfo,
+        session: &'session Session,
+        name: Option<CString>,
+    ) -> Parameter<'session> {
+        let base = ParameterBase {
+            info: ParmInfo {
+                inner: info,
+                session,
+            },
+            session,
+            name,
+            node,
+        };
+        match info.type_ {
+            ParmType::Int => Parameter::Int(IntParameter { base }),
+            ParmType::Float => Parameter::Float(FloatParameter { base }),
+            ParmType::String => Parameter::String(StringParameter { base }),
+            _ => Parameter::Other,
+        }
+    }
+}
+
+impl<'s> ParmBaseTrait<'s> for FloatParameter<'s> {
+    type ValueType = f32;
+    fn base(&self) -> &ParameterBase<'s> {
+        &self.base
+    }
+
+    fn array_index(&self) -> i32 {
+        self.base.info.float_values_index()
+    }
+
+    fn values_array(&self) -> Result<Vec<Self::ValueType>> {
+        let index = self.base.info.float_values_index();
+        let count = self.base.info.size();
+        let mut values = vec![0.; count as usize];
+        unsafe {
+            ffi::HAPI_GetParmFloatValues(
+                self.base.session.ptr(),
+                self.base.node.inner.id,
+                values.as_mut_ptr(),
+                index,
+                count,
+            )
+            .result_with_session(|| self.base.session.clone())?;
+        }
+        Ok(values)
+    }
+
+    fn single_value(&self) -> Result<Self::ValueType> {
+        let name = self.base.c_name()?;
+        let mut value = MaybeUninit::uninit();
+        unsafe {
+            ffi::HAPI_GetParmFloatValue(
+                self.base.session.ptr(),
+                self.base.node.inner.id,
+                name.as_ptr(),
+                0,
+                value.as_mut_ptr(),
+            )
+            .result_with_session(|| self.base.session.clone());
+            Ok(value.assume_init())
+        }
+    }
+}
+
+impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
+    type ValueType = i32;
+
+    fn base(&self) -> &ParameterBase<'s> {
+        &self.base
+    }
+
+    fn array_index(&self) -> i32 {
+        self.base.info.int_values_index()
+    }
+
+    fn values_array(&self) -> Result<Vec<Self::ValueType>> {
+        let index = self.base.info.int_values_index();
+        let count = self.base.info.size();
+        let mut values = vec![0; count as usize];
+        unsafe {
+            ffi::HAPI_GetParmIntValues(
+                self.base.session.ptr(),
+                self.base.node.inner.id,
+                values.as_mut_ptr(),
+                index,
+                count,
+            )
+            .result_with_session(|| self.base.session.clone())?;
+        }
+        Ok(values)
+    }
+
+    fn single_value(&self) -> Result<Self::ValueType> {
+        let name = self.base.c_name()?;
+        let mut value = MaybeUninit::uninit();
+        unsafe {
+            ffi::HAPI_GetParmIntValue(
+                self.base.session.ptr(),
+                self.base.node.inner.id,
+                name.as_ptr(),
+                0,
+                value.as_mut_ptr(),
+            )
+            .result_with_session(|| self.base.session.clone());
+            Ok(value.assume_init())
+        }
+    }
+}
+
+impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
+    type ValueType = String;
+
+    fn base(&self) -> &ParameterBase<'s> {
+        &self.base
+    }
+
+    fn array_index(&self) -> i32 {
+        self.base.info.int_values_index()
+    }
+
+    fn values_array(&self) -> Result<Vec<Self::ValueType>> {
+        let index = self.base.info.string_values_index();
+        let count = self.base.info.size();
+        let mut handles = vec![];
+        unsafe {
+            ffi::HAPI_GetParmStringValues(
+                self.base.session.ptr(),
+                self.base.node.inner.id,
+                1,
+                handles.as_mut_ptr(),
+                index,
+                count,
+            )
+            .result_with_session(|| self.base.session.clone())?;
+        }
+        crate::stringhandle::get_string_batch(&handles, self.base.session)
+    }
+
+    fn single_value(&self) -> Result<Self::ValueType> {
+        let name = self.base.c_name()?;
+        let mut handle = MaybeUninit::uninit();
+        unsafe {
+            ffi::HAPI_GetParmStringValue(
+                self.base.session.ptr(),
+                self.base.node.inner.id,
+                name.as_ptr(),
+                0,
+                1,
+                handle.as_mut_ptr(),
+            )
+            .result_with_session(|| self.base.session.clone());
+            self.base.session.get_string(handle.assume_init())
+        }
+    }
+}
+
+impl<'session> ParameterBase<'session> {
     //TODO: revisit. maybe borrow NodeInfo instead of Rc?
     // And maybe HoudiniNode instead of Session?
     // Do we need HoudiniNode for cooking when setting values?
@@ -110,7 +300,7 @@ impl<'session> Parameter<'session> {
         info: HAPI_ParmInfo,
         session: &'session Session,
         name: Option<CString>,
-    ) -> Parameter<'session> {
+    ) -> ParameterBase<'session> {
         let info = ParmInfo {
             inner: info,
             session,
@@ -125,73 +315,24 @@ impl<'session> Parameter<'session> {
 
     pub fn name(&self) -> Result<String> {
         match self.name.as_ref() {
-            None => {self.info.name()}
-            Some(n) => {
-                Ok(n.to_string_lossy().to_string())
-            }
+            None => self.info.name(),
+            Some(n) => Ok(n.to_string_lossy().to_string()),
         }
     }
 
-    pub(crate) fn all_parm_float_values(handle: &NodeHandle, session: &Session, index: i32, count: i32) -> Result<Vec<f32>> {
-        let mut values = vec![0.;count as usize];
-        unsafe {
-            ffi::HAPI_GetParmFloatValues(session.ptr(),
-                                         handle.0,
-                                         values.as_mut_ptr(),
-                                         index,
-                                         count)
-                .result_with_session(||session.clone())?;
-
+    pub(crate) fn c_name(&self) -> Result<Cow<CString>> {
+        match self.name.as_ref() {
+            None => Ok(Cow::Owned(self.info.name_cstr()?)),
+            Some(n) => Ok(Cow::Borrowed(n)),
         }
-        Ok(values)
     }
+}
 
-    unsafe fn get_float_value(&self) -> Result<f32> {
-        let mut val = MaybeUninit::uninit();
-        let mut tmp;
-        let name = match &self.name  {
-            None => {
-                tmp = self.info.name_cstr()?;
-                tmp.as_c_str()
-            }
-            Some(n) => n.as_c_str()
-        };
-        ffi::HAPI_GetParmFloatValue(
-            self.session.ptr(),
-            self.node.inner.id,
-            name.as_ptr(),
-            0, // TODO: This may be a parm on N components
-            val.as_mut_ptr(),
-        )
-        .result_with_session(|| self.session.clone())?;
-        Ok(val.assume_init())
-    }
-
-    pub fn get_value<T>(&self) -> Result<ParmValue<T>> {
-        let v = match self.info.parm_type() {
-            ParmType::Int => {
-                unimplemented!()
-            },
-            ParmType::Float => {
-                let index = self.info.float_values_index();
-                let values = Parameter::all_parm_float_values(
-                    &self.node.node_handle(),
-                    &self.session,
-                    index,
-                    self.info.size())?;
-                match self.info.size() {
-                    1 => ParmValue::Value(values[0]),
-                    2 => ParmValue::Tuple2((values[0], values[1])),
-                    3 => ParmValue::Tuple3((values[0], values[1], values[2])),
-                    4 => ParmValue::Tuple4((values[0], values[1], values[2], values[3])),
-                    _ => ParmValue::Array(values)
-
-                }
-            },
-            ParmType::String => unimplemented!(),
-            _ => unimplemented!() // Logic error?
-        };
-        Ok(v)
+impl std::fmt::Debug for ParameterBase<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Parameter[{name} of type {type}]",
+               name=self.info.name().unwrap(),
+                type=self.info.parm_type().as_ref())
     }
 }
 
@@ -218,7 +359,7 @@ impl<'session> ParmInfo<'session> {
                 name.as_ptr(),
                 info.as_mut_ptr(),
             )
-                .result_with_session(|| node.session.clone())?;
+            .result_with_session(|| node.session.clone())?;
             info.assume_init()
         };
 
