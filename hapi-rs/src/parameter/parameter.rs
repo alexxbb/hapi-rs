@@ -14,6 +14,8 @@ use std::fmt::Formatter;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
 
+use log::warn;
+
 #[derive(Debug, Clone)]
 pub struct ParmHandle(pub HAPI_ParmId);
 
@@ -51,17 +53,19 @@ impl ParmHandle {
     }
 }
 
+// TODO: Should be private
 pub trait ParmBaseTrait<'s> {
-    type ValueType: Clone;
+    type ReturnType;
+
     fn base(&self) -> &ParameterBase<'s>;
     fn array_index(&self) -> i32;
-    fn values_array(&self) -> Result<Vec<Self::ValueType>>;
-    fn single_value(&self) -> Result<Self::ValueType>;
+    fn values_array(&self) -> Result<Vec<Self::ReturnType>>;
+    fn single_value(&self) -> Result<Self::ReturnType>;
 }
 
 pub trait ParameterTrait<'s>: ParmBaseTrait<'s> {
     fn name(&self) -> Result<String>;
-    fn get_value(&self) -> Result<ParmValue<<Self as ParmBaseTrait<'s>>::ValueType>>;
+    fn get_value(&self) -> Result<ParmValue<<Self as ParmBaseTrait<'s>>::ReturnType>>;
 }
 
 impl<'s, T> ParameterTrait<'s> for T
@@ -72,7 +76,7 @@ where
         self.base().name()
     }
 
-    fn get_value(&self) -> Result<ParmValue<<T as ParmBaseTrait<'s>>::ValueType>> {
+    fn get_value(&self) -> Result<ParmValue<<T as ParmBaseTrait<'s>>::ReturnType>> {
         let index = self.array_index();
         let size = self.base().info.size();
         if size == 1 {
@@ -123,6 +127,18 @@ pub enum ParmValue<T> {
     Array(Vec<T>),
 }
 
+impl<T> From<T> for ParmValue<T> {
+    fn from(v: T) -> Self {
+        Self::Single(v)
+    }
+}
+
+impl<'a, T> From<[&'a T; 2]> for ParmValue<&'a T> {
+    fn from(v: [&'a T; 2]) -> Self {
+        Self::Tuple2((v[0], v[1]))
+    }
+}
+
 pub enum Parameter<'session> {
     Float(FloatParameter<'session>),
     Int(IntParameter<'session>),
@@ -156,7 +172,8 @@ impl<'session> Parameter<'session> {
 }
 
 impl<'s> ParmBaseTrait<'s> for FloatParameter<'s> {
-    type ValueType = f32;
+    type ReturnType = f32;
+
     fn base(&self) -> &ParameterBase<'s> {
         &self.base
     }
@@ -165,7 +182,7 @@ impl<'s> ParmBaseTrait<'s> for FloatParameter<'s> {
         self.base.info.float_values_index()
     }
 
-    fn values_array(&self) -> Result<Vec<Self::ValueType>> {
+    fn values_array(&self) -> Result<Vec<Self::ReturnType>> {
         let index = self.base.info.float_values_index();
         let count = self.base.info.size();
         let mut values = vec![0.; count as usize];
@@ -182,7 +199,7 @@ impl<'s> ParmBaseTrait<'s> for FloatParameter<'s> {
         Ok(values)
     }
 
-    fn single_value(&self) -> Result<Self::ValueType> {
+    fn single_value(&self) -> Result<Self::ReturnType> {
         let name = self.base.c_name()?;
         let mut value = MaybeUninit::uninit();
         unsafe {
@@ -199,8 +216,39 @@ impl<'s> ParmBaseTrait<'s> for FloatParameter<'s> {
     }
 }
 
+impl<'s> FloatParameter<'s> {
+    pub fn set_value<T>(&self, val: T) -> Result<()>
+    where
+        T: Into<ParmValue<f32>>,
+    {
+        fn set(self_: &FloatParameter, val_: &[f32]) -> Result<()> {
+            if val_.len() > self_.base.info.size() as usize {
+                warn!("Trying to set parm \"{}\" to incorrect value size", self_.base.name()?);
+            }
+            unsafe {
+                ffi::HAPI_SetParmFloatValues(
+                    self_.base.session.ptr(),
+                    self_.base.node.inner.id,
+                    val_.as_ptr(),
+                    self_.base.info.float_values_index(),
+                    self_.base.info.size(),
+                )
+            };
+            Ok(())
+        }
+        match val.into() {
+            ParmValue::Single(v) => set(self, &[v])?,
+            ParmValue::Tuple2((v1, v2)) => set(self, &[v1, v2])?,
+            ParmValue::Tuple3((v1, v2, v3)) => set(self, &[v1, v2, v3])?,
+            ParmValue::Tuple4((v1, v2, v3, v4)) => set(self, &[v1, v2, v3, v4])?,
+            ParmValue::Array(v) => set(self, &v)?,
+        }
+        Ok(())
+    }
+}
+
 impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
-    type ValueType = i32;
+    type ReturnType = i32;
 
     fn base(&self) -> &ParameterBase<'s> {
         &self.base
@@ -210,7 +258,7 @@ impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
         self.base.info.int_values_index()
     }
 
-    fn values_array(&self) -> Result<Vec<Self::ValueType>> {
+    fn values_array(&self) -> Result<Vec<Self::ReturnType>> {
         let index = self.base.info.int_values_index();
         let count = self.base.info.size();
         let mut values = vec![0; count as usize];
@@ -227,7 +275,7 @@ impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
         Ok(values)
     }
 
-    fn single_value(&self) -> Result<Self::ValueType> {
+    fn single_value(&self) -> Result<Self::ReturnType> {
         let name = self.base.c_name()?;
         let mut value = MaybeUninit::uninit();
         unsafe {
@@ -245,7 +293,7 @@ impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
 }
 
 impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
-    type ValueType = String;
+    type ReturnType = String;
 
     fn base(&self) -> &ParameterBase<'s> {
         &self.base
@@ -255,7 +303,7 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
         self.base.info.int_values_index()
     }
 
-    fn values_array(&self) -> Result<Vec<Self::ValueType>> {
+    fn values_array(&self) -> Result<Vec<Self::ReturnType>> {
         let index = self.base.info.string_values_index();
         let count = self.base.info.size();
         let mut handles = vec![];
@@ -273,7 +321,7 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
         crate::stringhandle::get_string_batch(&handles, self.base.session)
     }
 
-    fn single_value(&self) -> Result<Self::ValueType> {
+    fn single_value(&self) -> Result<Self::ReturnType> {
         let name = self.base.c_name()?;
         let mut handle = MaybeUninit::uninit();
         unsafe {
@@ -288,6 +336,52 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
             .result_with_session(|| self.base.session.clone());
             self.base.session.get_string(handle.assume_init())
         }
+    }
+}
+
+impl<'s> StringParameter<'s> {
+    pub fn set_value<T, R>(&self, val: T) -> Result<()>
+    where
+        R: AsRef<str>,
+        T: Into<ParmValue<R>>,
+    {
+        fn set_comp(self_: &StringParameter, val_: &str, cmp: i32) -> Result<()> {
+            let val = CString::new(val_)?;
+            unsafe {
+                ffi::HAPI_SetParmStringValue(
+                    self_.base.session.ptr(),
+                    self_.base.node.inner.id,
+                    val.as_ptr(),
+                    self_.base.info.id().0,
+                    0,
+                )
+            };
+            Ok(())
+        }
+        match val.into() {
+            ParmValue::Single(v) => set_comp(self, v.as_ref(), 0)?,
+            ParmValue::Tuple2((v1, v2)) => {
+                set_comp(self, v1.as_ref(), 0)?;
+                set_comp(self, v2.as_ref(), 1)?;
+            }
+            ParmValue::Tuple3((v1, v2, v3)) => {
+                set_comp(self, v1.as_ref(), 0)?;
+                set_comp(self, v2.as_ref(), 1)?;
+                set_comp(self, v3.as_ref(), 2)?;
+            }
+            ParmValue::Tuple4((v1, v2, v3, v4)) => {
+                set_comp(self, v1.as_ref(), 0)?;
+                set_comp(self, v2.as_ref(), 1)?;
+                set_comp(self, v3.as_ref(), 2)?;
+                set_comp(self, v4.as_ref(), 3)?;
+            }
+            ParmValue::Array(v) => {
+                for (i, v) in v.iter().enumerate() {
+                    set_comp(self, v.as_ref(), i as i32)?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 

@@ -40,12 +40,20 @@ pub unsafe fn run() -> Result<()> {
         let info = ch.info(&session)?;
         // println!("{}", info.name()?)
     }
-    if let Parameter::String(p) = node.parameter("visibleobjects")? {
+    if let Parameter::String(mut p) = node.parameter("visibleobjects")? {
         println!("parm: {}", p.name()?);
         if let ParmValue::Single(v) = p.get_value()? {
             println!("single value: {}", v);
         }
+        // p.set_value(ParmValue::Single("foo"))?;
+        // p.set_value(ParmValue::Single("foo".to_string()))?;
+        // p.set_value("foo")?;
+        p.set_value("foo")?;
 
     }
+    if let Parameter::Float(mut p) = node.parameter("scale")? {
+        p.set_value(1.2)?;
+    }
+    session.save_hip("/tmp/session.hip")?;
     Ok(())
 }
