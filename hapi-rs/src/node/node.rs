@@ -27,25 +27,9 @@ use std::rc::Rc;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct NodeHandle(pub ffi::HAPI_NodeId);
 
-pub(crate) fn read_node_info(
-    session: &Session,
-    handle: &NodeHandle,
-    info: &mut NodeInfo,
-) -> Result<()> {
-    unsafe {
-        ffi::HAPI_GetNodeInfo(session.ptr(), handle.0, &mut info.inner as *mut _)
-            .result_with_session(|| session.clone())
-    }
-}
 impl NodeHandle {
     pub fn info(&self, session: &Session) -> Result<NodeInfo> {
-        let mut info = NodeInfo::new(session.clone());
-        read_node_info(session, self, &mut info)?;
-        Ok(info)
-    }
-
-    pub fn read_info(&self, session: &Session, info: &mut NodeInfo) -> Result<()> {
-        read_node_info(session, &self, info)
+        NodeInfo::new(session.clone(), self)
     }
 
     pub fn is_valid(&self, session: &Session) -> Result<bool> {
@@ -63,6 +47,7 @@ impl NodeHandle {
 pub struct HoudiniNode {
     pub handle: NodeHandle,
     pub session: Session,
+    pub info: NodeInfo,
 }
 
 impl std::fmt::Debug for HoudiniNode {
@@ -75,10 +60,15 @@ impl std::fmt::Debug for HoudiniNode {
 }
 
 impl HoudiniNode {
-    pub(crate) fn new(session: Session, hdl: NodeHandle) -> Result<Self> {
+    pub(crate) fn new(session: Session, hdl: NodeHandle, info: Option<NodeInfo>) -> Result<Self> {
+        let mut info = match info {
+            None => NodeInfo::new(session.clone(), &hdl)?,
+            Some(i) => i,
+        };
         Ok(HoudiniNode {
             handle: hdl,
             session,
+            info,
         })
     }
     pub fn delete(self) -> Result<()> {
@@ -88,12 +78,8 @@ impl HoudiniNode {
         }
     }
 
-    pub fn info(&self) -> Result<NodeInfo> {
-        self.handle.info(&self.session)
-    }
-
     pub fn is_valid(&self) -> Result<bool> {
-        Ok(self.info()?.is_valid())
+        Ok(self.info.is_valid())
     }
 
     pub fn path(&self, relative_to: Option<HoudiniNode>) -> Result<String> {
@@ -110,7 +96,6 @@ impl HoudiniNode {
         }
     }
 
-    /// https://github.com/sideeffects/HoudiniEngineForUnity/blob/5b2d34bd5a04513288f4991048bf9c5ecceacac5/Plugins/HoudiniEngineUnity/Scripts/Asset/HEU_HoudiniAsset.cs#L1536
     pub fn cook(&self, options: Option<CookOptions>) -> Result<()> {
         if log_enabled!(Debug) {
             debug!("Cooking node: {}", self.path(None)?)
@@ -173,7 +158,7 @@ impl HoudiniNode {
             .result_with_session(|| session.clone())?;
             id.assume_init()
         };
-        HoudiniNode::new(session, NodeHandle(id))
+        HoudiniNode::new(session, NodeHandle(id), None)
     }
 
     pub fn create_blocking(
@@ -202,13 +187,12 @@ impl HoudiniNode {
                 .result_with_session(|| session.clone())?;
             id.assume_init()
         };
-        HoudiniNode::new(session, NodeHandle(id))
+        HoudiniNode::new(session, NodeHandle(id), None)
     }
 
     pub fn get_object_nodes(&self) -> Result<Vec<NodeHandle>> {
-        let node_info = self.info()?;
-        let node_id = match node_info.node_type() {
-            NodeType::Obj => node_info.parent_id(),
+        let node_id = match self.info.node_type() {
+            NodeType::Obj => self.info.parent_id(),
             _ => self.handle.clone(),
         };
         let obj_infos = unsafe {
@@ -242,7 +226,6 @@ impl HoudiniNode {
         flags: NodeFlags,
         recursive: bool,
     ) -> Result<Vec<NodeHandle>> {
-        let node_info = self.info()?;
         let ids = unsafe {
             let mut count = MaybeUninit::uninit();
             ffi::HAPI_ComposeChildNodeList(
@@ -271,42 +254,33 @@ impl HoudiniNode {
     }
 
     pub fn parent_node(&self) -> Result<NodeHandle> {
-        Ok(self.info()?.parent_id())
+        Ok(self.info.parent_id())
     }
 
     pub fn parameter(&self, name: &str) -> Result<Parameter<'_>> {
-        let node_info = self.info()?;
         let name = CString::new(name)?;
         let parm_info = crate::parameter::ParmInfo::from_name(&name, self)?;
-        Ok(Parameter::new(
-            Rc::new(node_info),
-            parm_info.inner,
-            &self.session,
-            Some(name),
-        ))
+        Ok(Parameter::new(self, parm_info.inner, Some(name)))
     }
 
     pub fn get_parameters(&self) -> Result<Vec<Parameter<'_>>> {
-        let info = self.info()?;
-
         let infos = unsafe {
             // TODO: expensive to call ..Create()?, maybe impl Default?
-            let mut parms = vec![ffi::HAPI_ParmInfo_Create(); info.parm_count() as usize];
+            let mut parms = vec![ffi::HAPI_ParmInfo_Create(); self.info.parm_count() as usize];
             ffi::HAPI_GetParameters(
                 self.session.ptr(),
                 self.handle.0,
                 parms.as_mut_ptr(),
                 0,
-                info.parm_count(),
+                self.info.parm_count(),
             )
             .result_with_session(|| self.session.clone())?;
             parms
         };
-        let node_info = Rc::new(self.info()?);
 
         Ok(infos
             .into_iter()
-            .map(|i| Parameter::new(Rc::clone(&node_info), i, &self.session, None))
+            .map(|i| Parameter::new(self, i, None))
             .collect())
     }
 }

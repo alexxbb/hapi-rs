@@ -33,7 +33,6 @@ pub unsafe fn run() -> Result<()> {
             println!("Errors: {}", err);
         }
     }
-    let info = node.info()?;
     let cc = node.cook_count(NodeType::Any, NodeFlags::Any)?;
     let children = node.get_children(NodeType::Any, NodeFlags::Any, true)?;
     for ch in children {
@@ -54,6 +53,6 @@ pub unsafe fn run() -> Result<()> {
     if let Parameter::Float(mut p) = node.parameter("scale")? {
         p.set_value(1.2)?;
     }
-    session.save_hip("/tmp/session.hip")?;
+    // session.save_hip("/tmp/session.hip")?;
     Ok(())
 }

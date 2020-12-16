@@ -1,7 +1,9 @@
 use crate::auto::bindings::NodeType;
 use crate::{errors::Result, ffi::*, node::NodeHandle, session::Session, stringhandle};
 use std::fmt::Formatter;
+use std::mem::MaybeUninit;
 
+#[derive(Clone)]
 pub struct NodeInfo {
     pub(crate) inner: HAPI_NodeInfo,
     pub(crate) session: Session,
@@ -39,13 +41,14 @@ impl std::fmt::Debug for NodeInfo {
 }
 
 impl NodeInfo {
-    pub fn new(session: crate::session::Session) -> Self {
-        unsafe {
-            NodeInfo {
-                inner: HAPI_NodeInfo_Create(),
-                session,
-            }
-        }
+    pub fn new(session: Session, node: &NodeHandle) -> Result<Self> {
+        let inner = unsafe {
+            let mut inner = MaybeUninit::uninit();
+            HAPI_GetNodeInfo(session.ptr(), node.0, inner.as_mut_ptr())
+                .result_with_session(|| session.clone())?;
+            inner.assume_init()
+        };
+        Ok(NodeInfo { inner, session })
     }
 
     pub fn name(&self) -> Result<String> {

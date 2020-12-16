@@ -102,9 +102,8 @@ where
 
 pub struct ParameterBase<'session> {
     pub info: ParmInfo<'session>,
-    pub session: &'session Session,
+    pub node: &'session HoudiniNode,
     pub name: Option<CString>,
-    pub node: Rc<NodeInfo>,
 }
 pub struct FloatParameter<'session> {
     base: ParameterBase<'session>,
@@ -146,23 +145,21 @@ pub enum Parameter<'session> {
     Other,
 }
 
-impl<'session> Parameter<'session> {
+impl<'node> Parameter<'node> {
     pub(crate) fn new(
-        node: Rc<NodeInfo>,
+        node: &'node HoudiniNode,
         info: HAPI_ParmInfo,
-        session: &'session Session,
         name: Option<CString>,
-    ) -> Parameter<'session> {
+    ) -> Parameter<'node> {
         let base = ParameterBase {
             info: ParmInfo {
                 inner: info,
-                session,
+                session: &node.session,
             },
-            session,
             name,
             node,
         };
-        match info.type_ {
+        match base.info.parm_type() {
             ParmType::Int => Parameter::Int(IntParameter { base }),
             ParmType::Float => Parameter::Float(FloatParameter { base }),
             ParmType::String => Parameter::String(StringParameter { base }),
@@ -188,13 +185,13 @@ impl<'s> ParmBaseTrait<'s> for FloatParameter<'s> {
         let mut values = vec![0.; count as usize];
         unsafe {
             ffi::HAPI_GetParmFloatValues(
-                self.base.session.ptr(),
-                self.base.node.inner.id,
+                self.base.node.session.ptr(),
+                self.base.node.handle.0,
                 values.as_mut_ptr(),
                 index,
                 count,
             )
-            .result_with_session(|| self.base.session.clone())?;
+            .result_with_session(|| self.base.node.session.clone())?;
         }
         Ok(values)
     }
@@ -204,13 +201,13 @@ impl<'s> ParmBaseTrait<'s> for FloatParameter<'s> {
         let mut value = MaybeUninit::uninit();
         unsafe {
             ffi::HAPI_GetParmFloatValue(
-                self.base.session.ptr(),
-                self.base.node.inner.id,
+                self.base.node.session.ptr(),
+                self.base.node.handle.0,
                 name.as_ptr(),
                 0,
                 value.as_mut_ptr(),
             )
-            .result_with_session(|| self.base.session.clone());
+            .result_with_session(|| self.base.node.session.clone());
             Ok(value.assume_init())
         }
     }
@@ -227,8 +224,8 @@ impl<'s> FloatParameter<'s> {
             }
             unsafe {
                 ffi::HAPI_SetParmFloatValues(
-                    self_.base.session.ptr(),
-                    self_.base.node.inner.id,
+                    self_.base.node.session.ptr(),
+                    self_.base.node.handle.0,
                     val_.as_ptr(),
                     self_.base.info.float_values_index(),
                     self_.base.info.size(),
@@ -264,13 +261,13 @@ impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
         let mut values = vec![0; count as usize];
         unsafe {
             ffi::HAPI_GetParmIntValues(
-                self.base.session.ptr(),
-                self.base.node.inner.id,
+                self.base.node.session.ptr(),
+                self.base.node.handle.0,
                 values.as_mut_ptr(),
                 index,
                 count,
             )
-            .result_with_session(|| self.base.session.clone())?;
+            .result_with_session(|| self.base.node.session.clone())?;
         }
         Ok(values)
     }
@@ -280,13 +277,13 @@ impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
         let mut value = MaybeUninit::uninit();
         unsafe {
             ffi::HAPI_GetParmIntValue(
-                self.base.session.ptr(),
-                self.base.node.inner.id,
+                self.base.node.session.ptr(),
+                self.base.node.handle.0,
                 name.as_ptr(),
                 0,
                 value.as_mut_ptr(),
             )
-            .result_with_session(|| self.base.session.clone());
+            .result_with_session(|| self.base.node.session.clone());
             Ok(value.assume_init())
         }
     }
@@ -309,16 +306,16 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
         let mut handles = vec![];
         unsafe {
             ffi::HAPI_GetParmStringValues(
-                self.base.session.ptr(),
-                self.base.node.inner.id,
+                self.base.node.session.ptr(),
+                self.base.node.handle.0,
                 1,
                 handles.as_mut_ptr(),
                 index,
                 count,
             )
-            .result_with_session(|| self.base.session.clone())?;
+            .result_with_session(|| self.base.node.session.clone())?;
         }
-        crate::stringhandle::get_string_batch(&handles, self.base.session)
+        crate::stringhandle::get_string_batch(&handles, &self.base.node.session)
     }
 
     fn single_value(&self) -> Result<Self::ReturnType> {
@@ -326,15 +323,15 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
         let mut handle = MaybeUninit::uninit();
         unsafe {
             ffi::HAPI_GetParmStringValue(
-                self.base.session.ptr(),
-                self.base.node.inner.id,
+                self.base.node.session.ptr(),
+                self.base.node.handle.0,
                 name.as_ptr(),
                 0,
                 1,
                 handle.as_mut_ptr(),
             )
-            .result_with_session(|| self.base.session.clone());
-            self.base.session.get_string(handle.assume_init())
+            .result_with_session(|| self.base.node.session.clone());
+            self.base.node.session.get_string(handle.assume_init())
         }
     }
 }
@@ -349,8 +346,8 @@ impl<'s> StringParameter<'s> {
             let val = CString::new(val_)?;
             unsafe {
                 ffi::HAPI_SetParmStringValue(
-                    self_.base.session.ptr(),
-                    self_.base.node.inner.id,
+                    self_.base.node.session.ptr(),
+                    self_.base.node.handle.0,
                     val.as_ptr(),
                     self_.base.info.id().0,
                     0,
@@ -385,28 +382,7 @@ impl<'s> StringParameter<'s> {
     }
 }
 
-impl<'session> ParameterBase<'session> {
-    //TODO: revisit. maybe borrow NodeInfo instead of Rc?
-    // And maybe HoudiniNode instead of Session?
-    // Do we need HoudiniNode for cooking when setting values?
-    pub(crate) fn new(
-        node: Rc<NodeInfo>,
-        info: HAPI_ParmInfo,
-        session: &'session Session,
-        name: Option<CString>,
-    ) -> ParameterBase<'session> {
-        let info = ParmInfo {
-            inner: info,
-            session,
-        };
-        Self {
-            info,
-            session,
-            node,
-            name,
-        }
-    }
-
+impl<'node> ParameterBase<'node> {
     pub fn name(&self) -> Result<String> {
         match self.name.as_ref() {
             None => self.info.name(),
