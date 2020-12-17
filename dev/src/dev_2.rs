@@ -11,48 +11,23 @@ pub unsafe fn run() -> Result<()> {
     let mut session = Session::new_named_pipe("/tmp/hapi")?;
     // session.cleanup()?;
     let opts = SessionOptions::default().otl_search_paths(&["/Users/alex/sandbox/rust/hapi/otls"]);
-    if let Err(e) = session.initialize(opts) {
-        if !matches!(e.kind, Kind::Hapi(HapiResult::AlreadyInitialized)) {
-            return Err(e);
-        }
-    }
+    session.initialize(opts);
     let otl = std::env::current_dir()
         .unwrap()
-        .join("otls/FourShapes.hda");
+        .join("otls/hapi_parms.hda");
     let library = session.load_asset_file(otl)?;
     let names = library.get_asset_names()?;
     let obj = HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?;
     let node = session.create_node_blocking(&names[0], None, None)?;
-    match node.cook_blocking(None)? {
-        CookResult::Succeeded => println!("Cooking Done!"),
-        CookResult::Warnings => {
-            let w = session.get_cook_status(StatusVerbosity::Warnings)?;
-            println!("Warnings: {}", w);
-        }
-        CookResult::Errored(err) => {
-            println!("Errors: {}", err);
-        }
+    // for p in node.parameters()? {
+    //     dbg!(p.info());
+    // }
+    if let Parameter::Int(mut p) = node.parameter("button")? {
+        let v = p.get_value()?;
+        dbg!(v);
+        p.set_value(1)?;
+        session.cook_result()?;
+        println!("{}", session.get_cook_status(StatusVerbosity::All)?);
     }
-    let cc = node.cook_count(NodeType::Any, NodeFlags::Any)?;
-    let children = node.get_children(NodeType::Any, NodeFlags::Any, true)?;
-    for ch in children {
-        let info = ch.info(&session)?;
-        // println!("{}", info.name()?)
-    }
-    if let Parameter::String(mut p) = node.parameter("visibleobjects")? {
-        println!("parm: {}", p.name()?);
-        if let ParmValue::Single(v) = p.get_value()? {
-            println!("single value: {}", v);
-        }
-        // p.set_value(ParmValue::Single("foo"))?;
-        // p.set_value(ParmValue::Single("foo".to_string()))?;
-        // p.set_value("foo")?;
-        p.set_value("foo")?;
-
-    }
-    if let Parameter::Float(mut p) = node.parameter("scale")? {
-        p.set_value(1.2)?;
-    }
-    // session.save_hip("/tmp/session.hip")?;
     Ok(())
 }

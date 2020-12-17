@@ -263,9 +263,8 @@ impl HoudiniNode {
         Ok(Parameter::new(self, parm_info.inner, Some(name)))
     }
 
-    pub fn get_parameters(&self) -> Result<Vec<Parameter<'_>>> {
+    pub fn parameters(&self) -> Result<Vec<Parameter<'_>>> {
         let infos = unsafe {
-            // TODO: expensive to call ..Create()?, maybe impl Default?
             let mut parms = vec![ffi::HAPI_ParmInfo_Create(); self.info.parm_count() as usize];
             ffi::HAPI_GetParameters(
                 self.session.ptr(),
