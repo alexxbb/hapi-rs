@@ -9,7 +9,7 @@ use hapi_rs::{
 
 pub unsafe fn run() -> Result<()> {
     let mut session = Session::new_named_pipe("/tmp/hapi")?;
-    // session.cleanup()?;
+    session.cleanup()?;
     let opts = SessionOptions::default().otl_search_paths(&["/Users/alex/sandbox/rust/hapi/otls"]);
     session.initialize(opts);
     let otl = std::env::current_dir()
@@ -19,15 +19,14 @@ pub unsafe fn run() -> Result<()> {
     let names = library.get_asset_names()?;
     let obj = HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?;
     let node = session.create_node_blocking(&names[0], None, None)?;
-    // for p in node.parameters()? {
-    //     dbg!(p.info());
-    // }
-    if let Parameter::Int(mut p) = node.parameter("button")? {
+    if let Parameter::Float(mut p) = node.parameter("color")? {
+        p.set_value(ParmValue::Tuple3((0.1, 0.777, 0.22)))?;
         let v = p.get_value()?;
         dbg!(v);
-        p.set_value(1)?;
         session.cook_result()?;
         println!("{}", session.get_cook_status(StatusVerbosity::All)?);
     }
+
+    session.save_hip("/tmp/foo.hip")?;
     Ok(())
 }
