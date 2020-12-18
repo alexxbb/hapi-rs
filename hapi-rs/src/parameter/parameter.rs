@@ -118,6 +118,33 @@ impl<T> From<ParmValue<T>> for Vec<T> {
 }
 
 
+impl<'s, T: 's> From<&'s ParmValue<T>> for Vec<&'s str> where T: AsRef<str> {
+    fn from(v: &'s ParmValue<T>) -> Self {
+        let mut vals = Vec::with_capacity(4);
+
+        match v {
+            ParmValue::Single(v) => vals.push(v.as_ref()),
+            ParmValue::Tuple2((v1, v2)) => {
+                vals.push(v1.as_ref());
+                vals.push(v2.as_ref());
+            }
+            ParmValue::Tuple3((v1, v2, v3)) => {
+                vals.push(v1.as_ref());
+                vals.push(v2.as_ref());
+                vals.push(v3.as_ref());
+            }
+            ParmValue::Tuple4((v1, v2, v3, v4)) => {
+                vals.push(v1.as_ref());
+                vals.push(v2.as_ref());
+                vals.push(v3.as_ref());
+                vals.push(v4.as_ref());
+            }
+            ParmValue::Array(v) => vals = v.iter().map(|vv| vv.as_ref()).collect(),
+        };
+        vals
+    }
+}
+
 impl<T> From<T> for ParmValue<T> {
     fn from(v: T) -> Self {
         Self::Single(v)
@@ -289,40 +316,15 @@ impl<'s> StringParameter<'s> {
             R: AsRef<str>,
             T: Into<ParmValue<R>>,
     {
-        // TODO make it work with From<ParmValue>
-        fn set_comp(self_: &StringParameter, val_: &str, cmp: i32) -> Result<()> {
-            let val = CString::new(val_)?;
-            super::values::set_string_value(
-                &self_.wrap.node.handle,
-                &self_.wrap.info.id(),
-                &self_.wrap.node.session,
-                cmp,
-                &val)
-        }
-        match val.into() {
-            ParmValue::Single(v) => set_comp(self, v.as_ref(), 0)?,
-            ParmValue::Tuple2((v1, v2)) => {
-                set_comp(self, v1.as_ref(), 0)?;
-                set_comp(self, v2.as_ref(), 1)?;
-            }
-            ParmValue::Tuple3((v1, v2, v3)) => {
-                set_comp(self, v1.as_ref(), 0)?;
-                set_comp(self, v2.as_ref(), 1)?;
-                set_comp(self, v3.as_ref(), 2)?;
-            }
-            ParmValue::Tuple4((v1, v2, v3, v4)) => {
-                set_comp(self, v1.as_ref(), 0)?;
-                set_comp(self, v2.as_ref(), 1)?;
-                set_comp(self, v3.as_ref(), 2)?;
-                set_comp(self, v4.as_ref(), 3)?;
-            }
-            ParmValue::Array(v) => {
-                for (i, v) in v.iter().enumerate() {
-                    set_comp(self, v.as_ref(), i as i32)?;
-                }
-            }
-        }
-        Ok(())
+
+        let pv = val.into();
+        let vals: Vec<&str> = (&pv).into();
+        use std::result::Result;
+        let c_str = vals.iter().map(|s| CString::new(*s))
+            .collect::<Result<Vec<CString>, _>>()?;
+        let c_str:Vec<&CStr> = c_str.iter().map(|c|c.as_ref()).collect();
+        super::values::set_string_values(&self.wrap.node.handle, &self.wrap.info.id(), &self.wrap.node.session,
+                                         &c_str)
     }
 }
 
