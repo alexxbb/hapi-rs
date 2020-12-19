@@ -114,7 +114,7 @@ impl<'node> Parameter<'node> {
             | ParmType::PathFileDir
             | ParmType::PathFileGeo
             | ParmType::PathFileImage => Parameter::String(StringParameter { wrap: base }),
-            _ => unimplemented!()
+            _ => unreachable!()
         }
     }
     pub fn info(&self) -> &ParmInfo {
@@ -122,7 +122,7 @@ impl<'node> Parameter<'node> {
             Parameter::Float(p) => &p.wrap.info,
             Parameter::Int(p) => &p.wrap.info,
             Parameter::String(p) => &p.wrap.info,
-            Parameter::Other(_) => unimplemented!()
+            Parameter::Other(p) => &p.wrap.info
         }
     }
 
@@ -131,7 +131,7 @@ impl<'node> Parameter<'node> {
             Parameter::Float(p) => p.name(),
             Parameter::Int(p) => p.name(),
             Parameter::String(p) => p.name(),
-            Parameter::Other(_) => unimplemented!()
+            Parameter::Other(_) => unimplemented!() // TODO. BaseParameter is missing name()
         }
     }
 }
@@ -214,7 +214,7 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
     fn set_value<T>(&self, val: T) -> Result<()> where T: AsRef<[Self::ValueType]> {
         let start = self.wrap.info.string_values_index();
         let count = self.wrap.info.size();
-        let c_str: Vec<CString> = val.as_ref().into_iter().map(|s| unsafe { CString::new(s.clone()).expect("Null string")}).collect();
+        let c_str: Vec<CString> = val.as_ref().into_iter().map(|s| unsafe { CString::new(s.clone()).expect("Null string") }).collect();
         super::values::set_string_values(&self.wrap.node.handle,
                                          &self.wrap.info.id(),
                                          &self.wrap.node.session,
@@ -222,8 +222,7 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
     }
 }
 
-impl<'s> StringParameter<'s> {
-}
+impl<'s> StringParameter<'s> {}
 
 impl<'node> ParmNodeWrap<'node> {
     pub(crate) fn c_name(&self) -> Result<Cow<CString>> {
