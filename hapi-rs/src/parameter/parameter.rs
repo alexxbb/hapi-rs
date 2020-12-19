@@ -82,105 +82,11 @@ pub struct StringParameter<'session> {
 }
 
 #[derive(Debug)]
-pub enum ParmValue<T> {
-    Single(T),
-    Tuple2((T, T)),
-    Tuple3((T, T, T)),
-    Tuple4((T, T, T, T)),
-    Array(Vec<T>),
-}
-
-impl<T> From<ParmValue<T>> for Vec<T> {
-    fn from(v: ParmValue<T>) -> Self {
-        let mut vals = Vec::with_capacity(4);
-
-        match v {
-            ParmValue::Single(v) => vals.push(v),
-            ParmValue::Tuple2((v1, v2)) => {
-                vals.push(v1);
-                vals.push(v2);
-            }
-            ParmValue::Tuple3((v1, v2, v3)) => {
-                vals.push(v1);
-                vals.push(v2);
-                vals.push(v3);
-            }
-            ParmValue::Tuple4((v1, v2, v3, v4)) => {
-                vals.push(v1);
-                vals.push(v2);
-                vals.push(v3);
-                vals.push(v4);
-            }
-            ParmValue::Array(v) => vals = v,
-        };
-        vals
-    }
-}
-
-
-impl<'s, T: 's> From<&'s ParmValue<T>> for Vec<&'s str> where T: AsRef<str> {
-    fn from(v: &'s ParmValue<T>) -> Self {
-        let mut vals = Vec::with_capacity(4);
-
-        match v {
-            ParmValue::Single(v) => vals.push(v.as_ref()),
-            ParmValue::Tuple2((v1, v2)) => {
-                vals.push(v1.as_ref());
-                vals.push(v2.as_ref());
-            }
-            ParmValue::Tuple3((v1, v2, v3)) => {
-                vals.push(v1.as_ref());
-                vals.push(v2.as_ref());
-                vals.push(v3.as_ref());
-            }
-            ParmValue::Tuple4((v1, v2, v3, v4)) => {
-                vals.push(v1.as_ref());
-                vals.push(v2.as_ref());
-                vals.push(v3.as_ref());
-                vals.push(v4.as_ref());
-            }
-            ParmValue::Array(v) => vals = v.iter().map(|vv| vv.as_ref()).collect(),
-        };
-        vals
-    }
-}
-
-impl<T> From<T> for ParmValue<T> {
-    fn from(v: T) -> Self {
-        Self::Single(v)
-    }
-}
-
-impl<'a, T> From<[&'a T; 2]> for ParmValue<&'a T> {
-    fn from(v: [&'a T; 2]) -> Self {
-        Self::Tuple2((v[0], v[1]))
-    }
-}
-
-// impl<'a, T> From<[&'a T; 3]> for ParmValue<&'a T> {
-//     fn from(v: [&'a T; 3]) -> Self {
-//         Self::Tuple3((v[0], v[1], v[2]))
-//     }
-// }
-
-impl<'a, T: Clone> From<[T; 3]> for ParmValue<T> {
-    fn from(v: [T; 3]) -> Self {
-        Self::Tuple3((v[0].clone(), v[1].clone(), v[2].clone()))
-    }
-}
-
-impl<'a, T> From<[&'a T; 4]> for ParmValue<&'a T> {
-    fn from(v: [&'a T; 4]) -> Self {
-        Self::Tuple4((v[0], v[1], v[2], v[3]))
-    }
-}
-
-#[derive(Debug)]
 pub enum Parameter<'session> {
     Float(FloatParameter<'session>),
     Int(IntParameter<'session>),
     String(StringParameter<'session>),
-    Other,
+    Other(BaseParameter<'session>),
 }
 
 
@@ -195,14 +101,20 @@ impl<'node> Parameter<'node> {
         };
         eprintln!("{:?}->{:?}", &base.info.parm_type(), &base.info.script_type());
         match base.info.parm_type() {
-            ParmType::Int | ParmType::Button => Parameter::Int(IntParameter { wrap: base }),
+            ParmType::Int
+            | ParmType::Button
+            | ParmType::Toggle
+            | ParmType::Folder
+            | ParmType::Folderlist
+            => Parameter::Int(IntParameter { wrap: base }),
             ParmType::Float | ParmType::Color => Parameter::Float(FloatParameter { wrap: base }),
             ParmType::String
+            | ParmType::Node
             | ParmType::PathFile
             | ParmType::PathFileDir
             | ParmType::PathFileGeo
             | ParmType::PathFileImage => Parameter::String(StringParameter { wrap: base }),
-            _ => Parameter::Other,
+            _ => unimplemented!()
         }
     }
     pub fn info(&self) -> &ParmInfo {
@@ -210,23 +122,28 @@ impl<'node> Parameter<'node> {
             Parameter::Float(p) => &p.wrap.info,
             Parameter::Int(p) => &p.wrap.info,
             Parameter::String(p) => &p.wrap.info,
-            Parameter::Other => unreachable!()
+            Parameter::Other(_) => unimplemented!()
+        }
+    }
+
+    pub fn name(&self) -> Result<Cow<'_, str>> {
+        match self {
+            Parameter::Float(p) => p.name(),
+            Parameter::Int(p) => p.name(),
+            Parameter::String(p) => p.name(),
+            Parameter::Other(_) => unimplemented!()
         }
     }
 }
 
 impl<'s> ParmBaseTrait<'s> for FloatParameter<'s> {
-    type ReturnType = f32;
+    type ValueType = f32;
 
     fn wrap(&self) -> &ParmNodeWrap<'s> {
         &self.wrap
     }
 
-    fn array_index(&self) -> i32 {
-        self.wrap.info.float_values_index()
-    }
-
-    fn values_array(&self) -> Result<Vec<Self::ReturnType>> {
+    fn get_value(&self) -> Result<Vec<Self::ValueType>> {
         let start = self.wrap.info.float_values_index();
         let count = self.wrap.info.size();
         super::values::get_float_values(
@@ -236,33 +153,24 @@ impl<'s> ParmBaseTrait<'s> for FloatParameter<'s> {
             count,
         )
     }
-}
 
-impl<'s> FloatParameter<'s> {
-    pub fn set_value<T>(&self, val: T) -> Result<()>
-        where
-            T: Into<ParmValue<f32>>,
-    {
-        let mut vals: Vec<f32> = val.into().into();
+    fn set_value<T>(&self, val: T) -> Result<()> where T: AsRef<[Self::ValueType]> {
         super::values::set_float_values(&self.wrap.node.handle,
                                         &self.wrap.node.session,
                                         self.wrap.info.float_values_index(),
-                                        self.wrap.info.size(), &vals)
+                                        self.wrap.info.size(), val.as_ref())
     }
 }
 
+
 impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
-    type ReturnType = i32;
+    type ValueType = i32;
 
     fn wrap(&self) -> &ParmNodeWrap<'s> {
         &self.wrap
     }
 
-    fn array_index(&self) -> i32 {
-        self.wrap.info.int_values_index()
-    }
-
-    fn values_array(&self) -> Result<Vec<Self::ReturnType>> {
+    fn get_value(&self) -> Result<Vec<Self::ValueType>> {
         let start = self.wrap.info.int_values_index();
         let count = self.wrap.info.size();
         super::values::get_int_values(
@@ -272,34 +180,27 @@ impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
             count,
         )
     }
-}
 
-impl<'s> IntParameter<'s> {
-    pub fn set_value<T>(&self, val: T) -> Result<()>
-        where
-            T: Into<ParmValue<i32>>,
-    {
-        let mut vals: Vec<i32> = val.into().into();
+    fn set_value<T>(&self, val: T) -> Result<()> where T: AsRef<[Self::ValueType]> {
+        let start = self.wrap.info.int_values_index();
+        let count = self.wrap.info.size();
         super::values::set_int_values(&self.wrap.node.handle,
                                       &self.wrap.node.session,
-                                      self.wrap.info.int_values_index(),
-                                      self.wrap.info.size(), &vals)
+                                      start,
+                                      count, val.as_ref())
     }
 }
 
 impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
-    type ReturnType = String;
+    type ValueType = String;
 
     fn wrap(&self) -> &ParmNodeWrap<'s> {
         &self.wrap
     }
 
-    fn array_index(&self) -> i32 {
-        self.wrap.info.string_values_index()
-    }
 
-    fn values_array(&self) -> Result<Vec<Self::ReturnType>> {
-        let start = self.array_index();
+    fn get_value(&self) -> Result<Vec<Self::ValueType>> {
+        let start = self.wrap.info.string_values_index();
         let count = self.wrap.info.size();
         super::values::get_string_values(
             &self.wrap.node.handle,
@@ -308,24 +209,20 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
             count,
         )
     }
+
+    // TODO Maybe take it out of the trait? AsRef makes it an extra String copy. Consider ToOwned?
+    fn set_value<T>(&self, val: T) -> Result<()> where T: AsRef<[Self::ValueType]> {
+        let start = self.wrap.info.string_values_index();
+        let count = self.wrap.info.size();
+        let c_str: Vec<CString> = val.as_ref().into_iter().map(|s| unsafe { CString::new(s.clone()).expect("Null string")}).collect();
+        super::values::set_string_values(&self.wrap.node.handle,
+                                         &self.wrap.info.id(),
+                                         &self.wrap.node.session,
+                                         &c_str)
+    }
 }
 
 impl<'s> StringParameter<'s> {
-    pub fn set_value<T, R>(&self, val: T) -> Result<()>
-        where
-            R: AsRef<str>,
-            T: Into<ParmValue<R>>,
-    {
-
-        let pv = val.into();
-        let vals: Vec<&str> = (&pv).into();
-        use std::result::Result;
-        let c_str = vals.iter().map(|s| CString::new(*s))
-            .collect::<Result<Vec<CString>, _>>()?;
-        let c_str:Vec<&CStr> = c_str.iter().map(|c|c.as_ref()).collect();
-        super::values::set_string_values(&self.wrap.node.handle, &self.wrap.info.id(), &self.wrap.node.session,
-                                         &c_str)
-    }
 }
 
 impl<'node> ParmNodeWrap<'node> {

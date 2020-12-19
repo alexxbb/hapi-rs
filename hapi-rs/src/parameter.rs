@@ -3,4 +3,4 @@ pub(crate) mod values;
 mod traits;
 
 pub use parameter::{*};
-pub use traits::ParameterTrait;
+pub use traits::ParmBaseTrait;
