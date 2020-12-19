@@ -144,13 +144,17 @@ pub(crate) fn set_float_values(
     length: i32,
     values: &[f32],
 ) -> Result<()> {
+    if values.len() as i32 > length {
+        log::warn!("Array length is greater than parm length: {:?}", values);
+    }
+    let length = values.len().min(length as usize);
     unsafe {
         ffi::HAPI_SetParmFloatValues(
             session.ptr(),
             node.0,
             values.as_ptr(),
             start,
-            length,
+            length as i32,
         ).result_with_session(|| session.clone())
     }
 }
@@ -209,14 +213,16 @@ pub(crate) fn set_string_value(
     }
 }
 
-pub(crate) fn set_string_values(
+pub(crate) fn set_string_values<T>(
     node: &NodeHandle,
     parm: &ParmHandle,
     session: &Session,
-    values: &[&CStr],
-) -> Result<()> {
+    values: &[T],
+) -> Result<()>
+    where T: AsRef<CStr>
+{
     for (i, v) in values.iter().enumerate() {
-        set_string_value(node, parm, session, i as i32, v)?;
+        set_string_value(node, parm, session, i as i32, v.as_ref())?;
     }
     Ok(())
 }

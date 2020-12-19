@@ -2,53 +2,37 @@ use crate::{
     errors::Result,
 };
 use super::parameter::{
-    ParmNodeWrap, ParmValue,
+    ParmNodeWrap,
 };
+use std::borrow::Cow;
+use std::ffi::CString;
 
 pub trait ParmBaseTrait<'s> {
-    type ReturnType;
+    type ValueType;
 
-    fn wrap(&self) -> &ParmNodeWrap<'s>;
-    fn array_index(&self) -> i32;
-    fn values_array(&self) -> Result<Vec<Self::ReturnType>>;
-}
+    fn c_name(&'s self) -> Result<Cow<'s, CString>> {
+        let info = &self.wrap().info;
+        let n = match info.name.as_ref() {
+            None => Ok(Cow::Owned(info.name_cstr()?)),
+            Some(n) => Ok(Cow::Borrowed(n)),
+        };
+        n
+    }
 
-pub trait ParameterTrait<'s>: ParmBaseTrait<'s> {
-    fn name(&self) -> Result<String>;
-    fn get_value(&self) -> Result<ParmValue<<Self as ParmBaseTrait<'s>>::ReturnType>>;
-}
-
-
-impl<'s, T> ParameterTrait<'s> for T
-    where
-        T: ParmBaseTrait<'s>,
-{
-    fn name(&self) -> Result<String> {
-        let wrap = self.wrap();
-        match wrap.info.name.as_ref() {
-            None => wrap.info.name(),
-            Some(n) => Ok(n.to_string_lossy().to_string()),
+    fn name(&'s self) -> Result<Cow<'s, str>> {
+        match self.c_name()?{
+            Cow::Borrowed(s) => {
+                unsafe {
+                    Ok(Cow::Borrowed(std::str::from_utf8_unchecked(s.as_bytes())))
+                }
+            }
+            Cow::Owned(s) => {
+                Ok(Cow::Owned(s.into_string().unwrap()))
+            }
         }
     }
-
-    fn get_value(&self) -> Result<ParmValue<<T as ParmBaseTrait<'s>>::ReturnType>> {
-        let wrap = self.wrap();
-        let size = wrap.info.size();
-        let mut values = self.values_array()?;
-        debug_assert_eq!(values.len(), size as usize);
-        Ok(match size {
-            1 => ParmValue::Single(values.pop().unwrap()),
-            2 => ParmValue::Tuple2((values.remove(0), values.remove(0))),
-            3 => ParmValue::Tuple3((values.remove(0), values.remove(0), values.remove(0))),
-            4 => ParmValue::Tuple4((
-                values.remove(0),
-                values.remove(0),
-                values.remove(0),
-                values.remove(0),
-            )),
-            _ => ParmValue::Array(values),
-        })
-    }
+    fn wrap(&self) -> &ParmNodeWrap<'s>;
+    fn get_value(&self) -> Result<Vec<Self::ValueType>>;
+    fn set_value<T>(&self, val: T) -> Result<()>
+        where T: AsRef<[Self::ValueType]>;
 }
-
-
