@@ -226,3 +226,23 @@ pub(crate) fn set_string_values<T>(
     }
     Ok(())
 }
+
+pub(crate) fn get_choice_list(
+    node: &NodeHandle,
+    session: &Session,
+    index: i32,
+    length: i32
+) -> Result<Vec<(String, String)>> {
+    let structs = unsafe {
+        let mut structs = vec![ffi::HAPI_ParmChoiceInfo_Create(); length as usize];
+        ffi::HAPI_GetParmChoiceLists(session.ptr(), node.0, structs.as_mut_ptr(), index, length)
+            .result_with_session(||session.clone())?;
+        structs
+    };
+    let values = structs.into_iter()
+        .map(|s| -> Result<(String, String)> {
+            let mut val = crate::stringhandle::get_string_batch(&[s.valueSH, s.labelSH], &session)?;
+            Ok((val.remove(0), val.remove(0)))
+        }).collect::<Result<Vec<_>>>();
+    Ok(values?)
+}

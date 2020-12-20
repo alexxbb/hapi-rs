@@ -33,9 +33,21 @@ pub trait ParmBaseTrait<'s> {
         }
     }
     fn is_menu(&self) -> bool {
-        ! matches!(self.wrap().info.choice_list_type(), ffi::ChoiceListType::None)
+        !matches!(self.wrap().info.choice_list_type(), ffi::ChoiceListType::None)
     }
     fn wrap(&self) -> &ParmNodeWrap<'s>;
+    fn menu_items(&self) -> Option<Result<Vec<(String, String)>>> {
+        if !self.is_menu() {
+            return None;
+        }
+        let wrap = self.wrap();
+        Some(
+            super::values::get_choice_list(&wrap.node.handle,
+                                           &wrap.node.session,
+                                           wrap.info.choice_index(),
+                                           wrap.info.choice_count())
+        )
+    }
     fn get_value(&self) -> Result<Vec<Self::ValueType>>;
     fn set_value<T>(&self, val: T) -> Result<()>
         where T: AsRef<[Self::ValueType]>;

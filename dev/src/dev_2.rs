@@ -24,11 +24,10 @@ pub unsafe fn run() -> Result<()> {
         // println!("Parm: {}", p.name()?)
     }
 
-    if let Parameter::String(mut p) = node.parameter("multi_string")? {
-        let v = p.get_value()?;
-        dbg!(v);
-        p.set_value(["xxx".to_string(), "yyy".to_string(), "zzz".to_string()])?;
-        dbg!(p.get_value()?);
+    if let Parameter::Int(mut p) = node.parameter("ord_menu")? {
+        if let Some(items) = p.menu_items() {
+            dbg!(items?);
+        }
     }
 
     // session.save_hip("/tmp/foo.hip")?;

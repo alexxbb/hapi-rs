@@ -95,11 +95,14 @@ impl<'node> Parameter<'node> {
         node: &'node HoudiniNode,
         info: ParmInfo<'node>,
     ) -> Parameter<'node> {
+        eprintln!("{} [{:?}]->{:?}", info.name().unwrap(), &info.parm_type(), &info.script_type());
+        if let ChoiceListType::Normal = info.choice_list_type() {
+            println!("{} is a Menu!", info.name().unwrap());
+        }
         let base = ParmNodeWrap {
             info,
             node,
         };
-        eprintln!("{:?}->{:?}", &base.info.parm_type(), &base.info.script_type());
         match base.info.parm_type() {
             ParmType::Int
             | ParmType::Button
@@ -198,8 +201,7 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
         &self.wrap
     }
 
-
-    fn get_value(&self) -> Result<Vec<Self::ValueType>> {
+    fn get_value(&self) -> Result<Vec<String>> {
         let start = self.wrap.info.string_values_index();
         let count = self.wrap.info.size();
         super::values::get_string_values(
@@ -222,16 +224,7 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
     }
 }
 
-impl<'s> StringParameter<'s> {}
-
-impl<'node> ParmNodeWrap<'node> {
-    pub(crate) fn c_name(&self) -> Result<Cow<CString>> {
-        match self.info.name.as_ref() {
-            None => Ok(Cow::Owned(self.info.name_cstr()?)),
-            Some(n) => Ok(Cow::Borrowed(n)),
-        }
-    }
-}
+impl<'node> ParmNodeWrap<'node> {}
 
 impl std::fmt::Debug for ParmNodeWrap<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
