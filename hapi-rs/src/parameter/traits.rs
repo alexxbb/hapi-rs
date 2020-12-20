@@ -1,5 +1,6 @@
 use crate::{
     errors::Result,
+    ffi,
 };
 use super::parameter::{
     ParmNodeWrap,
@@ -20,7 +21,7 @@ pub trait ParmBaseTrait<'s> {
     }
 
     fn name(&'s self) -> Result<Cow<'s, str>> {
-        match self.c_name()?{
+        match self.c_name()? {
             Cow::Borrowed(s) => {
                 unsafe {
                     Ok(Cow::Borrowed(std::str::from_utf8_unchecked(s.as_bytes())))
@@ -30,6 +31,9 @@ pub trait ParmBaseTrait<'s> {
                 Ok(Cow::Owned(s.into_string().unwrap()))
             }
         }
+    }
+    fn is_menu(&self) -> bool {
+        ! matches!(self.wrap().info.choice_list_type(), ffi::ChoiceListType::None)
     }
     fn wrap(&self) -> &ParmNodeWrap<'s>;
     fn get_value(&self) -> Result<Vec<Self::ValueType>>;

@@ -55,7 +55,7 @@ pub fn get_string_batch(handles: &[i32], session: &Session) -> Result<Vec<String
             let mut buffer = std::mem::ManuallyDrop::new(buffer);
             let strings = buffer
                 .split_mut(|b| *b == b'\0')
-                .map(|s| String::from_raw_parts(s.as_mut_ptr(), s.len(), s.len()))
+                .map(|s| String::from_utf8_lossy(s).to_string())
                 .collect::<Vec<String>>();
             Ok(strings)
         } else {
