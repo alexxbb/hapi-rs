@@ -48,6 +48,22 @@ pub trait ParmBaseTrait<'s> {
                                            wrap.info.choice_count())
         )
     }
+    fn expression(&'s self, index: i32) -> Result<String> {
+        let wrap = self.wrap();
+        super::values::get_parm_expression(
+            &wrap.node.handle,
+            &wrap.node.session,
+            self.c_name()?.as_c_str(),
+            index)
+    }
+
+    fn set_expression(&'s self, value: &str, index: i32) -> Result<()> {
+        let wrap = self.wrap();
+        let value = CString::new(value)?;
+        super::values::set_parm_expression(&wrap.node.handle, &wrap.node.session,
+                                           &wrap.info.id(), &value, index)
+    }
+
     fn get_value(&self) -> Result<Vec<Self::ValueType>>;
     fn set_value<T>(&self, val: T) -> Result<()>
         where T: AsRef<[Self::ValueType]>;

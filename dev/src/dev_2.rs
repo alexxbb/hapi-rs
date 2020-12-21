@@ -26,10 +26,14 @@ pub unsafe fn run() -> Result<()> {
 
     if let Parameter::Int(mut p) = node.parameter("ord_menu")? {
         if let Some(items) = p.menu_items() {
-            dbg!(items?);
         }
     }
+    if let Parameter::Float(mut p) = node.parameter("single_float")? {
+        p.set_expression("$T", 0)?;
+        let v = p.expression(0)?;
+        dbg!(v);
+    }
 
-    // session.save_hip("/tmp/foo.hip")?;
+    session.save_hip("/tmp/foo.hip")?;
     Ok(())
 }

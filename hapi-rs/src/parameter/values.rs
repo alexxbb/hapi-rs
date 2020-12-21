@@ -231,12 +231,12 @@ pub(crate) fn get_choice_list(
     node: &NodeHandle,
     session: &Session,
     index: i32,
-    length: i32
+    length: i32,
 ) -> Result<Vec<(String, String)>> {
     let structs = unsafe {
         let mut structs = vec![ffi::HAPI_ParmChoiceInfo_Create(); length as usize];
         ffi::HAPI_GetParmChoiceLists(session.ptr(), node.0, structs.as_mut_ptr(), index, length)
-            .result_with_session(||session.clone())?;
+            .result_with_session(|| session.clone())?;
         structs
     };
     let values = structs.into_iter()
@@ -245,4 +245,36 @@ pub(crate) fn get_choice_list(
             Ok((val.remove(0), val.remove(0)))
         }).collect::<Result<Vec<_>>>();
     Ok(values?)
+}
+
+pub(crate) fn get_parm_expression(
+    node: &NodeHandle,
+    session: &Session,
+    parm: &CStr,
+    index: i32,
+) -> Result<String> {
+    let handle = unsafe {
+        let mut handle = MaybeUninit::uninit();
+        ffi::HAPI_GetParmExpression(session.ptr(), node.0, parm.as_ptr(), index, handle.as_mut_ptr())
+            .result_with_session(|| session.clone())?;
+        handle.assume_init()
+    };
+    crate::stringhandle::get_string(handle, &session)
+}
+
+pub(crate) fn set_parm_expression(
+    node: &NodeHandle,
+    session: &Session,
+    parm: &ParmHandle,
+    value: &CStr,
+    index: i32,
+) -> Result<()> {
+    unsafe {
+        ffi::HAPI_SetParmExpression(session.ptr(),
+                                    node.0,
+                                    value.as_ptr(),
+                                    parm.0,
+                                    index)
+            .result_with_session(|| session.clone())
+    }
 }
