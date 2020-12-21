@@ -135,7 +135,7 @@ impl Session {
         &self,
         name: &str,
         label: Option<&str>,
-        parent: Option<&NodeHandle>,
+        parent: Option<NodeHandle>,
     ) -> Result<HoudiniNode> {
         HoudiniNode::create_blocking(name, label, parent, self.clone(), false)
     }

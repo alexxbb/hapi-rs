@@ -19,9 +19,9 @@ pub unsafe fn run() -> Result<()> {
     let names = library.get_asset_names()?;
     let obj = HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?;
     let node = session.create_node_blocking(&names[0], None, None)?;
-    session.cook_result()?;
+    let cam = session.create_node_blocking("cam", None, Some(obj.handle))?;
+    let i = cam.asset_info()?;
     for p in &node.parameters()? {
-        // println!("Parm: {}", p.name()?)
     }
 
     if let Parameter::Int(mut p) = node.parameter("ord_menu")? {
@@ -33,7 +33,7 @@ pub unsafe fn run() -> Result<()> {
         let v = p.expression(0)?;
         dbg!(v);
     }
-
-    session.save_hip("/tmp/foo.hip")?;
+    let info = node.asset_info()?;
+    // session.save_hip("/tmp/foo.hip")?;
     Ok(())
 }

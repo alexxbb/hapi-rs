@@ -95,10 +95,9 @@ impl<'node> Parameter<'node> {
         node: &'node HoudiniNode,
         info: ParmInfo<'node>,
     ) -> Parameter<'node> {
-        eprintln!("{} [{:?}]->{:?}", info.name().unwrap(), &info.parm_type(), &info.script_type());
-        if let ChoiceListType::Normal = info.choice_list_type() {
-            println!("{} is a Menu!", info.name().unwrap());
-        }
+        // if let ChoiceListType::Normal = info.choice_list_type() {
+        //     println!("{} is a Menu!", info.name().unwrap());
+        // }
         let base = ParmNodeWrap {
             info,
             node,

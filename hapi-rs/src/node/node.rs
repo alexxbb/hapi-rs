@@ -4,6 +4,7 @@ use crate::{
     errors::*,
     parameter::*,
     session::{CookOptions, CookResult, Session},
+    asset::AssetInfo,
     stringhandle,
 };
 
@@ -20,11 +21,11 @@ use std::{
 };
 
 use crate::auto::bindings::ParmType;
-use log::{debug, log_enabled, Level::Debug};
+use log::{debug, warn, log_enabled, Level::Debug};
 use std::fmt::Formatter;
 use std::rc::Rc;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct NodeHandle(pub ffi::HAPI_NodeId);
 
 impl NodeHandle {
@@ -132,10 +133,14 @@ impl HoudiniNode {
     pub fn create(
         name: &str,
         label: Option<&str>,
-        parent: Option<&NodeHandle>,
+        parent: Option<NodeHandle>,
         session: Session,
         cook: bool,
     ) -> Result<HoudiniNode> {
+        debug!("Creating node: {}", name);
+        if parent.is_none() && !name.contains('/') {
+            warn!("Node name must be fully qualified if parent is not specified");
+        }
         let mut id = MaybeUninit::uninit();
         let parent = parent.map_or(-1, |n| n.0);
         let mut label_ptr: *const std::os::raw::c_char = null();
@@ -145,7 +150,6 @@ impl HoudiniNode {
                 tmp = CString::from_vec_unchecked(lb.into());
                 label_ptr = tmp.as_ptr();
             }
-            debug!("Creating node: {}", name);
             let name = CString::from_vec_unchecked(name.into());
             ffi::HAPI_CreateNode(
                 session.ptr(),
@@ -164,7 +168,7 @@ impl HoudiniNode {
     pub fn create_blocking(
         name: &str,
         label: Option<&str>,
-        parent: Option<&NodeHandle>,
+        parent: Option<NodeHandle>,
         session: Session,
         cook: bool,
     ) -> Result<HoudiniNode> {
@@ -285,5 +289,9 @@ impl HoudiniNode {
                 name: None
             }))
             .collect())
+    }
+
+    pub fn asset_info(&self) -> Result<AssetInfo<'_>> {
+        AssetInfo::new(self)
     }
 }
