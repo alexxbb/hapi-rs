@@ -168,8 +168,8 @@ impl Session {
         }
     }
 
-    pub fn load_asset_file(&self, file: impl AsRef<std::path::Path>) -> Result<AssetLibrary> {
-        AssetLibrary::from_file(self.clone(), file.as_ref())
+    pub fn load_asset_file(&self, file: impl AsRef<str>) -> Result<AssetLibrary> {
+        AssetLibrary::from_file(self.clone(), file)
     }
 
     pub fn interrupt(&self) -> Result<()> {
@@ -317,12 +317,12 @@ impl Drop for Session {
 fn join_paths<I>(files: I) -> String
     where
         I: IntoIterator,
-        I::Item: AsRef<Path>,
+        I::Item: AsRef<str>,
 {
     let mut buf = String::new();
     let mut iter = files.into_iter().peekable();
     while let Some(n) = iter.next() {
-        buf.push_str(&n.as_ref().to_string_lossy());
+        buf.push_str(n.as_ref());
         if iter.peek().is_some() {
             buf.push(':');
         }
@@ -331,14 +331,14 @@ fn join_paths<I>(files: I) -> String
 }
 
 pub struct SessionOptions {
-    cook_opt: CookOptions,
-    unsync: bool,
-    cleanup: bool,
-    env_files: Option<CString>,
-    otl_path: Option<CString>,
-    dso_path: Option<CString>,
-    img_dso_path: Option<CString>,
-    aud_dso_path: Option<CString>,
+    pub cook_opt: CookOptions,
+    pub unsync: bool,
+    pub cleanup: bool,
+    pub env_files: Option<CString>,
+    pub otl_path: Option<CString>,
+    pub dso_path: Option<CString>,
+    pub img_dso_path: Option<CString>,
+    pub aud_dso_path: Option<CString>,
 }
 
 impl Default for SessionOptions {
@@ -357,61 +357,49 @@ impl Default for SessionOptions {
 }
 
 impl SessionOptions {
-    // pub fn set_houdini_env_files<Files>(&mut self, files: Files)
-    //     where
-    //         Files: IntoIterator,
-    //         Files::Item: AsRef<Path>,
-    // {
-    //     let paths = join_paths(files);
-    //     self.env_files
-    //         .replace(CString::new(paths).expect("Zero byte"));
-    // }
-
-    pub fn otl_search_paths<I>(mut self, paths: I) -> Self
+    pub fn set_houdini_env_files<I>(&mut self, files: I)
         where
             I: IntoIterator,
-            I::Item: AsRef<Path>,
+            I::Item: AsRef<str>,
     {
-        let paths = join_paths(paths);
-        self.otl_path
-            .replace(CString::new(paths).expect("set_otl_search_paths: zero byte in string"));
-        self
+        let paths = join_paths(files);
+        self.env_files.replace(CString::new(paths).expect("Zero byte"));
     }
 
-    // pub fn set_dso_search_paths<P>(&mut self, paths: P)
-    //     where
-    //         P: IntoIterator,
-    //         P::Item: AsRef<Path>,
-    // {
-    //     let paths = join_paths(paths);
-    //     self.dso_path
-    //         .replace(CString::new(paths).expect("Zero byte"));
-    // }
-    //
-    // pub fn set_image_search_paths<P>(&mut self, paths: P)
-    //     where
-    //         P: IntoIterator,
-    //         P::Item: AsRef<Path>,
-    // {
-    //     let paths = join_paths(paths);
-    //     self.img_dso_path
-    //         .replace(CString::new(paths).expect("Zero byte"));
-    // }
-    //
-    // pub fn set_audio_search_paths<P>(&mut self, paths: P)
-    //     where
-    //         P: IntoIterator,
-    //         P::Item: AsRef<Path>,
-    // {
-    //     let paths = join_paths(paths);
-    //     self.aud_dso_path
-    //         .replace(CString::new(paths).expect("Zero byte"));
-    // }
-    //
-    // pub fn set_cook_thread(&mut self, thread: bool) {
-    //     self.cook_thread = thread;
-    // }
-    // pub fn set_cook_options(&mut self, opts: &'a CookOptions) {
-    //     self.cook_opt.replace(opts);
-    // }
+    pub fn set_otl_search_paths<I>(&mut self, paths: I)
+        where
+            I: IntoIterator,
+            I::Item: AsRef<str>,
+    {
+        let paths = join_paths(paths);
+        self.otl_path.replace(CString::new(paths).expect("Zero byte"));
+    }
+
+    pub fn set_dso_search_paths<P>(&mut self, paths: P)
+        where
+            P: IntoIterator,
+            P::Item: AsRef<str>,
+    {
+        let paths = join_paths(paths);
+        self.dso_path.replace(CString::new(paths).expect("Zero byte"));
+    }
+
+    pub fn set_image_search_paths<P>(&mut self, paths: P)
+        where
+            P: IntoIterator,
+            P::Item: AsRef<str>,
+    {
+        let paths = join_paths(paths);
+        self.img_dso_path
+            .replace(CString::new(paths).expect("Zero byte"));
+    }
+
+    pub fn set_audio_search_paths<P>(&mut self, paths: P)
+        where
+            P: IntoIterator,
+            P::Item: AsRef<str>,
+    {
+        let paths = join_paths(paths);
+        self.aud_dso_path.replace(CString::new(paths).expect("Zero byte"));
+    }
 }

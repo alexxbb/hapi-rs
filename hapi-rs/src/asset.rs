@@ -19,10 +19,9 @@ pub struct AssetLibrary {
 
 /// https://github.com/sideeffects/HoudiniEngineForUnity/blob/5b2d34bd5a04513288f4991048bf9c5ecceacac5/Plugins/HoudiniEngineUnity/Scripts/Asset/HEU_HoudiniAsset.cs#L1995
 impl AssetLibrary {
-    pub fn from_file(session: Session, file: impl AsRef<std::path::Path>) -> Result<AssetLibrary> {
-        let path = file.as_ref().to_string_lossy();
-        debug!("Loading library: {}", &path);
-        let cs = CString::new(path.as_bytes().to_vec())?;
+    pub fn from_file(session: Session, file: impl AsRef<str>) -> Result<AssetLibrary> {
+        debug!("Loading library: {}", file.as_ref());
+        let cs = CString::new(file.as_ref())?;
         unsafe {
             let mut lib_id = MaybeUninit::uninit();
             ffi::HAPI_LoadAssetLibraryFromFile(
