@@ -1,7 +1,7 @@
 use crate::config::CodeGenConfig;
 use anyhow::{anyhow, Result};
 use bindgen::callbacks::{EnumVariantValue, ParseCallbacks};
-use bindgen::Builder;
+
 use std::rc::Rc;
 use crate::helpers::*;
 

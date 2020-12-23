@@ -227,9 +227,9 @@ impl<'node> ParmNodeWrap<'node> {}
 
 impl std::fmt::Debug for ParmNodeWrap<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Parameter[{name} of type {type}]",
+        write!(f, "Parameter[{name} of type {type:?}]",
                name=self.info.name().unwrap(),
-                type=self.info.parm_type().as_ref())
+                type=self.info.parm_type())
     }
 }
 

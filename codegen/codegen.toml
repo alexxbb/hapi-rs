@@ -42,7 +42,7 @@ HAPI_NodeFlags = { rename = "auto", mode = -1, bitflag = true }
 HAPI_ErrorCode = { rename = "auto", mode = -1, bitflag = true }
 
 [structs]
-HAPI_NodeInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
+#HAPI_NodeInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
 #HAPI_AssetInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
 #HAPI_ParmInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
 #HAPI_ParmChoiceInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
