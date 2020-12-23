@@ -59,14 +59,14 @@ impl Session {
         }
     }
 
-    pub fn start_named_pipe_server(path: &str) -> Result<i32> {
+    pub fn start_named_pipe_server(path: &str, auto_close: bool, timeout: f32) -> Result<i32> {
         debug!("Starting named pipe server: {}", path);
         let pid = unsafe {
             let mut pid = MaybeUninit::uninit();
             let cs = CString::new(path)?;
             let opts = ffi::HAPI_ThriftServerOptions {
-                autoClose: 1,
-                timeoutMs: 1000.0,
+                autoClose: auto_close as i8,
+                timeoutMs: timeout,
             };
             ffi::HAPI_StartThriftNamedPipeServer(&opts as *const _, cs.as_ptr(), pid.as_mut_ptr())
                 .result_with_message("Could not start thrift server")?;
@@ -298,7 +298,7 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) {
         if Arc::strong_count(&self.handle) == 1 {
-            check_session!(self.ptr());
+            assert!(self.is_valid().expect("Session invalid in Drop"));
             unsafe {
                 use ffi::HapiResult::*;
                 if self.cleanup {
@@ -401,5 +401,21 @@ impl SessionOptions {
     {
         let paths = join_paths(paths);
         self.aud_dso_path.replace(CString::new(paths).expect("Zero byte"));
+    }
+}
+
+impl From<i32> for State {
+    fn from(s: i32) -> Self {
+        match s {
+            0 => State::Ready,
+            1 => State::ReadyWithFatalErrors,
+            2 => State::ReadyWithCookErrors,
+            3 => State::StartingCook,
+            4 => State::Cooking,
+            5 => State::StartingLoad,
+            6 => State::Loading,
+            7 => State::Max,
+            _ => unimplemented!(),
+        }
     }
 }

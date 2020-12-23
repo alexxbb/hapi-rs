@@ -13,3 +13,6 @@ default = []
 log = "0.4"
 strum = "0.20"
 strum_macros = "0.20"
+
+[dev-dependencies]
+once_cell = "1.5.2"

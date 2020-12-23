@@ -72,7 +72,6 @@ impl std::fmt::Display for HapiError {
         match self.kind {
             Kind::Hapi(_) => {
                 if let Some(session) = &self.session {
-                    check_session!(session.ptr());
                     let error = session.get_status_string(
                         ffi::StatusType::CallResult,
                         ffi::StatusVerbosity::Statusverbosity0,

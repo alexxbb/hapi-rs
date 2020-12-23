@@ -115,6 +115,10 @@ impl<'node> AssetInfo<'node> {
     _get_str!(full_op_name->fullOpNameSH);
     _get_str!(help_text->helpTextSH);
     _get_str!(help_url->helpURLSH);
-
 }
 
+
+#[cfg(test)]
+mod tests {
+
+}
