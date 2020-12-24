@@ -35,7 +35,7 @@ pub trait ParmBaseTrait<'s> {
         }
     }
     fn is_menu(&self) -> bool {
-        !matches!(self.wrap().info.choice_list_type(), ffi::ChoiceListType::None)
+        !matches!(self.wrap().info.choice_list_type(), ffi::raw::ChoiceListType::None)
     }
     fn wrap(&self) -> &ParmNodeWrap<'s>; // TODO find a way to make it private
     fn info(&self) -> &ParmInfo<'s> {

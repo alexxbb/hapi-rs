@@ -5,7 +5,6 @@ mod macros;
 #[macro_use]
 pub mod errors;
 mod asset;
-mod auto;
 pub mod node;
 pub mod session;
 mod stringhandle;
@@ -13,10 +12,15 @@ mod attribute;
 pub mod parameter;
 #[cfg(test)]
 mod tests;
+pub mod ffi;
 
-pub use auto::bindings as ffi;
 pub use errors::Result;
 pub use stringhandle::get_string;
+
+pub use crate::ffi::raw::{
+    NodeFlags, NodeType,
+    StorageType, State, StatusType, StatusVerbosity, HapiResult
+};
 
 #[derive(Debug)]
 pub struct _HoudiniVersion {
@@ -34,14 +38,14 @@ pub struct _EngineVersion {
 }
 
 pub const HOUDINI_VERSION: _HoudiniVersion = _HoudiniVersion {
-    major: ffi::HAPI_VERSION_HOUDINI_MAJOR,
-    minor: ffi::HAPI_VERSION_HOUDINI_MINOR,
-    build: ffi::HAPI_VERSION_HOUDINI_BUILD,
-    patch: ffi::HAPI_VERSION_HOUDINI_PATCH,
+    major: ffi::raw::HAPI_VERSION_HOUDINI_MAJOR,
+    minor: ffi::raw::HAPI_VERSION_HOUDINI_MINOR,
+    build: ffi::raw::HAPI_VERSION_HOUDINI_BUILD,
+    patch: ffi::raw::HAPI_VERSION_HOUDINI_PATCH,
 };
 
 pub const ENGINE_VERSION: _EngineVersion = _EngineVersion {
-    major: ffi::HAPI_VERSION_HOUDINI_ENGINE_MAJOR,
-    minor: ffi::HAPI_VERSION_HOUDINI_ENGINE_MINOR,
-    api: ffi::HAPI_VERSION_HOUDINI_ENGINE_API,
+    major: ffi::raw::HAPI_VERSION_HOUDINI_ENGINE_MAJOR,
+    minor: ffi::raw::HAPI_VERSION_HOUDINI_ENGINE_MINOR,
+    api: ffi::raw::HAPI_VERSION_HOUDINI_ENGINE_API,
 };

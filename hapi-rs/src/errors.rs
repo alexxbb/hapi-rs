@@ -1,6 +1,10 @@
-use crate::{auto::bindings as ffi, session::Session};
+use crate::{
+    ffi,
+    {session::Session}
+};
+
+pub use crate::ffi::raw::{HapiResult, StatusType, StatusVerbosity};
 use std::borrow::Cow;
-pub use ffi::HapiResult;
 
 pub type Result<T> = std::result::Result<T, HapiError>;
 
@@ -73,8 +77,8 @@ impl std::fmt::Display for HapiError {
             Kind::Hapi(_) => {
                 if let Some(session) = &self.session {
                     let error = session.get_status_string(
-                        ffi::StatusType::CallResult,
-                        ffi::StatusVerbosity::Statusverbosity0,
+                        StatusType::CallResult,
+                        StatusVerbosity::Statusverbosity0,
                     );
                     write!(
                         f,

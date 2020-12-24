@@ -1,6 +1,8 @@
-use crate::{errors::Result, ffi, node::NodeHandle, parameter::ParmHandle, session::Session};
+use crate::{errors::Result, node::NodeHandle, parameter::ParmHandle, session::Session};
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
+
+use crate::ffi::raw as ffi;
 
 pub(crate) fn get_float_values(
     node: &NodeHandle,

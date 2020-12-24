@@ -1,4 +1,4 @@
-use crate::ffi::{
+use crate::ffi::raw::{
     AttributeOwner, AttributeTypeInfo, HAPI_AttributeInfo, HAPI_AttributeInfo_Create, StorageType,
 };
 #[derive(Debug)]

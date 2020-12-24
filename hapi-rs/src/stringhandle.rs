@@ -22,12 +22,12 @@ pub fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
 pub(crate) fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>> {
     unsafe {
         let mut length = MaybeUninit::uninit();
-        ffi::HAPI_GetStringBufLength(session.ptr(), handle, length.as_mut_ptr())
+        ffi::raw::HAPI_GetStringBufLength(session.ptr(), handle, length.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         let length = length.assume_init();
         let mut buffer = vec![0u8; length as usize];
         let ptr = buffer.as_mut_ptr() as *mut c_char;
-        ffi::HAPI_GetString(session.ptr(), handle, ptr, length)
+        ffi::raw::HAPI_GetString(session.ptr(), handle, ptr, length)
             .result_with_message("get_string failed")?;
         buffer.truncate(length as usize - 1);
         Ok(buffer)
@@ -37,7 +37,7 @@ pub(crate) fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>
 pub fn get_string_batch(handles: &[i32], session: &Session) -> Result<Vec<String>> {
     unsafe {
         let mut length = MaybeUninit::uninit();
-        ffi::HAPI_GetStringBatchSize(
+        ffi::raw::HAPI_GetStringBatchSize(
             session.ptr(),
             handles.as_ptr(),
             handles.len() as i32,
@@ -47,7 +47,7 @@ pub fn get_string_batch(handles: &[i32], session: &Session) -> Result<Vec<String
         let length = length.assume_init();
         if length > 0 {
             let mut buffer = vec![0u8; length as usize];
-            ffi::HAPI_GetStringBatch(session.ptr(), buffer.as_mut_ptr() as *mut _, length)
+            ffi::raw::HAPI_GetStringBatch(session.ptr(), buffer.as_mut_ptr() as *mut _, length)
                 .result_with_session(|| session.clone())?;
             buffer.truncate(length as usize - 1);
             let mut buffer = std::mem::ManuallyDrop::new(buffer);

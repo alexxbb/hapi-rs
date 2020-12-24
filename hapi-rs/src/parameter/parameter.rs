@@ -1,13 +1,14 @@
 use crate::{
     errors::Result,
-    ffi,
-    ffi::{
+    ffi::raw::{
         ChoiceListType, HAPI_GetParmInfo, HAPI_NodeId, HAPI_ParmId, HAPI_ParmInfo,
         HAPI_ParmInfo_Create, NodeFlags, NodeType, ParmType, Permissions, PrmScriptType, RampType,
     },
     node::{HoudiniNode, NodeHandle, NodeInfo},
     session::Session,
 };
+
+use crate::ffi::raw as ffi;
 use super::traits::*;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};

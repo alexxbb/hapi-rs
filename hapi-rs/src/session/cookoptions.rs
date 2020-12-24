@@ -1,6 +1,6 @@
 use crate::{
     errors::Result,
-    ffi::{HAPI_CookOptions, HAPI_CookOptions_Create, PackedPrimInstancingMode, StorageType},
+    ffi::raw::{HAPI_CookOptions, HAPI_CookOptions_Create, PackedPrimInstancingMode, StorageType},
 };
 
 pub struct CookOptions {

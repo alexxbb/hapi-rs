@@ -1,5 +1,4 @@
 use hapi_rs::{
-    ffi,
     errors::{HapiError, HapiResult, Kind, Result},
     session::{CookResult, Session, SessionOptions, StatusVerbosity},
     node::{HoudiniNode, NodeFlags, NodeType},

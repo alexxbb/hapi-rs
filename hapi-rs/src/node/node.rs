@@ -1,6 +1,5 @@
 use super::info::*;
 use crate::{
-    auto::bindings as ffi,
     errors::*,
     parameter::*,
     session::{CookOptions, CookResult, Session},
@@ -9,8 +8,10 @@ use crate::{
 };
 
 pub use super::info::NodeInfo;
-pub use crate::ffi::{NodeFlags, NodeType};
-use ffi::{State, StatusType, StatusVerbosity};
+pub use crate::{
+    ffi::raw::{NodeFlags, NodeType, State, StatusType, StatusVerbosity, ParmType}
+};
+use crate::ffi::raw as ffi;
 use std::{
     ffi::CString,
     mem::MaybeUninit,
@@ -20,7 +21,6 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::auto::bindings::ParmType;
 use log::{debug, warn, log_enabled, Level::Debug};
 use std::fmt::Formatter;
 use std::rc::Rc;

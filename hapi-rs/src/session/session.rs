@@ -2,16 +2,13 @@ use crate::{
     asset::AssetLibrary,
     session::CookOptions,
     errors::*,
-    ffi,
+    ffi::raw::{State, StatusType, HapiResult},
     node::{HoudiniNode, NodeHandle},
 };
 
-use crate::ffi:: {
-    StatusType, State
-};
-pub use crate::ffi:: {
-    StatusVerbosity
-};
+pub use crate::ffi::raw::StatusVerbosity;
+
+use crate::ffi::raw as ffi;
 
 #[rustfmt::skip]
 use std::{

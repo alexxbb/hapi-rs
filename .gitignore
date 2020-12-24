@@ -3,6 +3,5 @@ Cargo.lock
 .idea
 build
 _build
-hapi-rs/src/auto/*
 *.hda
 *.otl

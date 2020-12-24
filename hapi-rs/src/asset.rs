@@ -1,4 +1,4 @@
-use crate::auto::bindings as ffi;
+use crate::ffi::raw as ffi;
 use std::ffi::CString;
 use std::mem::MaybeUninit;
 use std::path::Path;

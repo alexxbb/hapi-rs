@@ -1,5 +1,8 @@
-use crate::auto::bindings::NodeType;
-use crate::{errors::Result, ffi::*, node::NodeHandle, session::Session, stringhandle};
+use crate::{
+    ffi,
+    ffi::raw::{NodeType, HAPI_NodeInfo},
+    errors::Result, node::NodeHandle, session::Session, stringhandle
+};
 use std::fmt::Formatter;
 use std::mem::MaybeUninit;
 
@@ -44,7 +47,7 @@ impl NodeInfo {
     pub fn new(session: Session, node: &NodeHandle) -> Result<Self> {
         let inner = unsafe {
             let mut inner = MaybeUninit::uninit();
-            HAPI_GetNodeInfo(session.ptr(), node.0, inner.as_mut_ptr())
+            ffi::raw::HAPI_GetNodeInfo(session.ptr(), node.0, inner.as_mut_ptr())
                 .result_with_session(|| session.clone())?;
             inner.assume_init()
         };
