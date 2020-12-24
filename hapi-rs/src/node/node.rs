@@ -263,7 +263,7 @@ impl HoudiniNode {
 
     pub fn parameter(&self, name: &str) -> Result<Parameter<'_>> {
         let name = CString::new(name)?;
-        let parm_info = crate::parameter::ParmInfo::from_name(name, self)?;
+        let parm_info = crate::parameter::ParmInfo::from_parm_name(name, self)?;
         Ok(Parameter::new(self, parm_info))
     }
 

@@ -249,7 +249,7 @@ macro_rules! _get_str {
 }
 
 impl<'session> ParmInfo<'session> {
-    pub(crate) fn from_name(name: CString, node: &'session HoudiniNode) -> Result<Self> {
+    pub fn from_parm_name(name: CString, node: &'session HoudiniNode) -> Result<Self> {
         let info = unsafe {
             let mut info = MaybeUninit::uninit();
             ffi::HAPI_GetParmInfoFromName(

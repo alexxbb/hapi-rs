@@ -9,7 +9,9 @@ use crate::{
     session::Session,
     errors::Result,
     stringhandle::*,
+    parameter::ParmInfo,
 };
+use std::ptr::{null, null_mut};
 
 #[derive(Debug, Clone)]
 pub struct AssetLibrary {
@@ -58,12 +60,51 @@ impl AssetLibrary {
                 self.lib_id,
                 names.as_mut_ptr(),
                 num_assets,
-            )
-                .result_with_session(|| self.session.clone())?;
+            ).result_with_session(|| self.session.clone())?;
             names
         };
 
         get_string_batch(&handles, &self.session)
+    }
+
+    pub fn get_asset_parms(&self, asset_name: impl AsRef<str>) -> Result<Vec<ParmInfo<'_>>> {
+        unimplemented!("This is crashing HARS server");
+        let asset_name = CString::new(asset_name.as_ref())?;
+        let parms = unsafe {
+            let mut num_parms = MaybeUninit::uninit();
+            let mut a1 = MaybeUninit::uninit();
+            let mut a2 = MaybeUninit::uninit();
+            let mut a3 = MaybeUninit::uninit();
+            let mut a4 = MaybeUninit::uninit();
+            assert!(self.session.is_valid());
+            ffi::HAPI_GetAssetDefinitionParmCounts(
+                self.session.ptr(),
+                self.lib_id,
+                asset_name.as_ptr(),
+                num_parms.as_mut_ptr(),
+                a1.as_mut_ptr(),
+                a2.as_mut_ptr(),
+                a3.as_mut_ptr(),
+                a4.as_mut_ptr(),
+            ).result_with_session(|| self.session.clone())?;
+            let num_parms = num_parms.assume_init();
+
+            let mut parms = vec![ffi::HAPI_ParmInfo_Create(); num_parms as usize];
+            ffi::HAPI_GetAssetDefinitionParmInfos(
+                self.session.ptr(),
+                self.lib_id,
+                asset_name.as_ptr(),
+                parms.as_mut_ptr(),
+                0,
+                num_parms,
+            ).result_with_session(|| self.session.clone())?;
+            parms
+        };
+        Ok(parms.into_iter().map(|i| ParmInfo {
+            inner: i,
+            session: &self.session,
+            name: None,
+        }).collect())
     }
 }
 
@@ -119,6 +160,4 @@ impl<'node> AssetInfo<'node> {
 
 
 #[cfg(test)]
-mod tests {
-
-}
+mod tests {}

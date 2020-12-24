@@ -76,7 +76,7 @@ impl Session {
     }
 
     pub fn new_named_pipe(path: &str) -> Result<Session> {
-        debug!("Creating named piped session: {}", path);
+        debug!("Connecting to Thrift session: {}", path);
         let session = unsafe {
             let mut handle = MaybeUninit::uninit();
             let cs = CString::new(path)?;
@@ -193,10 +193,12 @@ impl Session {
         ))
     }
 
-    pub fn is_valid(&self) -> Result<bool> {
+    pub fn is_valid(&self) -> bool {
         unsafe {
-            let res = ffi::HAPI_IsSessionValid(self.ptr());
-            hapi_result!(res, true, None, Some("Session::is_valid failed"))
+            match ffi::HAPI_IsSessionValid(self.ptr()) {
+                HapiResult::Success => true,
+                _ => false
+            }
         }
     }
 
@@ -298,7 +300,8 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) {
         if Arc::strong_count(&self.handle) == 1 {
-            assert!(self.is_valid().expect("Session invalid in Drop"));
+            eprintln!("Dropping session");
+            assert!(self.is_valid(), "Session invalid in Drop");
             unsafe {
                 use ffi::HapiResult::*;
                 if self.cleanup {

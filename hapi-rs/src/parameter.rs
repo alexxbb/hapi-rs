@@ -2,10 +2,5 @@ mod parameter;
 pub(crate) mod values;
 mod traits;
 
-pub use parameter::{*};
+pub use parameter::*;
 pub use traits::ParmBaseTrait;
-
-#[cfg(test)]
-mod tests {
-
-}

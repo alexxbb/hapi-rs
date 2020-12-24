@@ -4,6 +4,7 @@ use crate::{
 };
 use super::parameter::{
     ParmNodeWrap,
+    ParmInfo,
 };
 use std::borrow::Cow;
 use std::ffi::CString;
@@ -36,7 +37,10 @@ pub trait ParmBaseTrait<'s> {
     fn is_menu(&self) -> bool {
         !matches!(self.wrap().info.choice_list_type(), ffi::ChoiceListType::None)
     }
-    fn wrap(&self) -> &ParmNodeWrap<'s>;
+    fn wrap(&self) -> &ParmNodeWrap<'s>; // TODO find a way to make it private
+    fn info(&self) -> &ParmInfo<'s> {
+        &self.wrap().info
+    }
     fn menu_items(&self) -> Option<Result<Vec<(String, String)>>> {
         if !self.is_menu() {
             return None;

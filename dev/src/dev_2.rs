@@ -15,32 +15,16 @@ pub unsafe fn run() -> Result<()> {
     session.initialize(opts);
     let otl = std::env::current_dir()
         .unwrap()
-        .join("otls/hapi_parms.hda");
+        .join("otls/spaceship.otl");
     let library = session.load_asset_file(otl.to_string_lossy())?;
     let names = library.get_asset_names()?;
-    let obj = HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?;
-    let node = session.create_node_blocking(&names[0], None, None)?;
-    let cam = session.create_node_blocking("cam", None, Some(obj.handle))?;
-    let i = cam.asset_info()?;
-    for p in &node.parameters()? {
-        if p.info().invisible() {
-            continue
-        }
-        println!("Name: {}", p.name()?);
-        if p.name()? == "suka_folder0" {
-            println!("Label: {}", p.info().label()?);
-        }
+    // let obj = HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?;
+    // let node = session.create_node_blocking(&names[0], None, None)?;
+
+    match library.get_asset_parms(&names[0]) {
+        Ok(p) => {}
+        Err(e) => {eprintln!("{}", e)}
     }
 
-    if let Parameter::Int(mut p) = node.parameter("ord_menu")? {
-        if let Some(items) = p.menu_items() {
-        }
-    }
-    if let Parameter::Float(mut p) = node.parameter("single_float")? {
-        p.set_expression("$T", 0)?;
-        let v = p.expression(0)?;
-    }
-    let info = node.asset_info()?;
-    // session.save_hip("/tmp/foo.hip")?;
     Ok(())
 }
