@@ -47,6 +47,7 @@ pub const ENGINE_VERSION: _EngineVersion = _EngineVersion {
 mod tests {
     use once_cell::sync::Lazy;
     use crate::session::*;
+    use crate::parameter::*;
     use std::collections::HashMap;
 
     static OTLS: Lazy<HashMap<&str, String>> = Lazy::new(||{
@@ -76,5 +77,24 @@ mod tests {
         let otl = OTLS.get("parameters").unwrap();
         let lib = SESSION.load_asset_file(otl).expect(&format!("Could not load {}", otl));
         assert_eq!(lib.get_asset_count().unwrap(), 1);
+        assert!(lib.get_asset_names().unwrap().contains(&"Object/hapi_parms".to_string()));
+    }
+
+    #[test]
+    fn parameters() {
+        let otl = OTLS.get("parameters").unwrap();
+        SESSION.load_asset_file(otl).expect(&format!("Could not load {}", otl));
+        let node = SESSION.create_node_blocking("Object/hapi_parms", None, None).unwrap();
+        let mut parms = node.parameters().unwrap();
+        parms.retain(|p|!p.info().invisible());
+        assert_eq!(parms.len(), 13);
+
+        if let Parameter::Float(mut p) = node.parameter("color").unwrap() {
+            let val = p.get_value().unwrap();
+            assert_eq!(&val, &[0.55, 0.75, 0.95]);
+            p.set_value([0.7, 0.5, 0.3]).unwrap();
+            let val = p.get_value().unwrap();
+            assert_eq!(&val, &[0.7, 0.5, 0.3]);
+        }
     }
 }

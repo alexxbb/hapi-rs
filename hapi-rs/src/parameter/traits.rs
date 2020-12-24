@@ -24,7 +24,8 @@ pub trait ParmBaseTrait<'s> {
         match self.c_name()? {
             Cow::Borrowed(s) => {
                 unsafe {
-                    Ok(Cow::Borrowed(std::str::from_utf8_unchecked(s.as_bytes())))
+                    let bytes = s.as_bytes();
+                    Ok(Cow::Borrowed(std::str::from_utf8_unchecked(&bytes[..bytes.len() - 1])))
                 }
             }
             Cow::Owned(s) => {

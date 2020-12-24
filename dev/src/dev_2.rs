@@ -23,6 +23,13 @@ pub unsafe fn run() -> Result<()> {
     let cam = session.create_node_blocking("cam", None, Some(obj.handle))?;
     let i = cam.asset_info()?;
     for p in &node.parameters()? {
+        if p.info().invisible() {
+            continue
+        }
+        println!("Name: {}", p.name()?);
+        if p.name()? == "suka_folder0" {
+            println!("Label: {}", p.info().label()?);
+        }
     }
 
     if let Parameter::Int(mut p) = node.parameter("ord_menu")? {
@@ -32,7 +39,6 @@ pub unsafe fn run() -> Result<()> {
     if let Parameter::Float(mut p) = node.parameter("single_float")? {
         p.set_expression("$T", 0)?;
         let v = p.expression(0)?;
-        dbg!(v);
     }
     let info = node.asset_info()?;
     // session.save_hip("/tmp/foo.hip")?;
