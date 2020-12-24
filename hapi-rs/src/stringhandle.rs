@@ -7,31 +7,29 @@ use std::ffi::CString;
 
 pub fn get_string(handle: i32, session: &Session) -> Result<String> {
     unsafe {
-        let mut bytes = get_string_bytes(handle, session, false)?;
+        let mut bytes = get_string_bytes(handle, session)?;
         Ok(String::from_utf8_unchecked(bytes))
     }
 }
 
 pub fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
     unsafe {
-        let mut bytes = get_string_bytes(handle, session, true)?;
+        let mut bytes = get_string_bytes(handle, session)?;
         Ok(CString::from_vec_unchecked(bytes))
     }
 }
 
-pub(crate) fn get_string_bytes(handle: i32, session: &Session, with_nul: bool) -> Result<Vec<u8>> {
+pub(crate) fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>> {
     unsafe {
         let mut length = MaybeUninit::uninit();
         ffi::HAPI_GetStringBufLength(session.ptr(), handle, length.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         let length = length.assume_init();
-        let mut buffer = vec![10u8; length as usize];
+        let mut buffer = vec![0u8; length as usize];
         let ptr = buffer.as_mut_ptr() as *mut c_char;
         ffi::HAPI_GetString(session.ptr(), handle, ptr, length)
             .result_with_message("get_string failed")?;
-        if !with_nul {
-            buffer.truncate(length as usize - 1);
-        }
+        buffer.truncate(length as usize - 1);
         Ok(buffer)
     }
 }
