@@ -2,10 +2,9 @@ use crate::{
     errors::*,
     parameter::*,
     session::{CookResult, Session},
-    asset::AssetInfo,
     stringhandle,
     ffi,
-    ffi::{ParmInfo, NodeInfo},
+    ffi::{ParmInfo, NodeInfo, AssetInfo},
 };
 pub use crate::{
     ffi::raw::{NodeFlags, NodeType, State, StatusType, StatusVerbosity, ParmType},
@@ -15,10 +14,7 @@ pub use crate::{
 use std::{
     ffi::CString,
     mem::MaybeUninit,
-    pin::Pin,
     ptr::null,
-    sync::Arc,
-    task::{Context, Poll},
     fmt::Formatter,
     rc::Rc,
 };
@@ -72,13 +68,8 @@ impl NodeHandle {
     }
 
     pub fn is_valid(&self, session: &Session) -> Result<bool> {
-        let uid = self.info(session.clone())?.unique_node_id();
-        unsafe {
-            let mut answer = MaybeUninit::uninit();
-            ffi::raw::HAPI_IsNodeValid(session.ptr(), self.0, uid, answer.as_mut_ptr())
-                .result_with_session(|| session.clone())?;
-            Ok(answer.assume_init() == 1)
-        }
+        let info = self.info(session.clone())?;
+        crate::ffi::is_node_valid(&info)
     }
 }
 
@@ -111,43 +102,24 @@ impl HoudiniNode {
         })
     }
     pub fn delete(self) -> Result<()> {
-        unsafe {
-            ffi::raw::HAPI_DeleteNode(self.session.ptr(), self.handle.0)
-                .result_with_session(|| self.session.clone())
-        }
+        crate::ffi::delete_node(self)
     }
 
     pub fn is_valid(&self) -> Result<bool> {
         Ok(self.info.is_valid())
     }
 
-    pub fn path(&self, relative_to: Option<HoudiniNode>) -> Result<String> {
-        unsafe {
-            let mut sh = MaybeUninit::uninit();
-            ffi::raw::HAPI_GetNodePath(
-                self.session.ptr(),
-                self.handle.0,
-                relative_to.map(|n| n.handle.0).unwrap_or(-1),
-                sh.as_mut_ptr(),
-            )
-                .result_with_session(|| self.session.clone())?;
-            stringhandle::get_string(sh.assume_init(), &self.session)
-        }
+    pub fn path(&self, relative_to: Option<&HoudiniNode>) -> Result<String> {
+        crate::ffi::get_node_path(self, relative_to)
     }
 
-    pub fn cook(&self, options: Option<CookOptions>) -> Result<()> {
-        if log_enabled!(Debug) {
-            debug!("Cooking node: {}", self.path(None)?)
-        }
+    pub fn cook(&self, options: Option<&CookOptions>) -> Result<()> {
+        debug!("Cooking node: {}", self.path(None)?);
         let opt = options.map(|o| o.ptr()).unwrap_or(null());
-        unsafe {
-            ffi::raw::HAPI_CookNode(self.session.ptr(), self.handle.0, opt)
-                .result_with_session(|| self.session.clone())?;
-        }
-        Ok(())
+        crate::ffi::cook_node(self, opt)
     }
 
-    pub fn cook_blocking(&self, options: Option<CookOptions>) -> Result<CookResult> {
+    pub fn cook_blocking(&self, options: Option<&CookOptions>) -> Result<CookResult> {
         self.cook(options)?;
         self.session.cook_result()
     }

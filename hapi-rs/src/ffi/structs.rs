@@ -239,3 +239,36 @@ builder!(
         packed_prim_instancing_mode->packedPrimInstancingMode->[PackedPrimInstancingMode];
         split_attr->splitAttrSH->[Result<String>];
         extra_flags->extraFlags->[i32]);
+
+#[derive(Debug)]
+pub struct AttributeInfo {
+    pub(crate) inner: HAPI_AttributeInfo,
+}
+
+
+#[derive(Debug)]
+pub struct AssetInfo<'session> {
+    pub(crate) inner: HAPI_AssetInfo,
+    pub session: &'session Session,
+}
+
+impl<'s> AssetInfo<'s> {
+    get!(node_id->nodeId->[handle: NodeHandle]);
+    get!(object_node_id->objectNodeId->[handle: NodeHandle]);
+    get!(has_ever_cooked->hasEverCooked->bool);
+    get!(have_objects_changed->haveObjectsChanged->bool);
+    get!(have_materials_changed->haveMaterialsChanged->bool);
+    get!(object_count->objectCount->i32);
+    get!(handle_count->handleCount->i32);
+    get!(transform_input_count->transformInputCount->i32);
+    get!(geo_input_count->geoInputCount->i32);
+    get!(geo_output_count->geoOutputCount->i32);
+    get!(name->nameSH->Result<String>);
+    get!(label->labelSH->Result<String>);
+    get!(file_path->filePathSH->Result<String>);
+    get!(version->versionSH->Result<String>);
+    get!(full_op_name->fullOpNameSH->Result<String>);
+    get!(help_text->helpTextSH->Result<String>);
+    get!(help_url->helpURLSH->Result<String>);
+}
+

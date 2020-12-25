@@ -156,9 +156,6 @@ impl<'node> Parameter<'node> {
         node: &'node HoudiniNode,
         info: ParmInfo<'node>,
     ) -> Parameter<'node> {
-        // if let ChoiceListType::Normal = info.choice_list_type() {
-        //     println!("{} is a Menu!", info.name().unwrap());
-        // }
         let base = ParmNodeWrap {
             info,
             node,
@@ -271,7 +268,10 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
     fn set_value<T>(&self, val: T) -> Result<()> where T: AsRef<[Self::ValueType]> {
         let start = self.wrap.info.string_values_index();
         let count = self.wrap.info.size();
-        let c_str: Vec<CString> = val.as_ref().into_iter().map(|s| unsafe { CString::new(s.clone()).expect("Null string") }).collect();
+        let c_str: Vec<CString> = val.as_ref()
+            .into_iter()
+            .map(|s|
+                unsafe { CString::new(s.clone()).expect("Null string") }).collect();
         crate::ffi::set_parm_string_values(&self.wrap.node,
                                            &self.wrap.info.id(),
                                            &c_str)

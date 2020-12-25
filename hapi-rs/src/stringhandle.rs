@@ -1,8 +1,5 @@
 use crate::errors::{HapiError, Kind, Result};
-use crate::{ffi, session::Session};
-use std::io::BufRead;
-use std::mem::MaybeUninit;
-use std::os::raw::c_char;
+use crate::{session::Session};
 use std::ffi::CString;
 
 pub fn get_string(handle: i32, session: &Session) -> Result<String> {
@@ -21,35 +18,17 @@ pub fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
 
 pub(crate) fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>> {
     unsafe {
-        let mut length = MaybeUninit::uninit();
-        ffi::raw::HAPI_GetStringBufLength(session.ptr(), handle, length.as_mut_ptr())
-            .result_with_session(|| session.clone())?;
-        let length = length.assume_init();
-        let mut buffer = vec![0u8; length as usize];
-        let ptr = buffer.as_mut_ptr() as *mut c_char;
-        ffi::raw::HAPI_GetString(session.ptr(), handle, ptr, length)
-            .result_with_message("get_string failed")?;
-        buffer.truncate(length as usize - 1);
+        let length = crate::ffi::get_string_buff_len(session, handle)?;
+        let buffer = crate::ffi::get_string(session, handle, length)?;
         Ok(buffer)
     }
 }
 
 pub fn get_string_batch(handles: &[i32], session: &Session) -> Result<Vec<String>> {
     unsafe {
-        let mut length = MaybeUninit::uninit();
-        ffi::raw::HAPI_GetStringBatchSize(
-            session.ptr(),
-            handles.as_ptr(),
-            handles.len() as i32,
-            length.as_mut_ptr(),
-        )
-        .result_with_session(|| session.clone())?;
-        let length = length.assume_init();
+        let length = crate::ffi::get_string_batch_size(handles, session)?;
         if length > 0 {
-            let mut buffer = vec![0u8; length as usize];
-            ffi::raw::HAPI_GetStringBatch(session.ptr(), buffer.as_mut_ptr() as *mut _, length)
-                .result_with_session(|| session.clone())?;
-            buffer.truncate(length as usize - 1);
+            let buffer = crate::ffi::get_string_batch(length, session)?;
             let mut buffer = std::mem::ManuallyDrop::new(buffer);
             let strings = buffer
                 .split_mut(|b| *b == b'\0')

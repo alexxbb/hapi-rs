@@ -1,4 +1,4 @@
-use crate::{errors::Result, node::{HoudiniNode,NodeHandle}, parameter::ParmHandle, session::Session};
+use crate::{errors::Result, node::{HoudiniNode, NodeHandle}, parameter::ParmHandle, session::Session};
 
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
@@ -310,4 +310,169 @@ pub fn get_node_info(node: &NodeHandle, session: &Session) -> Result<raw::HAPI_N
         ).result_with_session(|| session.clone())?;
         Ok(info.assume_init())
     }
+}
+
+pub fn is_node_valid(info: &super::NodeInfo) -> Result<bool> {
+    unsafe {
+        let mut answer = MaybeUninit::uninit();
+        raw::HAPI_IsNodeValid(info.session.ptr(), info.inner.id,
+                              info.inner.uniqueHoudiniNodeId,
+                              answer.as_mut_ptr())
+            .result_with_session(|| info.session.clone())?;
+        Ok(answer.assume_init() == 1)
+    }
+}
+
+pub fn delete_node(node: HoudiniNode) -> Result<()> {
+    unsafe {
+        raw::HAPI_DeleteNode(node.session.ptr(), node.handle.0)
+            .result_with_session(|| node.session.clone())
+    }
+}
+
+pub fn get_node_path(node: &HoudiniNode, relative_to: Option<&HoudiniNode>) -> Result<String> {
+    unsafe {
+        let mut sh = MaybeUninit::uninit();
+        raw::HAPI_GetNodePath(
+            node.session.ptr(),
+            node.handle.0,
+            relative_to.map(|n| n.handle.0).unwrap_or(-1),
+            sh.as_mut_ptr(),
+        )
+            .result_with_session(|| node.session.clone())?;
+        crate::stringhandle::get_string(sh.assume_init(), &node.session)
+    }
+}
+
+pub fn cook_node(node: &HoudiniNode, options: *const raw::HAPI_CookOptions) -> Result<()> {
+    unsafe {
+        raw::HAPI_CookNode(node.session.ptr(), node.handle.0, options)
+            .result_with_session(|| node.session.clone())
+    }
+}
+
+pub fn load_library_from_file(path: &CStr, session: &Session, _override: bool) -> Result<i32> {
+    unsafe {
+        let mut lib_id = MaybeUninit::uninit();
+        raw::HAPI_LoadAssetLibraryFromFile(
+            session.ptr(),
+            path.as_ptr(),
+            _override as i8,
+            lib_id.as_mut_ptr(),
+        )
+            .result_with_session(|| session.clone())?;
+        Ok(lib_id.assume_init())
+    }
+}
+
+pub fn get_asset_info(node: &HoudiniNode) -> Result<raw::HAPI_AssetInfo> {
+    unsafe {
+        let mut info = MaybeUninit::uninit();
+        raw::HAPI_GetAssetInfo(node.session.ptr(), node.handle.0, info.as_mut_ptr())
+            .result_with_session(|| node.session.clone())?;
+        Ok(info.assume_init())
+    }
+}
+
+pub fn get_asset_count(library_id: i32, session: &Session) -> Result<i32> {
+    unsafe {
+        let mut num_assets = MaybeUninit::uninit();
+        raw::HAPI_GetAvailableAssetCount(
+            session.ptr(),
+            library_id,
+            num_assets.as_mut_ptr(),
+        ).result_with_session(|| session.clone())?;
+        Ok(num_assets.assume_init())
+    }
+}
+
+pub fn get_asset_names(library_id: i32, num_assets: i32, session: &Session) -> Result<Vec<String>> {
+    let handles = unsafe {
+        let mut names = vec![0; num_assets as usize];
+        raw::HAPI_GetAvailableAssets(
+            session.ptr(),
+            library_id,
+            names.as_mut_ptr(),
+            num_assets,
+        ).result_with_session(|| session.clone())?;
+        names
+    };
+    crate::stringhandle::get_string_batch(&handles, session)
+}
+
+pub fn get_asset_def_parm_count(library_id: i32, session: &Session) -> Result<()> {
+    unimplemented!()
+    // unsafe {
+    //     raw::HAPI_GetAssetDefinitionParmCounts(
+    //         session.ptr(),
+    //         library_id,
+    //         asset_name.as_ptr(),
+    //         num_parms.as_mut_ptr(),
+    //         a1.as_mut_ptr(),
+    //         a2.as_mut_ptr(),
+    //         a3.as_mut_ptr(),
+    //         a4.as_mut_ptr(),
+    //     ).result_with_session(|| session.clone())?;
+    // }
+    // Ok(())
+}
+
+pub fn get_asset_parm_info() -> Result<()> {
+    unimplemented!()
+    // ffi::HAPI_GetAssetDefinitionParmInfos(
+    //     self.session.ptr(),
+    //     self.lib_id,
+    //     asset_name.as_ptr(),
+    //     parms.as_mut_ptr(),
+    //     0,
+    //     num_parms,
+    // ).result_with_session(|| self.session.clone())?;
+}
+
+pub fn get_string_batch_size(handles: &[i32], session: &Session) -> Result<i32> {
+    unsafe {
+        let mut length = MaybeUninit::uninit();
+        raw::HAPI_GetStringBatchSize(
+            session.ptr(),
+            handles.as_ptr(),
+            handles.len() as i32,
+            length.as_mut_ptr(),
+        )
+            .result_with_session(|| session.clone())?;
+        Ok(length.assume_init())
+    }
+}
+
+pub fn get_string_batch(length: i32, session: &Session) -> Result<Vec<u8>> {
+    let mut buffer = vec![0u8; length as usize];
+    unsafe {
+        raw::HAPI_GetStringBatch(session.ptr(),
+                                 buffer.as_mut_ptr() as *mut _,
+                                 length as i32)
+            .result_with_session(|| session.clone())?;
+    }
+    buffer.truncate(length as usize - 1);
+    Ok(buffer)
+}
+
+pub fn get_string_buff_len(session: &Session, handle: i32) -> Result<i32> {
+    unsafe {
+        let mut length = MaybeUninit::uninit();
+        raw::HAPI_GetStringBufLength(session.ptr(), handle, length.as_mut_ptr())
+            .result_with_session(|| session.clone())?;
+        Ok(length.assume_init())
+    }
+}
+
+pub fn get_string(session: &Session, handle: i32, length: i32) -> Result<Vec<u8>> {
+    let mut buffer = vec![0u8; length as usize];
+    unsafe {
+        raw::HAPI_GetString(session.ptr(),
+                            handle,
+                            buffer.as_mut_ptr() as *mut _,
+                            length)
+            .result_with_message("get_string failed")?;
+        buffer.truncate(length as usize - 1);
+    }
+    Ok(buffer)
 }
