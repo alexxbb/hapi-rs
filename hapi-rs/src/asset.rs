@@ -9,7 +9,7 @@ use crate::{
     session::Session,
     errors::Result,
     stringhandle::*,
-    parameter::ParmInfo,
+    ffi::ParmInfo,
 };
 use std::ptr::{null, null_mut};
 
@@ -138,16 +138,16 @@ impl<'node> AssetInfo<'node> {
             session: &node.session,
         })
     }
-    get!(node_id->nodeId->[handle: NodeHandle]);
-    get!(object_node_id->objectNodeId->[handle: NodeHandle]);
-    get!(has_ever_cooked->hasEverCooked->bool);
-    get!(have_objects_changed->haveObjectsChanged->bool);
-    get!(have_materials_changed->haveMaterialsChanged->bool);
-    get!(object_count->objectCount->i32);
-    get!(handle_count->handleCount->i32);
-    get!(transform_input_count->transformInputCount->i32);
-    get!(geo_input_count->geoInputCount->i32);
-    get!(geo_output_count->geoOutputCount->i32);
+    // get!(node_id->nodeId->[handle: NodeHandle]);
+    // get!(object_node_id->objectNodeId->[handle: NodeHandle]);
+    // get!(has_ever_cooked->hasEverCooked->bool);
+    // get!(have_objects_changed->haveObjectsChanged->bool);
+    // get!(have_materials_changed->haveMaterialsChanged->bool);
+    // get!(object_count->objectCount->i32);
+    // get!(handle_count->handleCount->i32);
+    // get!(transform_input_count->transformInputCount->i32);
+    // get!(geo_input_count->geoInputCount->i32);
+    // get!(geo_output_count->geoOutputCount->i32);
 
     _get_str!(name->nameSH);
     _get_str!(label->labelSH);

@@ -7,3 +7,9 @@ mod bindings;
 pub mod raw {
     pub use super::bindings::*;
 }
+
+mod functions;
+mod structs;
+
+pub use functions::*;
+pub use structs::*;

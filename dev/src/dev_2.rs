@@ -3,6 +3,7 @@ use hapi_rs::{
     session::{CookResult, Session, SessionOptions, StatusVerbosity},
     node::{HoudiniNode, NodeFlags, NodeType},
     parameter::*,
+    ffi,
     HOUDINI_VERSION
 };
 
