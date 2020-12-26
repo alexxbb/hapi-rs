@@ -17,7 +17,7 @@ use std::{
     ops::Deref,
     ptr::null,
     sync::Arc,
-    path::Path
+    path::Path,
 };
 
 use log::{debug, error, warn};
@@ -44,16 +44,12 @@ impl Session {
     }
     pub fn new_in_process() -> Result<Session> {
         debug!("Creating new in-process session");
-        let mut ses = MaybeUninit::uninit();
-        unsafe {
-            ffi::HAPI_CreateInProcessSession(ses.as_mut_ptr())
-                .result_with_message("Session::new_in_process failed")?;
-            Ok(Session {
-                handle: Arc::new(ses.assume_init()),
-                unsync: false,
-                cleanup: true,
-            })
-        }
+        let ses = crate::ffi::create_inprocess_session()?;
+        Ok(Session {
+            handle: Arc::new(ses),
+            unsync: false,
+            cleanup: true,
+        })
     }
 
     pub fn start_named_pipe_server(path: &str, auto_close: bool, timeout: f32) -> Result<i32> {

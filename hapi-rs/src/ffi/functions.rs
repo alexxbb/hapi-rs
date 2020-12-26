@@ -476,3 +476,12 @@ pub fn get_string(session: &Session, handle: i32, length: i32) -> Result<Vec<u8>
     }
     Ok(buffer)
 }
+
+pub fn create_inprocess_session() -> Result<raw::HAPI_Session> {
+    let mut ses = MaybeUninit::uninit();
+    unsafe {
+        raw::HAPI_CreateInProcessSession(ses.as_mut_ptr())
+            .result_with_message("Session::new_in_process failed")?;
+        Ok(ses.assume_init())
+    }
+}
