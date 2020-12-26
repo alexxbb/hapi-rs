@@ -106,28 +106,27 @@ impl From<std::ffi::NulError> for HapiError {
     }
 }
 
-#[macro_export]
-macro_rules! hapi_result {
-    ($hapi_result:expr, $ret:expr, $session:expr, $message:expr) => {
-        match $hapi_result {
-            HapiResult::Success => Ok($ret),
-            e => Err(HapiError::new(Kind::Hapi(e.into()), $session, $message.map(|m| Cow::from(m)))),
-        }
-    };
-}
+// #[macro_export]
+// macro_rules! hapi_result {
+//     ($hapi_result:expr, $ret:expr, $session:expr, $message:expr) => {
+//         match $hapi_result {
+//             HapiResult::Success => Ok($ret),
+//             e => Err(HapiError::new(Kind::Hapi(e.into()), $session, $message.map(|m| Cow::from(m)))),
+//         }
+//     };
+// }
 
-#[macro_export]
 macro_rules! hapi_err {
     ($hapi_result:expr, $session:expr, $message:expr) => {
-        Err(HapiError::new(
-            Kind::Hapi($hapi_result.into()),
+        Err(crate::errors::HapiError::new(
+            crate::errors::Kind::Hapi($hapi_result.into()),
             $session,
-            $message.map(|v|Cow::from(v)),
+            $message.map(|v|std::borrow::Cow::from(v)),
         ))
     };
 
     ($hapi_result:expr) => {
-        Err(HapiError::new(Kind::Hapi($hapi_result.into()), None, None))
+        Err(crate::errors::HapiError::new(crate::errors::Kind::Hapi($hapi_result.into()), None, None))
     };
 }
 

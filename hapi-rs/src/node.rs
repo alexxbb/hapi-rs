@@ -121,7 +121,7 @@ impl HoudiniNode {
 
     pub fn cook_blocking(&self, options: Option<&CookOptions>) -> Result<CookResult> {
         self.cook(options)?;
-        self.session.cook_result()
+        self.session.cook()
     }
 
     pub fn cook_count(&self, node_types: NodeType, node_flags: NodeFlags) -> Result<i32> {

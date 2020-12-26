@@ -8,8 +8,8 @@ static SESSION: Lazy<Session> = Lazy::new(|| {
     env_logger::init();
     let tmp = std::env::var("TMP").or_else(|_| std::env::var("TEMP")).expect("Could not get TEMP dir");
     let pipe = format!("{}/hapi_test_pipe", tmp);
-    Session::start_named_pipe_server(&pipe, true, 2000.0).expect("Could not start test session");
-    let mut ses = Session::new_named_pipe(&pipe).expect("Could not create thrift session");
+    Session::start_engine_server(&pipe, true, 2000.0).expect("Could not start test session");
+    let mut ses = Session::connect_to_server(&pipe).expect("Could not create thrift session");
     ses.initialize(SessionOptions::default());
     ses
 });

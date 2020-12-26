@@ -1,7 +1,10 @@
-use crate::{errors::Result, node::{HoudiniNode, NodeHandle}, parameter::ParmHandle, session::Session};
+use crate::{errors::Result, node::{HoudiniNode, NodeHandle}, parameter::ParmHandle,
+            session::{Session, SessionOptions},
+};
 
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
+use std::ptr::null;
 
 use super::raw;
 
@@ -477,11 +480,173 @@ pub fn get_string(session: &Session, handle: i32, length: i32) -> Result<Vec<u8>
     Ok(buffer)
 }
 
+pub fn get_status_string(session: &Session, status: raw::StatusType, verbosity: raw::StatusVerbosity) -> Result<String> {
+    let mut length = MaybeUninit::uninit();
+    unsafe {
+        raw::HAPI_GetStatusStringBufLength(
+            session.ptr(),
+            status.into(),
+            verbosity.into(),
+            length.as_mut_ptr(),
+        ).result_with_message("GetStatusStringBufLength failed")?;
+        let length = length.assume_init();
+        let mut buf = vec![0u8; length as usize];
+        if length > 0 {
+            raw::HAPI_GetStatusString(
+                session.ptr(),
+                status.into(),
+                buf.as_mut_ptr() as *mut i8,
+                length,
+            ).result_with_message("GetStatusString failed")?;
+            buf.truncate(length as usize - 1);
+            Ok(String::from_utf8_unchecked(buf))
+        } else {
+            Ok(String::new())
+        }
+    }
+}
+
 pub fn create_inprocess_session() -> Result<raw::HAPI_Session> {
     let mut ses = MaybeUninit::uninit();
     unsafe {
         raw::HAPI_CreateInProcessSession(ses.as_mut_ptr())
             .result_with_message("Session::new_in_process failed")?;
         Ok(ses.assume_init())
+    }
+}
+
+pub fn start_thrift_server(file: &CStr, options: &raw::HAPI_ThriftServerOptions) -> Result<(i32)> {
+    let mut pid = MaybeUninit::uninit();
+    unsafe {
+        raw::HAPI_StartThriftNamedPipeServer(options as *const _,
+                                             file.as_ptr(),
+                                             pid.as_mut_ptr())
+            .result_with_message("Could not start thrift server")?;
+        Ok(pid.assume_init())
+    }
+}
+
+pub fn new_thrift_piped_session(path: &CStr) -> Result<raw::HAPI_Session> {
+    let mut handle = MaybeUninit::uninit();
+    let session = unsafe {
+        raw::HAPI_CreateThriftNamedPipeSession(handle.as_mut_ptr(), path.as_ptr())
+            .result_with_message("Could not start piped session")?;
+        handle.assume_init()
+    };
+    Ok(session)
+}
+
+pub fn initialize_session(session: &raw::HAPI_Session, options: &SessionOptions) -> Result<()> {
+    unsafe {
+        raw::HAPI_Initialize(
+            session as *const _,
+            options.cook_opt.ptr(),
+            options.unsync as i8,
+            -1,
+            options.env_files.as_ref().map(|p| p.as_ptr()).unwrap_or(null()),
+            options.otl_path.as_ref().map(|p| p.as_ptr()).unwrap_or(null()),
+            options.dso_path.as_ref().map(|p| p.as_ptr()).unwrap_or(null()),
+            options.img_dso_path.as_ref().map(|p| p.as_ptr()).unwrap_or(null()),
+            options.aud_dso_path.as_ref().map(|p| p.as_ptr()).unwrap_or(null()),
+        )
+            .result_with_message("Could not initialize session")
+    }
+}
+
+pub fn cleanup_session(session: &Session) -> Result<()> {
+    unsafe { raw::HAPI_Cleanup(session.ptr()).result_with_session(|| session.clone()) }
+}
+
+pub fn close_session(session: &Session) -> Result<()> {
+    unsafe { raw::HAPI_CloseSession(session.ptr()).result_with_session(|| session.clone()) }
+}
+
+pub fn is_session_initialized(session: &Session) -> Result<bool> {
+    unsafe {
+        match raw::HAPI_IsInitialized(session.ptr()) {
+            raw::HapiResult::Success => Ok(true),
+            raw::HapiResult::NotInitialized => Ok(false),
+            e => hapi_err!(e, None, Some("HAPI_IsInitialized failed")),
+        }
+    }
+}
+
+pub fn save_hip(session: &Session, name: &CStr) -> Result<()> {
+    unsafe {
+        raw::HAPI_SaveHIPFile(session.ptr(), name.as_ptr(), 0)
+            .result_with_session(|| session.clone())
+    }
+}
+
+pub fn load_hip(session: &Session, name: &CStr, cook: bool) -> Result<()> {
+    unsafe {
+        raw::HAPI_LoadHIPFile(session.ptr(), name.as_ptr(), cook as i8)
+            .result_with_session(|| session.clone())
+    }
+}
+
+pub fn merge_hip(session: &Session, name: &CStr, cook: bool) -> Result<i32> {
+    unsafe {
+        let mut id = MaybeUninit::uninit();
+        raw::HAPI_MergeHIPFile(session.ptr(), name.as_ptr(), cook as i8, id.as_mut_ptr())
+            .result_with_session(|| session.clone())?;
+        Ok(id.assume_init())
+    }
+}
+
+pub fn interrupt(session: &Session) -> Result<()> {
+    unsafe { raw::HAPI_Interrupt(session.ptr()).result_with_session(|| session.clone()) }
+}
+
+pub fn get_status(session: &Session, flag: raw::StatusType) -> Result<raw::State> {
+    let status = unsafe {
+        let mut status = MaybeUninit::uninit();
+        raw::HAPI_GetStatus(session.ptr(), flag.into(), status.as_mut_ptr())
+            .result_with_session(|| session.clone())?;
+        status.assume_init()
+    };
+    Ok(raw::State::from(status))
+}
+
+pub fn is_session_valid(session: &Session) -> bool {
+    unsafe {
+        match raw::HAPI_IsSessionValid(session.ptr()) {
+            raw::HapiResult::Success => true,
+            _ => false
+        }
+    }
+}
+
+pub fn get_cooking_total_count(session: &Session) -> Result<i32> {
+    unsafe {
+        let mut count = MaybeUninit::uninit();
+        raw::HAPI_GetCookingTotalCount(session.ptr(), count.as_mut_ptr())
+            .result_with_session(|| session.clone())?;
+        Ok(count.assume_init())
+    }
+}
+
+pub fn get_cooking_current_count(session: &Session) -> Result<i32> {
+    unsafe {
+        let mut count = MaybeUninit::uninit();
+        raw::HAPI_GetCookingCurrentCount(session.ptr(), count.as_mut_ptr())
+            .result_with_session(|| session.clone())?;
+        Ok(count.assume_init())
+    }
+}
+pub fn get_connection_error(session: &Session, clear: bool) -> Result<String> {
+    unsafe {
+        let mut length = MaybeUninit::uninit();
+        raw::HAPI_GetConnectionErrorLength(length.as_mut_ptr())
+            .result_with_message("HAPI_GetConnectionErrorLength failed")?;
+        let length = length.assume_init();
+        if length > 0 {
+            let mut buf = vec![0u8; length as usize];
+            raw::HAPI_GetConnectionError(buf.as_mut_ptr() as *mut _, length, clear as i8)
+                .result_with_message("HAPI_GetConnectionError failed")?;
+            Ok(String::from_utf8_unchecked(buf))
+        } else {
+            Ok(String::new())
+        }
     }
 }

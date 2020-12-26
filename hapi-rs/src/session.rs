@@ -1,14 +1,11 @@
-use crate::{
+pub use crate::{
     asset::AssetLibrary,
     errors::*,
-    ffi::raw::{State, StatusType, HapiResult},
+    ffi::raw::{State, StatusType, StatusVerbosity, HapiResult},
     ffi::CookOptions,
     node::{HoudiniNode, NodeHandle},
 };
 
-pub use crate::ffi::raw::StatusVerbosity;
-
-use crate::ffi::raw as ffi;
 
 #[rustfmt::skip]
 use std::{
@@ -32,14 +29,14 @@ pub enum CookResult {
 
 #[derive(Debug, Clone)]
 pub struct Session {
-    handle: Arc<ffi::HAPI_Session>,
+    handle: Arc<crate::ffi::raw::HAPI_Session>,
     pub unsync: bool,
     cleanup: bool,
 }
 
 impl Session {
     #[inline]
-    pub fn ptr(&self) -> *const ffi::HAPI_Session {
+    pub fn ptr(&self) -> *const crate::ffi::raw::HAPI_Session {
         self.handle.as_ref() as *const _
     }
     pub fn new_in_process() -> Result<Session> {
@@ -52,31 +49,20 @@ impl Session {
         })
     }
 
-    pub fn start_named_pipe_server(path: &str, auto_close: bool, timeout: f32) -> Result<i32> {
+    pub fn start_engine_server(path: &str, auto_close: bool, timeout: f32) -> Result<i32> {
         debug!("Starting named pipe server: {}", path);
-        let pid = unsafe {
-            let mut pid = MaybeUninit::uninit();
-            let cs = CString::new(path)?;
-            let opts = ffi::HAPI_ThriftServerOptions {
-                autoClose: auto_close as i8,
-                timeoutMs: timeout,
-            };
-            ffi::HAPI_StartThriftNamedPipeServer(&opts as *const _, cs.as_ptr(), pid.as_mut_ptr())
-                .result_with_message("Could not start thrift server")?;
-            pid.assume_init()
+        let path = CString::new(path)?;
+        let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
+            autoClose: auto_close as i8,
+            timeoutMs: timeout,
         };
-        Ok(pid)
+        crate::ffi::start_thrift_server(&path, &opts)
     }
 
-    pub fn new_named_pipe(path: &str) -> Result<Session> {
+    pub fn connect_to_server(path: &str) -> Result<Session> {
         debug!("Connecting to Thrift session: {}", path);
-        let session = unsafe {
-            let mut handle = MaybeUninit::uninit();
-            let cs = CString::new(path)?;
-            ffi::HAPI_CreateThriftNamedPipeSession(handle.as_mut_ptr(), cs.as_ptr())
-                .result_with_message("Could not start piped session")?;
-            handle.assume_init()
-        };
+        let path = CString::new(path)?;
+        let session = crate::ffi::new_thrift_piped_session(&path)?;
         Ok(Session {
             handle: Arc::new(session),
             unsync: false,
@@ -84,44 +70,25 @@ impl Session {
         })
     }
 
-    pub fn initialize(&mut self, opts: SessionOptions) -> Result<()> {
+    pub fn initialize(&mut self, opts: &SessionOptions) -> Result<()> {
         debug!("Initializing session");
         self.unsync = opts.unsync;
         self.cleanup = opts.cleanup;
-        unsafe {
-            ffi::HAPI_Initialize(
-                self.ptr(),
-                opts.cook_opt.ptr(),
-                opts.unsync as i8,
-                -1,
-                opts.env_files.map(|p| p.as_ptr()).unwrap_or(null()),
-                opts.otl_path.map(|p| p.as_ptr()).unwrap_or(null()),
-                opts.dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
-                opts.img_dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
-                opts.aud_dso_path.map(|p| p.as_ptr()).unwrap_or(null()),
-            )
-                .result_with_session(|| self.clone())
-        }
+        crate::ffi::initialize_session(self.handle.as_ref(), opts)
     }
 
     pub fn cleanup(&self) -> Result<()> {
         debug!("Cleaning session");
-        unsafe { ffi::HAPI_Cleanup(self.ptr()).result_with_session(|| self.clone()) }
+        crate::ffi::cleanup_session(self)
     }
 
     pub fn close_session(&self) -> Result<()> {
         debug!("Closing session");
-        unsafe { ffi::HAPI_CloseSession(self.ptr()).result_with_session(|| self.clone()) }
+        crate::ffi::close_session(self)
     }
 
     pub fn is_initialized(&self) -> Result<bool> {
-        unsafe {
-            match ffi::HAPI_IsInitialized(self.ptr()) {
-                ffi::HapiResult::Success => Ok(true),
-                ffi::HapiResult::NotInitialized => Ok(false),
-                e => hapi_err!(e, None, Some("HAPI_IsInitialized failed")),
-            }
-        }
+        crate::ffi::is_session_initialized(self)
     }
 
     pub fn create_node_blocking(
@@ -135,30 +102,20 @@ impl Session {
 
     pub fn save_hip(&self, name: &str) -> Result<()> {
         debug!("Saving hip file: {}", name);
-        unsafe {
-            let name = CString::new(name)?;
-            ffi::HAPI_SaveHIPFile(self.ptr(), name.as_ptr(), 0).result_with_session(|| self.clone())
-        }
+        let name = CString::new(name)?;
+        crate::ffi::save_hip(self, &name)
     }
 
     pub fn load_hip(&self, name: &str, cook: bool) -> Result<()> {
         debug!("Loading hip file: {}", name);
-        unsafe {
-            let name = CString::new(name)?;
-            ffi::HAPI_LoadHIPFile(self.ptr(), name.as_ptr(), cook as i8)
-                .result_with_session(|| self.clone())
-        }
+        let name = CString::new(name)?;
+        crate::ffi::load_hip(self, &name, cook)
     }
 
     pub fn merge_hip(&self, name: &str, cook: bool) -> Result<i32> {
         debug!("Merging hip file: {}", name);
-        unsafe {
-            let name = CString::new(name)?;
-            let mut id = MaybeUninit::uninit();
-            ffi::HAPI_MergeHIPFile(self.ptr(), name.as_ptr(), cook as i8, id.as_mut_ptr())
-                .result_with_session(|| self.clone())?;
-            Ok(id.assume_init())
-        }
+        let name = CString::new(name)?;
+        crate::ffi::merge_hip(self, &name, cook)
     }
 
     pub fn load_asset_file(&self, file: impl AsRef<str>) -> Result<AssetLibrary> {
@@ -166,17 +123,11 @@ impl Session {
     }
 
     pub fn interrupt(&self) -> Result<()> {
-        unsafe { ffi::HAPI_Interrupt(self.ptr()).result_with_session(|| self.clone()) }
+        crate::ffi::interrupt(self)
     }
 
     pub fn get_status(&self, flag: StatusType) -> Result<State> {
-        let status = unsafe {
-            let mut status = MaybeUninit::uninit();
-            ffi::HAPI_GetStatus(self.ptr(), flag.into(), status.as_mut_ptr())
-                .result_with_session(|| self.clone())?;
-            status.assume_init()
-        };
-        Ok(State::from(status))
+        crate::ffi::get_status(self, flag)
     }
 
     pub fn is_cooking(&self) -> Result<bool> {
@@ -187,12 +138,7 @@ impl Session {
     }
 
     pub fn is_valid(&self) -> bool {
-        unsafe {
-            match ffi::HAPI_IsSessionValid(self.ptr()) {
-                HapiResult::Success => true,
-                _ => false
-            }
-        }
+        crate::ffi::is_session_valid(self)
     }
 
     pub fn get_string(&self, handle: i32) -> Result<String> {
@@ -204,31 +150,7 @@ impl Session {
         status: StatusType,
         verbosity: StatusVerbosity,
     ) -> Result<String> {
-        unsafe {
-            let mut length = std::mem::MaybeUninit::uninit();
-            ffi::HAPI_GetStatusStringBufLength(
-                self.ptr(),
-                status.into(),
-                verbosity.into(),
-                length.as_mut_ptr(),
-            )
-                .result_with_message("GetStatusStringBufLength failed")?;
-            let length = length.assume_init();
-            let mut buf = vec![0u8; length as usize - 1];
-            if length > 0 {
-                ffi::HAPI_GetStatusString(
-                    self.ptr(),
-                    status.into(),
-                    buf.as_mut_ptr() as *mut i8,
-                    length,
-                )
-                    .result_with_message("GetStatusString failed")?;
-                buf.truncate(length as usize);
-                Ok(String::from_utf8_unchecked(buf))
-            } else {
-                Ok(String::new())
-            }
-        }
+        crate::ffi::get_status_string(self, status, verbosity)
     }
 
     pub fn get_cook_status(&self, verbosity: StatusVerbosity) -> Result<String> {
@@ -236,24 +158,14 @@ impl Session {
     }
 
     pub fn cooking_total_count(&self) -> Result<i32> {
-        unsafe {
-            let mut count = MaybeUninit::uninit();
-            ffi::HAPI_GetCookingTotalCount(self.ptr(), count.as_mut_ptr())
-                .result_with_session(|| self.clone())?;
-            Ok(count.assume_init())
-        }
+        crate::ffi::get_cooking_total_count(self)
     }
 
     pub fn cooking_current_count(&self) -> Result<i32> {
-        unsafe {
-            let mut count = MaybeUninit::uninit();
-            ffi::HAPI_GetCookingCurrentCount(self.ptr(), count.as_mut_ptr())
-                .result_with_session(|| self.clone())?;
-            Ok(count.assume_init())
-        }
+        crate::ffi::get_cooking_current_count(self)
     }
 
-    pub fn cook_result(&self) -> Result<CookResult> {
+    pub fn cook(&self) -> Result<CookResult> {
         if self.unsync {
             loop {
                 match self.get_status(StatusType::CookState)? {
@@ -273,20 +185,7 @@ impl Session {
     }
 
     pub fn get_connection_error(&self, clear: bool) -> Result<String> {
-        unsafe {
-            let mut length = MaybeUninit::uninit();
-            ffi::HAPI_GetConnectionErrorLength(length.as_mut_ptr())
-                .result_with_message("HAPI_GetConnectionErrorLength failed")?;
-            let length = length.assume_init();
-            if length > 0 {
-                let mut buf = vec![0u8; length as usize];
-                ffi::HAPI_GetConnectionError(buf.as_mut_ptr() as *mut _, length, clear as i8)
-                    .result_with_message("HAPI_GetConnectionError failed")?;
-                Ok(String::from_utf8_unchecked(buf))
-            } else {
-                Ok(String::new())
-            }
-        }
+        crate::ffi::get_connection_error(self, clear)
     }
 }
 
@@ -296,7 +195,7 @@ impl Drop for Session {
             eprintln!("Dropping session");
             assert!(self.is_valid(), "Session invalid in Drop");
             unsafe {
-                use ffi::HapiResult::*;
+                use crate::ffi::raw::HapiResult::*;
                 if self.cleanup {
                     if let Err(e) = self.cleanup() {
                         error!("Cleanup failed in Drop: {}", e);
@@ -310,6 +209,7 @@ impl Drop for Session {
     }
 }
 
+/// Join a sequence of paths into a single String
 fn join_paths<I>(files: I) -> String
     where
         I: IntoIterator,

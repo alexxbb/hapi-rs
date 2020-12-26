@@ -1,4 +1,4 @@
-use hapi_rs::{
+pub use hapi_rs::{
     errors::{HapiError, HapiResult, Kind, Result},
     session::{CookResult, Session, SessionOptions, StatusVerbosity},
     node::{HoudiniNode, NodeFlags, NodeType},
@@ -8,11 +8,11 @@ use hapi_rs::{
 };
 
 pub unsafe fn run() -> Result<()> {
-    let mut session = Session::new_named_pipe("/tmp/hapi")?;
+    let mut session = Session::connect_to_server("/tmp/hapi")?;
     // session.cleanup()?;
     let mut opts = SessionOptions::default();
     opts.set_otl_search_paths(&["/Users/alex/sandbox/rust/hapi/otls"]);
-    session.initialize(opts);
+    session.initialize(&opts);
     let otl = std::env::current_dir()
         .unwrap()
         .join("otls/spaceship.otl");
