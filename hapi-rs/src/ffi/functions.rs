@@ -634,6 +634,7 @@ pub fn get_cooking_current_count(session: &Session) -> Result<i32> {
         Ok(count.assume_init())
     }
 }
+
 pub fn get_connection_error(session: &Session, clear: bool) -> Result<String> {
     unsafe {
         let mut length = MaybeUninit::uninit();
@@ -648,5 +649,117 @@ pub fn get_connection_error(session: &Session, clear: bool) -> Result<String> {
         } else {
             Ok(String::new())
         }
+    }
+}
+
+pub fn get_total_cook_count(node: &HoudiniNode, node_types: raw::NodeType, node_flags: raw::NodeFlags, recursive: bool) -> Result<i32> {
+    let mut count = MaybeUninit::uninit();
+    unsafe {
+        raw::HAPI_GetTotalCookCount(
+            node.session.ptr(),
+            node.handle.0,
+            node_types.0,
+            node_flags.0,
+            recursive as i8,
+            count.as_mut_ptr(),
+        )
+            .result_with_session(|| node.session.clone())?;
+        Ok(count.assume_init())
+    }
+}
+
+pub fn create_node(name: &CStr, label: Option<&CStr>, session: &Session, parent: Option<NodeHandle>, cook: bool) -> Result<raw::HAPI_NodeId> {
+    unsafe {
+        let mut id = MaybeUninit::uninit();
+        raw::HAPI_CreateNode(
+            session.ptr(),
+            parent.map_or(-1, |h| h.0),
+            name.as_ptr(),
+            label.map_or(null(), |v| v.as_ptr()),
+            cook as i8,
+            id.as_mut_ptr(),
+        )
+            .result_with_session(|| session.clone())?;
+        Ok(id.assume_init())
+    }
+}
+
+pub fn get_manager_node(session: &Session, node_type: raw::NodeType) -> Result<raw::HAPI_NodeId> {
+    unsafe {
+        let mut id = MaybeUninit::uninit();
+        raw::HAPI_GetManagerNodeId(session.ptr(), node_type, id.as_mut_ptr())
+            .result_with_session(|| session.clone())?;
+        Ok(id.assume_init())
+    }
+}
+
+
+pub fn get_compose_child_node_list(
+    node: &HoudiniNode,
+    types: raw::NodeType,
+    flags: raw::NodeFlags,
+    recursive: bool,
+) -> Result<Vec<i32>> {
+    unsafe {
+        let mut count = MaybeUninit::uninit();
+        raw::HAPI_ComposeChildNodeList(
+            node.session.ptr(),
+            node.handle.0,
+            types.0,
+            flags.0,
+            recursive as i8,
+            count.as_mut_ptr(),
+        )
+            .result_with_session(|| node.session.clone())?;
+
+        let count = count.assume_init();
+        let mut obj_infos = vec![0i32; count as usize];
+        raw::HAPI_GetComposedChildNodeList(
+            node.session.ptr(),
+            node.handle.0,
+            obj_infos.as_mut_ptr(),
+            count,
+        )
+            .result_with_session(|| node.session.clone())?;
+        Ok(obj_infos)
+    }
+
+}
+
+pub fn get_composed_object_list(session: &Session, parent_id: raw::HAPI_NodeId) -> Result<Vec<raw::HAPI_ObjectInfo>> {
+    unsafe {
+        let mut count = MaybeUninit::uninit();
+        raw::HAPI_ComposeObjectList(
+            session.ptr(),
+            parent_id,
+            null(),
+            count.as_mut_ptr(),
+        ).result_with_session(|| session.clone())?;
+        let count = count.assume_init();
+        let mut obj_infos = vec![raw::HAPI_ObjectInfo_Create(); count as usize];
+        raw::HAPI_GetComposedObjectList(
+            session.ptr(),
+            parent_id,
+            obj_infos.as_mut_ptr(),
+            0,
+            count,
+        )
+            .result_with_session(|| session.clone())?;
+        Ok(obj_infos)
+    }
+}
+
+pub fn get_parameters(node: &HoudiniNode) -> Result<Vec<raw::HAPI_ParmInfo>> {
+    unsafe {
+        let mut parms = vec![raw::HAPI_ParmInfo_Create(); node.info.parm_count() as usize];
+        raw::HAPI_GetParameters(
+            node.session.ptr(),
+            node.handle.0,
+            parms.as_mut_ptr(),
+            0,
+            node.info.parm_count(),
+        )
+            .result_with_session(|| node.session.clone())?;
+        Ok(parms)
     }
 }

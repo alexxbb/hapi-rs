@@ -49,16 +49,6 @@ impl Session {
         })
     }
 
-    pub fn start_engine_server(path: &str, auto_close: bool, timeout: f32) -> Result<i32> {
-        debug!("Starting named pipe server: {}", path);
-        let path = CString::new(path)?;
-        let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
-            autoClose: auto_close as i8,
-            timeoutMs: timeout,
-        };
-        crate::ffi::start_thrift_server(&path, &opts)
-    }
-
     pub fn connect_to_server(path: &str) -> Result<Session> {
         debug!("Connecting to Thrift session: {}", path);
         let path = CString::new(path)?;
@@ -315,3 +305,14 @@ impl From<i32> for State {
         }
     }
 }
+
+pub fn start_engine_server(path: &str, auto_close: bool, timeout: f32) -> Result<i32> {
+    debug!("Starting named pipe server: {}", path);
+    let path = CString::new(path)?;
+    let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
+        autoClose: auto_close as i8,
+        timeoutMs: timeout,
+    };
+    crate::ffi::start_thrift_server(&path, &opts)
+}
+

@@ -106,16 +106,6 @@ impl From<std::ffi::NulError> for HapiError {
     }
 }
 
-// #[macro_export]
-// macro_rules! hapi_result {
-//     ($hapi_result:expr, $ret:expr, $session:expr, $message:expr) => {
-//         match $hapi_result {
-//             HapiResult::Success => Ok($ret),
-//             e => Err(HapiError::new(Kind::Hapi(e.into()), $session, $message.map(|m| Cow::from(m)))),
-//         }
-//     };
-// }
-
 macro_rules! hapi_err {
     ($hapi_result:expr, $session:expr, $message:expr) => {
         Err(crate::errors::HapiError::new(

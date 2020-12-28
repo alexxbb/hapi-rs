@@ -272,3 +272,21 @@ impl<'s> AssetInfo<'s> {
     get!(help_url->helpURLSH->Result<String>);
 }
 
+#[derive(Debug)]
+pub struct ObjectInfo<'session> {
+    pub(crate) inner: HAPI_ObjectInfo,
+    pub session: &'session Session,
+}
+
+impl<'s> ObjectInfo<'s> {
+    get!(name->nameSH->Result<String>);
+    get!(object_instance_path->objectInstancePathSH->Result<String>);
+    get!(has_transform_changed->hasTransformChanged->bool);
+    get!(have_geos_changed->haveGeosChanged->bool);
+    get!(is_visible->isVisible->bool);
+    get!(is_instancer->isInstancer->bool);
+    get!(is_instanced->isInstanced->bool);
+    get!(geo_count->geoCount->bool);
+    get!(node_id->nodeId->[handle: NodeHandle]);
+    get!(object_to_instance_id->objectToInstanceId->[handle: NodeHandle]);
+}

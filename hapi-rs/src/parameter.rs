@@ -1,8 +1,7 @@
 use crate::{
     errors::Result,
     ffi::raw::{
-        ChoiceListType, HAPI_GetParmInfo, HAPI_NodeId, HAPI_ParmId, HAPI_ParmInfo,
-        HAPI_ParmInfo_Create, NodeFlags, NodeType, ParmType, Permissions, PrmScriptType, RampType,
+        ChoiceListType, HAPI_ParmId, NodeFlags, NodeType, ParmType, Permissions, PrmScriptType, RampType,
     },
     ffi::{ParmInfo, ParmChoiceInfo, NodeInfo},
     node::{HoudiniNode, NodeHandle},
@@ -268,13 +267,13 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
     fn set_value<T>(&self, val: T) -> Result<()> where T: AsRef<[Self::ValueType]> {
         let start = self.wrap.info.string_values_index();
         let count = self.wrap.info.size();
-        let c_str: Vec<CString> = val.as_ref()
+        let c_str: std::result::Result<Vec<CString>, _> = val.as_ref()
             .into_iter()
-            .map(|s|
-                unsafe { CString::new(s.clone()).expect("Null string") }).collect();
+            .map(|s| CString::new(s.clone()))
+            .collect();
         crate::ffi::set_parm_string_values(&self.wrap.node,
                                            &self.wrap.info.id(),
-                                           &c_str)
+                                           &c_str?)
     }
 }
 

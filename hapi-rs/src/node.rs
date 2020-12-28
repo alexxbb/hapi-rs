@@ -4,7 +4,7 @@ use crate::{
     session::{CookResult, Session},
     stringhandle,
     ffi,
-    ffi::{ParmInfo, NodeInfo, AssetInfo},
+    ffi::{ParmInfo, NodeInfo, AssetInfo, ObjectInfo},
 };
 pub use crate::{
     ffi::raw::{NodeFlags, NodeType, State, StatusType, StatusVerbosity, ParmType},
@@ -124,20 +124,8 @@ impl HoudiniNode {
         self.session.cook()
     }
 
-    pub fn cook_count(&self, node_types: NodeType, node_flags: NodeFlags) -> Result<i32> {
-        let mut count = MaybeUninit::uninit();
-        unsafe {
-            ffi::raw::HAPI_GetTotalCookCount(
-                self.session.ptr(),
-                self.handle.0,
-                node_types.0,
-                node_flags.0,
-                true as i8,
-                count.as_mut_ptr(),
-            )
-                .result_with_session(|| self.session.clone())?;
-            Ok(count.assume_init())
-        }
+    pub fn cook_count(&self, node_types: NodeType, node_flags: NodeFlags, recurse: bool) -> Result<i32> {
+        crate::ffi::get_total_cook_count(self, node_types, node_flags, recurse)
     }
 
     pub fn create(
@@ -151,27 +139,10 @@ impl HoudiniNode {
         if parent.is_none() && !name.contains('/') {
             warn!("Node name must be fully qualified if parent is not specified");
         }
-        let mut id = MaybeUninit::uninit();
-        let parent = parent.map_or(-1, |n| n.0);
-        let mut label_ptr: *const std::os::raw::c_char = null();
-        let id = unsafe {
-            let mut tmp;
-            if let Some(lb) = label {
-                tmp = CString::from_vec_unchecked(lb.into());
-                label_ptr = tmp.as_ptr();
-            }
-            let name = CString::from_vec_unchecked(name.into());
-            ffi::raw::HAPI_CreateNode(
-                session.ptr(),
-                parent,
-                name.as_ptr(),
-                label_ptr,
-                cook as i8,
-                id.as_mut_ptr(),
-            )
-                .result_with_session(|| session.clone())?;
-            id.assume_init()
-        };
+        let name = CString::new(name)?;
+        let label = label.map(|s| CString::new(s).unwrap());
+        let label = label.as_ref().map(|s| s.as_c_str());
+        let id = crate::ffi::create_node(&name, label, &session, parent, cook)?;
         HoudiniNode::new(session, NodeHandle(id), None)
     }
 
@@ -184,86 +155,29 @@ impl HoudiniNode {
     ) -> Result<HoudiniNode> {
         let node = HoudiniNode::create(name, label, parent, session.clone(), cook);
         if node.is_ok() && session.unsync {
-            loop {
-                match session.get_status(StatusType::CookState)? {
-                    State::Ready => break,
-                    _ => {}
-                }
-            }
+            session.cook()?;
         }
         node
     }
 
     pub fn get_manager_node(session: Session, node_type: NodeType) -> Result<HoudiniNode> {
-        let id = unsafe {
-            let mut id = MaybeUninit::uninit();
-            ffi::raw::HAPI_GetManagerNodeId(session.ptr(), node_type, id.as_mut_ptr())
-                .result_with_session(|| session.clone())?;
-            id.assume_init()
-        };
+        let id = crate::ffi::get_manager_node(&session, node_type)?;
         HoudiniNode::new(session, NodeHandle(id), None)
     }
 
-    pub fn get_object_nodes(&self) -> Result<Vec<NodeHandle>> {
-        let node_id = match self.info.node_type() {
-            NodeType::Obj => self.info.parent_id(),
-            _ => self.handle.clone(),
+    pub fn get_objects_info(&self) -> Result<Vec<ObjectInfo>> {
+        let parent = match self.info.node_type() {
+            NodeType::Obj => self.info.parent_id().0,
+            _ => self.handle.0,
         };
-        let obj_infos = unsafe {
-            let mut count = MaybeUninit::uninit();
-            ffi::raw::HAPI_ComposeObjectList(
-                self.session.ptr(),
-                self.handle.0,
-                null(),
-                count.as_mut_ptr(),
-            )
-                .result_with_session(|| self.session.clone())?;
-            let count = count.assume_init();
-            let mut obj_infos = vec![ffi::raw::HAPI_ObjectInfo_Create(); count as usize];
-            ffi::raw::HAPI_GetComposedObjectList(
-                self.session.ptr(),
-                self.handle.0,
-                obj_infos.as_mut_ptr(),
-                0,
-                count,
-            )
-                .result_with_session(|| self.session.clone())?;
-            obj_infos
-        };
-
-        Ok(obj_infos.iter().map(|i| NodeHandle(i.nodeId)).collect())
+        let infos = crate::ffi::get_composed_object_list(&self.session, parent)?;
+        Ok(infos.into_iter().map(|inner|
+            ObjectInfo { inner, session: &self.session }).collect()
+        )
     }
 
-    pub fn get_children(
-        &self,
-        types: NodeType,
-        flags: NodeFlags,
-        recursive: bool,
-    ) -> Result<Vec<NodeHandle>> {
-        let ids = unsafe {
-            let mut count = MaybeUninit::uninit();
-            ffi::raw::HAPI_ComposeChildNodeList(
-                self.session.ptr(),
-                self.handle.0,
-                types.0,
-                flags.0,
-                recursive as i8,
-                count.as_mut_ptr(),
-            )
-                .result_with_session(|| self.session.clone())?;
-
-            let count = count.assume_init();
-            let mut obj_infos = vec![0i32; count as usize];
-            ffi::raw::HAPI_GetComposedChildNodeList(
-                self.session.ptr(),
-                self.handle.0,
-                obj_infos.as_mut_ptr(),
-                count,
-            )
-                .result_with_session(|| self.session.clone())?;
-            obj_infos
-        };
-
+    pub fn get_children(&self, types: NodeType, flags: NodeFlags, recursive: bool) -> Result<Vec<NodeHandle>> {
+        let ids = crate::ffi::get_compose_child_node_list(self, types, flags, recursive)?;
         Ok(ids.iter().map(|i| NodeHandle(*i)).collect())
     }
 
@@ -277,19 +191,7 @@ impl HoudiniNode {
     }
 
     pub fn parameters(&self) -> Result<Vec<Parameter<'_>>> {
-        let infos = unsafe {
-            let mut parms = vec![ffi::raw::HAPI_ParmInfo_Create(); self.info.parm_count() as usize];
-            ffi::raw::HAPI_GetParameters(
-                self.session.ptr(),
-                self.handle.0,
-                parms.as_mut_ptr(),
-                0,
-                self.info.parm_count(),
-            )
-                .result_with_session(|| self.session.clone())?;
-            parms
-        };
-
+        let infos = crate::ffi::get_parameters(self)?;
         Ok(infos
             .into_iter()
             .map(|i| Parameter::new(self, ParmInfo {

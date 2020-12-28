@@ -8,9 +8,9 @@ static SESSION: Lazy<Session> = Lazy::new(|| {
     env_logger::init();
     let tmp = std::env::var("TMP").or_else(|_| std::env::var("TEMP")).expect("Could not get TEMP dir");
     let pipe = format!("{}/hapi_test_pipe", tmp);
-    Session::start_engine_server(&pipe, true, 2000.0).expect("Could not start test session");
+    start_engine_server(&pipe, true, 2000.0).expect("Could not start test session");
     let mut ses = Session::connect_to_server(&pipe).expect("Could not create thrift session");
-    ses.initialize(SessionOptions::default());
+    ses.initialize(&SessionOptions::default());
     ses
 });
 pub static OTLS: Lazy<HashMap<&str, String>> = Lazy::new(|| {
@@ -25,7 +25,7 @@ fn create_and_init() {
     assert!(SESSION.is_valid());
 }
 
-// #[test]
+#[test]
 fn load_asset() {
     assert!(SESSION.is_valid());
     let otl = OTLS.get("parameters").unwrap();
@@ -35,6 +35,7 @@ fn load_asset() {
 }
 
 #[test]
+#[should_panic]
 fn asset_parameters() {
     assert!(SESSION.is_valid());
     let otl = OTLS.get("parameters").unwrap();
@@ -43,13 +44,19 @@ fn asset_parameters() {
     assert!(parms.is_ok());
 }
 
-// #[test]
+#[test]
 fn node_parameters() {
-    // if let Parameter::Float(mut p) = node.parameter("color").unwrap() {
-    //     let val = p.get_value().unwrap();
-    //     assert_eq!(&val, &[0.55, 0.75, 0.95]);
-    //     p.set_value([0.7, 0.5, 0.3]).unwrap();
-    //     let val = p.get_value().unwrap();
-    //     assert_eq!(&val, &[0.7, 0.5, 0.3]);
-    // }
+    let otl = OTLS.get("parameters").unwrap();
+    let lib = SESSION.load_asset_file(otl).expect(&format!("Could not load {}", otl));
+    let node = SESSION.create_node_blocking("Object/hapi_parms", None, None).unwrap();
+    for p in node.parameters().unwrap() {
+        assert!(p.name().is_ok());
+    }
+    if let Parameter::Float(mut p) = node.parameter("color").unwrap() {
+        let val = p.get_value().unwrap();
+        assert_eq!(&val, &[0.55, 0.75, 0.95]);
+        p.set_value([0.7, 0.5, 0.3]).unwrap();
+        let val = p.get_value().unwrap();
+        assert_eq!(&val, &[0.7, 0.5, 0.3]);
+    }
 }

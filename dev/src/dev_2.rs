@@ -20,11 +20,7 @@ pub unsafe fn run() -> Result<()> {
     let names = library.get_asset_names()?;
     // let obj = HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?;
     // let node = session.create_node_blocking(&names[0], None, None)?;
-
-    match library.get_asset_parms(&names[0]) {
-        Ok(p) => {}
-        Err(e) => {eprintln!("{}", e)}
-    }
+    // let node = session.create_node_blocking("Object/hapi_parms", None, None)?;
 
     Ok(())
 }
