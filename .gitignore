@@ -2,6 +2,5 @@
 Cargo.lock
 .idea
 build
+backup
 _build
-*.hda
-*.otl

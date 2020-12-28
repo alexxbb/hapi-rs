@@ -301,7 +301,7 @@ impl From<i32> for State {
             5 => State::StartingLoad,
             6 => State::Loading,
             7 => State::Max,
-            _ => unimplemented!(),
+            _ => unreachable!(),
         }
     }
 }
