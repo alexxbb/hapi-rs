@@ -2,5 +2,5 @@
 rustflags = ["-Clink-args=-Wl,-rpath=/net/apps/rhel7/houdini/hfs18.0.530/dsolib"]
 [target.x86_64-apple-darwin]
 rustflags = ["-C",
-    "link-arg=-Wl,-rpath,/Applications/Houdini/Houdini18.0.597/Frameworks/Houdini.framework/Versions/Current/Libraries",
+    "link-arg=-Wl,-rpath,/Applications/Houdini/Current/Frameworks/Houdini.framework/Versions/Current/Libraries",
 ]

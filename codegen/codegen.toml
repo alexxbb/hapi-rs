@@ -42,25 +42,3 @@ HAPI_NodeFlags = { rename = "auto", mode = -1, bitflag = true }
 HAPI_ErrorCode = { rename = "auto", mode = -1, bitflag = true }
 
 [structs]
-#HAPI_NodeInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_AssetInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_ParmInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_ParmChoiceInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_HandleInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_HandleBindingInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_ObjectInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_GeoInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_PartInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_AttributeInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_MaterialInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_ImageInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_VolumeInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_VolumeTileInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_VolumeVisualInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_CurveInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_BoxInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_SphereInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_PDG_EventInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_PDG_WorkitemInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_PDG_WorkitemResultInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }
-#HAPI_SessionSyncInfo = { rename = "auto", mode = -1, derive = ["Default", "Clone"] }

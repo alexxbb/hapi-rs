@@ -7,8 +7,8 @@ use crate::helpers::*;
 
 #[cfg(target_os = "macos")]
 mod paths {
-    pub static HAPI_INCLUDE: &str = "/Applications/Houdini/Houdini18.0.597/Frameworks/Houdini.framework/Versions/Current/Resources/toolkit/include/HAPI";
-    pub static LIBS: &str = "/Applications/Houdini/Houdini18.0.597/Frameworks/Houdini.framework/Versions/Current/Libraries/";
+    pub static HAPI_INCLUDE: &str = "/Applications/Houdini/Current/Frameworks/Houdini.framework/Versions/Current/Resources/toolkit/include/HAPI";
+    pub static LIBS: &str = "/Applications/Houdini/Current/Frameworks/Houdini.framework/Versions/Current/Libraries/";
 }
 
 #[cfg(target_os = "linux")]
@@ -82,7 +82,7 @@ pub fn run_bindgen(incl: &str, header: &str, cgc: Rc<CodeGenConfig>) -> Result<S
         .bitfield_enum("ErrorCode")
         .prepend_enum_name(false)
         .generate_comments(false)
-        .raw_line("use strum_macros::AsRefStr;")
+        // .raw_line("use strum_macros::AsRefStr;")
         .derive_copy(true)
         .derive_debug(true)
         .derive_hash(false)

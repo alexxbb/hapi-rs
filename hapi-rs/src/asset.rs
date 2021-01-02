@@ -1,4 +1,4 @@
-use crate::ffi::raw as ffi;
+use crate::ffi::{raw as ffi, ParmValueCount};
 use std::ffi::CString;
 use std::mem::MaybeUninit;
 use std::path::Path;
@@ -34,9 +34,8 @@ impl AssetLibrary {
         let num_assets = self.get_asset_count()?;
         crate::ffi::get_asset_names(self.lib_id, num_assets, &self.session)
     }
-
     pub fn get_asset_parms(&self, asset_name: impl AsRef<str>) -> Result<Vec<ParmInfo<'_>>> {
-        unimplemented!("This is crashing HARS server");
+        unimplemented!("Crashes HARS as of 18.5.531");
     }
 }
 

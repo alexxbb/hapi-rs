@@ -403,25 +403,35 @@ pub fn get_asset_names(library_id: i32, num_assets: i32, session: &Session) -> R
     crate::stringhandle::get_string_batch(&handles, session)
 }
 
-pub fn get_asset_def_parm_count(library_id: i32, session: &Session) -> Result<()> {
-    unimplemented!()
-    // unsafe {
-    //     raw::HAPI_GetAssetDefinitionParmCounts(
-    //         session.ptr(),
-    //         library_id,
-    //         asset_name.as_ptr(),
-    //         num_parms.as_mut_ptr(),
-    //         a1.as_mut_ptr(),
-    //         a2.as_mut_ptr(),
-    //         a3.as_mut_ptr(),
-    //         a4.as_mut_ptr(),
-    //     ).result_with_session(|| session.clone())?;
-    // }
-    // Ok(())
+#[derive(Default, Debug)]
+pub struct ParmValueCount {
+    pub parm_count: i32,
+    pub int_count: i32,
+    pub float_count: i32,
+    pub string_count: i32,
+    pub choice_count: i32
+}
+
+pub fn get_asset_def_parm_count(library_id: i32, asset: &CStr, session: &Session) -> Result<ParmValueCount> {
+    unimplemented!("Crashes HARS as of 18.5.531");
+    let mut parms = ParmValueCount::default();
+    unsafe {
+        raw::HAPI_GetAssetDefinitionParmCounts(
+            session.ptr(),
+            library_id,
+            asset.as_ptr(),
+            &mut parms.parm_count as *mut _,
+            &mut parms.int_count as *mut _,
+            &mut parms.float_count as *mut _,
+            &mut parms.string_count as *mut _,
+            &mut parms.choice_count as *mut _,
+        ).result_with_session(|| session.clone())?;
+    }
+    Ok(parms)
 }
 
 pub fn get_asset_parm_info() -> Result<()> {
-    unimplemented!()
+    unimplemented!("Crashes HARS as of 18.5.531");
     // ffi::HAPI_GetAssetDefinitionParmInfos(
     //     self.session.ptr(),
     //     self.lib_id,
