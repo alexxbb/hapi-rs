@@ -1,4 +1,4 @@
-use crate::{
+pub use crate::{
     errors::Result,
     ffi::raw::{
         ChoiceListType, HAPI_ParmId, NodeFlags, NodeType, ParmType, Permissions, PrmScriptType, RampType,

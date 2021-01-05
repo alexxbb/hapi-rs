@@ -1,8 +1,7 @@
 [workspace]
 members = [
-#    "hapi-sys",
     "hapi-rs",
     "dev",
     "codegen",
-    "async_test"
+    "gui"
 ]
