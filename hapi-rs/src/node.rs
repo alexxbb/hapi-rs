@@ -1,5 +1,5 @@
 use crate::{
-    errors::*,
+    errors::{Result},
     parameter::*,
     session::{CookResult, Session},
     stringhandle,

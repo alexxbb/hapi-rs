@@ -39,6 +39,52 @@ impl Update for Win {
     }
 }
 
+fn create_parm(parm: &Parameter) -> Result<gtk::Widget, Box::<dyn std::error::Error>> {
+    let info = parm.info();
+    let cont = gtk::Box::new(gtk::Orientation::Horizontal, 5);
+    let label = gtk::Label::new(Some(&info.label()?));
+    cont.add(&label);
+    match parm {
+        Parameter::Float(p) => {
+            if info.size() == 1 {
+                let fl = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 1.0, 0.1);
+                fl.set_property_expand(true);
+                cont.add(&fl);
+            } else {
+                let adj = None::<&gtk::Adjustment>;
+                for i in 0..info.size() {
+                    let adj = gtk::Adjustment::new(0.1, 0.0, 10.0, 0.001, 0.1, 0.0);
+                    let p = gtk::SpinButton::new(Some(&adj), 0.01, 3);
+                    p.set_property_expand(true);
+                    cont.add(&p)
+                }
+            }
+        }
+        Parameter::Int(p) => {
+            if matches!(info.parm_type(), ParmType::Button) {
+                let p = gtk::Button::with_label(&info.name()?);
+                cont.add(&p);
+            } else {
+                let p = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 10.0, 1.0);
+                p.set_property_expand(true);
+                cont.add(&p);
+            }
+        }
+        Parameter::String(p) => {
+            let p = gtk::Entry::new();
+            p.set_property_expand(true);
+            cont.add(&p);
+        }
+        Parameter::Other(p) => {
+            let p = gtk::Label::new(Some("Other Parm"));
+            p.set_property_expand(true);
+            cont.add(&p);
+        }
+    }
+    Ok(cont.upcast::<gtk::Widget>())
+}
+
+
 impl Widget for Win {
     type Root = Window;
 
@@ -51,25 +97,12 @@ impl Widget for Win {
         // Connect the signal `delete_event` to send the `Quit` message.
         connect!(relm, window, connect_delete_event(_, _), return (Some(Msg::Quit), Inhibit(false)));
         let cont = gtk::Box::new(gtk::Orientation::Vertical, 5);
-        let p = model.node.parameters();
         for n in &model.node.parameters().unwrap() {
-            let info = n.info();
-            match info.parm_type() {
-                ParmType::Float => if info.size() == 1 {
-                    let lb = gtk::Label::new(Some(&info.name().unwrap()));
-                    let fl = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 1.0, 0.1);
-                    fl.set_property_expand(true);
-                    let b = gtk::Box::new(gtk::Orientation::Horizontal, 3);
-                    b.add(&lb);
-                    b.add(&fl);
-                    cont.add(&b);
-                }
-                _ => {
-                    let lb = gtk::Label::new(Some(&n.name().unwrap()));
-                    cont.add(&lb);
-                }
-
+            if n.info().invisible() {
+                continue
             }
+            let parm = create_parm(n).expect("Could not create parm");
+            cont.add(&parm);
         }
         window.add(&cont);
         window.show_all();
