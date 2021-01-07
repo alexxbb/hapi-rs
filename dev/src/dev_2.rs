@@ -20,9 +20,12 @@ pub unsafe fn run() -> Result<()> {
     let library = session.load_asset_file(otl.to_string_lossy())?;
     let names = library.get_asset_names()?;
     println!("{:?}", &names);
+    let node = session.create_node_blocking(&names[0], None, None)?;
+    let p = node.parameter("stdswitcher3")?;
+    let info = p.info();
+    dbg!(info.template_name());
     // let obj = HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?;
     // let node = session.create_node_blocking(&names[0], None, None)?;
-    // let node = session.create_node_blocking("Object/hapi_parms", None, None)?;
 
     Ok(())
 }

@@ -42,7 +42,8 @@ impl Update for Win {
 fn create_parm(parm: &Parameter) -> Result<gtk::Widget, Box::<dyn std::error::Error>> {
     let info = parm.info();
     let cont = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-    let label = gtk::Label::new(Some(&info.label()?));
+    let n = format!("{}-{}", &info.label()?, &info.name()?);
+    let label = gtk::Label::new(Some(&n));
     cont.add(&label);
     match parm {
         Parameter::Float(p) => {
