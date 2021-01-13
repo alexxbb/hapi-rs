@@ -50,22 +50,22 @@ main(int argc, char **argv) {
                                    nullptr,
                                    nullptr));
 
-    const char *hdaFile = "sidefx_spaceship.otl";
+    const char *hdaFile = "/Users/alex/CLionProjects/hapi-rs/otls/hapi_parms.hda";
     int assetLibId;
     ENSURE_SUCCESS(HAPI_LoadAssetLibraryFromFile(&session, hdaFile, true, &assetLibId));
 
     HAPI_NodeId nodeId;
-    ENSURE_SUCCESS(HAPI_CreateNode(&session, -1, "SideFX::Object/spaceship", "Node", true, &nodeId));
+    ENSURE_SUCCESS(HAPI_CreateNode(&session, -1, "Object/hapi_parms", "Node", true, &nodeId));
 
     HAPI_ParmInfo info = HAPI_ParmInfo_Create();
     ENSURE_SUCCESS(HAPI_GetParmInfoFromName(
             &session,
             nodeId,
-            "stdswitcher3",
+            "folder0",
             &info));
 
     std::cout << "Name: " << getString(info.nameSH, session) << std::endl;
-    std::cout << "Label: " << getString(info.labelSH, session) << std::endl;
+    std::cout << "Label: " << getString(info.stringValueIndex, session) << std::endl;
 
     return 0;
 }
