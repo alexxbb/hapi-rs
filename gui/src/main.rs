@@ -55,11 +55,7 @@ fn build_ui(parms: Vec<Parameter>) -> Result<group::Group> {
         .take(50)
         .filter(|p|{
             let info = p.info();
-            // ! matches!(info.parm_type(), ParmType::Folder) && ! info.invisible()
-            if matches!(info.parm_type(), ParmType::Folder | ParmType::Folderlist) {
-                return false
-            }
-            ! info.invisible()
+            ! matches!(info.parm_type(), ParmType::Folder | ParmType::Folderlist) && ! info.invisible()
         }).enumerate() {
         let info = parm.info();
         let label = info.label()?;
