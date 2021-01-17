@@ -173,7 +173,7 @@ impl<'node> Parameter<'node> {
             | ParmType::PathFileDir
             | ParmType::PathFileGeo
             | ParmType::PathFileImage => Parameter::String(StringParameter { wrap: base }),
-            _ => unreachable!()
+            p => Parameter::Other(BaseParameter {wrap: base})
         }
     }
     pub fn info(&self) -> &ParmInfo {

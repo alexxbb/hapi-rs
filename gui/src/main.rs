@@ -39,15 +39,22 @@ impl ColorWidget {
         let grp = group::Group::new(x, y, w, h, "");
         let w = w / 4;
         let mut color =button::Button::new(x, y, w, h, "");
-        let mut _color = color.clone();
-        color.set_callback(move || {
-            let clr = dialog::color_chooser("Color", 3).unwrap();
-            _color.set_color(enums::Color::from_rgb(clr.0, clr.1, clr.2));
-        });
         let cr= input::FloatInput::new(x + w * 1, y, w, h, "");
         let cg= input::FloatInput::new(x + w * 2, y, w, h, "");
         let cb= input::FloatInput::new(x + w * 3, y, w, h, "");
         grp.end();
+
+        let mut _color = color.clone();
+        let mut _cr = cr.clone();
+        let mut _cg = cg.clone();
+        let mut _cb = cb.clone();
+        color.set_callback(move || {
+            let clr = dialog::color_chooser("Color", 3).unwrap();
+            _color.set_color(enums::Color::from_rgb(clr.0, clr.1, clr.2));
+            _cr.set_value(&format!("{:.3}", clr.0 as f32/255.0));
+            _cg.set_value(&format!("{:.3}", clr.1 as f32/255.0));
+            _cb.set_value(&format!("{:.3}", clr.2 as f32/255.0));
+        });
         Self {
             color,
             cr,
@@ -57,50 +64,13 @@ impl ColorWidget {
     }
 }
 
-// impl Deref for ColorWidget {
-//     type Target = widget::Widget;
-//
-//     fn deref(&self) -> &Self::Target {
-//         &self.inner
-//     }
-// }
-//
-// impl DerefMut for ColorWidget {
-//     fn deref_mut(&mut self) -> &mut Self::Target {
-//         &mut self.inner
-//     }
-// }
-
-fn example() {
-    let mut root = group::Group::new(10, 10, W - 20, H - 20, "");
-    root.set_frame(enums::FrameType::DownFrame);
-
-    for i in 0..5 {
-        let mut row = group::Group::new(root.x(), root.y() + (i * 50), W - 20, 30, "");
-        row.set_type(group::PackType::Horizontal);
-        for j in 0..3 {
-            yellow_box(row.x() + (j * 50), row.y(), 50);
-        }
-        let mut resizable = frame::Frame::new(160, row.y(), W - 170, 50, "Resize");
-        resizable.set_color(enums::Color::White);
-        resizable.set_frame(frame::FrameType::DownBox);
-        row.end();
-        row.resizable(&resizable);
-    }
-
-    let mut void = frame::Frame::new(root.x(), root.height() - 20, W, 20, "");
-    void.hide();
-    root.resizable(&void);
-    root.end();
-}
-
 fn build_ui(parms: Vec<Parameter>) -> Result<group::Group> {
     let mut root = group::Group::new(10, 10, W - 20, H - 20, "");
     root.set_frame(group::FrameType::DownFrame);
 
     for (i, parm) in parms
         .iter()
-        .take(50)
+        // .take(50)
         .filter(|p| {
             let info = p.info();
             !matches!(info.parm_type(), ParmType::Folder | ParmType::Folderlist)
@@ -131,7 +101,7 @@ fn build_ui(parms: Vec<Parameter>) -> Result<group::Group> {
         match parm {
             Parameter::Float(_) => {
                 if info.size() == 1 {
-                    let mut _slider = valuator::HorNiceSlider::new(x, y, width, HEIGHT, &label);
+                    let mut _slider = valuator::HorValueSlider::new(x, y, width, HEIGHT, &label);
                     _slider.set_bounds(0.0, 1.0);
                     _slider.set_range(0.0, 1.0);
                 } else {
@@ -140,7 +110,7 @@ fn build_ui(parms: Vec<Parameter>) -> Result<group::Group> {
                     } else {
                         let w = width / info.size();
                         for i in 0..info.size() {
-                            input::Input::new(x + w * i, y, w, HEIGHT, "");
+                            input::FloatInput::new(x + w * i, y, w, HEIGHT, "");
                         }
                     }
                 }
@@ -150,7 +120,12 @@ fn build_ui(parms: Vec<Parameter>) -> Result<group::Group> {
                     let mut bt = button::Button::new(x, y, width, HEIGHT, &label);
                     bt.set_callback(|| println!("Hello there"));
                 } else {
-                    yellow_box(x, y, width);
+                    if info.size() == 1 {
+                        let mut _slider = valuator::HorValueSlider::new(x, y, width, HEIGHT, &label);
+                        _slider.set_bounds(0.0, 10.0);
+                        _slider.set_range(0.0, 10.0);
+                        _slider.set_step(1.0, 1);
+                    }
                 }
             }
             Parameter::String(_) => {
