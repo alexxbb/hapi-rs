@@ -173,7 +173,7 @@ impl<'node> Parameter<'node> {
             | ParmType::PathFileDir
             | ParmType::PathFileGeo
             | ParmType::PathFileImage => Parameter::String(StringParameter { wrap: base }),
-            p => Parameter::Other(BaseParameter {wrap: base})
+            _ => Parameter::Other(BaseParameter {wrap: base})
         }
     }
     pub fn info(&self) -> &ParmInfo {
@@ -190,7 +190,9 @@ impl<'node> Parameter<'node> {
             Parameter::Float(p) => p.name(),
             Parameter::Int(p) => p.name(),
             Parameter::String(p) => p.name(),
-            Parameter::Other(_) => unimplemented!() // TODO. BaseParameter is missing name()
+            Parameter::Other(p) => {
+                p.wrap.info.name().map(|s| Cow::Owned(s))
+            }
         }
     }
 }
@@ -218,7 +220,6 @@ impl<'s> ParmBaseTrait<'s> for FloatParameter<'s> {
                                           self.wrap.info.size(), val.as_ref())
     }
 }
-
 
 impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
     type ValueType = i32;

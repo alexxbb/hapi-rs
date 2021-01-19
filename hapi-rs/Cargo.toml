@@ -4,13 +4,9 @@ version = "0.1.0"
 authors = ["Alex Rusev <hou.alexx@gmail.com>"]
 edition = "2018"
 
-[features]
-async = []
-default = []
-
-
 [dependencies]
 log = "0.4"
+#hapi-sys = { path = "../../hapi-sys" }
 
 [dev-dependencies]
 once_cell = "1.5.2"

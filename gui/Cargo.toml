@@ -1,9 +1,0 @@
-[package]
-name = "gui"
-version = "0.1.0"
-authors = ["alexxbb <hou.alexx@gmail.com>"]
-edition = "2018"
-
-[dependencies]
-fltk = {version = "^0.13", features = ["fltk-bundled"]}
-hapi-rs = {path = "../hapi-rs"}

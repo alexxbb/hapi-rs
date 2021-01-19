@@ -23,15 +23,9 @@ pub unsafe fn run() -> Result<()> {
     let node = session.create_node_blocking(&names[0], None, None)?;
     let p = node.parameter("stdswitcher3")?;
     let info = p.info();
-    dbg!(info);
-    // for p in node.parameters()? {
-    //     match p {
-    //         Parameter::Int(x) if x.info().parm_type() == ParmType::Folder => {
-    //             println!("Name: {}, Label: {}", x.name()?, x.info().label()?);
-    //         }
-    //         _ => {}
-    //     }
-    // }
+    for p in node.parameters()? {
+        println!("Name: {}", p.name()?);
+    }
     // let obj = HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?;
     // let node = session.create_node_blocking(&names[0], None, None)?;
 
