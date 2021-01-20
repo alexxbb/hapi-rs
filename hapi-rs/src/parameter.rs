@@ -265,6 +265,7 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
     }
 
     // TODO Maybe take it out of the trait? AsRef makes it an extra String copy. Consider ToOwned?
+    // What a hell did I mean by that?
     fn set_value<T>(&self, val: T) -> Result<()> where T: AsRef<[Self::ValueType]> {
         let start = self.wrap.info.string_values_index();
         let count = self.wrap.info.size();

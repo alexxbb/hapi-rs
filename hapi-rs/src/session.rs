@@ -1,11 +1,10 @@
 pub use crate::{
     asset::AssetLibrary,
     errors::*,
-    ffi::raw::{State, StatusType, StatusVerbosity, HapiResult},
+    ffi::raw::{HapiResult, State, StatusType, StatusVerbosity},
     ffi::CookOptions,
     node::{HoudiniNode, NodeHandle},
 };
-
 
 #[rustfmt::skip]
 use std::{
@@ -47,6 +46,22 @@ impl Session {
             unsync: false,
             cleanup: true,
         })
+    }
+
+    pub fn set_server_env(&self, key: &str, value: &str) -> Result<()> {
+        let key = CString::new(key)?;
+        let value = CString::new(value)?;
+        crate::ffi::set_server_env_variable(self, &key, &value)
+    }
+
+    pub fn get_server_env(&self, key: &str) -> Result<String> {
+        crate::ffi::get_server_env_variable(self, &CString::new(key)?)
+    }
+
+    pub fn get_server_env_variables(&self) -> Result<Vec<String>> {
+        let count = crate::ffi::get_server_env_var_count(self)?;
+        let handles = crate::ffi::get_server_env_var_list(self, count)?;
+        crate::stringhandle::get_string_batch(&handles, self)
     }
 
     pub fn connect_to_server(path: &str) -> Result<Session> {
@@ -201,9 +216,9 @@ impl Drop for Session {
 
 /// Join a sequence of paths into a single String
 fn join_paths<I>(files: I) -> String
-    where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
+where
+    I: IntoIterator,
+    I::Item: AsRef<str>,
 {
     let mut buf = String::new();
     let mut iter = files.into_iter().peekable();
@@ -244,36 +259,39 @@ impl Default for SessionOptions {
 
 impl SessionOptions {
     pub fn set_houdini_env_files<I>(&mut self, files: I)
-        where
-            I: IntoIterator,
-            I::Item: AsRef<str>,
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
     {
         let paths = join_paths(files);
-        self.env_files.replace(CString::new(paths).expect("Zero byte"));
+        self.env_files
+            .replace(CString::new(paths).expect("Zero byte"));
     }
 
     pub fn set_otl_search_paths<I>(&mut self, paths: I)
-        where
-            I: IntoIterator,
-            I::Item: AsRef<str>,
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
     {
         let paths = join_paths(paths);
-        self.otl_path.replace(CString::new(paths).expect("Zero byte"));
+        self.otl_path
+            .replace(CString::new(paths).expect("Zero byte"));
     }
 
     pub fn set_dso_search_paths<P>(&mut self, paths: P)
-        where
-            P: IntoIterator,
-            P::Item: AsRef<str>,
+    where
+        P: IntoIterator,
+        P::Item: AsRef<str>,
     {
         let paths = join_paths(paths);
-        self.dso_path.replace(CString::new(paths).expect("Zero byte"));
+        self.dso_path
+            .replace(CString::new(paths).expect("Zero byte"));
     }
 
     pub fn set_image_search_paths<P>(&mut self, paths: P)
-        where
-            P: IntoIterator,
-            P::Item: AsRef<str>,
+    where
+        P: IntoIterator,
+        P::Item: AsRef<str>,
     {
         let paths = join_paths(paths);
         self.img_dso_path
@@ -281,12 +299,13 @@ impl SessionOptions {
     }
 
     pub fn set_audio_search_paths<P>(&mut self, paths: P)
-        where
-            P: IntoIterator,
-            P::Item: AsRef<str>,
+    where
+        P: IntoIterator,
+        P::Item: AsRef<str>,
     {
         let paths = join_paths(paths);
-        self.aud_dso_path.replace(CString::new(paths).expect("Zero byte"));
+        self.aud_dso_path
+            .replace(CString::new(paths).expect("Zero byte"));
     }
 }
 
@@ -315,4 +334,3 @@ pub fn start_engine_server(path: &str, auto_close: bool, timeout: f32) -> Result
     };
     crate::ffi::start_thrift_server(&path, &opts)
 }
-

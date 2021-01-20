@@ -26,10 +26,9 @@ fn configure_logger() {
 
 
 fn main() {
-    // env_logger::init();
     configure_logger();
     if let Err(e) = unsafe{run()} {
-        eprintln!("Error: {}", e);
+        eprintln!("{}", e);
         std::process::exit(1)
     }
 }

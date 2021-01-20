@@ -52,7 +52,7 @@ impl Kind {
             Kind::Hapi(InvalidSession) => "INVALID_SESSION",
             Kind::NullByte => "String contains null byte!",
             Kind::CookError => "Cooking error",
-            Kind::Hapi(_) => unreachable!(),
+            Kind::Hapi(e) => unreachable!("Case {:?} not covered", e),
         }
     }
 }
@@ -73,7 +73,7 @@ impl HapiError {
 
 impl std::fmt::Display for HapiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.kind {
+        match &self.kind {
             Kind::Hapi(_) => {
                 if let Some(session) = &self.session {
                     let error = session.get_status_string(
@@ -95,7 +95,7 @@ impl std::fmt::Display for HapiError {
                     write!(f, "Kind:{}", self.kind.description())
                 }
             }
-            _ => unreachable!(),
+            e => unreachable!("Unhandled error kind: {:?}", &e),
         }
     }
 }
@@ -106,19 +106,20 @@ impl From<std::ffi::NulError> for HapiError {
     }
 }
 
-macro_rules! hapi_err {
-    ($hapi_result:expr, $session:expr, $message:expr) => {
-        Err(crate::errors::HapiError::new(
-            crate::errors::Kind::Hapi($hapi_result.into()),
-            $session,
-            $message.map(|v|std::borrow::Cow::from(v)),
-        ))
-    };
-
-    ($hapi_result:expr) => {
-        Err(crate::errors::HapiError::new(crate::errors::Kind::Hapi($hapi_result.into()), None, None))
-    };
-}
+// TODO: Unused?
+// macro_rules! hapi_err {
+//     ($hapi_result:expr, $session:expr, $message:expr) => {
+//         Err(crate::errors::HapiError::new(
+//             crate::errors::Kind::Hapi($hapi_result.into()),
+//             $session,
+//             $message.map(|v|std::borrow::Cow::from(v)),
+//         ))
+//     };
+//
+//     ($hapi_result:expr) => {
+//         Err(crate::errors::HapiError::new(crate::errors::Kind::Hapi($hapi_result.into()), None, None))
+//     };
+// }
 
 impl std::error::Error for HapiError {}
 
