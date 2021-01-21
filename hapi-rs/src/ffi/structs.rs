@@ -1,9 +1,9 @@
 use super::raw::*;
 use crate::{
     errors::Result,
-    session::Session,
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
+    session::Session,
 };
 use std::ffi::CString;
 
@@ -122,11 +122,10 @@ macro_rules! builder {
     };
 }
 
-
 #[derive(Debug)]
 pub struct ParmChoiceInfo<'s> {
     pub(crate) inner: HAPI_ParmChoiceInfo,
-    pub(crate) session: &'s Session
+    pub(crate) session: &'s Session,
 }
 
 impl<'s> ParmChoiceInfo<'_> {
@@ -140,7 +139,6 @@ pub struct ParmInfo<'session> {
     pub(crate) session: &'session Session,
     pub(crate) name: Option<CString>,
 }
-
 
 impl<'session> ParmInfo<'session> {
     get!(id->id->[handle: ParmHandle]);
@@ -217,7 +215,7 @@ impl NodeInfo {
 
 #[derive(Debug)]
 pub struct CookOptions {
-    inner: HAPI_CookOptions,
+    pub(crate) inner: HAPI_CookOptions,
 }
 
 builder!(
@@ -244,7 +242,6 @@ builder!(
 pub struct AttributeInfo {
     pub(crate) inner: HAPI_AttributeInfo,
 }
-
 
 #[derive(Debug)]
 pub struct AssetInfo<'session> {
@@ -290,3 +287,18 @@ impl<'s> ObjectInfo<'s> {
     get!(node_id->nodeId->[handle: NodeHandle]);
     get!(object_to_instance_id->objectToInstanceId->[handle: NodeHandle]);
 }
+
+#[derive(Debug, Clone)]
+pub struct TimelineOptions {
+    pub(crate) inner: HAPI_TimelineOptions,
+}
+
+builder!(
+    @object: TimelineOptions
+    @builder:TimelineOptionsBuilder
+    @default: [HAPI_TimelineOptions_Create => HAPI_TimelineOptions]
+    methods:
+        fps->fps->[f32];
+        start_time->startTime->[f32];
+        end_time->endTime->[f32];
+);

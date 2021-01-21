@@ -26,6 +26,17 @@ fn create_and_init() {
 }
 
 #[test]
+fn session_time() -> Result<()> {
+    let opt = TimelineOptionsBuilder::default().end_time(5.5).build();
+    assert!(SESSION.set_timeline_options(opt.clone()).is_ok());
+    let opt2 = SESSION.get_timeline_options()?;
+    assert_eq!(opt.end_time(), opt2.end_time());
+    SESSION.set_time(4.12);
+    assert_eq!(SESSION.get_time()?, 4.12);
+    Ok(())
+}
+
+#[test]
 fn load_asset() ->Result<()> {
     assert!(SESSION.is_valid());
     let otl = OTLS.get("parameters").unwrap();

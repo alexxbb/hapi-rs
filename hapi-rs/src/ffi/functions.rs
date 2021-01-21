@@ -545,7 +545,7 @@ pub fn get_server_env_variable(session: &Session, key: &CStr) -> Result<String> 
     }
 }
 
-pub fn start_thrift_server(file: &CStr, options: &raw::HAPI_ThriftServerOptions) -> Result<(i32)> {
+pub fn start_thrift_server(file: &CStr, options: &raw::HAPI_ThriftServerOptions) -> Result<i32> {
     let mut pid = MaybeUninit::uninit();
     unsafe {
         raw::HAPI_StartThriftNamedPipeServer(options as *const _, file.as_ptr(), pid.as_mut_ptr())
@@ -808,5 +808,65 @@ pub fn get_parameters(node: &HoudiniNode) -> Result<Vec<raw::HAPI_ParmInfo>> {
         )
         .result_with_session(|| node.session.clone())?;
         Ok(parms)
+    }
+}
+
+pub fn check_for_specific_errors(
+    node: &HoudiniNode,
+    error_bits: raw::ErrorCode,
+) -> Result<raw::ErrorCode> {
+    unsafe {
+        let mut code = MaybeUninit::uninit();
+        raw::HAPI_CheckForSpecificErrors(
+            node.session.ptr(),
+            node.handle.0,
+            error_bits.0 as i32,
+            code.as_mut_ptr(),
+        )
+        .result_with_session(|| node.session.clone())?;
+        Ok(raw::ErrorCode(code.assume_init() as u32))
+    }
+}
+
+pub fn get_time(session: &Session) -> Result<f32> {
+    unsafe {
+        let mut time = MaybeUninit::uninit();
+        raw::HAPI_GetTime(session.ptr(), time.as_mut_ptr())
+            .result_with_session(|| session.clone())?;
+        Ok(time.assume_init())
+    }
+}
+
+pub fn set_time(session: &Session, time: f32) -> Result<()> {
+    unsafe { raw::HAPI_SetTime(session.ptr(), time).result_with_session(|| session.clone()) }
+}
+
+pub fn set_timeline_options(session: &Session, options: &raw::HAPI_TimelineOptions) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetTimelineOptions(session.ptr(), options as *const _)
+            .result_with_session(|| session.clone())
+    }
+}
+
+pub fn get_timeline_options(session: &Session) -> Result<raw::HAPI_TimelineOptions> {
+    unsafe {
+        let mut opt = MaybeUninit::uninit();
+        raw::HAPI_GetTimelineOptions(session.ptr(), opt.as_mut_ptr())
+            .result_with_session(|| session.clone())?;
+        Ok(opt.assume_init())
+    }
+}
+
+pub fn set_use_houdini_time(session: &Session, do_use: bool) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetUseHoudiniTime(session.ptr(), do_use as i8)
+            .result_with_session(|| session.clone())
+    }
+}
+
+pub fn reset_simulation(node: &HoudiniNode) -> Result<()> {
+    unsafe {
+        raw::HAPI_ResetSimulation(node.session.ptr(), node.handle.0)
+            .result_with_session(|| node.session.clone())
     }
 }

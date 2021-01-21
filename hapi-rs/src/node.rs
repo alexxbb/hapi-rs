@@ -1,25 +1,18 @@
 use crate::{
-    errors::{Result},
+    errors::Result,
+    ffi,
+    ffi::{AssetInfo, NodeInfo, ObjectInfo, ParmInfo},
     parameter::*,
     session::{CookResult, Session},
     stringhandle,
-    ffi,
-    ffi::{ParmInfo, NodeInfo, AssetInfo, ObjectInfo},
 };
 pub use crate::{
-    ffi::raw::{NodeFlags, NodeType, State, StatusType, StatusVerbosity, ParmType},
+    ffi::raw::{ErrorCode, NodeFlags, NodeType, ParmType, State, StatusType, StatusVerbosity},
     ffi::CookOptions,
 };
 
-use std::{
-    ffi::CString,
-    mem::MaybeUninit,
-    ptr::null,
-    fmt::Formatter,
-    rc::Rc,
-};
-use log::{debug, warn, log_enabled, Level::Debug};
-
+use log::{debug, log_enabled, warn, Level::Debug};
+use std::{ffi::CString, fmt::Formatter, mem::MaybeUninit, ptr::null, rc::Rc};
 
 const fn node_type_name(tp: NodeType) -> &'static str {
     match tp {
@@ -55,7 +48,10 @@ impl std::fmt::Debug for ffi::NodeInfo {
 impl ffi::NodeInfo {
     pub fn new(session: Session, node: &NodeHandle) -> Result<Self> {
         let info = crate::ffi::get_node_info(node, &session)?;
-        Ok(ffi::NodeInfo { inner: info, session })
+        Ok(ffi::NodeInfo {
+            inner: info,
+            session,
+        })
     }
 }
 
@@ -124,7 +120,12 @@ impl HoudiniNode {
         self.session.cook()
     }
 
-    pub fn cook_count(&self, node_types: NodeType, node_flags: NodeFlags, recurse: bool) -> Result<i32> {
+    pub fn cook_count(
+        &self,
+        node_types: NodeType,
+        node_flags: NodeFlags,
+        recurse: bool,
+    ) -> Result<i32> {
         crate::ffi::get_total_cook_count(self, node_types, node_flags, recurse)
     }
 
@@ -171,12 +172,21 @@ impl HoudiniNode {
             _ => self.handle.0,
         };
         let infos = crate::ffi::get_composed_object_list(&self.session, parent)?;
-        Ok(infos.into_iter().map(|inner|
-            ObjectInfo { inner, session: &self.session }).collect()
-        )
+        Ok(infos
+            .into_iter()
+            .map(|inner| ObjectInfo {
+                inner,
+                session: &self.session,
+            })
+            .collect())
     }
 
-    pub fn get_children(&self, types: NodeType, flags: NodeFlags, recursive: bool) -> Result<Vec<NodeHandle>> {
+    pub fn get_children(
+        &self,
+        types: NodeType,
+        flags: NodeFlags,
+        recursive: bool,
+    ) -> Result<Vec<NodeHandle>> {
         let ids = crate::ffi::get_compose_child_node_list(self, types, flags, recursive)?;
         Ok(ids.iter().map(|i| NodeHandle(*i)).collect())
     }
@@ -194,15 +204,27 @@ impl HoudiniNode {
         let infos = crate::ffi::get_parameters(self)?;
         Ok(infos
             .into_iter()
-            .map(|i| Parameter::new(self, ParmInfo {
-                inner: i,
-                session: &self.session,
-                name: None,
-            }))
+            .map(|i| {
+                Parameter::new(
+                    self,
+                    ParmInfo {
+                        inner: i,
+                        session: &self.session,
+                        name: None,
+                    },
+                )
+            })
             .collect())
     }
 
     pub fn asset_info(&self) -> Result<AssetInfo<'_>> {
         AssetInfo::new(self)
+    }
+    pub fn check_for_specific_error(&self, error_bits: ErrorCode) -> Result<ErrorCode> {
+        crate::ffi::check_for_specific_errors(self, error_bits)
+    }
+
+    pub fn reset_simulation(&self) -> Result<()> {
+        crate::ffi::reset_simulation(self)
     }
 }

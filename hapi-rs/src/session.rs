@@ -2,7 +2,7 @@ pub use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::raw::{HapiResult, State, StatusType, StatusVerbosity},
-    ffi::CookOptions,
+    ffi::{CookOptions, TimelineOptions, TimelineOptionsBuilder},
     node::{HoudiniNode, NodeHandle},
 };
 
@@ -191,6 +191,26 @@ impl Session {
 
     pub fn get_connection_error(&self, clear: bool) -> Result<String> {
         crate::ffi::get_connection_error(self, clear)
+    }
+
+    pub fn get_time(&self) -> Result<f32> {
+        crate::ffi::get_time(self)
+    }
+
+    pub fn set_time(&self, time: f32) -> Result<()> {
+        crate::ffi::set_time(self, time)
+    }
+
+    pub fn set_timeline_options(&self, options: TimelineOptions) -> Result<()> {
+        crate::ffi::set_timeline_options(self, &options.inner)
+    }
+
+    pub fn get_timeline_options(&self) -> Result<TimelineOptions> {
+        crate::ffi::get_timeline_options(self).map(|opt| TimelineOptions { inner: opt })
+    }
+
+    pub fn set_use_houdini_time(&self, do_use: bool) -> Result<()> {
+        crate::ffi::set_use_houdini_time(self, do_use)
     }
 }
 
