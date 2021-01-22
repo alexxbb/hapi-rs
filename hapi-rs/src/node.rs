@@ -1,7 +1,7 @@
 use crate::{
     errors::Result,
     ffi,
-    ffi::{AssetInfo, NodeInfo, ObjectInfo, ParmInfo},
+    ffi::{AssetInfo, GeoInfo, NodeInfo, ObjectInfo, ParmInfo},
     parameter::*,
     session::{CookResult, Session},
     stringhandle,
@@ -226,5 +226,12 @@ impl HoudiniNode {
 
     pub fn reset_simulation(&self) -> Result<()> {
         crate::ffi::reset_simulation(self)
+    }
+
+    pub fn display_node_info(&self) -> Result<GeoInfo> {
+        crate::ffi::get_geo_display_info(self).map(|inner| GeoInfo {
+            inner,
+            session: &self.session,
+        })
     }
 }

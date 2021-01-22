@@ -24,8 +24,10 @@ pub unsafe fn run() -> Result<()> {
     let p = node.parameter("stdswitcher3")?;
     let info = p.info();
     for p in node.parameters()? {
-        println!("Name: {}", p.name()?);
+        // println!("Name: {}", p.name()?);
     }
+    let display = node.display_node_info()?;
+    dbg!(display);
     // let obj = HoudiniNode::get_manager_node(session.clone(), NodeType::Obj)?;
     // let node = session.create_node_blocking(&names[0], None, None)?;
 

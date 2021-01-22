@@ -288,6 +288,26 @@ impl<'s> ObjectInfo<'s> {
     get!(object_to_instance_id->objectToInstanceId->[handle: NodeHandle]);
 }
 
+#[derive(Debug)]
+pub struct GeoInfo<'session> {
+    pub(crate) inner: HAPI_GeoInfo,
+    pub session: &'session Session,
+}
+
+impl<'s> GeoInfo<'s> {
+    get!(geo_type->type_->GeoType);
+    get!(name->nameSH->Result<String>);
+    get!(node_id->nodeId->[handle: NodeHandle]);
+    get!(is_editable->isEditable->bool);
+    get!(is_templated->isTemplated->bool);
+    get!(is_display_geo->isDisplayGeo->bool);
+    get!(has_geo_changed->hasGeoChanged->bool);
+    get!(has_material_changed->hasMaterialChanged->bool);
+    get!(point_group_count->pointGroupCount->i32);
+    get!(primitive_group_count->primitiveGroupCount->i32);
+    get!(parm_count->partCount->i32);
+}
+
 #[derive(Debug, Clone)]
 pub struct TimelineOptions {
     pub(crate) inner: HAPI_TimelineOptions,

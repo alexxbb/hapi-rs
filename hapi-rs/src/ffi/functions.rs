@@ -11,6 +11,12 @@ use std::ptr::null;
 
 use super::raw;
 
+macro_rules! uninit {
+    () => {
+        MaybeUninit::uninit()
+    };
+}
+
 pub fn get_parm_float_values(node: &HoudiniNode, start: i32, count: i32) -> Result<Vec<f32>> {
     let mut values = vec![0.; count as usize];
     unsafe {
@@ -58,7 +64,7 @@ pub fn get_parm_string_values(node: &HoudiniNode, start: i32, length: i32) -> Re
 }
 
 pub fn get_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result<f32> {
-    let mut value = MaybeUninit::uninit();
+    let mut value = uninit!();
 
     unsafe {
         raw::HAPI_GetParmFloatValue(
@@ -74,7 +80,7 @@ pub fn get_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32) -> Resu
 }
 
 pub fn get_parm_int_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result<i32> {
-    let mut value = MaybeUninit::uninit();
+    let mut value = uninit!();
 
     unsafe {
         raw::HAPI_GetParmIntValue(
@@ -90,7 +96,7 @@ pub fn get_parm_int_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result
 }
 
 pub fn get_parm_string_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result<String> {
-    let mut handle = MaybeUninit::uninit();
+    let mut handle = uninit!();
     let handle = unsafe {
         raw::HAPI_GetParmStringValue(
             node.session.ptr(),
@@ -104,6 +110,21 @@ pub fn get_parm_string_value(node: &HoudiniNode, name: &CStr, index: i32) -> Res
         handle.assume_init()
     };
     node.session.get_string(handle)
+}
+
+pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<NodeHandle>> {
+    unsafe {
+        let mut id = uninit!();
+        raw::HAPI_GetParmNodeValue(
+            node.session.ptr(),
+            node.handle.0,
+            name.as_ptr(),
+            id.as_mut_ptr(),
+        )
+        .result_with_session(|| node.session.clone())?;
+        let id = id.assume_init();
+        Ok(if id == -1 { None } else { Some(NodeHandle(id)) })
+    }
 }
 
 pub fn set_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32, value: f32) -> Result<()> {
@@ -221,7 +242,7 @@ pub fn get_parm_choice_list(
 
 pub fn get_parm_expression(node: &HoudiniNode, parm: &CStr, index: i32) -> Result<String> {
     let handle = unsafe {
-        let mut handle = MaybeUninit::uninit();
+        let mut handle = uninit!();
         raw::HAPI_GetParmExpression(
             node.session.ptr(),
             node.handle.0,
@@ -255,7 +276,7 @@ pub fn set_parm_expression(
 
 pub fn get_parm_info(node: &HoudiniNode, parm: &ParmHandle) -> Result<raw::HAPI_ParmInfo> {
     unsafe {
-        let mut info = MaybeUninit::uninit();
+        let mut info = uninit!();
         super::raw::HAPI_GetParmInfo(node.session.ptr(), node.handle.0, parm.0, info.as_mut_ptr())
             .result_with_session(|| node.session.clone())?;
         Ok(info.assume_init())
@@ -264,7 +285,7 @@ pub fn get_parm_info(node: &HoudiniNode, parm: &ParmHandle) -> Result<raw::HAPI_
 
 pub fn get_parm_info_from_name(node: &HoudiniNode, name: &CStr) -> Result<raw::HAPI_ParmInfo> {
     unsafe {
-        let mut info = MaybeUninit::uninit();
+        let mut info = uninit!();
         super::raw::HAPI_GetParmInfoFromName(
             node.session.ptr(),
             node.handle.0,
@@ -278,7 +299,7 @@ pub fn get_parm_info_from_name(node: &HoudiniNode, name: &CStr) -> Result<raw::H
 
 pub fn get_parm_id_from_name(name: &CStr, node: &HoudiniNode) -> Result<i32> {
     unsafe {
-        let mut id = MaybeUninit::uninit();
+        let mut id = uninit!();
         crate::ffi::raw::HAPI_GetParmIdFromName(
             node.session.ptr(),
             node.handle.0,
@@ -292,7 +313,7 @@ pub fn get_parm_id_from_name(name: &CStr, node: &HoudiniNode) -> Result<i32> {
 
 pub fn get_node_info(node: &NodeHandle, session: &Session) -> Result<raw::HAPI_NodeInfo> {
     unsafe {
-        let mut info = MaybeUninit::uninit();
+        let mut info = uninit!();
         super::raw::HAPI_GetNodeInfo(session.ptr(), node.0, info.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         Ok(info.assume_init())
@@ -301,7 +322,7 @@ pub fn get_node_info(node: &NodeHandle, session: &Session) -> Result<raw::HAPI_N
 
 pub fn is_node_valid(info: &super::NodeInfo) -> Result<bool> {
     unsafe {
-        let mut answer = MaybeUninit::uninit();
+        let mut answer = uninit!();
         raw::HAPI_IsNodeValid(
             info.session.ptr(),
             info.inner.id,
@@ -322,7 +343,7 @@ pub fn delete_node(node: HoudiniNode) -> Result<()> {
 
 pub fn get_node_path(node: &HoudiniNode, relative_to: Option<&HoudiniNode>) -> Result<String> {
     unsafe {
-        let mut sh = MaybeUninit::uninit();
+        let mut sh = uninit!();
         raw::HAPI_GetNodePath(
             node.session.ptr(),
             node.handle.0,
@@ -343,7 +364,7 @@ pub fn cook_node(node: &HoudiniNode, options: *const raw::HAPI_CookOptions) -> R
 
 pub fn load_library_from_file(path: &CStr, session: &Session, _override: bool) -> Result<i32> {
     unsafe {
-        let mut lib_id = MaybeUninit::uninit();
+        let mut lib_id = uninit!();
         raw::HAPI_LoadAssetLibraryFromFile(
             session.ptr(),
             path.as_ptr(),
@@ -357,7 +378,7 @@ pub fn load_library_from_file(path: &CStr, session: &Session, _override: bool) -
 
 pub fn get_asset_info(node: &HoudiniNode) -> Result<raw::HAPI_AssetInfo> {
     unsafe {
-        let mut info = MaybeUninit::uninit();
+        let mut info = uninit!();
         raw::HAPI_GetAssetInfo(node.session.ptr(), node.handle.0, info.as_mut_ptr())
             .result_with_session(|| node.session.clone())?;
         Ok(info.assume_init())
@@ -366,7 +387,7 @@ pub fn get_asset_info(node: &HoudiniNode) -> Result<raw::HAPI_AssetInfo> {
 
 pub fn get_asset_count(library_id: i32, session: &Session) -> Result<i32> {
     unsafe {
-        let mut num_assets = MaybeUninit::uninit();
+        let mut num_assets = uninit!();
         raw::HAPI_GetAvailableAssetCount(session.ptr(), library_id, num_assets.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         Ok(num_assets.assume_init())
@@ -429,7 +450,7 @@ pub fn get_asset_parm_info() -> Result<()> {
 
 pub fn get_string_batch_size(handles: &[i32], session: &Session) -> Result<i32> {
     unsafe {
-        let mut length = MaybeUninit::uninit();
+        let mut length = uninit!();
         raw::HAPI_GetStringBatchSize(
             session.ptr(),
             handles.as_ptr(),
@@ -453,7 +474,7 @@ pub fn get_string_batch(length: i32, session: &Session) -> Result<Vec<u8>> {
 
 pub fn get_string_buff_len(session: &Session, handle: i32) -> Result<i32> {
     unsafe {
-        let mut length = MaybeUninit::uninit();
+        let mut length = uninit!();
         raw::HAPI_GetStringBufLength(session.ptr(), handle, length.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         Ok(length.assume_init())
@@ -475,7 +496,7 @@ pub fn get_status_string(
     status: raw::StatusType,
     verbosity: raw::StatusVerbosity,
 ) -> Result<String> {
-    let mut length = MaybeUninit::uninit();
+    let mut length = uninit!();
     unsafe {
         raw::HAPI_GetStatusStringBufLength(
             session.ptr(),
@@ -503,7 +524,7 @@ pub fn get_status_string(
 }
 
 pub fn create_inprocess_session() -> Result<raw::HAPI_Session> {
-    let mut ses = MaybeUninit::uninit();
+    let mut ses = uninit!();
     unsafe {
         raw::HAPI_CreateInProcessSession(ses.as_mut_ptr())
             .result_with_message("Session::new_in_process failed")?;
@@ -520,7 +541,7 @@ pub fn set_server_env_variable(session: &Session, key: &CStr, value: &CStr) -> R
 
 pub fn get_server_env_var_count(session: &Session) -> Result<i32> {
     unsafe {
-        let mut val = MaybeUninit::uninit();
+        let mut val = uninit!();
         raw::HAPI_GetServerEnvVarCount(session.ptr(), val.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         Ok(val.assume_init())
@@ -538,7 +559,7 @@ pub fn get_server_env_var_list(session: &Session, count: i32) -> Result<Vec<i32>
 
 pub fn get_server_env_variable(session: &Session, key: &CStr) -> Result<String> {
     unsafe {
-        let mut val = MaybeUninit::uninit();
+        let mut val = uninit!();
         raw::HAPI_GetServerEnvString(session.ptr(), key.as_ptr(), val.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         session.get_string(val.assume_init())
@@ -546,7 +567,7 @@ pub fn get_server_env_variable(session: &Session, key: &CStr) -> Result<String> 
 }
 
 pub fn start_thrift_server(file: &CStr, options: &raw::HAPI_ThriftServerOptions) -> Result<i32> {
-    let mut pid = MaybeUninit::uninit();
+    let mut pid = uninit!();
     unsafe {
         raw::HAPI_StartThriftNamedPipeServer(options as *const _, file.as_ptr(), pid.as_mut_ptr())
             .result_with_message("Could not start thrift server")?;
@@ -555,7 +576,7 @@ pub fn start_thrift_server(file: &CStr, options: &raw::HAPI_ThriftServerOptions)
 }
 
 pub fn new_thrift_piped_session(path: &CStr) -> Result<raw::HAPI_Session> {
-    let mut handle = MaybeUninit::uninit();
+    let mut handle = uninit!();
     let session = unsafe {
         raw::HAPI_CreateThriftNamedPipeSession(handle.as_mut_ptr(), path.as_ptr())
             .result_with_message("Could not start piped session")?;
@@ -632,7 +653,7 @@ pub fn load_hip(session: &Session, name: &CStr, cook: bool) -> Result<()> {
 
 pub fn merge_hip(session: &Session, name: &CStr, cook: bool) -> Result<i32> {
     unsafe {
-        let mut id = MaybeUninit::uninit();
+        let mut id = uninit!();
         raw::HAPI_MergeHIPFile(session.ptr(), name.as_ptr(), cook as i8, id.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         Ok(id.assume_init())
@@ -645,7 +666,7 @@ pub fn interrupt(session: &Session) -> Result<()> {
 
 pub fn get_status(session: &Session, flag: raw::StatusType) -> Result<raw::State> {
     let status = unsafe {
-        let mut status = MaybeUninit::uninit();
+        let mut status = uninit!();
         raw::HAPI_GetStatus(session.ptr(), flag.into(), status.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         status.assume_init()
@@ -664,7 +685,7 @@ pub fn is_session_valid(session: &Session) -> bool {
 
 pub fn get_cooking_total_count(session: &Session) -> Result<i32> {
     unsafe {
-        let mut count = MaybeUninit::uninit();
+        let mut count = uninit!();
         raw::HAPI_GetCookingTotalCount(session.ptr(), count.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         Ok(count.assume_init())
@@ -673,7 +694,7 @@ pub fn get_cooking_total_count(session: &Session) -> Result<i32> {
 
 pub fn get_cooking_current_count(session: &Session) -> Result<i32> {
     unsafe {
-        let mut count = MaybeUninit::uninit();
+        let mut count = uninit!();
         raw::HAPI_GetCookingCurrentCount(session.ptr(), count.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         Ok(count.assume_init())
@@ -682,7 +703,7 @@ pub fn get_cooking_current_count(session: &Session) -> Result<i32> {
 
 pub fn get_connection_error(session: &Session, clear: bool) -> Result<String> {
     unsafe {
-        let mut length = MaybeUninit::uninit();
+        let mut length = uninit!();
         raw::HAPI_GetConnectionErrorLength(length.as_mut_ptr())
             .result_with_message("HAPI_GetConnectionErrorLength failed")?;
         let length = length.assume_init();
@@ -703,7 +724,7 @@ pub fn get_total_cook_count(
     node_flags: raw::NodeFlags,
     recursive: bool,
 ) -> Result<i32> {
-    let mut count = MaybeUninit::uninit();
+    let mut count = uninit!();
     unsafe {
         raw::HAPI_GetTotalCookCount(
             node.session.ptr(),
@@ -726,7 +747,7 @@ pub fn create_node(
     cook: bool,
 ) -> Result<raw::HAPI_NodeId> {
     unsafe {
-        let mut id = MaybeUninit::uninit();
+        let mut id = uninit!();
         raw::HAPI_CreateNode(
             session.ptr(),
             parent.map_or(-1, |h| h.0),
@@ -742,7 +763,7 @@ pub fn create_node(
 
 pub fn get_manager_node(session: &Session, node_type: raw::NodeType) -> Result<raw::HAPI_NodeId> {
     unsafe {
-        let mut id = MaybeUninit::uninit();
+        let mut id = uninit!();
         raw::HAPI_GetManagerNodeId(session.ptr(), node_type, id.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         Ok(id.assume_init())
@@ -756,7 +777,7 @@ pub fn get_compose_child_node_list(
     recursive: bool,
 ) -> Result<Vec<i32>> {
     unsafe {
-        let mut count = MaybeUninit::uninit();
+        let mut count = uninit!();
         raw::HAPI_ComposeChildNodeList(
             node.session.ptr(),
             node.handle.0,
@@ -785,7 +806,7 @@ pub fn get_composed_object_list(
     parent_id: raw::HAPI_NodeId,
 ) -> Result<Vec<raw::HAPI_ObjectInfo>> {
     unsafe {
-        let mut count = MaybeUninit::uninit();
+        let mut count = uninit!();
         raw::HAPI_ComposeObjectList(session.ptr(), parent_id, null(), count.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         let count = count.assume_init();
@@ -816,7 +837,7 @@ pub fn check_for_specific_errors(
     error_bits: raw::ErrorCode,
 ) -> Result<raw::ErrorCode> {
     unsafe {
-        let mut code = MaybeUninit::uninit();
+        let mut code = uninit!();
         raw::HAPI_CheckForSpecificErrors(
             node.session.ptr(),
             node.handle.0,
@@ -830,7 +851,7 @@ pub fn check_for_specific_errors(
 
 pub fn get_time(session: &Session) -> Result<f32> {
     unsafe {
-        let mut time = MaybeUninit::uninit();
+        let mut time = uninit!();
         raw::HAPI_GetTime(session.ptr(), time.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         Ok(time.assume_init())
@@ -850,7 +871,7 @@ pub fn set_timeline_options(session: &Session, options: &raw::HAPI_TimelineOptio
 
 pub fn get_timeline_options(session: &Session) -> Result<raw::HAPI_TimelineOptions> {
     unsafe {
-        let mut opt = MaybeUninit::uninit();
+        let mut opt = uninit!();
         raw::HAPI_GetTimelineOptions(session.ptr(), opt.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         Ok(opt.assume_init())
@@ -869,4 +890,29 @@ pub fn reset_simulation(node: &HoudiniNode) -> Result<()> {
         raw::HAPI_ResetSimulation(node.session.ptr(), node.handle.0)
             .result_with_session(|| node.session.clone())
     }
+}
+
+pub fn get_hipfile_node_count(session: &Session, hip_file_id: i32) -> Result<u32> {
+    unsafe {
+        let mut count = uninit!();
+        raw::HAPI_GetHIPFileNodeCount(session.ptr(), hip_file_id, count.as_mut_ptr());
+        Ok(count.assume_init() as u32)
+    }
+}
+
+pub fn get_geo_display_info(obj_node: &HoudiniNode) -> Result<raw::HAPI_GeoInfo> {
+    get_geo_info(obj_node)
+}
+
+pub fn get_geo_info(node: &HoudiniNode) -> Result<raw::HAPI_GeoInfo> {
+    unsafe {
+        let mut info = uninit!();
+        raw::HAPI_GetGeoInfo(node.session.ptr(), node.handle.0, info.as_mut_ptr())
+            .result_with_session(|| node.session.clone())?;
+        Ok(info.assume_init())
+    }
+}
+
+pub fn get_part_info() -> Result<()> {
+    unimplemented!()
 }
