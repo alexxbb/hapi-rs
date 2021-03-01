@@ -1,7 +1,12 @@
+use std::{ffi::CString, fmt::Formatter, mem::MaybeUninit, ptr::null, rc::Rc};
+
+use log::{debug, log_enabled, warn, Level::Debug};
+
 use crate::{
     errors::Result,
     ffi,
-    ffi::{AssetInfo, GeoInfo, NodeInfo, ObjectInfo, ParmInfo},
+    ffi::{AssetInfo, GeoInfo, NodeInfo, ObjectInfo, ParmInfo, PartInfo},
+    geometry::Geometry,
     parameter::*,
     session::{CookResult, Session},
     stringhandle,
@@ -10,9 +15,6 @@ pub use crate::{
     ffi::raw::{ErrorCode, NodeFlags, NodeType, ParmType, State, StatusType, StatusVerbosity},
     ffi::CookOptions,
 };
-
-use log::{debug, log_enabled, warn, Level::Debug};
-use std::{ffi::CString, fmt::Formatter, mem::MaybeUninit, ptr::null, rc::Rc};
 
 const fn node_type_name(tp: NodeType) -> &'static str {
     match tp {
@@ -67,6 +69,10 @@ impl NodeHandle {
         let info = self.info(session.clone())?;
         crate::ffi::is_node_valid(&info)
     }
+
+    pub fn to_node(&self, session: &Session) -> Result<HoudiniNode> {
+        HoudiniNode::new(session.clone(), *self, None)
+    }
 }
 
 #[derive(Clone)]
@@ -85,7 +91,7 @@ impl std::fmt::Debug for HoudiniNode {
     }
 }
 
-impl HoudiniNode {
+impl<'session> HoudiniNode {
     pub(crate) fn new(session: Session, hdl: NodeHandle, info: Option<NodeInfo>) -> Result<Self> {
         let mut info = match info {
             None => NodeInfo::new(session.clone(), &hdl)?,
@@ -195,12 +201,12 @@ impl HoudiniNode {
         Ok(self.info.parent_id())
     }
 
-    pub fn parameter(&self, name: &str) -> Result<Parameter<'_>> {
+    pub fn parameter(&'session self, name: &str) -> Result<Parameter<'session>> {
         let parm_info = crate::ffi::ParmInfo::from_parm_name(name, self)?;
         Ok(Parameter::new(self, parm_info))
     }
 
-    pub fn parameters(&self) -> Result<Vec<Parameter<'_>>> {
+    pub fn parameters(&'session self) -> Result<Vec<Parameter<'session>>> {
         let infos = crate::ffi::get_parameters(self)?;
         Ok(infos
             .into_iter()
@@ -217,7 +223,7 @@ impl HoudiniNode {
             .collect())
     }
 
-    pub fn asset_info(&self) -> Result<AssetInfo<'_>> {
+    pub fn asset_info(&'session self) -> Result<AssetInfo<'session>> {
         AssetInfo::new(self)
     }
     pub fn check_for_specific_error(&self, error_bits: ErrorCode) -> Result<ErrorCode> {
@@ -228,10 +234,26 @@ impl HoudiniNode {
         crate::ffi::reset_simulation(self)
     }
 
-    pub fn display_node_info(&self) -> Result<GeoInfo> {
-        crate::ffi::get_geo_display_info(self).map(|inner| GeoInfo {
-            inner,
-            session: &self.session,
-        })
+    pub fn geometry(&'session self) -> Result<Option<Geometry<'session>>> {
+        use std::borrow::Cow;
+        match self.info.node_type() {
+            NodeType::Sop => {
+                let info = crate::ffi::get_geo_info(self).map(|inner| GeoInfo {
+                    inner,
+                    session: &self.session,
+                })?;
+                Ok(Some(Geometry { node: Cow::Borrowed(self), info }))
+            }
+            NodeType::Obj => {
+                let info = crate::ffi::get_geo_display_info(self).map(|inner| GeoInfo {
+                    inner,
+                    session: &self.session,
+                })?;
+                let node = Cow::Owned(info.node_id().to_node(&self.session)?);
+                Ok(Some(Geometry { node, info }))
+            }
+            NodeType(_) => return Ok(None)
+        }
     }
+
 }

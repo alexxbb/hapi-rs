@@ -13,6 +13,7 @@ pub mod parameter;
 #[cfg(test)]
 mod tests;
 pub mod ffi;
+pub mod geometry;
 
 pub use errors::Result;
 pub use stringhandle::get_string;

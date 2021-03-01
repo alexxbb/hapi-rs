@@ -239,8 +239,21 @@ builder!(
         extra_flags->extraFlags->[i32]);
 
 #[derive(Debug)]
-pub struct AttributeInfo {
+pub struct AttributeInfo<'session> {
     pub(crate) inner: HAPI_AttributeInfo,
+    pub session: &'session Session,
+}
+
+impl<'s> AttributeInfo<'s> {
+    get!(exists->exists->bool);
+    get!(owner->owner->AttributeOwner);
+    get!(storage->storage->StorageType);
+    get!(original_owner->originalOwner->AttributeOwner);
+    get!(count->count->i32);
+    get!(tuple_size->tupleSize->i32);
+    get!(total_array_elements->totalArrayElements->i64);
+    get!(type_info->typeInfo->AttributeTypeInfo);
+
 }
 
 #[derive(Debug)]
@@ -305,7 +318,27 @@ impl<'s> GeoInfo<'s> {
     get!(has_material_changed->hasMaterialChanged->bool);
     get!(point_group_count->pointGroupCount->i32);
     get!(primitive_group_count->primitiveGroupCount->i32);
-    get!(parm_count->partCount->i32);
+    get!(part_count->partCount->i32);
+}
+
+#[derive(Debug)]
+pub struct PartInfo<'session> {
+    pub(crate) inner: HAPI_PartInfo,
+    pub session: &'session Session,
+}
+
+impl<'s> PartInfo<'s> {
+    get!(part_id->id->i32);
+    get!(part_type->type_->PartType);
+    get!(name->nameSH->Result<String>);
+    get!(face_count->faceCount->i32);
+    get!(vertex_count->vertexCount->i32);
+    get!(point_count->pointCount->i32);
+    get!(attribute_counts->attributeCounts->[i32; 4]);
+    get!(is_instanced->isInstanced->bool);
+    get!(instanced_part_count->instancedPartCount->i32);
+    get!(instance_count->instanceCount->i32);
+    get!(has_changed->hasChanged->bool);
 }
 
 #[derive(Debug, Clone)]

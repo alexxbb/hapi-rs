@@ -1,13 +1,13 @@
+use std::ffi::CStr;
+use std::mem::MaybeUninit;
+use std::ptr::null;
+
 use crate::{
     errors::Result,
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
     session::{Session, SessionOptions},
 };
-
-use std::ffi::CStr;
-use std::mem::MaybeUninit;
-use std::ptr::null;
 
 use super::raw;
 
@@ -900,8 +900,13 @@ pub fn get_hipfile_node_count(session: &Session, hip_file_id: i32) -> Result<u32
     }
 }
 
-pub fn get_geo_display_info(obj_node: &HoudiniNode) -> Result<raw::HAPI_GeoInfo> {
-    get_geo_info(obj_node)
+pub fn get_geo_display_info(node: &HoudiniNode) -> Result<raw::HAPI_GeoInfo> {
+    unsafe {
+        let mut info = uninit!();
+        raw::HAPI_GetDisplayGeoInfo(node.session.ptr(), node.handle.0, info.as_mut_ptr())
+            .result_with_session(|| node.session.clone())?;
+        Ok(info.assume_init())
+    }
 }
 
 pub fn get_geo_info(node: &HoudiniNode) -> Result<raw::HAPI_GeoInfo> {
@@ -913,6 +918,52 @@ pub fn get_geo_info(node: &HoudiniNode) -> Result<raw::HAPI_GeoInfo> {
     }
 }
 
-pub fn get_part_info() -> Result<()> {
-    unimplemented!()
+pub fn get_part_info(node: &HoudiniNode, id: i32) -> Result<raw::HAPI_PartInfo> {
+    unsafe {
+        let mut info = uninit!();
+        super::raw::HAPI_GetPartInfo(node.session.ptr(), node.handle.0, id, info.as_mut_ptr())
+            .result_with_session(|| node.session.clone())?;
+        Ok(info.assume_init())
+    }
+}
+
+pub fn get_attribute_names(
+    node: &HoudiniNode,
+    part_id: i32,
+    count: i32,
+    owner: raw::AttributeOwner,
+) -> Result<Vec<String>> {
+    let mut handles = vec![0; count as usize];
+    unsafe {
+        raw::HAPI_GetAttributeNames(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            owner,
+            handles.as_mut_ptr(),
+            count,
+        )
+        .result_with_session(|| node.session.clone())?;
+    }
+    crate::stringhandle::get_string_batch(&handles, &node.session)
+}
+
+pub fn get_attribute_info(
+    node: &HoudiniNode,
+    part_id: i32,
+    owner: raw::AttributeOwner,
+    name: &CStr,
+) -> Result<raw::HAPI_AttributeInfo> {
+    let mut info = uninit!();
+    unsafe {
+        raw::HAPI_GetAttributeInfo(node.session.ptr(),
+        node.handle.0,
+            part_id,
+            name.as_ptr(),
+            owner,
+            info.as_mut_ptr(),
+        ).result_with_session(||node.session.clone())?;
+
+        Ok(info.assume_init())
+    }
 }
