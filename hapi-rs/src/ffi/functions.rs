@@ -956,14 +956,46 @@ pub fn get_attribute_info(
 ) -> Result<raw::HAPI_AttributeInfo> {
     let mut info = uninit!();
     unsafe {
-        raw::HAPI_GetAttributeInfo(node.session.ptr(),
-        node.handle.0,
+        raw::HAPI_GetAttributeInfo(
+            node.session.ptr(),
+            node.handle.0,
             part_id,
             name.as_ptr(),
             owner,
             info.as_mut_ptr(),
-        ).result_with_session(||node.session.clone())?;
+        )
+        .result_with_session(|| node.session.clone())?;
 
         Ok(info.assume_init())
+    }
+}
+
+pub fn get_attribute_float_data(
+    node: &HoudiniNode,
+    part_id: i32,
+    name: &CStr,
+    attr_info: &raw::HAPI_AttributeInfo,
+    stride: i32,
+    start: i32,
+    length: i32,
+) -> Result<Vec<f32>> {
+    unsafe {
+        let mut data_array = Vec::new();
+        data_array.resize((length * attr_info.tupleSize) as usize, 0.0);
+        // SAFETY: Most likely an error in C API, it should not modify the info object.
+        let attr_info = attr_info as *const _ as *mut raw::HAPI_AttributeInfo;
+        // let mut data_array = vec![];
+        raw::HAPI_GetAttributeFloatData(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            attr_info,
+            stride,
+            data_array.as_mut_ptr(),
+            start,
+            length,
+        ).result_with_session(||node.session.clone())?;
+        Ok(data_array)
     }
 }

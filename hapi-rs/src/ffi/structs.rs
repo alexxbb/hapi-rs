@@ -240,6 +240,7 @@ builder!(
 
 #[derive(Debug)]
 pub struct AttributeInfo<'session> {
+    pub(crate) name: CString,
     pub(crate) inner: HAPI_AttributeInfo,
     pub session: &'session Session,
 }

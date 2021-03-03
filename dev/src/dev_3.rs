@@ -33,9 +33,9 @@ pub unsafe fn run() -> Result<()> {
     let geo = node.geometry()?.unwrap();
     let part = geo.part_info(0)?;
     let attribs = geo.get_attribute_names(AttributeOwner::Point, &part)?;
-    for attr in &attribs {
-        let info = geo.get_attribute_info(0, AttributeOwner::Point, attr)?;
-        dbg!(info);
+    if let Attribute::Float(attr) = geo.get_attribute(0, AttributeOwner::Point, "Cd")? {
+        let values = attr.get_values(0)?;
+        dbg!(values);
     }
     Ok(())
 }

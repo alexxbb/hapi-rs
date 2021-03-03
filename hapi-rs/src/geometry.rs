@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+pub use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{raw::AttributeOwner, GeoInfo};
 use crate::ffi::{AttributeInfo, PartInfo};
@@ -44,18 +45,35 @@ impl<'session> Geometry<'session> {
         crate::ffi::get_attribute_names(&self.node, part.part_id(), count, owner)
     }
 
-    pub fn get_attribute_info(
+    pub fn get_attribute(
         &self,
         part_id: i32,
         owner: AttributeOwner,
         name: &str,
-    ) -> Result<AttributeInfo> {
+    ) -> Result<Attribute> {
         let name = std::ffi::CString::new(name)?;
-        crate::ffi::get_attribute_info(&self.node, part_id, owner, &name).map(|inner| {
-            AttributeInfo {
-                inner,
-                session: &self.node.session,
-            }
-        })
+        let inner = crate::ffi::get_attribute_info(&self.node, part_id, owner, &name)?;
+        let info = AttributeInfo {
+            name,
+            inner,
+            session: &self.node.session,
+        };
+        use crate::ffi::raw::StorageType;
+        let attrib = match info.storage() {
+            StorageType::Invalid => panic!("Invalid storage type"),
+            StorageType::Int => Attribute::Int(Int32Attribute {
+                info,
+                node: &self.node,
+            }),
+            StorageType::Int64 => unimplemented!(),
+            StorageType::Float => Attribute::Float(Float32Attribute {
+                info,
+                node: &self.node,
+            }),
+            StorageType::Float64 => unimplemented!(),
+            StorageType::String => unimplemented!(),
+            StorageType::Max => unreachable!(),
+        };
+        Ok(attrib)
     }
 }
