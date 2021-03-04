@@ -1,58 +1,76 @@
+use std::ffi::CStr;
+use std::marker::PhantomData;
+
 use crate::errors::Result;
 use crate::ffi::raw::{AttributeOwner, StorageType};
 pub use crate::ffi::AttributeInfo;
 use crate::node::HoudiniNode;
 use crate::session::Session;
 
-#[derive(Debug)]
-pub struct Int32Attribute<'s> {
-    pub(crate) info: AttributeInfo<'s>,
-    pub(crate) node: &'s HoudiniNode,
+pub trait AttribDataType: Sized {
+    fn read(node: &HoudiniNode, part_id: i32, info: &AttributeInfo) -> Result<Vec<Self>>;
+    fn set(values: impl AsRef<[Self]>) -> Result<()>;
 }
 
-#[derive(Debug)]
-pub struct Float32Attribute<'s> {
+pub struct Attribute<'s, T: AttribDataType> {
     pub(crate) info: AttributeInfo<'s>,
     pub(crate) node: &'s HoudiniNode,
+    _marker: PhantomData<T>,
 }
 
-#[derive(Debug)]
-pub struct Int64Attribute {}
-#[derive(Debug)]
-pub struct Float64Attribute {}
+impl<'s, T: AttribDataType> Attribute<'s, T> {
+    pub(crate) fn new(info: AttributeInfo<'s>, node: &'s HoudiniNode) -> Self {
+        Attribute::<T> {
+            info,
+            node,
+            _marker: Default::default(),
+        }
+    }
+    pub fn read(&self, part_id: i32) -> Result<Vec<T>> {
+        T::read(self.node, part_id, &self.info)
+    }
+}
 
-impl Float32Attribute<'_> {
-    pub fn get_values(&self, part_id: i32) -> Result<Vec<f32>> {
+impl AttribDataType for f32 {
+    fn read<'session>(
+        node: &HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo<'session>,
+    ) -> Result<Vec<Self>> {
         crate::ffi::get_attribute_float_data(
-            &self.node,
+            node,
             part_id,
-            &self.info.name,
-            &self.info.inner,
+            &info.name,
+            &info.inner,
             -1,
             0,
-            self.info.count(),
+            info.count(),
         )
     }
-    pub fn set_values(&self, values: impl AsRef<[f32]>) -> Result<()> {
-        todo!()
+
+    fn set(values: impl AsRef<[Self]>) -> Result<()> {
+        unimplemented!()
     }
 }
 
-#[derive(Debug)]
-pub enum Attribute<'session> {
-    Int(Int32Attribute<'session>),
-    Int64(Int64Attribute),
-    Float(Float32Attribute<'session>),
-    Float64(Float64Attribute),
-}
+impl AttribDataType for i32 {
+    fn read<'session>(
+        node: &HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo<'session>,
+    ) -> Result<Vec<Self>> {
+        crate::ffi::get_attribute_int_data(
+            node,
+            part_id,
+            &info.name,
+            &info.inner,
+            -1,
+            0,
+            info.count(),
+        )
+    }
 
-impl<'s> Attribute<'s> {
-    pub fn name(&self) -> &str {
-        match self {
-            Attribute::Int(a) => unimplemented!(),
-            Attribute::Int64(a) => unimplemented!(),
-            Attribute::Float(a) => a.info.name.to_str().expect("Non UTF attrib name").as_ref(),
-            Attribute::Float64(a) => unimplemented!(),
-        }
+    fn set(values: impl AsRef<[Self]>) -> Result<()> {
+        unimplemented!()
     }
 }

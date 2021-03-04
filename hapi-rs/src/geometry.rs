@@ -45,12 +45,12 @@ impl<'session> Geometry<'session> {
         crate::ffi::get_attribute_names(&self.node, part.part_id(), count, owner)
     }
 
-    pub fn get_attribute(
+    pub fn get_attribute<T: AttribDataType>(
         &self,
         part_id: i32,
         owner: AttributeOwner,
         name: &str,
-    ) -> Result<Attribute> {
+    ) -> Result<Attribute<T>> {
         let name = std::ffi::CString::new(name)?;
         let inner = crate::ffi::get_attribute_info(&self.node, part_id, owner, &name)?;
         let info = AttributeInfo {
@@ -59,21 +59,7 @@ impl<'session> Geometry<'session> {
             session: &self.node.session,
         };
         use crate::ffi::raw::StorageType;
-        let attrib = match info.storage() {
-            StorageType::Invalid => panic!("Invalid storage type"),
-            StorageType::Int => Attribute::Int(Int32Attribute {
-                info,
-                node: &self.node,
-            }),
-            StorageType::Int64 => unimplemented!(),
-            StorageType::Float => Attribute::Float(Float32Attribute {
-                info,
-                node: &self.node,
-            }),
-            StorageType::Float64 => unimplemented!(),
-            StorageType::String => unimplemented!(),
-            StorageType::Max => unreachable!(),
-        };
+        let attrib = Attribute::new(info, &self.node);
         Ok(attrib)
     }
 }

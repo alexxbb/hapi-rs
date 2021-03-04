@@ -970,32 +970,47 @@ pub fn get_attribute_info(
     }
 }
 
-pub fn get_attribute_float_data(
-    node: &HoudiniNode,
-    part_id: i32,
-    name: &CStr,
-    attr_info: &raw::HAPI_AttributeInfo,
-    stride: i32,
-    start: i32,
-    length: i32,
-) -> Result<Vec<f32>> {
-    unsafe {
-        let mut data_array = Vec::new();
-        data_array.resize((length * attr_info.tupleSize) as usize, 0.0);
-        // SAFETY: Most likely an error in C API, it should not modify the info object.
-        let attr_info = attr_info as *const _ as *mut raw::HAPI_AttributeInfo;
-        // let mut data_array = vec![];
-        raw::HAPI_GetAttributeFloatData(
-            node.session.ptr(),
-            node.handle.0,
-            part_id,
-            name.as_ptr(),
-            attr_info,
-            stride,
-            data_array.as_mut_ptr(),
-            start,
-            length,
-        ).result_with_session(||node.session.clone())?;
-        Ok(data_array)
-    }
+macro_rules! get_attrib_data {
+    ($tp:ty, $default:literal, $func:ident, $ffi:ident) => {
+        pub fn $func(
+            node: &HoudiniNode,
+            part_id: i32,
+            name: &CStr,
+            attr_info: &raw::HAPI_AttributeInfo,
+            stride: i32,
+            start: i32,
+            length: i32,
+        ) -> Result<Vec<$tp>> {
+            unsafe {
+                let mut data_array = Vec::new();
+                data_array.resize((length * attr_info.tupleSize) as usize, $default);
+                // SAFETY: Most likely an error in C API, it should not modify the info object,
+                // but for some reason it wants a mut pointer
+                let attr_info = attr_info as *const _ as *mut raw::HAPI_AttributeInfo;
+                // let mut data_array = vec![];
+                raw::$ffi(
+                    node.session.ptr(),
+                    node.handle.0,
+                    part_id,
+                    name.as_ptr(),
+                    attr_info,
+                    stride,
+                    data_array.as_mut_ptr(),
+                    start,
+                    length,
+                )
+                .result_with_session(|| node.session.clone())?;
+                Ok(data_array)
+            }
+        }
+    };
 }
+
+#[rustfmt::skip]
+get_attrib_data!(f32, 0.0, get_attribute_float_data, HAPI_GetAttributeFloatData);
+#[rustfmt::skip]
+get_attrib_data!(f64, 0.0, get_attribute_float64_data, HAPI_GetAttributeFloat64Data);
+#[rustfmt::skip]
+get_attrib_data!(i32, 0, get_attribute_int_data, HAPI_GetAttributeIntData);
+#[rustfmt::skip]
+get_attrib_data!(i64, 0, get_attribute_int64_data, HAPI_GetAttributeInt64Data);
