@@ -12,13 +12,17 @@ pub trait AttribDataType: Sized {
     fn set(values: impl AsRef<[Self]>) -> Result<()>;
 }
 
+#[derive(Debug)]
 pub struct Attribute<'s, T: AttribDataType> {
     pub(crate) info: AttributeInfo<'s>,
     pub(crate) node: &'s HoudiniNode,
     _marker: PhantomData<T>,
 }
 
-impl<'s, T: AttribDataType> Attribute<'s, T> {
+impl<'s, T> Attribute<'s, T>
+where
+    T: AttribDataType,
+{
     pub(crate) fn new(info: AttributeInfo<'s>, node: &'s HoudiniNode) -> Self {
         Attribute::<T> {
             info,
@@ -31,46 +35,25 @@ impl<'s, T: AttribDataType> Attribute<'s, T> {
     }
 }
 
-impl AttribDataType for f32 {
-    fn read<'session>(
-        node: &HoudiniNode,
-        part_id: i32,
-        info: &AttributeInfo<'session>,
-    ) -> Result<Vec<Self>> {
-        crate::ffi::get_attribute_float_data(
-            node,
-            part_id,
-            &info.name,
-            &info.inner,
-            -1,
-            0,
-            info.count(),
-        )
-    }
+macro_rules! impl_attrib_type {
+    ($ty:ty, $func:ident) => {
+        impl AttribDataType for $ty {
+            fn read<'session>(
+                node: &HoudiniNode,
+                part_id: i32,
+                info: &AttributeInfo<'session>,
+            ) -> Result<Vec<Self>> {
+                crate::ffi::$func(node, part_id, &info.name, &info.inner, -1, 0, info.count())
+            }
 
-    fn set(values: impl AsRef<[Self]>) -> Result<()> {
-        unimplemented!()
-    }
+            fn set(values: impl AsRef<[Self]>) -> Result<()> {
+                unimplemented!()
+            }
+        }
+    };
 }
 
-impl AttribDataType for i32 {
-    fn read<'session>(
-        node: &HoudiniNode,
-        part_id: i32,
-        info: &AttributeInfo<'session>,
-    ) -> Result<Vec<Self>> {
-        crate::ffi::get_attribute_int_data(
-            node,
-            part_id,
-            &info.name,
-            &info.inner,
-            -1,
-            0,
-            info.count(),
-        )
-    }
-
-    fn set(values: impl AsRef<[Self]>) -> Result<()> {
-        unimplemented!()
-    }
-}
+impl_attrib_type!(f32, get_attribute_float_data);
+impl_attrib_type!(f64, get_attribute_float64_data);
+impl_attrib_type!(i32, get_attribute_int_data);
+impl_attrib_type!(i64, get_attribute_int64_data);

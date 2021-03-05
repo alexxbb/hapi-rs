@@ -33,7 +33,11 @@ pub unsafe fn run() -> Result<()> {
     let geo = node.geometry()?.unwrap();
     let part = geo.part_info(0)?;
     let attribs = geo.get_attribute_names(AttributeOwner::Point, &part)?;
-    let attr = geo.get_attribute::<f32>(0, AttributeOwner::Point, "Cd")?;
-    dbg!(attr.read(0));
+    if geo.get_attribute::<f32>(0, AttributeOwner::Prim, "nope")?.is_none() {
+        eprintln!("No attribute: \"nope\"");
+    }
+    if let Some(attr) = geo.get_attribute::<f32>(0, AttributeOwner::Point, "Cd")? {
+        dbg!(attr.read(0));
+    }
     Ok(())
 }

@@ -50,16 +50,21 @@ impl<'session> Geometry<'session> {
         part_id: i32,
         owner: AttributeOwner,
         name: &str,
-    ) -> Result<Attribute<T>> {
+    ) -> Result<Option<Attribute<T>>> {
         let name = std::ffi::CString::new(name)?;
         let inner = crate::ffi::get_attribute_info(&self.node, part_id, owner, &name)?;
-        let info = AttributeInfo {
-            name,
-            inner,
-            session: &self.node.session,
-        };
-        use crate::ffi::raw::StorageType;
-        let attrib = Attribute::new(info, &self.node);
-        Ok(attrib)
+        if inner.exists < 1 {
+            return Ok(None);
+        }
+        let session = &self.node.session;
+        let attrib = Attribute::new(
+            AttributeInfo {
+                name,
+                inner,
+                session,
+            },
+            &self.node,
+        );
+        Ok(Some(attrib))
     }
 }
