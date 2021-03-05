@@ -39,5 +39,11 @@ pub unsafe fn run() -> Result<()> {
     if let Some(attr) = geo.get_attribute::<f32>(0, AttributeOwner::Point, "Cd")? {
         dbg!(attr.read(0));
     }
+
+    if let Some(attr) = geo.get_attribute::<&str>(0, AttributeOwner::Point, "ptname")? {
+        for n in attr.read(0)?.iter_str() {
+            println!("{}", n);
+        }
+    }
     Ok(())
 }

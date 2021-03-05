@@ -7,6 +7,7 @@ use crate::{
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
     session::{Session, SessionOptions},
+    stringhandle::{StringBuffer, get_string_buffer}
 };
 
 use super::raw;
@@ -1014,3 +1015,32 @@ get_attrib_data!(f64, 0.0, get_attribute_float64_data, HAPI_GetAttributeFloat64D
 get_attrib_data!(i32, 0, get_attribute_int_data, HAPI_GetAttributeIntData);
 #[rustfmt::skip]
 get_attrib_data!(i64, 0, get_attribute_int64_data, HAPI_GetAttributeInt64Data);
+
+
+pub fn get_attribute_string_buffer(
+    node: &HoudiniNode,
+    part_id: i32,
+    name: &CStr,
+    attr_info: &raw::HAPI_AttributeInfo,
+    start: i32,
+    length: i32,
+) -> Result<StringBuffer> {
+    unsafe {
+        let mut handles = Vec::new();
+        handles.resize((length * attr_info.tupleSize) as usize, 0);
+        // SAFETY: Most likely an error in C API, it should not modify the info object,
+        // but for some reason it wants a mut pointer
+        let attr_info = attr_info as *const _ as *mut raw::HAPI_AttributeInfo;
+        raw::HAPI_GetAttributeStringData(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            attr_info,
+            handles.as_mut_ptr(),
+            start,
+            length,
+        ).result_with_session(|| node.session.clone())?;
+        crate::stringhandle::get_string_buffer(&handles, &node.session)
+    }
+}
