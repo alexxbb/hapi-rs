@@ -4,7 +4,7 @@ pub use crate::{
     ffi::raw::{HapiResult, State, StatusType, StatusVerbosity},
     ffi::{CookOptions, TimelineOptions, TimelineOptionsBuilder},
     node::{HoudiniNode, NodeHandle},
-    stringhandle::StringBuffer,
+    stringhandle::StringsArray,
 };
 
 #[rustfmt::skip]
@@ -59,10 +59,10 @@ impl Session {
         crate::ffi::get_server_env_variable(self, &CString::new(key)?)
     }
 
-    pub fn get_server_env_variables(&self) -> Result<StringBuffer> {
+    pub fn get_server_env_variables(&self) -> Result<StringsArray> {
         let count = crate::ffi::get_server_env_var_count(self)?;
         let handles = crate::ffi::get_server_env_var_list(self, count)?;
-        crate::stringhandle::get_string_buffer(&handles, self)
+        crate::stringhandle::get_strings_array(&handles, self)
     }
 
     pub fn connect_to_server(path: &str) -> Result<Session> {

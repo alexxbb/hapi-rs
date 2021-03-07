@@ -69,7 +69,11 @@ pub trait ParmBaseTrait<'s> {
     }
     fn expression(&'s self, index: i32) -> Result<String> {
         let wrap = self.wrap();
-        crate::ffi::get_parm_expression(&wrap.node, self.c_name()?.as_c_str(), index)
+        crate::ffi::get_parm_expression(&wrap.node, &self.c_name()?, index)
+    }
+
+    fn has_expression(&'s self, index: i32) -> Result<bool> {
+        crate::ffi::parm_has_expression(&self.wrap().node, &self.c_name()?, index)
     }
 
     fn set_expression(&'s self, value: &str, index: i32) -> Result<()> {
@@ -272,7 +276,11 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
     fn get_value(&self) -> Result<Vec<String>> {
         let start = self.wrap.info.string_values_index();
         let count = self.wrap.info.size();
-        crate::ffi::get_parm_string_values(&self.wrap.node, start, count)
+        Ok(
+            crate::ffi::get_parm_string_values(&self.wrap.node, start, count)?
+                .into_iter()
+                .collect::<Vec<_>>(),
+        )
     }
 
     // TODO Maybe take it out of the trait? AsRef makes it an extra String copy. Consider ToOwned?

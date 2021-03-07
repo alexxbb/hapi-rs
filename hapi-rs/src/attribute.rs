@@ -6,7 +6,7 @@ use crate::ffi::raw::{AttributeOwner, StorageType};
 pub use crate::ffi::AttributeInfo;
 use crate::node::HoudiniNode;
 use crate::session::Session;
-use crate::stringhandle::StringBuffer;
+use crate::stringhandle::StringsArray;
 
 pub trait AttribDataType: Sized {
     type Type;
@@ -69,7 +69,7 @@ impl_attrib_type!(i64, get_attribute_int64_data);
 
 impl<'a> AttribDataType for &'a str {
     type Type = &'a str;
-    type Return = StringBuffer;
+    type Return = StringsArray;
 
     fn read<'s>(
         node: &'s HoudiniNode,

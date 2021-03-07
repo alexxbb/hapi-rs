@@ -1,8 +1,8 @@
 pub use hapi_rs::{
     errors::{HapiError, HapiResult, Kind, Result},
     ffi,
-    node::{HoudiniNode, NodeFlags, NodeType},
     geometry::*,
+    node::{HoudiniNode, NodeFlags, NodeType},
     parameter::*,
     session::{CookResult, Session, SessionOptions, StatusVerbosity, TimelineOptionsBuilder},
     HOUDINI_VERSION,
@@ -23,7 +23,7 @@ pub unsafe fn run() -> Result<()> {
         .filter(|p| match p.parent().unwrap() {
             None => false,
             Some(p) if p.info().label().unwrap() == "Main" => true,
-            _ => false
+            _ => false,
         })
     {
         // println!("Name: {}, parent: {:?}", p.name()?, p.parent()?.unwrap().name());
@@ -33,7 +33,10 @@ pub unsafe fn run() -> Result<()> {
     let geo = node.geometry()?.unwrap();
     let part = geo.part_info(0)?;
     let attribs = geo.get_attribute_names(AttributeOwner::Point, &part)?;
-    if geo.get_attribute::<f32>(0, AttributeOwner::Prim, "nope")?.is_none() {
+    if geo
+        .get_attribute::<f32>(0, AttributeOwner::Prim, "nope")?
+        .is_none()
+    {
         eprintln!("No attribute: \"nope\"");
     }
     if let Some(attr) = geo.get_attribute::<f32>(0, AttributeOwner::Point, "Cd")? {
@@ -41,15 +44,18 @@ pub unsafe fn run() -> Result<()> {
     }
 
     if let Some(attr) = geo.get_attribute::<&str>(0, AttributeOwner::Point, "ptname")? {
-        for n in attr.read(0)? {
+        for n in attr.read(0)?.iter_str() {
             println!("{}", n);
         }
     }
 
     if let Some(pos) = geo.get_attribute::<f32>(0, AttributeOwner::Point, "P")? {
-        for p in pos.read(0)?.iter() {
+        for p in pos.read(0)? {
             // println!("{}", p);
         }
     }
+
+    println!("Point groups: {:?}", geo.get_group_names(GroupType::Point)?.iter_str().collect::<Vec<_>>());
+    println!("Prim groups: {:?}", geo.get_group_names(GroupType::Prim)?.iter_str().collect::<Vec<_>>());
     Ok(())
 }

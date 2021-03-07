@@ -2,9 +2,13 @@ use std::borrow::Cow;
 
 pub use crate::attribute::*;
 use crate::errors::Result;
-pub use crate::ffi::{raw::AttributeOwner, GeoInfo};
+pub use crate::ffi::{
+    raw::{AttributeOwner, GroupType},
+    GeoInfo,
+};
 use crate::ffi::{AttributeInfo, PartInfo};
 use crate::node::HoudiniNode;
+use crate::stringhandle::StringsArray;
 
 #[derive(Debug)]
 pub struct Geometry<'session> {
@@ -28,11 +32,24 @@ impl<'session> Geometry<'session> {
         })
     }
 
+    pub fn get_face_counts(&self, info: &PartInfo) -> Result<Vec<i32>> {
+        crate::ffi::get_face_counts(&self.node, info.part_id(), info.face_count())
+    }
+
+    pub fn get_group_names(&self, group_type: GroupType) -> Result<StringsArray> {
+        let count = match group_type {
+            GroupType::Point => self.info.point_group_count(),
+            GroupType::Prim => self.info.primitive_group_count(),
+            _ => unreachable!("Impossible GroupType value"),
+        };
+        crate::ffi::get_group_names(&self.node, group_type, count)
+    }
+
     pub fn get_attribute_names(
         &self,
         owner: AttributeOwner,
         part: &PartInfo,
-    ) -> Result<Vec<String>> {
+    ) -> Result<StringsArray> {
         let counts = part.attribute_counts();
         let count = match owner {
             AttributeOwner::Invalid => panic!("Invalid AttributeOwner"),

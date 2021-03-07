@@ -7,7 +7,7 @@ use crate::{
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
     session::{Session, SessionOptions},
-    stringhandle::{StringBuffer, get_string_buffer}
+    stringhandle::{get_strings_array, StringsArray},
 };
 
 use super::raw;
@@ -48,7 +48,7 @@ pub fn get_parm_int_values(node: &HoudiniNode, start: i32, length: i32) -> Resul
     Ok(values)
 }
 
-pub fn get_parm_string_values(node: &HoudiniNode, start: i32, length: i32) -> Result<Vec<String>> {
+pub fn get_parm_string_values(node: &HoudiniNode, start: i32, length: i32) -> Result<StringsArray> {
     let mut handles = vec![0; length as usize];
     unsafe {
         raw::HAPI_GetParmStringValues(
@@ -61,7 +61,7 @@ pub fn get_parm_string_values(node: &HoudiniNode, start: i32, length: i32) -> Re
         )
         .result_with_session(|| node.session.clone())?
     }
-    crate::stringhandle::get_string_batch(&handles, &node.session)
+    crate::stringhandle::get_strings_array(&handles, &node.session)
 }
 
 pub fn get_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result<f32> {
@@ -257,6 +257,22 @@ pub fn get_parm_expression(node: &HoudiniNode, parm: &CStr, index: i32) -> Resul
     crate::stringhandle::get_string(handle, &node.session)
 }
 
+pub fn parm_has_expression(node: &HoudiniNode, parm: &CStr, index: i32) -> Result<bool> {
+    let ret = unsafe {
+        let mut ret = uninit!();
+        raw::HAPI_ParmHasExpression(
+            node.session.ptr(),
+            node.handle.0,
+            parm.as_ptr(),
+            index,
+            ret.as_mut_ptr(),
+        )
+        .result_with_session(|| node.session.clone())?;
+        ret.assume_init()
+    };
+    Ok(ret > 0)
+}
+
 pub fn set_parm_expression(
     node: &HoudiniNode,
     parm: &ParmHandle,
@@ -395,14 +411,18 @@ pub fn get_asset_count(library_id: i32, session: &Session) -> Result<i32> {
     }
 }
 
-pub fn get_asset_names(library_id: i32, num_assets: i32, session: &Session) -> Result<Vec<String>> {
+pub fn get_asset_names(
+    library_id: i32,
+    num_assets: i32,
+    session: &Session,
+) -> Result<StringsArray> {
     let handles = unsafe {
         let mut names = vec![0; num_assets as usize];
         raw::HAPI_GetAvailableAssets(session.ptr(), library_id, names.as_mut_ptr(), num_assets)
             .result_with_session(|| session.clone())?;
         names
     };
-    crate::stringhandle::get_string_batch(&handles, session)
+    crate::stringhandle::get_strings_array(&handles, session)
 }
 
 #[derive(Default, Debug)]
@@ -463,13 +483,14 @@ pub fn get_string_batch_size(handles: &[i32], session: &Session) -> Result<i32> 
     }
 }
 
+/// Note: contiguous array of null-terminated strings
 pub fn get_string_batch(length: i32, session: &Session) -> Result<Vec<u8>> {
     let mut buffer = vec![0u8; length as usize];
     unsafe {
         raw::HAPI_GetStringBatch(session.ptr(), buffer.as_mut_ptr() as *mut _, length as i32)
             .result_with_session(|| session.clone())?;
     }
-    buffer.truncate(length as usize - 1);
+    buffer.truncate(length as usize);
     Ok(buffer)
 }
 
@@ -933,7 +954,7 @@ pub fn get_attribute_names(
     part_id: i32,
     count: i32,
     owner: raw::AttributeOwner,
-) -> Result<Vec<String>> {
+) -> Result<StringsArray> {
     let mut handles = vec![0; count as usize];
     unsafe {
         raw::HAPI_GetAttributeNames(
@@ -946,7 +967,7 @@ pub fn get_attribute_names(
         )
         .result_with_session(|| node.session.clone())?;
     }
-    crate::stringhandle::get_string_batch(&handles, &node.session)
+    crate::stringhandle::get_strings_array(&handles, &node.session)
 }
 
 pub fn get_attribute_info(
@@ -1016,7 +1037,6 @@ get_attrib_data!(i32, 0, get_attribute_int_data, HAPI_GetAttributeIntData);
 #[rustfmt::skip]
 get_attrib_data!(i64, 0, get_attribute_int64_data, HAPI_GetAttributeInt64Data);
 
-
 pub fn get_attribute_string_buffer(
     node: &HoudiniNode,
     part_id: i32,
@@ -1024,7 +1044,7 @@ pub fn get_attribute_string_buffer(
     attr_info: &raw::HAPI_AttributeInfo,
     start: i32,
     length: i32,
-) -> Result<StringBuffer> {
+) -> Result<StringsArray> {
     unsafe {
         let mut handles = Vec::new();
         handles.resize((length * attr_info.tupleSize) as usize, 0);
@@ -1040,7 +1060,43 @@ pub fn get_attribute_string_buffer(
             handles.as_mut_ptr(),
             start,
             length,
-        ).result_with_session(|| node.session.clone())?;
-        crate::stringhandle::get_string_buffer(&handles, &node.session)
+        )
+        .result_with_session(|| node.session.clone())?;
+        crate::stringhandle::get_strings_array(&handles, &node.session)
     }
+}
+
+pub fn get_face_counts(node: &HoudiniNode, part_id: i32, length: i32) -> Result<Vec<i32>> {
+    let mut array = vec![0; length as usize];
+    unsafe {
+        raw::HAPI_GetFaceCounts(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            array.as_mut_ptr(),
+            0,
+            length,
+        )
+        .result_with_session(|| node.session.clone())?;
+    }
+    Ok(array)
+}
+
+pub fn get_group_names(
+    node: &HoudiniNode,
+    group_type: raw::GroupType,
+    count: i32,
+) -> Result<StringsArray> {
+    let mut handles = vec![0; count as usize];
+    unsafe {
+        raw::HAPI_GetGroupNames(
+            node.session.ptr(),
+            node.handle.0,
+            group_type,
+            handles.as_mut_ptr(),
+            count,
+        )
+        .result_with_session(|| node.session.clone())?;
+    }
+    crate::stringhandle::get_strings_array(&handles, &node.session)
 }
