@@ -37,12 +37,18 @@ pub unsafe fn run() -> Result<()> {
         eprintln!("No attribute: \"nope\"");
     }
     if let Some(attr) = geo.get_attribute::<f32>(0, AttributeOwner::Point, "Cd")? {
-        dbg!(attr.read(0));
+        // dbg!(attr.read(0));
     }
 
     if let Some(attr) = geo.get_attribute::<&str>(0, AttributeOwner::Point, "ptname")? {
-        for n in attr.read(0)?.iter_str() {
+        for n in attr.read(0)? {
             println!("{}", n);
+        }
+    }
+
+    if let Some(pos) = geo.get_attribute::<f32>(0, AttributeOwner::Point, "P")? {
+        for p in pos.read(0)?.iter() {
+            // println!("{}", p);
         }
     }
     Ok(())
