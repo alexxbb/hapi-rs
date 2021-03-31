@@ -8,7 +8,7 @@ pub use hapi_rs::{
 };
 
 pub unsafe fn run() -> Result<()> {
-    let mut session = Session::connect_to_server("/tmp/hapi")?;
+    let mut session = Session::connect_to_pipe("/tmp/hapi")?;
     // let mut session = Session::new_in_process()?;
     // session.cleanup()?;
     let mut opts = SessionOptions::default();

@@ -9,7 +9,7 @@ pub use hapi_rs::{
 };
 
 pub unsafe fn run() -> Result<()> {
-    let mut session = Session::connect_to_server("/tmp/hapi")?;
+    let mut session = Session::connect_to_socket("127.0.0.1:31000".parse().unwrap())?;
     // session.cleanup()?;
     let mut opts = SessionOptions::default();
     session.initialize(&opts);

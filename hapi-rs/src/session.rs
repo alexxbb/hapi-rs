@@ -1,3 +1,16 @@
+#[rustfmt::skip]
+use std::{
+    ffi::CString,
+    mem::MaybeUninit,
+    ops::Deref,
+    path::Path,
+    ptr::null,
+    sync::Arc,
+};
+use std::borrow::Cow;
+
+use log::{debug, error, warn};
+
 pub use crate::{
     asset::AssetLibrary,
     errors::*,
@@ -6,19 +19,6 @@ pub use crate::{
     node::{HoudiniNode, NodeHandle},
     stringhandle::StringsArray,
 };
-
-#[rustfmt::skip]
-use std::{
-    ffi::CString,
-    mem::MaybeUninit,
-    ops::Deref,
-    ptr::null,
-    sync::Arc,
-    path::Path,
-};
-
-use log::{debug, error, warn};
-use std::borrow::Cow;
 
 #[derive(Debug, Clone)]
 pub enum CookResult {
@@ -65,10 +65,21 @@ impl Session {
         crate::stringhandle::get_strings_array(&handles, self)
     }
 
-    pub fn connect_to_server(path: &str) -> Result<Session> {
-        debug!("Connecting to Thrift session: {}", path);
-        let path = CString::new(path)?;
+    pub fn connect_to_pipe(pipe: &str) -> Result<Session> {
+        debug!("Connecting to Thrift session: {}", pipe);
+        let path = CString::new(pipe)?;
         let session = crate::ffi::new_thrift_piped_session(&path)?;
+        Ok(Session {
+            handle: Arc::new(session),
+            unsync: false,
+            cleanup: false,
+        })
+    }
+
+    pub fn connect_to_socket(addr: std::net::SocketAddrV4) -> Result<Session> {
+        debug!("Connecting to socket server: {:?}", addr);
+        let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
+        let session = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
         Ok(Session {
             handle: Arc::new(session),
             unsync: false,
@@ -346,12 +357,20 @@ impl From<i32> for State {
     }
 }
 
-pub fn start_engine_server(path: &str, auto_close: bool, timeout: f32) -> Result<i32> {
+pub fn start_engine_pipe_server(path: &str, auto_close: bool, timeout: f32) -> Result<i32> {
     debug!("Starting named pipe server: {}", path);
     let path = CString::new(path)?;
     let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
         autoClose: auto_close as i8,
         timeoutMs: timeout,
     };
-    crate::ffi::start_thrift_server(&path, &opts)
+    crate::ffi::start_thrift_pipe_server(&path, &opts)
+}
+pub fn start_engine_socket_server(port: u16, auto_close: bool, timeout: i32) -> Result<i32> {
+    debug!("Starting socket server on port: {}", port);
+    let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
+        autoClose: auto_close as i8,
+        timeoutMs: timeout as f32,
+    };
+    crate::ffi::start_thrift_socket_server(port as i32, &opts)
 }

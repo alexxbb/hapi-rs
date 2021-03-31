@@ -588,10 +588,25 @@ pub fn get_server_env_variable(session: &Session, key: &CStr) -> Result<String> 
     }
 }
 
-pub fn start_thrift_server(file: &CStr, options: &raw::HAPI_ThriftServerOptions) -> Result<i32> {
+pub fn start_thrift_pipe_server(
+    file: &CStr,
+    options: &raw::HAPI_ThriftServerOptions,
+) -> Result<i32> {
     let mut pid = uninit!();
     unsafe {
         raw::HAPI_StartThriftNamedPipeServer(options as *const _, file.as_ptr(), pid.as_mut_ptr())
+            .result_with_message("Could not start thrift server")?;
+        Ok(pid.assume_init())
+    }
+}
+
+pub fn start_thrift_socket_server(
+    port: i32,
+    options: &raw::HAPI_ThriftServerOptions,
+) -> Result<i32> {
+    let mut pid = uninit!();
+    unsafe {
+        raw::HAPI_StartThriftSocketServer(options as *const _, port, pid.as_mut_ptr())
             .result_with_message("Could not start thrift server")?;
         Ok(pid.assume_init())
     }
@@ -602,6 +617,20 @@ pub fn new_thrift_piped_session(path: &CStr) -> Result<raw::HAPI_Session> {
     let session = unsafe {
         raw::HAPI_CreateThriftNamedPipeSession(handle.as_mut_ptr(), path.as_ptr())
             .result_with_message("Could not start piped session")?;
+        handle.assume_init()
+    };
+    Ok(session)
+}
+
+pub fn new_thrift_socket_session(port: i32, host: &CStr) -> Result<raw::HAPI_Session> {
+    let mut handle = uninit!();
+    let session = unsafe {
+        raw::HAPI_CreateThriftSocketSession(
+            handle.as_mut_ptr(),
+            host.as_ptr(),
+            port,
+        )
+        .result_with_message("Could not start socket session")?;
         handle.assume_init()
     };
     Ok(session)
