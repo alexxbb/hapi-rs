@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::thread;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use env_logger;
 use log::{debug, info, warn};
@@ -73,15 +73,27 @@ impl Kiosk {
                 let mut sessions = Arc::clone(&self.sessions);
                 tokio::spawn(async move {
                     let mut session = Kiosk::start_session().await;
-                    let job = Job{};
+                    let job = Job {};
                     session.jobs.lock().await.push_back(job);
                     sessions.lock().await.insert(hdl, session);
                 });
             }
-            Some(s) => {
-                s.jobs.lock().await.push_back(Job{})
-            }
+            Some(s) => s.jobs.lock().await.push_back(Job {}),
         }
+    }
+
+    pub async fn start_job_worker(sessions: SessionsMap) {
+        tokio::task::spawn_blocking(move || {
+            loop {
+                std::thread::sleep(Duration::from_millis(500));
+                let sessions = Arc::clone(&sessions);
+                tokio::spawn(async move {
+                    let sessions = sessions.lock().await;
+                    let keys = sessions.keys().collect::<Vec<_>>();
+                    dbg!(&keys);
+                });
+            }
+        });
     }
 
     pub async fn run_task(&mut self, hdl: SessionHandle, task: Job) {
@@ -97,7 +109,9 @@ impl Kiosk {
                 jobs: Default::default(),
             };
             new_session
-            }).await.expect("Oops")
+        })
+        .await
+        .expect("Oops")
     }
 
     fn start_session_2(&self, hdl: SessionHandle) {
@@ -183,6 +197,8 @@ async fn main() {
             sessions: Default::default(),
         },
     };
+    let sessions = Arc::clone(&state.kiosk.sessions);
+    tokio::task::spawn(Kiosk::start_job_worker(sessions));
     let entry = api_entry(Arc::new(Mutex::new(state)));
     warp::serve(entry).run(([127, 0, 0, 1], 3030)).await;
 }
