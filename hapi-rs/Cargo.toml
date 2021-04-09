@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies]
 log = "0.4"
-#hapi-sys = { path = "../../hapi-sys" }
 
 [dev-dependencies]
 once_cell = "1.5.2"
