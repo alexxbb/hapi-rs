@@ -36,9 +36,14 @@ pub struct Session {
 
 impl Session {
     #[inline]
-    pub fn ptr(&self) -> *const crate::ffi::raw::HAPI_Session {
+    pub(crate) fn ptr(&self) -> *const crate::ffi::raw::HAPI_Session {
         self.handle.as_ref() as *const _
     }
+    #[inline]
+    pub fn uid(&self) -> i64 {
+        self.handle.id
+    }
+
     pub fn new_in_process() -> Result<Session> {
         debug!("Creating new in-process session");
         let ses = crate::ffi::create_inprocess_session()?;
