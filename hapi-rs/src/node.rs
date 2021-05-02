@@ -242,7 +242,10 @@ impl<'session> HoudiniNode {
                     inner,
                     session: &self.session,
                 })?;
-                Ok(Some(Geometry { node: Cow::Borrowed(self), info }))
+                Ok(Some(Geometry {
+                    node: Cow::Borrowed(self),
+                    info,
+                }))
             }
             NodeType::Obj => {
                 let info = crate::ffi::get_geo_display_info(self).map(|inner| GeoInfo {
@@ -252,8 +255,7 @@ impl<'session> HoudiniNode {
                 let node = Cow::Owned(info.node_id().to_node(&self.session)?);
                 Ok(Some(Geometry { node, info }))
             }
-            NodeType(_) => return Ok(None)
+            NodeType(_) => return Ok(None),
         }
     }
-
 }

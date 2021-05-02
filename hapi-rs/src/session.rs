@@ -96,7 +96,23 @@ impl Session {
         debug!("Initializing session");
         self.unsync = opts.unsync;
         self.cleanup = opts.cleanup;
-        crate::ffi::initialize_session(self.handle.as_ref(), opts)
+        let res = crate::ffi::initialize_session(self.handle.as_ref(), opts);
+        if !opts.ignore_already_init {
+            return res;
+        }
+        match res {
+            Ok(_) => Ok(()),
+            Err(e) => match e {
+                HapiError {
+                    kind: Kind::Hapi(HapiResult::AlreadyInitialized),
+                    ..
+                } => {
+                    warn!("Session already initialized, skipping");
+                    Ok(())
+                }
+                e => Err(e),
+            },
+        }
     }
 
     pub fn cleanup(&self) -> Result<()> {
@@ -111,6 +127,15 @@ impl Session {
 
     pub fn is_initialized(&self) -> Result<bool> {
         crate::ffi::is_session_initialized(self)
+    }
+
+    pub fn create_node(
+        &self,
+        name: &str,
+        label: Option<&str>,
+        parent: Option<NodeHandle>,
+    ) -> Result<HoudiniNode> {
+        HoudiniNode::create(name, label, parent, self.clone(), false)
     }
 
     pub fn create_node_blocking(
@@ -272,6 +297,7 @@ pub struct SessionOptions {
     pub cook_opt: CookOptions,
     pub unsync: bool,
     pub cleanup: bool,
+    pub ignore_already_init: bool,
     pub env_files: Option<CString>,
     pub otl_path: Option<CString>,
     pub dso_path: Option<CString>,
@@ -283,8 +309,9 @@ impl Default for SessionOptions {
     fn default() -> Self {
         SessionOptions {
             cook_opt: CookOptions::default(),
-            unsync: true,
+            unsync: false,
             cleanup: false,
+            ignore_already_init: true,
             env_files: None,
             otl_path: None,
             dso_path: None,

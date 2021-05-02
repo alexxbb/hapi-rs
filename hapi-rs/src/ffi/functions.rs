@@ -625,12 +625,8 @@ pub fn new_thrift_piped_session(path: &CStr) -> Result<raw::HAPI_Session> {
 pub fn new_thrift_socket_session(port: i32, host: &CStr) -> Result<raw::HAPI_Session> {
     let mut handle = uninit!();
     let session = unsafe {
-        raw::HAPI_CreateThriftSocketSession(
-            handle.as_mut_ptr(),
-            host.as_ptr(),
-            port,
-        )
-        .result_with_message("Could not start socket session")?;
+        raw::HAPI_CreateThriftSocketSession(handle.as_mut_ptr(), host.as_ptr(), port)
+            .result_with_message("Could not start socket session")?;
         handle.assume_init()
     };
     Ok(session)
@@ -683,8 +679,11 @@ pub fn close_session(session: &Session) -> Result<()> {
 
 pub fn is_session_initialized(session: &Session) -> Result<bool> {
     unsafe {
-        raw::HAPI_IsInitialized(session.ptr())
-            .to_result(|| (None, Some("HAPI_IsInitialized failed".into())))
+        match raw::HAPI_IsInitialized(session.ptr()) {
+            raw::HapiResult::Success => Ok(true),
+            raw::HapiResult::NotInitialized => Ok(false),
+            e => Err(e.into()),
+        }
     }
 }
 

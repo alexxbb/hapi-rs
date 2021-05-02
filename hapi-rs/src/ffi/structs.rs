@@ -254,7 +254,6 @@ impl<'s> AttributeInfo<'s> {
     get!(tuple_size->tupleSize->i32);
     get!(total_array_elements->totalArrayElements->i64);
     get!(type_info->typeInfo->AttributeTypeInfo);
-
 }
 
 #[derive(Debug)]

@@ -1,12 +1,14 @@
-use once_cell::sync::Lazy;
-use crate::session::*;
 use crate::parameter::*;
+use crate::session::*;
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 
 static SESSION: Lazy<Session> = Lazy::new(|| {
     use env_logger;
     env_logger::init();
-    let tmp = std::env::var("TMP").or_else(|_| std::env::var("TEMP")).expect("Could not get TEMP dir");
+    let tmp = std::env::var("TMP")
+        .or_else(|_| std::env::var("TEMP"))
+        .expect("Could not get TEMP dir");
     let pipe = format!("{}/hapi_test_pipe", tmp);
     start_engine_pipe_server(&pipe, true, 2000.0).expect("Could not start test session");
     let mut ses = Session::connect_to_pipe(&pipe).expect("Could not create thrift session");
@@ -15,7 +17,14 @@ static SESSION: Lazy<Session> = Lazy::new(|| {
 });
 pub static OTLS: Lazy<HashMap<&str, String>> = Lazy::new(|| {
     let mut map = HashMap::new();
-    let root = format!("{}/otls", std::env::current_dir().unwrap().parent().unwrap().to_string_lossy());
+    let root = format!(
+        "{}/otls",
+        std::env::current_dir()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_string_lossy()
+    );
     map.insert("parameters", format!("{}/hapi_parms.hda", root));
     map
 });
@@ -37,12 +46,14 @@ fn session_time() -> Result<()> {
 }
 
 #[test]
-fn load_asset() ->Result<()> {
+fn load_asset() -> Result<()> {
     assert!(SESSION.is_valid());
     let otl = OTLS.get("parameters").unwrap();
     let lib = SESSION.load_asset_file(otl)?;
     assert_eq!(lib.get_asset_count()?, 1);
-    assert!(lib.get_asset_names()?.contains(&"Object/hapi_parms".to_string()));
+    assert!(lib
+        .get_asset_names()?
+        .contains(&"Object/hapi_parms".to_string()));
     Ok(())
 }
 
@@ -51,7 +62,9 @@ fn load_asset() ->Result<()> {
 fn asset_parameters() {
     assert!(SESSION.is_valid());
     let otl = OTLS.get("parameters").unwrap();
-    let lib = SESSION.load_asset_file(otl).expect(&format!("Could not load {}", otl));
+    let lib = SESSION
+        .load_asset_file(otl)
+        .expect(&format!("Could not load {}", otl));
     let parms = lib.get_asset_parms("Object/hapi_parms");
     assert!(parms.is_ok());
 }
@@ -104,7 +117,6 @@ fn node_parameters() -> Result<()> {
             assert_eq!(sp.get_value()?[0], "hello");
             ip.set_value([1]);
             assert_eq!(sp.get_value()?[0], "set from callback");
-
         }
     }
     Ok(())

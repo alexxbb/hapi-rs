@@ -20,7 +20,6 @@ pub struct OwnedStringIter {
     cursor: usize,
 }
 
-
 impl std::iter::Iterator for OwnedStringIter {
     type Item = String;
 

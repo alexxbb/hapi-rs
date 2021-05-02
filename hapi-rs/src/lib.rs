@@ -5,22 +5,21 @@ mod macros;
 #[macro_use]
 pub mod errors;
 mod asset;
-pub mod node;
-pub mod session;
-mod stringhandle;
 mod attribute;
-pub mod parameter;
-#[cfg(test)]
-mod tests;
 pub mod ffi;
 pub mod geometry;
+pub mod node;
+pub mod parameter;
+pub mod session;
+mod stringhandle;
+#[cfg(test)]
+mod tests;
 
 pub use errors::Result;
 pub use stringhandle::get_string;
 
 pub use crate::ffi::raw::{
-    NodeFlags, NodeType,
-    StorageType, State, StatusType, StatusVerbosity, HapiResult
+    HapiResult, NodeFlags, NodeType, State, StatusType, StatusVerbosity, StorageType,
 };
 
 #[derive(Debug)]

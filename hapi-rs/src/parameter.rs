@@ -161,6 +161,7 @@ pub enum Parameter<'session> {
     Float(FloatParameter<'session>),
     Int(IntParameter<'session>),
     String(StringParameter<'session>),
+    Button(IntParameter<'session>),
     Other(BaseParameter<'session>),
 }
 
@@ -168,11 +169,10 @@ impl<'node> Parameter<'node> {
     pub(crate) fn new(node: &'node HoudiniNode, info: ParmInfo<'node>) -> Parameter<'node> {
         let base = ParmNodeWrap { info, node };
         match base.info.parm_type() {
-            ParmType::Int
-            | ParmType::Button
-            | ParmType::Toggle
-            | ParmType::Folder
-            | ParmType::Folderlist => Parameter::Int(IntParameter { wrap: base }),
+            ParmType::Int | ParmType::Toggle | ParmType::Folder | ParmType::Folderlist => {
+                Parameter::Int(IntParameter { wrap: base })
+            }
+            ParmType::Button => Parameter::Button(IntParameter { wrap: base }),
             ParmType::Float | ParmType::Color => Parameter::Float(FloatParameter { wrap: base }),
             ParmType::String
             | ParmType::Node
@@ -191,6 +191,7 @@ impl<'node> Parameter<'node> {
         match self {
             Parameter::Float(p) => p.name(),
             Parameter::Int(p) => p.name(),
+            Parameter::Button(p) => p.name(),
             Parameter::String(p) => p.name(),
             Parameter::Other(p) => p.wrap.info.name().map(|s| Cow::Owned(s)),
         }
@@ -211,6 +212,7 @@ impl<'node> Parameter<'node> {
         match self {
             Parameter::Float(p) => &p.wrap,
             Parameter::Int(p) => &p.wrap,
+            Parameter::Button(p) => &p.wrap,
             Parameter::String(p) => &p.wrap,
             Parameter::Other(p) => &p.wrap,
         }
@@ -263,6 +265,15 @@ impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
         let start = self.wrap.info.int_values_index();
         let count = self.wrap.info.size();
         crate::ffi::set_parm_int_values(&self.wrap.node, start, count, val.as_ref())
+    }
+}
+
+impl<'s> IntParameter<'s> {
+    pub fn press_button(&self) -> Result<()> {
+        if !matches!(self.wrap.info.parm_type(), ParmType::Button) {
+            warn!("Parm {} not a Button type", self.wrap.info.name()?);
+        }
+        self.set_value([1])
     }
 }
 

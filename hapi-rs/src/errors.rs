@@ -1,7 +1,4 @@
-use crate::{
-    ffi,
-    {session::Session}
-};
+use crate::{ffi, session::Session};
 
 pub use crate::ffi::raw::{HapiResult, StatusType, StatusVerbosity};
 use std::borrow::Cow;
@@ -57,6 +54,16 @@ impl Kind {
     }
 }
 
+impl From<HapiResult> for HapiError {
+    fn from(r: HapiResult) -> Self {
+        HapiError {
+            kind: Kind::Hapi(r),
+            message: None,
+            session: None,
+        }
+    }
+}
+
 impl HapiError {
     pub(crate) fn new(
         kind: Kind,
@@ -90,7 +97,7 @@ impl std::fmt::Display for HapiError {
                             .unwrap_or_else(|| String::from("Zig"))
                     )
                 } else if let Some(ref msg) = self.message {
-                    write!(f, "Kind:{}, Message: {}", self.kind.description(), msg)
+                    write!(f, "Message: {}. Kind: {:?}", msg, self.kind)
                 } else {
                     write!(f, "Kind:{}", self.kind.description())
                 }
@@ -125,8 +132,8 @@ impl std::error::Error for HapiError {}
 
 impl HapiResult {
     pub(crate) fn to_result<R: Default, F>(self, err: F) -> Result<R>
-        where
-            F: FnOnce() -> (Option<Session>, Option<Cow<'static, str>>),
+    where
+        F: FnOnce() -> (Option<Session>, Option<Cow<'static, str>>),
     {
         match self {
             HapiResult::Success => Ok(R::default()),
