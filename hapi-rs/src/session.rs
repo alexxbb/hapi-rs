@@ -120,9 +120,9 @@ impl Session {
         crate::ffi::cleanup_session(self)
     }
 
-    pub fn close_session(&self) -> Result<()> {
+    pub fn close_session(self) -> Result<()> {
         debug!("Closing session");
-        crate::ffi::close_session(self)
+        crate::ffi::close_session(&self)
     }
 
     pub fn is_initialized(&self) -> Result<bool> {
@@ -268,7 +268,7 @@ impl Drop for Session {
                         error!("Cleanup failed in Drop: {}", e);
                     }
                 }
-                if let Err(e) = self.close_session() {
+                if let Err(e) = crate::ffi::close_session(self) {
                     error!("Closing session failed in Drop: {}", e);
                 }
             }
@@ -405,4 +405,18 @@ pub fn start_engine_socket_server(port: u16, auto_close: bool, timeout: i32) -> 
         timeoutMs: timeout as f32,
     };
     crate::ffi::start_thrift_socket_server(port as i32, &opts)
+}
+
+pub fn simple_session(options: Option<&SessionOptions>) -> Result<Session> {
+    use std::hash::{Hash, Hasher};
+    use std::time::SystemTime;
+    use std::collections::hash_map::DefaultHasher;
+    let mut hash = DefaultHasher::new();
+    SystemTime::now().hash(&mut hash);
+    let file = std::env::temp_dir().join(format!("hars-session-{}", hash.finish()));
+    let file = file.to_string_lossy();
+    start_engine_pipe_server(&file, true, 2000.0)?;
+    let mut session = Session::connect_to_pipe(&file)?;
+    session.initialize(options.unwrap_or(&SessionOptions::default()))?;
+    Ok(session)
 }
