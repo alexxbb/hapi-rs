@@ -234,6 +234,15 @@ impl<'session> HoudiniNode {
         crate::ffi::reset_simulation(self)
     }
 
+    pub fn input_node(&'session self, idx: i32) -> Result<Option<HoudiniNode>> {
+        crate::ffi::query_node_input(self, idx).map(|idx| {
+            if idx == -1 {
+                None
+            } else {
+                HoudiniNode::new(self.session.clone(), NodeHandle(idx), None).ok()
+            }
+        })
+    }
     pub fn geometry(&'session self) -> Result<Option<Geometry<'session>>> {
         use std::borrow::Cow;
         match self.info.node_type() {

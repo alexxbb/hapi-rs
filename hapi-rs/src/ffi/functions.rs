@@ -439,7 +439,6 @@ pub fn get_asset_def_parm_count(
     asset: &CStr,
     session: &Session,
 ) -> Result<ParmValueCount> {
-    unimplemented!("Crashes HARS as of 18.5.531");
     let mut parms = ParmValueCount::default();
     unsafe {
         raw::HAPI_GetAssetDefinitionParmCounts(
@@ -879,6 +878,15 @@ pub fn get_parameters(node: &HoudiniNode) -> Result<Vec<raw::HAPI_ParmInfo>> {
         )
         .result_with_session(|| node.session.clone())?;
         Ok(parms)
+    }
+}
+
+pub fn query_node_input(node: &HoudiniNode, idx: i32) -> Result<i32> {
+    let mut inp_idx = uninit!();
+    unsafe {
+        raw::HAPI_QueryNodeInput(node.session.ptr(), node.handle.0, idx, inp_idx.as_mut_ptr())
+            .result_with_session(|| node.session.clone())?;
+        Ok(inp_idx.assume_init())
     }
 }
 

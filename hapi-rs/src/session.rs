@@ -408,9 +408,9 @@ pub fn start_engine_socket_server(port: u16, auto_close: bool, timeout: i32) -> 
 }
 
 pub fn simple_session(options: Option<&SessionOptions>) -> Result<Session> {
+    use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
     use std::time::SystemTime;
-    use std::collections::hash_map::DefaultHasher;
     let mut hash = DefaultHasher::new();
     SystemTime::now().hash(&mut hash);
     let file = std::env::temp_dir().join(format!("hars-session-{}", hash.finish()));

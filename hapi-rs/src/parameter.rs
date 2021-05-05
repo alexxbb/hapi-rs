@@ -117,17 +117,6 @@ impl<'node> ParmInfo<'node> {
             name: Some(name),
         })
     }
-
-    pub(crate) fn from_ffi(
-        info: crate::ffi::raw::HAPI_ParmInfo,
-        node: &'node HoudiniNode,
-    ) -> Result<Self> {
-        Ok(ParmInfo {
-            inner: info,
-            session: &node.session,
-            name: None,
-        })
-    }
 }
 
 // TODO: Should be private
