@@ -299,6 +299,9 @@ impl<'s> ObjectInfo<'s> {
     get!(geo_count->geoCount->bool);
     get!(node_id->nodeId->[handle: NodeHandle]);
     get!(object_to_instance_id->objectToInstanceId->[handle: NodeHandle]);
+    pub fn to_node(&self) -> Result<HoudiniNode> {
+        self.node_id().to_node(self.session)
+    }
 }
 
 #[derive(Debug)]

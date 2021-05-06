@@ -3,8 +3,7 @@ use std::ffi::{CStr, CString};
 use crate::errors::{HapiError, Kind, Result};
 use crate::session::Session;
 
-// StringArray iterators SAFETY: constructing string types with unsafe is ok,
-// because Houdini string attributes are expected to be valid utf
+// StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
 
 #[derive(Debug)]
 pub struct StringsArray {

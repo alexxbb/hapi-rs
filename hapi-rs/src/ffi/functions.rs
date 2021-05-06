@@ -553,9 +553,16 @@ pub fn create_inprocess_session() -> Result<raw::HAPI_Session> {
     }
 }
 
-pub fn set_server_env_variable(session: &Session, key: &CStr, value: &CStr) -> Result<()> {
+pub fn set_server_env_str(session: &Session, key: &CStr, value: &CStr) -> Result<()> {
     unsafe {
         raw::HAPI_SetServerEnvString(session.ptr(), key.as_ptr(), value.as_ptr())
+            .result_with_session(|| session.clone())
+    }
+}
+
+pub fn set_server_env_int(session: &Session, key: &CStr, value: i32) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetServerEnvInt(session.ptr(), key.as_ptr(), value)
             .result_with_session(|| session.clone())
     }
 }
@@ -578,12 +585,21 @@ pub fn get_server_env_var_list(session: &Session, count: i32) -> Result<Vec<i32>
     }
 }
 
-pub fn get_server_env_variable(session: &Session, key: &CStr) -> Result<String> {
+pub fn get_server_env_str(session: &Session, key: &CStr) -> Result<String> {
     unsafe {
         let mut val = uninit!();
         raw::HAPI_GetServerEnvString(session.ptr(), key.as_ptr(), val.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         session.get_string(val.assume_init())
+    }
+}
+
+pub fn get_server_env_int(session: &Session, key: &CStr) -> Result<i32> {
+    unsafe {
+        let mut val = uninit!();
+        raw::HAPI_GetServerEnvInt(session.ptr(), key.as_ptr(), val.as_mut_ptr())
+            .result_with_session(|| session.clone())?;
+        Ok(val.assume_init())
     }
 }
 

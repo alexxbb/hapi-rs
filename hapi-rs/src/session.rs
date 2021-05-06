@@ -20,6 +20,41 @@ pub use crate::{
     stringhandle::StringsArray,
 };
 
+pub trait EnvVariable: Sized {
+    type Type;
+    fn get_value(session: &Session, key: impl AsRef<str>) -> Result<Self::Type>;
+    fn set_value(session: &Session, key: impl AsRef<str>, val: Self::Type) -> Result<()>;
+}
+
+impl EnvVariable for i32 {
+    type Type = Self;
+
+    fn get_value(session: &Session, key: impl AsRef<str>) -> Result<Self::Type> {
+        let key = CString::new(key.as_ref())?;
+        crate::ffi::get_server_env_int(session, &key)
+    }
+
+    fn set_value(session: &Session, key: impl AsRef<str>, val: Self::Type) -> Result<()> {
+        let key = CString::new(key.as_ref())?;
+        crate::ffi::set_server_env_int(session, &key, val)
+    }
+}
+
+impl EnvVariable for String {
+    type Type = Self;
+
+    fn get_value(session: &Session, key: impl AsRef<str>) -> Result<Self::Type> {
+        let key = CString::new(key.as_ref())?;
+        crate::ffi::get_server_env_str(session, &key)
+    }
+
+    fn set_value(session: &Session, key: impl AsRef<str>, val: Self::Type) -> Result<()> {
+        let key = CString::new(key.as_ref())?;
+        let val = CString::new(val)?;
+        crate::ffi::set_server_env_str(session, &key, &val)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum CookResult {
     Succeeded,
@@ -54,17 +89,15 @@ impl Session {
         })
     }
 
-    pub fn set_server_env(&self, key: &str, value: &str) -> Result<()> {
-        let key = CString::new(key)?;
-        let value = CString::new(value)?;
-        crate::ffi::set_server_env_variable(self, &key, &value)
+    pub fn set_server_var<T: EnvVariable>(&self, key: &str, value: T::Type) -> Result<()> {
+        T::set_value(self, key, value)
     }
 
-    pub fn get_server_env(&self, key: &str) -> Result<String> {
-        crate::ffi::get_server_env_variable(self, &CString::new(key)?)
+    pub fn get_server_var<T: EnvVariable>(&self, key: &str) -> Result<T::Type> {
+        T::get_value(self, key)
     }
 
-    pub fn get_server_env_variables(&self) -> Result<StringsArray> {
+    pub fn get_server_variables(&self) -> Result<StringsArray> {
         let count = crate::ffi::get_server_env_var_count(self)?;
         let handles = crate::ffi::get_server_env_var_list(self, count)?;
         crate::stringhandle::get_strings_array(&handles, self)
