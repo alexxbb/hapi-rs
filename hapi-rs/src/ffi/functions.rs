@@ -7,7 +7,7 @@ use crate::{
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
     session::{Session, SessionOptions},
-    stringhandle::{get_strings_array, StringsArray},
+    stringhandle::StringsArray,
 };
 
 use super::raw;
@@ -75,7 +75,7 @@ pub fn get_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32) -> Resu
             index,
             value.as_mut_ptr(),
         )
-        .result_with_session(|| node.session.clone());
+        .result_with_session(|| node.session.clone())?;
         Ok(value.assume_init())
     }
 }
@@ -91,7 +91,7 @@ pub fn get_parm_int_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result
             index,
             value.as_mut_ptr(),
         )
-        .result_with_session(|| node.session.clone());
+        .result_with_session(|| node.session.clone())?;
         Ok(value.assume_init())
     }
 }
@@ -107,7 +107,7 @@ pub fn get_parm_string_value(node: &HoudiniNode, name: &CStr, index: i32) -> Res
             1,
             handle.as_mut_ptr(),
         )
-        .result_with_session(|| node.session.clone());
+        .result_with_session(|| node.session.clone())?;
         handle.assume_init()
     };
     node.session.get_string(handle)
@@ -766,7 +766,7 @@ pub fn get_cooking_current_count(session: &Session) -> Result<i32> {
     }
 }
 
-pub fn get_connection_error(session: &Session, clear: bool) -> Result<String> {
+pub fn get_connection_error(clear: bool) -> Result<String> {
     unsafe {
         let mut length = uninit!();
         raw::HAPI_GetConnectionErrorLength(length.as_mut_ptr())

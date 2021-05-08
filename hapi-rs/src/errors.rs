@@ -1,4 +1,4 @@
-use crate::{ffi, session::Session};
+use crate::session::Session;
 
 pub use crate::ffi::raw::{HapiResult, StatusType, StatusVerbosity};
 use std::borrow::Cow;
@@ -13,6 +13,7 @@ pub struct HapiError {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Kind {
     Hapi(HapiResult),
     CookError,
@@ -49,7 +50,6 @@ impl Kind {
             Kind::Hapi(InvalidSession) => "INVALID_SESSION",
             Kind::NullByte => "String contains null byte!",
             Kind::CookError => "Cooking error",
-            Kind::Hapi(e) => unreachable!("Case {:?} not covered", e),
         }
     }
 }
@@ -72,8 +72,8 @@ impl HapiError {
     ) -> HapiError {
         HapiError {
             kind,
-            session,
             message,
+            session,
         }
     }
 }
@@ -139,7 +139,7 @@ impl HapiResult {
             HapiResult::Success => Ok(R::default()),
             e => {
                 let (session, message) = err();
-                Err(HapiError::new(Kind::Hapi(e.into()), session, message))
+                Err(HapiError::new(Kind::Hapi(e), session, message))
             }
         }
     }

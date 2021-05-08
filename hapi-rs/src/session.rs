@@ -1,13 +1,8 @@
 #[rustfmt::skip]
 use std::{
     ffi::CString,
-    mem::MaybeUninit,
-    ops::Deref,
-    path::Path,
-    ptr::null,
     sync::Arc,
 };
-use std::borrow::Cow;
 
 use log::{debug, error, warn};
 
@@ -265,7 +260,7 @@ impl Session {
     }
 
     pub fn get_connection_error(&self, clear: bool) -> Result<String> {
-        crate::ffi::get_connection_error(self, clear)
+        crate::ffi::get_connection_error(clear)
     }
 
     pub fn get_time(&self) -> Result<f32> {
@@ -294,16 +289,13 @@ impl Drop for Session {
         if Arc::strong_count(&self.handle) == 1 {
             eprintln!("Dropping session");
             assert!(self.is_valid(), "Session invalid in Drop");
-            unsafe {
-                use crate::ffi::raw::HapiResult::*;
-                if self.cleanup {
-                    if let Err(e) = self.cleanup() {
-                        error!("Cleanup failed in Drop: {}", e);
-                    }
+            if self.cleanup {
+                if let Err(e) = self.cleanup() {
+                    error!("Cleanup failed in Drop: {}", e);
                 }
-                if let Err(e) = crate::ffi::close_session(self) {
-                    error!("Closing session failed in Drop: {}", e);
-                }
+            }
+            if let Err(e) = crate::ffi::close_session(self) {
+                error!("Closing session failed in Drop: {}", e);
             }
         }
     }

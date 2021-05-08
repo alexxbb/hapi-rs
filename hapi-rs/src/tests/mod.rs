@@ -1,10 +1,10 @@
+#![allow(clippy::all)]
 use crate::parameter::*;
 use crate::session::*;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 
 static SESSION: Lazy<Session> = Lazy::new(|| {
-    use env_logger;
     env_logger::init();
     simple_session(None).expect("Could not create session")
 });
@@ -32,9 +32,9 @@ fn session_time() -> Result<()> {
     let opt = TimelineOptionsBuilder::default().end_time(5.5).build();
     assert!(SESSION.set_timeline_options(opt.clone()).is_ok());
     let opt2 = SESSION.get_timeline_options()?;
-    assert_eq!(opt.end_time(), opt2.end_time());
-    SESSION.set_time(4.12);
-    assert_eq!(SESSION.get_time()?, 4.12);
+    assert!(opt.end_time().eq(&opt2.end_time()));
+    SESSION.set_time(4.12)?;
+    assert!(SESSION.get_time()?.eq(&4.12));
     Ok(())
 }
 
@@ -60,6 +60,8 @@ fn load_asset() -> Result<()> {
     Ok(())
 }
 
+/// This crashes HARS do to sesi bug
+#[allow(unused)]
 fn asset_parameters() {
     assert!(SESSION.is_valid());
     let otl = OTLS.get("parameters").unwrap();
@@ -73,32 +75,32 @@ fn asset_parameters() {
 #[test]
 fn node_parameters() -> Result<()> {
     let otl = OTLS.get("parameters").unwrap();
-    let lib = SESSION.load_asset_file(otl)?;
+    let _lib = SESSION.load_asset_file(otl)?;
     let node = SESSION.create_node_blocking("Object/hapi_parms", None, None)?;
     for p in node.parameters()? {
         assert!(p.name().is_ok());
     }
-    if let Parameter::Float(mut p) = node.parameter("color")? {
+    if let Parameter::Float(p) = node.parameter("color")? {
         let val = p.get_value()?;
         assert_eq!(&val, &[0.55, 0.75, 0.95]);
         p.set_value([0.7, 0.5, 0.3])?;
         let val = p.get_value()?;
         assert_eq!(&val, &[0.7, 0.5, 0.3]);
     }
-    if let Parameter::String(mut p) = node.parameter("single_float")? {
+    if let Parameter::String(p) = node.parameter("single_float")? {
         p.set_expression("$T", 0)?;
         assert_eq!("$T", p.expression(0)?);
     }
 
-    if let Parameter::String(mut p) = node.parameter("multi_string")? {
+    if let Parameter::String(p) = node.parameter("multi_string")? {
         let mut value = p.get_value()?;
         assert_eq!(vec!["foo 1", "bar 2", "baz 3"], value);
         value[0] = "cheese".to_owned();
-        p.set_value(value);
+        p.set_value(value)?;
         assert_eq!("cheese", p.get_value()?[0]);
     }
 
-    if let Parameter::Int(mut p) = node.parameter("ord_menu")? {
+    if let Parameter::Int(p) = node.parameter("ord_menu")? {
         assert!(p.is_menu());
         assert_eq!(p.get_value()?[0], 0);
         let items = p.menu_items().unwrap()?;
@@ -106,9 +108,9 @@ fn node_parameters() -> Result<()> {
         assert_eq!(items[0].label()?, "Foo");
     }
 
-    if let Parameter::Int(mut p) = node.parameter("toggle")? {
+    if let Parameter::Int(p) = node.parameter("toggle")? {
         assert_eq!(p.get_value()?[0], 0);
-        p.set_value([1]);
+        p.set_value([1])?;
         assert_eq!(p.get_value()?[0], 1);
     }
 
@@ -116,7 +118,7 @@ fn node_parameters() -> Result<()> {
     if let Parameter::Button(ip) = node.parameter("button")? {
         if let Parameter::String(sp) = node.parameter("single_string")? {
             assert_eq!(sp.get_value()?[0], "hello");
-            ip.press_button();
+            ip.press_button()?;
             assert_eq!(sp.get_value()?[0], "set from callback");
         }
     }

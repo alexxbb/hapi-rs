@@ -1,16 +1,13 @@
 use std::ffi::CString;
-use std::mem::MaybeUninit;
-use std::path::Path;
 
 use log::debug;
 
-use crate::ffi::{raw as ffi, ParmValueCount};
+use crate::ffi::raw as ffi;
 use crate::{
     errors::Result,
     ffi::{AssetInfo, ParmInfo},
-    node::{HoudiniNode, NodeHandle},
+    node::HoudiniNode,
     session::Session,
-    stringhandle::*,
 };
 
 #[derive(Debug, Clone)]
@@ -37,12 +34,12 @@ impl AssetLibrary {
             .map(|a| a.into_iter().collect())
     }
 
-    pub fn get_asset_parms(&self, asset_name: impl AsRef<str>) -> Result<Vec<ParmInfo<'_>>> {
+    pub fn get_asset_parms(&self, _asset_name: impl AsRef<str>) -> Result<Vec<ParmInfo<'_>>> {
         unimplemented!("Crashes HARS as of 18.5.531");
-        let cs = CString::new(asset_name.as_ref())?;
-        let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &cs, &self.session)?;
-        dbg!(count);
-        Ok(vec![])
+        // let cs = CString::new(asset_name.as_ref())?;
+        // let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &cs, &self.session)?;
+        // dbg!(count);
+        // Ok(vec![])
     }
 }
 

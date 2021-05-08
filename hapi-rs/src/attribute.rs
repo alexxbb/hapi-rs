@@ -1,11 +1,8 @@
-use std::ffi::CStr;
 use std::marker::PhantomData;
 
 use crate::errors::Result;
-use crate::ffi::raw::{AttributeOwner, StorageType};
 pub use crate::ffi::AttributeInfo;
 use crate::node::HoudiniNode;
-use crate::session::Session;
 use crate::stringhandle::StringsArray;
 
 pub trait AttribDataType: Sized {
@@ -55,7 +52,7 @@ macro_rules! impl_attrib_type {
                 crate::ffi::$func(node, part_id, &info.name, &info.inner, -1, 0, info.count())
             }
 
-            fn set(values: impl AsRef<[Self]>) -> Result<()> {
+            fn set(_values: impl AsRef<[Self]>) -> Result<()> {
                 unimplemented!()
             }
         }
@@ -86,7 +83,7 @@ impl<'a> AttribDataType for &'a str {
         )
     }
 
-    fn set(values: impl AsRef<[Self::Type]>) -> Result<()> {
+    fn set(_values: impl AsRef<[Self::Type]>) -> Result<()> {
         unimplemented!()
     }
 }

@@ -1,5 +1,4 @@
-#![allow(unused)]
-use log;
+// #![allow(unused)]
 #[macro_use]
 mod macros;
 #[macro_use]

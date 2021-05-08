@@ -101,7 +101,7 @@ macro_rules! builder {
         impl $builder {
             $(builder!(_set_ $method->$field->$($tp)*);)*
 
-            pub fn build(mut self) -> $object {
+            pub fn build(self) -> $object {
                 $object{inner: self.inner}
             }
         }

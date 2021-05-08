@@ -1,8 +1,6 @@
 use std::borrow::Cow;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::fmt::Formatter;
-use std::mem::MaybeUninit;
-use std::rc::Rc;
 
 use log::warn;
 
@@ -182,7 +180,7 @@ impl<'node> Parameter<'node> {
             Parameter::Int(p) => p.name(),
             Parameter::Button(p) => p.name(),
             Parameter::String(p) => p.name(),
-            Parameter::Other(p) => p.wrap.info.name().map(|s| Cow::Owned(s)),
+            Parameter::Other(p) => p.wrap.info.name().map(Cow::Owned),
         }
     }
 
@@ -290,11 +288,11 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
     where
         T: AsRef<[Self::ValueType]>,
     {
-        let start = self.wrap.info.string_values_index();
-        let count = self.wrap.info.size();
+        // let start = self.wrap.info.string_values_index();
+        // let count = self.wrap.info.size();
         let c_str: std::result::Result<Vec<CString>, _> = val
             .as_ref()
-            .into_iter()
+            .iter()
             .map(|s| CString::new(s.clone()))
             .collect();
         crate::ffi::set_parm_string_values(&self.wrap.node, &self.wrap.info.id(), &c_str?)

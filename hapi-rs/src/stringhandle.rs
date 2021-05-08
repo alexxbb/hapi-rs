@@ -1,6 +1,6 @@
 use std::ffi::{CStr, CString};
 
-use crate::errors::{HapiError, Kind, Result};
+use crate::errors::Result;
 use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
@@ -29,7 +29,7 @@ impl std::iter::Iterator for OwnedStringIter {
             .skip(self.cursor)
             .position(|b| *b == b'\0')
         {
-            None => return None,
+            None => None,
             Some(pos) => {
                 let idx = self.cursor + pos;
                 let ret = &self.inner[self.cursor..idx];
@@ -103,24 +103,22 @@ impl std::iter::IntoIterator for StringsArray {
 
 pub fn get_string(handle: i32, session: &Session) -> Result<String> {
     unsafe {
-        let mut bytes = get_string_bytes(handle, session)?;
+        let bytes = get_string_bytes(handle, session)?;
         Ok(String::from_utf8_unchecked(bytes))
     }
 }
 
 pub fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
     unsafe {
-        let mut bytes = get_string_bytes(handle, session)?;
+        let bytes = get_string_bytes(handle, session)?;
         Ok(CString::from_vec_unchecked(bytes))
     }
 }
 
 pub fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>> {
-    unsafe {
-        let length = crate::ffi::get_string_buff_len(session, handle)?;
-        let buffer = crate::ffi::get_string(session, handle, length)?;
-        Ok(buffer)
-    }
+    let length = crate::ffi::get_string_buff_len(session, handle)?;
+    let buffer = crate::ffi::get_string(session, handle, length)?;
+    Ok(buffer)
 }
 
 pub fn get_strings_array(handles: &[i32], session: &Session) -> Result<StringsArray> {

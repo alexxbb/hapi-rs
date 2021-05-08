@@ -1,15 +1,14 @@
-use std::{ffi::CString, fmt::Formatter, mem::MaybeUninit, ptr::null, rc::Rc};
+use std::{ffi::CString, fmt::Formatter, ptr::null};
 
-use log::{debug, log_enabled, warn, Level::Debug};
+use log::{debug, warn};
 
 use crate::{
     errors::Result,
     ffi,
-    ffi::{AssetInfo, GeoInfo, NodeInfo, ObjectInfo, ParmInfo, PartInfo},
+    ffi::{AssetInfo, GeoInfo, NodeInfo, ObjectInfo, ParmInfo},
     geometry::Geometry,
     parameter::*,
     session::{CookResult, Session},
-    stringhandle,
 };
 pub use crate::{
     ffi::raw::{ErrorCode, NodeFlags, NodeType, ParmType, State, StatusType, StatusVerbosity},
@@ -93,7 +92,7 @@ impl std::fmt::Debug for HoudiniNode {
 
 impl<'session> HoudiniNode {
     pub(crate) fn new(session: Session, hdl: NodeHandle, info: Option<NodeInfo>) -> Result<Self> {
-        let mut info = match info {
+        let info = match info {
             None => NodeInfo::new(session.clone(), &hdl)?,
             Some(i) => i,
         };
@@ -148,8 +147,7 @@ impl<'session> HoudiniNode {
         }
         let name = CString::new(name)?;
         let label = label.map(|s| CString::new(s).unwrap());
-        let label = label.as_ref().map(|s| s.as_c_str());
-        let id = crate::ffi::create_node(&name, label, &session, parent, cook)?;
+        let id = crate::ffi::create_node(&name, label.as_deref(), &session, parent, cook)?;
         HoudiniNode::new(session, NodeHandle(id), None)
     }
 
@@ -264,7 +262,7 @@ impl<'session> HoudiniNode {
                 let node = Cow::Owned(info.node_id().to_node(&self.session)?);
                 Ok(Some(Geometry { node, info }))
             }
-            NodeType(_) => return Ok(None),
+            NodeType(_) => Ok(None),
         }
     }
 }
