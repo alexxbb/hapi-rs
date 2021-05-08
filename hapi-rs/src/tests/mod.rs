@@ -6,14 +6,7 @@ use std::collections::HashMap;
 static SESSION: Lazy<Session> = Lazy::new(|| {
     use env_logger;
     env_logger::init();
-    let tmp = std::env::var("TMP")
-        .or_else(|_| std::env::var("TEMP"))
-        .expect("Could not get TEMP dir");
-    let pipe = format!("{}/hapi_test_pipe", tmp);
-    start_engine_pipe_server(&pipe, true, 2000.0).expect("Could not start test session");
-    let mut ses = Session::connect_to_pipe(&pipe).expect("Could not create thrift session");
-    ses.initialize(&SessionOptions::default());
-    ses
+    simple_session(None).expect("Could not create session")
 });
 pub static OTLS: Lazy<HashMap<&str, String>> = Lazy::new(|| {
     let mut map = HashMap::new();
@@ -46,6 +39,16 @@ fn session_time() -> Result<()> {
 }
 
 #[test]
+fn server_env() -> Result<()> {
+    SESSION.set_server_var::<String>("FOO", "foo_string".to_string())?;
+    assert_eq!(SESSION.get_server_var::<String>("FOO")?, "foo_string");
+    SESSION.set_server_var::<i32>("BAR", 123)?;
+    assert_eq!(SESSION.get_server_var::<i32>("BAR")?, 123);
+    assert_eq!(SESSION.get_server_variables()?.is_empty(), false);
+    Ok(())
+}
+
+#[test]
 fn load_asset() -> Result<()> {
     assert!(SESSION.is_valid());
     let otl = OTLS.get("parameters").unwrap();
@@ -57,8 +60,6 @@ fn load_asset() -> Result<()> {
     Ok(())
 }
 
-// #[test]
-// #[should_panic]
 fn asset_parameters() {
     assert!(SESSION.is_valid());
     let otl = OTLS.get("parameters").unwrap();
@@ -71,7 +72,7 @@ fn asset_parameters() {
 
 #[test]
 fn node_parameters() -> Result<()> {
-    let otl = OTLS.get("parameters").expect("no such key");
+    let otl = OTLS.get("parameters").unwrap();
     let lib = SESSION.load_asset_file(otl)?;
     let node = SESSION.create_node_blocking("Object/hapi_parms", None, None)?;
     for p in node.parameters()? {
@@ -112,10 +113,10 @@ fn node_parameters() -> Result<()> {
     }
 
     // test button callback
-    if let Parameter::Int(mut ip) = node.parameter("button")? {
-        if let Parameter::String(mut sp) = node.parameter("single_string")? {
+    if let Parameter::Button(ip) = node.parameter("button")? {
+        if let Parameter::String(sp) = node.parameter("single_string")? {
             assert_eq!(sp.get_value()?[0], "hello");
-            ip.set_value([1]);
+            ip.press_button();
             assert_eq!(sp.get_value()?[0], "set from callback");
         }
     }
