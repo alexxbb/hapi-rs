@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::ptr::null;
@@ -6,7 +8,7 @@ use crate::{
     errors::Result,
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
-    session::{Session, SessionOptions, CookOptions},
+    session::{CookOptions, Session, SessionOptions},
     stringhandle::StringsArray,
 };
 
@@ -519,23 +521,13 @@ pub fn get_status_string(
 ) -> Result<String> {
     let mut length = uninit!();
     unsafe {
-        raw::HAPI_GetStatusStringBufLength(
-            session.ptr(),
-            status,
-            verbosity,
-            length.as_mut_ptr(),
-        )
-        .result_with_message("GetStatusStringBufLength failed")?;
+        raw::HAPI_GetStatusStringBufLength(session.ptr(), status, verbosity, length.as_mut_ptr())
+            .result_with_message("GetStatusStringBufLength failed")?;
         let length = length.assume_init();
         let mut buf = vec![0u8; length as usize];
         if length > 0 {
-            raw::HAPI_GetStatusString(
-                session.ptr(),
-                status,
-                buf.as_mut_ptr() as *mut i8,
-                length,
-            )
-            .result_with_message("GetStatusString failed")?;
+            raw::HAPI_GetStatusString(session.ptr(), status, buf.as_mut_ptr() as *mut i8, length)
+                .result_with_message("GetStatusString failed")?;
             buf.truncate(length as usize - 1);
             Ok(String::from_utf8_unchecked(buf))
         } else {
@@ -741,7 +733,10 @@ pub fn get_status(session: &Session, flag: raw::StatusType) -> Result<raw::State
 
 pub fn is_session_valid(session: &Session) -> bool {
     unsafe {
-        matches!(raw::HAPI_IsSessionValid(session.ptr()), raw::HapiResult::Success)
+        matches!(
+            raw::HAPI_IsSessionValid(session.ptr()),
+            raw::HapiResult::Success
+        )
     }
 }
 
@@ -918,6 +913,26 @@ pub fn check_for_specific_errors(
         .result_with_session(|| node.session.clone())?;
         Ok(raw::ErrorCode(code.assume_init() as u32))
     }
+}
+
+pub unsafe fn get_composed_cook_result(
+    node: &HoudiniNode,
+    verbosity: raw::StatusVerbosity,
+) -> Result<String> {
+    let mut len = uninit!();
+    raw::HAPI_ComposeNodeCookResult(
+        node.session.ptr(),
+        node.handle.0,
+        verbosity,
+        len.as_mut_ptr(),
+    )
+    .result_with_session(|| node.session.clone())?;
+    let len = len.assume_init();
+    let mut buf = vec![0u8; len as usize];
+    raw::HAPI_GetComposedNodeCookResult(node.session.ptr(), buf.as_mut_ptr() as *mut i8, len)
+        .result_with_session(|| node.session.clone())?;
+    buf.truncate(len as usize - 1);
+    Ok(String::from_utf8_unchecked(buf))
 }
 
 pub fn get_time(session: &Session) -> Result<f32> {

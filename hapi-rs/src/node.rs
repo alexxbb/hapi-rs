@@ -118,8 +118,11 @@ impl<'session> HoudiniNode {
         debug!("Cooking node: {}", self.path(None)?);
         let opts;
         let opt = match options {
-            None => {opts = CookOptions::default(); &opts}
-            Some(o) => o
+            None => {
+                opts = CookOptions::default();
+                &opts
+            }
+            Some(o) => o,
         };
         crate::ffi::cook_node(self, opt)
     }
@@ -232,6 +235,9 @@ impl<'session> HoudiniNode {
         crate::ffi::check_for_specific_errors(self, error_bits)
     }
 
+    pub fn cook_result(&self, verbosity: StatusVerbosity) -> Result<String> {
+        unsafe { ffi::get_composed_cook_result(self, verbosity) }
+    }
     pub fn reset_simulation(&self) -> Result<()> {
         crate::ffi::reset_simulation(self)
     }
