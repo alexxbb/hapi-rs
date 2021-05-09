@@ -6,7 +6,7 @@ use crate::{
     errors::Result,
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
-    session::{Session, SessionOptions},
+    session::{Session, SessionOptions, CookOptions},
     stringhandle::StringsArray,
 };
 
@@ -372,9 +372,9 @@ pub fn get_node_path(node: &HoudiniNode, relative_to: Option<&HoudiniNode>) -> R
     }
 }
 
-pub fn cook_node(node: &HoudiniNode, options: *const raw::HAPI_CookOptions) -> Result<()> {
+pub fn cook_node(node: &HoudiniNode, options: &CookOptions) -> Result<()> {
     unsafe {
-        raw::HAPI_CookNode(node.session.ptr(), node.handle.0, options)
+        raw::HAPI_CookNode(node.session.ptr(), node.handle.0, options.ptr())
             .result_with_session(|| node.session.clone())
     }
 }
@@ -521,8 +521,8 @@ pub fn get_status_string(
     unsafe {
         raw::HAPI_GetStatusStringBufLength(
             session.ptr(),
-            status.into(),
-            verbosity.into(),
+            status,
+            verbosity,
             length.as_mut_ptr(),
         )
         .result_with_message("GetStatusStringBufLength failed")?;
@@ -531,7 +531,7 @@ pub fn get_status_string(
         if length > 0 {
             raw::HAPI_GetStatusString(
                 session.ptr(),
-                status.into(),
+                status,
                 buf.as_mut_ptr() as *mut i8,
                 length,
             )
@@ -732,7 +732,7 @@ pub fn interrupt(session: &Session) -> Result<()> {
 pub fn get_status(session: &Session, flag: raw::StatusType) -> Result<raw::State> {
     let status = unsafe {
         let mut status = uninit!();
-        raw::HAPI_GetStatus(session.ptr(), flag.into(), status.as_mut_ptr())
+        raw::HAPI_GetStatus(session.ptr(), flag, status.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         status.assume_init()
     };
@@ -741,10 +741,7 @@ pub fn get_status(session: &Session, flag: raw::StatusType) -> Result<raw::State
 
 pub fn is_session_valid(session: &Session) -> bool {
     unsafe {
-        match raw::HAPI_IsSessionValid(session.ptr()) {
-            raw::HapiResult::Success => true,
-            _ => false,
-        }
+        matches!(raw::HAPI_IsSessionValid(session.ptr()), raw::HapiResult::Success)
     }
 }
 
