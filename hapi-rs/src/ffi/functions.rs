@@ -1044,6 +1044,24 @@ pub fn get_attribute_info(
     }
 }
 
+pub fn add_attribute(
+    node: &HoudiniNode,
+    part_id: i32,
+    name: &CStr,
+    attr_info: &raw::HAPI_AttributeInfo,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_AddAttribute(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            attr_info,
+        )
+        .result_with_session(|| node.session.clone())
+    }
+}
+
 macro_rules! get_attrib_data {
     ($tp:ty, $default:literal, $func:ident, $ffi:ident) => {
         pub fn $func(
@@ -1080,14 +1098,46 @@ macro_rules! get_attrib_data {
     };
 }
 
+macro_rules! set_attrib_data {
+    ($tp:ty, $func:ident, $ffi:ident) => {
+        pub fn $func(
+            node: &HoudiniNode,
+            part_id: i32,
+            name: &CStr,
+            attr_info: &raw::HAPI_AttributeInfo,
+            data_array: &[$tp],
+            start: i32,
+            length: i32,
+        ) -> Result<()> {
+            unsafe {
+                raw::$ffi(
+                    node.session.ptr(),
+                    node.handle.0,
+                    part_id,
+                    name.as_ptr(),
+                    attr_info,
+                    data_array.as_ptr(),
+                    start,
+                    length,
+                )
+                .result_with_session(|| node.session.clone())
+            }
+        }
+    };
+}
+
 #[rustfmt::skip]
 get_attrib_data!(f32, 0.0, get_attribute_float_data, HAPI_GetAttributeFloatData);
+set_attrib_data!(f32, set_attribute_float_data, HAPI_SetAttributeFloatData);
 #[rustfmt::skip]
 get_attrib_data!(f64, 0.0, get_attribute_float64_data, HAPI_GetAttributeFloat64Data);
+set_attrib_data!(f64, set_attribute_float64_data, HAPI_SetAttributeFloat64Data);
 #[rustfmt::skip]
 get_attrib_data!(i32, 0, get_attribute_int_data, HAPI_GetAttributeIntData);
+set_attrib_data!(i32, set_attribute_int_data, HAPI_SetAttributeIntData);
 #[rustfmt::skip]
 get_attrib_data!(i64, 0, get_attribute_int64_data, HAPI_GetAttributeInt64Data);
+set_attrib_data!(i64, set_attribute_int64_data, HAPI_SetAttributeInt64Data);
 
 pub fn get_attribute_string_buffer(
     node: &HoudiniNode,
