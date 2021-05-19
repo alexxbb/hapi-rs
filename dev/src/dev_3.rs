@@ -7,9 +7,11 @@ pub use hapi_rs::{
     session::{CookResult, Session, SessionOptions, StatusVerbosity, TimelineOptionsBuilder},
     HOUDINI_VERSION,
 };
+use hapi_rs::ffi::AttributeInfoBuilder;
+use hapi_rs::StorageType;
 
 pub unsafe fn run() -> Result<()> {
-    let mut session = Session::connect_to_socket("127.0.0.1:31000".parse().unwrap())?;
+    let mut session = Session::connect_to_pipe("c:/Temp/hars")?;
     // session.cleanup()?;
     let mut opts = SessionOptions::default();
     session.initialize(&opts);
@@ -48,6 +50,13 @@ pub unsafe fn run() -> Result<()> {
             println!("{}", n);
         }
     }
+
+    let info = AttributeInfoBuilder::default()
+        .owner(AttributeOwner::Point)
+        .storage(StorageType::Float)
+        .build();
+    let attr = geo.add_attribute::<f32>(0, "pscale", &info)?;
+    attr.set(0, &[0.0, 0.1, 0.3])?;
 
     if let Some(pos) = geo.get_attribute::<f32>(0, AttributeOwner::Point, "P")? {
         for p in pos.read(0)? {

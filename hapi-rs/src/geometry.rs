@@ -9,6 +9,7 @@ pub use crate::ffi::{
 use crate::ffi::{AttributeInfo, PartInfo};
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringsArray;
+use std::ffi::CString;
 
 #[derive(Debug)]
 pub struct Geometry<'session> {
@@ -73,15 +74,18 @@ impl<'session> Geometry<'session> {
         if inner.exists < 1 {
             return Ok(None);
         }
-        let session = &self.node.session;
-        let attrib = Attribute::new(
-            AttributeInfo {
-                name,
-                inner,
-                session,
-            },
-            &self.node,
-        );
+        let attrib = Attribute::new(name, AttributeInfo { inner }, &self.node);
         Ok(Some(attrib))
+    }
+
+    pub fn add_attribute<T: AttribDataType>(
+        &self,
+        part_id: i32,
+        name: &str,
+        info: &AttributeInfo,
+    ) -> Result<Attribute<T>> {
+        let name = CString::new(name)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        Ok(Attribute::new(name, AttributeInfo { inner: info.inner }, &self.node))
     }
 }

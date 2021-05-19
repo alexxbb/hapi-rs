@@ -239,22 +239,27 @@ builder!(
         extra_flags->extraFlags->[i32]);
 
 #[derive(Debug)]
-pub struct AttributeInfo<'session> {
-    pub(crate) name: CString,
+pub struct AttributeInfo {
     pub(crate) inner: HAPI_AttributeInfo,
-    pub session: &'session Session,
 }
 
-impl<'s> AttributeInfo<'s> {
+impl AttributeInfo {
     get!(exists->exists->bool);
-    get!(owner->owner->AttributeOwner);
-    get!(storage->storage->StorageType);
     get!(original_owner->originalOwner->AttributeOwner);
-    get!(count->count->i32);
-    get!(tuple_size->tupleSize->i32);
     get!(total_array_elements->totalArrayElements->i64);
-    get!(type_info->typeInfo->AttributeTypeInfo);
 }
+
+builder!(
+    @object: AttributeInfo
+    @builder: AttributeInfoBuilder
+    @default: [HAPI_AttributeInfo_Create => HAPI_AttributeInfo]
+    methods:
+        owner->owner->[AttributeOwner];
+        storage->storage->[StorageType];
+        tuple_size->tupleSize->[i32];
+        type_info->typeInfo->[AttributeTypeInfo];
+        count->count->[i32];
+);
 
 #[derive(Debug)]
 pub struct AssetInfo<'session> {
