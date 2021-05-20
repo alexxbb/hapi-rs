@@ -19,11 +19,15 @@ pub struct Geometry<'session> {
 }
 
 impl<'session> Geometry<'session> {
-    pub fn part_info(&'session self, id: i32) -> Result<PartInfo<'session>> {
+    pub fn part_info(&'session self, id: i32) -> Result<PartInfo> {
         crate::ffi::get_part_info(&self.node, id).map(|inner| PartInfo {
             inner,
-            session: &self.node.session,
+            session: self.node.session.clone()
         })
+    }
+
+    pub fn set_part_info(&self, info: &PartInfo) -> Result<()> {
+        crate::ffi::set_part_info(&self.node, info)
     }
 
     pub fn geo_info(&'session self) -> Result<GeoInfo<'session>> {
@@ -34,7 +38,8 @@ impl<'session> Geometry<'session> {
     }
 
     pub fn get_face_counts(&self, info: &PartInfo) -> Result<Vec<i32>> {
-        crate::ffi::get_face_counts(&self.node, info.part_id(), info.face_count())
+        todo!()
+        // crate::ffi::get_face_counts(&self.node, info.part_id(), info.face_count())
     }
 
     pub fn get_group_names(&self, group_type: GroupType) -> Result<StringsArray> {

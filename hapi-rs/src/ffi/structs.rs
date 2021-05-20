@@ -330,12 +330,12 @@ impl<'s> GeoInfo<'s> {
 }
 
 #[derive(Debug)]
-pub struct PartInfo<'session> {
+pub struct PartInfo {
     pub(crate) inner: HAPI_PartInfo,
-    pub session: &'session Session,
+    pub(crate) session: Session,
 }
 
-impl<'s> PartInfo<'s> {
+impl PartInfo {
     get!(part_id->id->i32);
     get!(part_type->type_->PartType);
     get!(name->nameSH->Result<String>);

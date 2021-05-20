@@ -51,12 +51,14 @@ pub unsafe fn run() -> Result<()> {
         }
     }
 
+    dbg!(part.point_count());
     let info = AttributeInfoBuilder::default()
+        .count(part.point_count())
         .owner(AttributeOwner::Point)
         .storage(StorageType::Float)
         .build();
     let attr = geo.add_attribute::<f32>(0, "pscale", &info)?;
-    attr.set(0, &[0.0, 0.1, 0.3])?;
+    // attr.set(0, &[0.0, 0.1, 0.3])?;
 
     if let Some(pos) = geo.get_attribute::<f32>(0, AttributeOwner::Point, "P")? {
         for p in pos.read(0)? {

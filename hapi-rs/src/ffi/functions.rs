@@ -11,6 +11,7 @@ use crate::{
 };
 
 use super::raw;
+use crate::ffi::PartInfo;
 
 macro_rules! uninit {
     () => {
@@ -998,6 +999,13 @@ pub fn get_part_info(node: &HoudiniNode, id: i32) -> Result<raw::HAPI_PartInfo> 
         super::raw::HAPI_GetPartInfo(node.session.ptr(), node.handle.0, id, info.as_mut_ptr())
             .result_with_session(|| node.session.clone())?;
         Ok(info.assume_init())
+    }
+}
+
+pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {
+    unsafe {
+        super::raw::HAPI_SetPartInfo(node.session.ptr(), node.handle.0, info.part_id(), &info.inner)
+            .result_with_session(|| node.session.clone())
     }
 }
 

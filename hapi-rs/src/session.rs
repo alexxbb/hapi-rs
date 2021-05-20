@@ -10,7 +10,7 @@ pub use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::raw::{HapiResult, State, StatusType, StatusVerbosity},
-    ffi::{CookOptions, TimelineOptions, TimelineOptionsBuilder},
+    ffi::{CookOptions, TimelineOptions},
     node::{HoudiniNode, NodeHandle},
     stringhandle::StringsArray,
 };
