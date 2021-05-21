@@ -37,7 +37,7 @@ impl<'session> Geometry<'session> {
         })
     }
 
-    pub fn get_face_counts(&self, info: &PartInfo) -> Result<Vec<i32>> {
+    pub fn get_face_counts(&self, _info: &PartInfo) -> Result<Vec<i32>> {
         todo!()
         // crate::ffi::get_face_counts(&self.node, info.part_id(), info.face_count())
     }
@@ -79,7 +79,7 @@ impl<'session> Geometry<'session> {
         if inner.exists < 1 {
             return Ok(None);
         }
-        let attrib = Attribute::new(name, AttributeInfo { inner, session: self.node.session.clone() }, &self.node);
+        let attrib = Attribute::new(name, AttributeInfo { inner}, &self.node);
         Ok(Some(attrib))
     }
 
@@ -91,6 +91,6 @@ impl<'session> Geometry<'session> {
     ) -> Result<Attribute<T>> {
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
-        Ok(Attribute::new(name, AttributeInfo { inner: info.inner, session: self.node.session.clone() }, &self.node))
+        Ok(Attribute::new(name, AttributeInfo { inner: info.inner}, &self.node))
     }
 }
