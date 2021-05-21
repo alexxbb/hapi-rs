@@ -1,3 +1,4 @@
+use paste::paste;
 use super::raw::*;
 use crate::{
     errors::Result,
@@ -57,66 +58,48 @@ macro_rules! get {
     };
 }
 
-macro_rules! builder {
-    (_get_ $method:ident->$field:ident->bool) => {
-        get!($method->$field->bool);
+macro_rules! wrap {
+    (_set_ $method:ident->$field:ident->bool) => {
+        paste!{
+            pub fn [<with_ $method>](&mut self, val: bool) -> &mut Self {self.inner.$field = val as i8; self}
+        }
     };
-
-    (_get_ $method:ident->$field:ident->Result<String>) => {
-        pub fn $method(&self, session: &Session) -> Result<String> {
-            session.get_string(self.inner.$field)
+    (_set_ $method:ident->$field:ident->$tp:ty) => {
+        paste!{
+            pub fn [<with_ $method>](&mut self, val: $tp) -> &mut Self {self.inner.$field = val; self}
         }
     };
 
-    (_set_ $method:ident->$field:ident->Result<String>) => {
-        // Ignore string setter for builder
+    // impl [get|set]
+    ([get] $object:ident $method:ident->$field:ident->$($tp:tt)*) => {
+        get!($method->$field->$($tp)*);
     };
 
-    (_get_ $method:ident->$field:ident->$tp:ty) => {
-        get!($method->$field->$tp);
+    ([set] $object:ident $method:ident->$field:ident->$($tp:tt)*) => {
+        $(wrap!(_set_ $method->$field->$tp))*;
     };
 
-    (_set_ $method:ident->$field:ident->bool) => {
-        pub fn $method(mut self, val: bool) -> Self {self.inner.$field = val as i8; self}
-    };
-    (_set_ $method:ident->$field:ident->$tp:ty) => {
-        pub fn $method(mut self, val: $tp) -> Self {self.inner.$field = val; self}
+    ([get|set] $object:ident $method:ident->$field:ident->$($tp:tt)*) => {
+        get!($method->$field->$($tp)*);
+        $(wrap!(_set_ $method->$field->$tp))*;
     };
 
     // Entry point
     (
         @object: $object:ident
-        @builder: $builder:ident
-        @default: [$create_func:path=>$ffi_tp:ty]
+        @new: [$create_func:path=>$ffi_tp:ty]
         methods:
-            $($method:ident->$field:ident->[$($tp:tt)*]);* $(;)?
+            $([$($access:tt)*] $method:ident->$field:ident->[$($tp:tt)*]);* $(;)?
     ) => {
-        pub struct $builder{inner: $ffi_tp }
-        impl Default for $builder {
-            fn default() -> Self {
-                Self{inner: unsafe { $create_func() }}
-            }
-        }
-
-        impl $builder {
-            $(builder!(_set_ $method->$field->$($tp)*);)*
-
-            pub fn build(self) -> $object {
-                $object{inner: self.inner}
-            }
-        }
-
         impl $object {
-            $(builder!(_get_ $method->$field->$($tp)*);)*
+            $(wrap!([$($access)*] $object $method->$field->$($tp)*);)*
+
+            pub fn new(session: Session) -> Self {
+                Self{inner: unsafe { $create_func() }, session}
+            }
 
             pub fn ptr(&self) -> *const $ffi_tp {
                 &self.inner as *const _
-            }
-        }
-
-        impl Default for $object {
-            fn default() -> Self {
-                $builder::default().build()
             }
         }
     };
@@ -218,47 +201,59 @@ pub struct CookOptions {
     pub(crate) inner: HAPI_CookOptions,
 }
 
-builder!(
-    @object: CookOptions
-    @builder: CookOptionsBuilder
-    @default: [HAPI_CookOptions_Create => HAPI_CookOptions]
-    methods:
-        split_geo_by_group->splitGeosByGroup->[bool];
-        split_geos_by_attribute->splitGeosByAttribute->[bool];
-        max_vertices_per_primitive->maxVerticesPerPrimitive->[i32];
-        refine_curve_to_linear->refineCurveToLinear->[bool];
-        curve_refine_lod->curveRefineLOD->[f32];
-        clear_errors_and_warnings->clearErrorsAndWarnings->[bool];
-        cook_templated_geos->cookTemplatedGeos->[bool];
-        split_points_by_vertex_attributes->splitPointsByVertexAttributes->[bool];
-        handle_box_part_types->handleBoxPartTypes->[bool];
-        handle_sphere_part_types->handleSpherePartTypes->[bool];
-        check_part_changes->checkPartChanges->[bool];
-        packed_prim_instancing_mode->packedPrimInstancingMode->[PackedPrimInstancingMode];
-        split_attr->splitAttrSH->[Result<String>];
-        extra_flags->extraFlags->[i32]);
+impl CookOptions {
+
+    pub fn default() -> Self {
+        Self {inner: unsafe { crate::ffi::raw::HAPI_CookOptions_Create() } }
+    }
+
+}
+
+impl CookOptions {
+    pub fn ptr(&self) -> *const crate::ffi::raw::HAPI_CookOptions {
+        &self.inner as _
+    }
+}
+
+// wrap!(
+//     @object: CookOptions
+//     // @wrap: CookOptionsBuilder
+//     @default: [HAPI_CookOptions_Create => HAPI_CookOptions]
+//     methods:
+//         split_geo_by_group->splitGeosByGroup->[bool];
+//         split_geos_by_attribute->splitGeosByAttribute->[bool];
+//         max_vertices_per_primitive->maxVerticesPerPrimitive->[i32];
+//         refine_curve_to_linear->refineCurveToLinear->[bool];
+//         curve_refine_lod->curveRefineLOD->[f32];
+//         clear_errors_and_warnings->clearErrorsAndWarnings->[bool];
+//         cook_templated_geos->cookTemplatedGeos->[bool];
+//         split_points_by_vertex_attributes->splitPointsByVertexAttributes->[bool];
+//         handle_box_part_types->handleBoxPartTypes->[bool];
+//         handle_sphere_part_types->handleSpherePartTypes->[bool];
+//         check_part_changes->checkPartChanges->[bool];
+//         packed_prim_instancing_mode->packedPrimInstancingMode->[PackedPrimInstancingMode];
+//         split_attr->splitAttrSH->[Result<String>];
+//         extra_flags->extraFlags->[i32]
+// );
 
 #[derive(Debug)]
 pub struct AttributeInfo {
     pub(crate) inner: HAPI_AttributeInfo,
+    pub(crate) session: Session,
 }
 
-impl AttributeInfo {
-    get!(exists->exists->bool);
-    get!(original_owner->originalOwner->AttributeOwner);
-    get!(total_array_elements->totalArrayElements->i64);
-}
-
-builder!(
+wrap!(
     @object: AttributeInfo
-    @builder: AttributeInfoBuilder
-    @default: [HAPI_AttributeInfo_Create => HAPI_AttributeInfo]
+    @new: [HAPI_AttributeInfo_Create => HAPI_AttributeInfo]
     methods:
-        owner->owner->[AttributeOwner];
-        storage->storage->[StorageType];
-        tuple_size->tupleSize->[i32];
-        type_info->typeInfo->[AttributeTypeInfo];
-        count->count->[i32];
+        [get] exists->exists->[bool];
+        [get] original_owner->originalOwner->[AttributeOwner];
+        [get] total_array_elements->totalArrayElements->[i64];
+        [get|set] owner->owner->[AttributeOwner];
+        [get|set] storage->storage->[StorageType];
+        [get|set] tuple_size->tupleSize->[i32];
+        [get|set] type_info->typeInfo->[AttributeTypeInfo];
+        [get|set] count->count->[i32];
 );
 
 #[derive(Debug)]
@@ -336,10 +331,8 @@ pub struct PartInfo {
 }
 
 impl PartInfo {
-    get!(part_id->id->i32);
     get!(part_type->type_->PartType);
     get!(name->nameSH->Result<String>);
-    get!(face_count->faceCount->i32);
     get!(vertex_count->vertexCount->i32);
     get!(point_count->pointCount->i32);
     get!(attribute_counts->attributeCounts->[i32; 4]);
@@ -349,17 +342,25 @@ impl PartInfo {
     get!(has_changed->hasChanged->bool);
 }
 
+wrap!(
+    @object: PartInfo
+    @new: [HAPI_PartInfo_Create => HAPI_PartInfo]
+    methods:
+        [get|set] face_count->faceCount->[i32];
+        [get] part_id->id->[i32];
+);
+
 #[derive(Debug, Clone)]
 pub struct TimelineOptions {
     pub(crate) inner: HAPI_TimelineOptions,
 }
 
-builder!(
-    @object: TimelineOptions
-    @builder:TimelineOptionsBuilder
-    @default: [HAPI_TimelineOptions_Create => HAPI_TimelineOptions]
-    methods:
-        fps->fps->[f32];
-        start_time->startTime->[f32];
-        end_time->endTime->[f32];
-);
+// wrap!(
+//     @object: TimelineOptions
+//     @wrap:TimelineOptionsBuilder
+//     @default: [HAPI_TimelineOptions_Create => HAPI_TimelineOptions]
+//     methods:
+//         fps->fps->[f32];
+//         start_time->startTime->[f32];
+//         end_time->endTime->[f32];
+// );

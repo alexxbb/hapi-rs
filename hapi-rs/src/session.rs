@@ -14,6 +14,7 @@ pub use crate::{
     node::{HoudiniNode, NodeHandle},
     stringhandle::StringsArray,
 };
+pub use crate::ffi::PartInfo;
 
 pub trait EnvVariable: Sized {
     type Type;

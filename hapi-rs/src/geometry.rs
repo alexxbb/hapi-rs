@@ -79,7 +79,7 @@ impl<'session> Geometry<'session> {
         if inner.exists < 1 {
             return Ok(None);
         }
-        let attrib = Attribute::new(name, AttributeInfo { inner }, &self.node);
+        let attrib = Attribute::new(name, AttributeInfo { inner, session: self.node.session.clone() }, &self.node);
         Ok(Some(attrib))
     }
 
@@ -91,6 +91,6 @@ impl<'session> Geometry<'session> {
     ) -> Result<Attribute<T>> {
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
-        Ok(Attribute::new(name, AttributeInfo { inner: info.inner }, &self.node))
+        Ok(Attribute::new(name, AttributeInfo { inner: info.inner, session: self.node.session.clone() }, &self.node))
     }
 }

@@ -1,6 +1,6 @@
 pub use hapi_rs::{
     errors::{HapiError, HapiResult, Kind, Result},
-    session::{CookResult, Session, SessionOptions, StatusVerbosity, TimelineOptionsBuilder},
+    session::{CookResult, Session, SessionOptions, StatusVerbosity},
     node::{HoudiniNode, NodeFlags, NodeType},
     parameter::*,
     ffi,
