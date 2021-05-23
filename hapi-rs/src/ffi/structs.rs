@@ -21,7 +21,7 @@ macro_rules! get {
     ($method:ident->$field:ident->[handle: $hdl:ident]) => {
         #[inline]
         pub fn $method(&self) -> $hdl {
-            $hdl(self.inner.$field)
+            $hdl(self.inner.$field, ())
         }
     };
 
@@ -39,7 +39,7 @@ macro_rules! get {
         }
     };
 
-    (_with_session $method:ident->$field:ident->Result<String>) => {
+    (with_session $method:ident->$field:ident->Result<String>) => {
         #[inline]
         pub fn $method(&self, session: &Session) -> Result<String> {
             session.get_string(self.inner.$field)
@@ -68,12 +68,12 @@ macro_rules! get {
 macro_rules! wrap {
     (_set_ $method:ident->$field:ident->bool) => {
         paste!{
-            pub fn [<with_ $method>](&mut self, val: bool) -> &mut Self {self.inner.$field = val as i8; self}
+            pub fn [<with_ $method>](mut self, val: bool) -> Self {self.inner.$field = val as i8; self}
         }
     };
     (_set_ $method:ident->$field:ident->$tp:ty) => {
         paste!{
-            pub fn [<with_ $method>](&mut self, val: $tp) -> &mut Self {self.inner.$field = val; self}
+            pub fn [<with_ $method>](mut self, val: $tp) -> Self {self.inner.$field = val; self}
         }
     };
 
@@ -83,7 +83,7 @@ macro_rules! wrap {
     };
 
     ([get+session] $object:ident $method:ident->$field:ident->$($tp:tt)*) => {
-        get!(_with_session $method->$field->$($tp)*);
+        get!(with_session $method->$field->$($tp)*);
     };
 
     ([set] $object:ident $method:ident->$field:ident->$($tp:tt)*) => {
@@ -330,15 +330,14 @@ impl<'s> GeoInfo<'s> {
 #[derive(Debug)]
 pub struct PartInfo {
     pub(crate) inner: HAPI_PartInfo,
-    pub(crate) session: Session,
 }
 wrap!(
-    New PartInfo [HAPI_PartInfo_Create => HAPI_PartInfo];
+    Default PartInfo [HAPI_PartInfo_Create => HAPI_PartInfo];
     [get] part_id->id->[i32];
     [get] attribute_counts->attributeCounts->[[i32; 4]];
     [get] has_changed->hasChanged->[bool];
     [get] is_instanced->isInstanced->[bool];
-    [get] name->nameSH->[Result<String>];
+    [get+session] name->nameSH->[Result<String>];
     [get] part_type->type_->[PartType];
     [get|set] face_count->faceCount->[i32];
     [get|set] point_count->pointCount->[i32];

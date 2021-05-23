@@ -22,7 +22,6 @@ impl<'session> Geometry<'session> {
     pub fn part_info(&'session self, id: i32) -> Result<PartInfo> {
         crate::ffi::get_part_info(&self.node, id).map(|inner| PartInfo {
             inner,
-            session: self.node.session.clone()
         })
     }
 
@@ -92,5 +91,14 @@ impl<'session> Geometry<'session> {
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(Attribute::new(name, AttributeInfo { inner: info.inner}, &self.node))
+    }
+
+    pub fn save_to_file(&self, filepath: &str) -> Result<()> {
+        let path = CString::new(filepath)?;
+        crate::ffi::save_geo_to_file(&self.node, &path)
+    }
+
+    pub fn commit(&self) -> Result<()> {
+        crate::ffi::commit_geo(&self.node)
     }
 }

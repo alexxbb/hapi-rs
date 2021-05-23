@@ -57,7 +57,7 @@ impl ffi::NodeInfo {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct NodeHandle(pub ffi::raw::HAPI_NodeId);
+pub struct NodeHandle(pub ffi::raw::HAPI_NodeId, pub(crate) ());
 
 impl NodeHandle {
     pub fn info(&self, session: Session) -> Result<NodeInfo> {
@@ -148,7 +148,7 @@ impl<'session> HoudiniNode {
         let name = CString::new(name)?;
         let label = label.map(|s| CString::new(s).unwrap());
         let id = crate::ffi::create_node(&name, label.as_deref(), &session, parent, cook)?;
-        HoudiniNode::new(session, NodeHandle(id), None)
+        HoudiniNode::new(session, NodeHandle(id, ()), None)
     }
 
     pub fn create_blocking(
@@ -167,7 +167,7 @@ impl<'session> HoudiniNode {
 
     pub fn get_manager_node(session: Session, node_type: NodeType) -> Result<HoudiniNode> {
         let id = crate::ffi::get_manager_node(&session, node_type)?;
-        HoudiniNode::new(session, NodeHandle(id), None)
+        HoudiniNode::new(session, NodeHandle(id, ()), None)
     }
 
     pub fn get_objects_info(&self) -> Result<Vec<ObjectInfo>> {
@@ -192,7 +192,7 @@ impl<'session> HoudiniNode {
         recursive: bool,
     ) -> Result<Vec<NodeHandle>> {
         let ids = crate::ffi::get_compose_child_node_list(self, types, flags, recursive)?;
-        Ok(ids.iter().map(|i| NodeHandle(*i)).collect())
+        Ok(ids.iter().map(|i| NodeHandle(*i, ())).collect())
     }
 
     pub fn parent_node(&self) -> Result<NodeHandle> {
@@ -237,7 +237,7 @@ impl<'session> HoudiniNode {
             if idx == -1 {
                 None
             } else {
-                HoudiniNode::new(self.session.clone(), NodeHandle(idx), None).ok()
+                HoudiniNode::new(self.session.clone(), NodeHandle(idx, ()), None).ok()
             }
         })
     }
