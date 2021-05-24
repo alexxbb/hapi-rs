@@ -87,13 +87,13 @@ pub trait ParmBaseTrait<'s> {
 }
 
 #[derive(Debug, Clone)]
-pub struct ParmHandle(pub HAPI_ParmId);
+pub struct ParmHandle(pub HAPI_ParmId, pub(crate) ());
 
 impl ParmHandle {
     pub fn from_name(name: &str, node: &HoudiniNode) -> Result<Self> {
         let name = CString::new(name)?;
         let id = crate::ffi::get_parm_id_from_name(&name, node)?;
-        Ok(ParmHandle(id))
+        Ok(ParmHandle(id, ()))
     }
     pub fn info<'s>(&self, node: &'s HoudiniNode) -> Result<ParmInfo<'s>> {
         let info = crate::ffi::get_parm_info(node, &self)?;
@@ -186,7 +186,7 @@ impl<'node> Parameter<'node> {
 
     pub fn parent(&self) -> Result<Option<Parameter>> {
         match self.info().parent_id() {
-            ParmHandle(-1) => Ok(None),
+            ParmHandle(-1, ()) => Ok(None),
             handle => {
                 let node = self.base().node;
                 let info = handle.info(node)?;

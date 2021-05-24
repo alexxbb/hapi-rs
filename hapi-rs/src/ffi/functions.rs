@@ -13,6 +13,7 @@ use crate::{
 };
 
 use super::raw;
+use crate::ffi::PartInfo;
 
 macro_rules! uninit {
     () => {
@@ -126,7 +127,7 @@ pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<Nod
         )
         .result_with_session(|| node.session.clone())?;
         let id = id.assume_init();
-        Ok(if id == -1 { None } else { Some(NodeHandle(id)) })
+        Ok(if id == -1 { None } else { Some(NodeHandle(id, ())) })
     }
 }
 
@@ -818,6 +819,19 @@ pub fn create_node(
     }
 }
 
+pub fn create_input_node(session: &Session, name: &CStr) -> Result<raw::HAPI_NodeId> {
+    let mut id = uninit!();
+    unsafe {
+        raw::HAPI_CreateInputNode(
+            session.ptr(),
+            id.as_mut_ptr(),
+            name.as_ptr(),
+        ).result_with_session(|| session.clone())?;
+        Ok(id.assume_init())
+    }
+
+}
+
 pub fn get_manager_node(session: &Session, node_type: raw::NodeType) -> Result<raw::HAPI_NodeId> {
     unsafe {
         let mut id = uninit!();
@@ -1013,6 +1027,18 @@ pub fn get_part_info(node: &HoudiniNode, id: i32) -> Result<raw::HAPI_PartInfo> 
     }
 }
 
+pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {
+    unsafe {
+        super::raw::HAPI_SetPartInfo(
+            node.session.ptr(),
+            node.handle.0,
+            info.part_id(),
+            &info.inner,
+        )
+        .result_with_session(|| node.session.clone())
+    }
+}
+
 pub fn get_attribute_names(
     node: &HoudiniNode,
     part_id: i32,
@@ -1143,7 +1169,11 @@ get_attrib_data!(f32, 0.0, get_attribute_float_data, HAPI_GetAttributeFloatData)
 set_attrib_data!(f32, set_attribute_float_data, HAPI_SetAttributeFloatData);
 #[rustfmt::skip]
 get_attrib_data!(f64, 0.0, get_attribute_float64_data, HAPI_GetAttributeFloat64Data);
-set_attrib_data!(f64, set_attribute_float64_data, HAPI_SetAttributeFloat64Data);
+set_attrib_data!(
+    f64,
+    set_attribute_float64_data,
+    HAPI_SetAttributeFloat64Data
+);
 #[rustfmt::skip]
 get_attrib_data!(i32, 0, get_attribute_int_data, HAPI_GetAttributeIntData);
 set_attrib_data!(i32, set_attribute_int_data, HAPI_SetAttributeIntData);
@@ -1213,4 +1243,25 @@ pub fn get_group_names(
         .result_with_session(|| node.session.clone())?;
     }
     crate::stringhandle::get_strings_array(&handles, &node.session)
+}
+
+pub fn commit_geo(node: &HoudiniNode) -> Result<()> {
+    unsafe {
+        raw::HAPI_CommitGeo(node.session.ptr(), node.handle.0)
+            .result_with_session(|| node.session.clone())
+    }
+}
+
+pub fn save_geo_to_file(node: &HoudiniNode, filename: &CStr) -> Result<()> {
+    unsafe {
+        raw::HAPI_SaveGeoToFile(node.session.ptr(), node.handle.0, filename.as_ptr())
+            .result_with_session(|| node.session.clone())
+    }
+}
+
+pub fn load_geo_from_file(node: &HoudiniNode, filename: &CStr) -> Result<()> {
+    unsafe {
+        raw::HAPI_LoadGeoFromFile(node.session.ptr(), node.handle.0, filename.as_ptr())
+            .result_with_session(|| node.session.clone())
+    }
 }

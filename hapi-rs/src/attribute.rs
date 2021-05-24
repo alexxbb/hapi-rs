@@ -26,7 +26,7 @@ pub trait AttribDataType: Sized {
 
 #[derive(Debug)]
 pub struct Attribute<'s, T: AttribDataType> {
-    pub(crate) info: AttributeInfo,
+    pub info: AttributeInfo,
     pub(crate) node: &'s HoudiniNode,
     pub(crate) name: CString,
     _marker: PhantomData<T>,

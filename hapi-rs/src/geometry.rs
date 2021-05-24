@@ -19,11 +19,14 @@ pub struct Geometry<'session> {
 }
 
 impl<'session> Geometry<'session> {
-    pub fn part_info(&'session self, id: i32) -> Result<PartInfo<'session>> {
+    pub fn part_info(&'session self, id: i32) -> Result<PartInfo> {
         crate::ffi::get_part_info(&self.node, id).map(|inner| PartInfo {
             inner,
-            session: &self.node.session,
         })
+    }
+
+    pub fn set_part_info(&self, info: &PartInfo) -> Result<()> {
+        crate::ffi::set_part_info(&self.node, info)
     }
 
     pub fn geo_info(&'session self) -> Result<GeoInfo<'session>> {
@@ -33,8 +36,9 @@ impl<'session> Geometry<'session> {
         })
     }
 
-    pub fn get_face_counts(&self, info: &PartInfo) -> Result<Vec<i32>> {
-        crate::ffi::get_face_counts(&self.node, info.part_id(), info.face_count())
+    pub fn get_face_counts(&self, _info: &PartInfo) -> Result<Vec<i32>> {
+        todo!()
+        // crate::ffi::get_face_counts(&self.node, info.part_id(), info.face_count())
     }
 
     pub fn get_group_names(&self, group_type: GroupType) -> Result<StringsArray> {
@@ -74,7 +78,7 @@ impl<'session> Geometry<'session> {
         if inner.exists < 1 {
             return Ok(None);
         }
-        let attrib = Attribute::new(name, AttributeInfo { inner }, &self.node);
+        let attrib = Attribute::new(name, AttributeInfo { inner}, &self.node);
         Ok(Some(attrib))
     }
 
@@ -86,6 +90,15 @@ impl<'session> Geometry<'session> {
     ) -> Result<Attribute<T>> {
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
-        Ok(Attribute::new(name, AttributeInfo { inner: info.inner }, &self.node))
+        Ok(Attribute::new(name, AttributeInfo { inner: info.inner}, &self.node))
+    }
+
+    pub fn save_to_file(&self, filepath: &str) -> Result<()> {
+        let path = CString::new(filepath)?;
+        crate::ffi::save_geo_to_file(&self.node, &path)
+    }
+
+    pub fn commit(&self) -> Result<()> {
+        crate::ffi::commit_geo(&self.node)
     }
 }

@@ -10,10 +10,11 @@ pub use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::raw::{HapiResult, State, StatusType, StatusVerbosity},
-    ffi::{CookOptions, TimelineOptions, TimelineOptionsBuilder},
+    ffi::{CookOptions, TimelineOptions},
     node::{HoudiniNode, NodeHandle},
     stringhandle::StringsArray,
 };
+pub use crate::ffi::PartInfo;
 
 pub trait EnvVariable: Sized {
     type Type;
@@ -157,6 +158,11 @@ impl Session {
         crate::ffi::is_session_initialized(self)
     }
 
+    pub fn create_input_node(&self, name: &str) -> Result<HoudiniNode> {
+        let name = CString::new(name)?;
+        let id = crate::ffi::create_input_node(self, &name)?;
+        HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)
+    }
     pub fn create_node(
         &self,
         name: &str,
