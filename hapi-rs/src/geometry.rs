@@ -26,7 +26,16 @@ impl<'session> Geometry<'session> {
     }
 
     pub fn set_part_info(&self, info: &PartInfo) -> Result<()> {
+        // TODO: Should part_id be provided by user or by PartInfo?
         crate::ffi::set_part_info(&self.node, info)
+    }
+
+    pub fn set_vertex_list(&self, part_id: i32, list: impl AsRef<[i32]>) -> Result<()> {
+        crate::ffi::set_geo_vertex_list(&self.node, part_id, list.as_ref())
+    }
+
+    pub fn set_face_counts(&self, part_id: i32, list: impl AsRef<[i32]>) -> Result<()> {
+        crate::ffi::set_geo_face_counts(&self.node, part_id, list.as_ref())
     }
 
     pub fn geo_info(&'session self) -> Result<GeoInfo<'session>> {

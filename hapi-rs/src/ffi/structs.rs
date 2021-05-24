@@ -338,7 +338,7 @@ wrap!(
     [get] has_changed->hasChanged->[bool];
     [get] is_instanced->isInstanced->[bool];
     [get+session] name->nameSH->[Result<String>];
-    [get] part_type->type_->[PartType];
+    [get|set] part_type->type_->[PartType];
     [get|set] face_count->faceCount->[i32];
     [get|set] point_count->pointCount->[i32];
     [get|set] vertex_count->vertexCount->[i32];

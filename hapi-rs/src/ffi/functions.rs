@@ -125,7 +125,11 @@ pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<Nod
         )
         .result_with_session(|| node.session.clone())?;
         let id = id.assume_init();
-        Ok(if id == -1 { None } else { Some(NodeHandle(id, ())) })
+        Ok(if id == -1 {
+            None
+        } else {
+            Some(NodeHandle(id, ()))
+        })
     }
 }
 
@@ -830,14 +834,10 @@ pub fn create_node(
 pub fn create_input_node(session: &Session, name: &CStr) -> Result<raw::HAPI_NodeId> {
     let mut id = uninit!();
     unsafe {
-        raw::HAPI_CreateInputNode(
-            session.ptr(),
-            id.as_mut_ptr(),
-            name.as_ptr(),
-        ).result_with_session(|| session.clone())?;
+        raw::HAPI_CreateInputNode(session.ptr(), id.as_mut_ptr(), name.as_ptr())
+            .result_with_session(|| session.clone())?;
         Ok(id.assume_init())
     }
-
 }
 
 pub fn get_manager_node(session: &Session, node_type: raw::NodeType) -> Result<raw::HAPI_NodeId> {
@@ -1250,6 +1250,33 @@ pub fn save_geo_to_file(node: &HoudiniNode, filename: &CStr) -> Result<()> {
 pub fn load_geo_from_file(node: &HoudiniNode, filename: &CStr) -> Result<()> {
     unsafe {
         raw::HAPI_LoadGeoFromFile(node.session.ptr(), node.handle.0, filename.as_ptr())
+            .result_with_session(|| node.session.clone())
+    }
+}
+
+pub fn set_geo_vertex_list(node: &HoudiniNode, part_id: i32, list: &[i32]) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetVertexList(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            list.as_ptr(),
+            0,
+            list.len() as i32,
+        )
+        .result_with_session(|| node.session.clone())
+    }
+}
+pub fn set_geo_face_counts(node: &HoudiniNode, part_id: i32, list: &[i32]) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetFaceCounts(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            list.as_ptr(),
+            0,
+            list.len() as i32,
+        )
             .result_with_session(|| node.session.clone())
     }
 }
