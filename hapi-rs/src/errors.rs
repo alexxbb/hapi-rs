@@ -113,21 +113,6 @@ impl From<std::ffi::NulError> for HapiError {
     }
 }
 
-// TODO: Unused?
-// macro_rules! hapi_err {
-//     ($hapi_result:expr, $session:expr, $message:expr) => {
-//         Err(crate::errors::HapiError::new(
-//             crate::errors::Kind::Hapi($hapi_result.into()),
-//             $session,
-//             $message.map(|v|std::borrow::Cow::from(v)),
-//         ))
-//     };
-//
-//     ($hapi_result:expr) => {
-//         Err(crate::errors::HapiError::new(crate::errors::Kind::Hapi($hapi_result.into()), None, None))
-//     };
-// }
-
 impl std::error::Error for HapiError {}
 
 impl HapiResult {

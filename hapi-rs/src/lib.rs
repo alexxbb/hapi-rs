@@ -1,10 +1,7 @@
 // #![allow(unused)]
-#[macro_use]
-mod macros;
-#[macro_use]
-pub mod errors;
-mod asset;
-mod attribute;
+pub mod asset;
+pub mod attribute;
+mod errors;
 pub mod ffi;
 pub mod geometry;
 pub mod node;
@@ -48,3 +45,12 @@ pub const ENGINE_VERSION: _EngineVersion = _EngineVersion {
     minor: ffi::raw::HAPI_VERSION_HOUDINI_ENGINE_MINOR,
     api: ffi::raw::HAPI_VERSION_HOUDINI_ENGINE_API,
 };
+
+#[allow(unused)]
+macro_rules! char_ptr {
+    ($lit:expr) => {{
+        use std::ffi::CStr;
+        use std::os::raw::c_char;
+        unsafe { CStr::from_ptr(concat!($lit, "\0").as_ptr() as *const c_char).as_ptr() }
+    }};
+}

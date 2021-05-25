@@ -1,4 +1,4 @@
-use std::{ffi::CString, fmt::Formatter, ptr::null};
+use std::{ffi::CString, fmt::Formatter};
 
 use log::{debug, warn};
 
@@ -116,7 +116,14 @@ impl<'session> HoudiniNode {
 
     pub fn cook(&self, options: Option<&CookOptions>) -> Result<()> {
         debug!("Cooking node: {}", self.path(None)?);
-        let opt = options.map(|o| o.ptr()).unwrap_or(null());
+        let opts;
+        let opt = match options {
+            None => {
+                opts = CookOptions::default();
+                &opts
+            }
+            Some(o) => o,
+        };
         crate::ffi::cook_node(self, opt)
     }
 
@@ -228,6 +235,9 @@ impl<'session> HoudiniNode {
         crate::ffi::check_for_specific_errors(self, error_bits)
     }
 
+    pub fn cook_result(&self, verbosity: StatusVerbosity) -> Result<String> {
+        unsafe { ffi::get_composed_cook_result(self, verbosity) }
+    }
     pub fn reset_simulation(&self) -> Result<()> {
         crate::ffi::reset_simulation(self)
     }
