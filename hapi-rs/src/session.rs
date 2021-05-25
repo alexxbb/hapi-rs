@@ -234,7 +234,7 @@ impl Session {
         crate::ffi::get_status_string(self, status, verbosity)
     }
 
-    pub fn get_cook_status(&self, verbosity: StatusVerbosity) -> Result<String> {
+    pub fn get_cook_result_string(&self, verbosity: StatusVerbosity) -> Result<String> {
         self.get_status_string(StatusType::CookResult, verbosity)
     }
 
@@ -246,6 +246,7 @@ impl Session {
         crate::ffi::get_cooking_current_count(self)
     }
 
+    /// In threaded mode wait for Session finishes cooking. In single thread mode, immediately return
     pub fn cook(&self) -> Result<CookResult> {
         if self.unsync {
             loop {
@@ -253,14 +254,19 @@ impl Session {
                     State::Ready => break Ok(CookResult::Succeeded),
                     State::ReadyWithFatalErrors => {
                         self.interrupt()?;
-                        let err = self.get_cook_status(StatusVerbosity::Errors)?;
+                        let err = self.get_cook_result_string(StatusVerbosity::Errors)?;
                         break Ok(CookResult::Errored(err));
                     }
                     State::ReadyWithCookErrors => break Ok(CookResult::Warnings),
-                    _ => {}
+                    _ => {
+                        // Continue polling
+                        println!("Status: {}", self.get_status_string(StatusType::CookState, StatusVerbosity::Statusverbosity2)?);
+                    }
                 }
             }
         } else {
+            // In single threaded mode, the cook happens inside of HAPI_CookNode(),
+            // and HAPI_GetStatus() will immediately return HAPI_STATE_READY.
             Ok(CookResult::Succeeded)
         }
     }
