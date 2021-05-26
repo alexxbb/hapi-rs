@@ -5,7 +5,7 @@
 #[allow(clippy::all)]
 mod bindings;
 
-pub mod raw {
+pub(crate) mod raw {
     pub use super::bindings::*;
 }
 

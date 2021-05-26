@@ -127,6 +127,8 @@ impl<'session> HoudiniNode {
         crate::ffi::cook_node(self, opt)
     }
 
+    /// In sync mode (single threaded), the error will be available in Err(..) while
+    /// in unsync mode (cookng thread), the error will be in Ok(..)
     pub fn cook_blocking(&self, options: Option<&CookOptions>) -> Result<CookResult> {
         self.cook(options)?;
         self.session.cook()

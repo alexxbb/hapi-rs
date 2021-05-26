@@ -5,6 +5,6 @@ import sys
 
 
 def main():
-    time.sleep(5)
+    time.sleep(10)
     print("Hello %s", __file__)
     sys.stdout.flush()

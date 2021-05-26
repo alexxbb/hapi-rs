@@ -16,8 +16,9 @@ pub struct HapiError {
 #[non_exhaustive]
 pub enum Kind {
     Hapi(HapiResult),
-    CookError,
+    // TODO: Maybe include original string with null byte
     NullByte,
+    Other(String)
 }
 
 impl Kind {
@@ -49,7 +50,7 @@ impl Kind {
             Kind::Hapi(UserInterrupted) => "USER_INTERRUPTED",
             Kind::Hapi(InvalidSession) => "INVALID_SESSION",
             Kind::NullByte => "String contains null byte!",
-            Kind::CookError => "Cooking error",
+            Kind::Other(s) => &s
         }
     }
 }

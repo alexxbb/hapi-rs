@@ -1,5 +1,6 @@
 pub use hapi_rs::{
-    errors::{HapiError, HapiResult, Kind, Result},
+    Result,
+    PartType,
     ffi,
     geometry::*,
     node::{HoudiniNode, NodeFlags, NodeType},
@@ -9,7 +10,6 @@ pub use hapi_rs::{
 };
 use hapi_rs::ffi::{PartInfo, AttributeInfo};
 use hapi_rs::StorageType;
-use hapi_rs::ffi::raw::PartType;
 
 pub unsafe fn run() -> Result<()> {
     let mut session = Session::connect_to_pipe("c:/Temp/hars")?;
@@ -34,6 +34,8 @@ pub unsafe fn run() -> Result<()> {
     }
 
     node.cook_blocking(None)?;
+    let err = session.get_cook_result_string(StatusVerbosity::Statusverbosity2)?;
+    println!("Status: {}", err);
     let geo = node.geometry()?.unwrap();
     let part = geo.part_info(0)?;
     let attribs = geo.get_attribute_names(AttributeOwner::Point, &part)?;
@@ -78,9 +80,9 @@ pub unsafe fn run() -> Result<()> {
 			      1.0f, 1.0f, 1.0f }; // 7
      */
 
-    let node = session.create_input_node("Hello")?;
+    let node = session.create_input_node("input")?;
     node.cook_blocking(None)?;
-    let geo = node.geometry()?.unwrap();
+    let geo = node.geometry()?.expect("Input geo must exist");
     let part = PartInfo::default()
         .with_part_type(PartType::Mesh)
         .with_face_count(1)
