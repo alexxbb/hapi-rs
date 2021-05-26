@@ -16,10 +16,25 @@ pub use crate::{
 };
 pub use crate::ffi::PartInfo;
 
-pub trait EnvVariable: Sized {
-    type Type;
-    fn get_value(session: &Session, key: impl AsRef<str>) -> Result<Self::Type>;
-    fn set_value(session: &Session, key: impl AsRef<str>, val: Self::Type) -> Result<()>;
+pub trait EnvVariable {
+    type Type: ?Sized + ToOwned;
+    fn get_value(session: &Session, key: impl AsRef<str>) -> Result<<Self::Type as ToOwned>::Owned>;
+    fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()>;
+}
+
+impl EnvVariable for str {
+    type Type = str;
+
+    fn get_value(session: &Session, key: impl AsRef<str>) -> Result<String> {
+        let key = CString::new(key.as_ref())?;
+        crate::ffi::get_server_env_str(session, &key)
+    }
+
+    fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()> {
+        let key = CString::new(key.as_ref())?;
+        let val = CString::new(val)?;
+        crate::ffi::set_server_env_str(session, &key, &val)
+    }
 }
 
 impl EnvVariable for i32 {
@@ -30,24 +45,9 @@ impl EnvVariable for i32 {
         crate::ffi::get_server_env_int(session, &key)
     }
 
-    fn set_value(session: &Session, key: impl AsRef<str>, val: Self::Type) -> Result<()> {
+    fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()> {
         let key = CString::new(key.as_ref())?;
-        crate::ffi::set_server_env_int(session, &key, val)
-    }
-}
-
-impl EnvVariable for String {
-    type Type = Self;
-
-    fn get_value(session: &Session, key: impl AsRef<str>) -> Result<Self::Type> {
-        let key = CString::new(key.as_ref())?;
-        crate::ffi::get_server_env_str(session, &key)
-    }
-
-    fn set_value(session: &Session, key: impl AsRef<str>, val: Self::Type) -> Result<()> {
-        let key = CString::new(key.as_ref())?;
-        let val = CString::new(val)?;
-        crate::ffi::set_server_env_str(session, &key, &val)
+        crate::ffi::set_server_env_int(session, &key, *val)
     }
 }
 
@@ -85,11 +85,11 @@ impl Session {
         })
     }
 
-    pub fn set_server_var<T: EnvVariable>(&self, key: &str, value: T::Type) -> Result<()> {
+    pub fn set_server_var<T: EnvVariable + ?Sized>(&self, key: &str, value: &T::Type) -> Result<()> {
         T::set_value(self, key, value)
     }
 
-    pub fn get_server_var<T: EnvVariable>(&self, key: &str) -> Result<T::Type> {
+    pub fn get_server_var<T: EnvVariable + ?Sized>(&self, key: &str) -> Result<<T::Type as ToOwned>::Owned> {
         T::get_value(self, key)
     }
 
@@ -258,10 +258,8 @@ impl Session {
                         break Ok(CookResult::Errored(err));
                     }
                     State::ReadyWithCookErrors => break Ok(CookResult::Warnings),
-                    _ => {
-                        // Continue polling
-                        println!("Status: {}", self.get_status_string(StatusType::CookState, StatusVerbosity::Statusverbosity2)?);
-                    }
+                    // Continue polling
+                    _ => {}
                 }
             }
         } else {
@@ -302,6 +300,7 @@ impl Drop for Session {
             eprintln!("Dropping session");
             assert!(self.is_valid(), "Session invalid in Drop");
             if self.cleanup {
+                eprintln!("Cleaning up session");
                 if let Err(e) = self.cleanup() {
                     error!("Cleanup failed in Drop: {}", e);
                 }

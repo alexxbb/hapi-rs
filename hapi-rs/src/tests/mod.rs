@@ -29,7 +29,7 @@ fn create_and_init() {
 
 #[test]
 fn session_time() -> Result<()> {
-    let opt = TimelineOptionsBuilder::default().end_time(5.5).build();
+    let opt = crate::TimelineOptions::default().with_end_time(5.5);
     assert!(SESSION.set_timeline_options(opt.clone()).is_ok());
     let opt2 = SESSION.get_timeline_options()?;
     assert!(opt.end_time().eq(&opt2.end_time()));
@@ -40,9 +40,9 @@ fn session_time() -> Result<()> {
 
 #[test]
 fn server_env() -> Result<()> {
-    SESSION.set_server_var::<String>("FOO", "foo_string".to_string())?;
-    assert_eq!(SESSION.get_server_var::<String>("FOO")?, "foo_string");
-    SESSION.set_server_var::<i32>("BAR", 123)?;
+    SESSION.set_server_var::<str>("FOO", "foo_string")?;
+    assert_eq!(SESSION.get_server_var::<str>("FOO")?, "foo_string");
+    SESSION.set_server_var::<i32>("BAR", &123)?;
     assert_eq!(SESSION.get_server_var::<i32>("BAR")?, 123);
     assert_eq!(SESSION.get_server_variables()?.is_empty(), false);
     Ok(())
@@ -57,6 +57,7 @@ fn load_asset() -> Result<()> {
     assert!(lib
         .get_asset_names()?
         .contains(&"Object/hapi_parms".to_string()));
+    lib.try_create_first()?;
     Ok(())
 }
 
