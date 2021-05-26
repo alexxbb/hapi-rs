@@ -41,6 +41,18 @@ impl AssetLibrary {
         // dbg!(count);
         // Ok(vec![])
     }
+    /// Try to create the first available asset in the library
+    pub fn try_create_first(&self) -> Result<HoudiniNode> {
+        use crate::errors::{
+            HapiError, Kind
+        };
+        match self.get_asset_names()?.first() {
+            Some(name) => self.session.create_node_blocking(name, None, None),
+            None => Err(
+                HapiError::new(
+                    Kind::Other("Empty AssetLibrary".to_string()), None, None))
+        }
+    }
 }
 
 impl<'node> AssetInfo<'node> {
