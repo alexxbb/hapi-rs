@@ -3,10 +3,11 @@ use std::borrow::Cow;
 pub use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
-    raw::{AttributeOwner, GroupType},
+    raw::{AttributeOwner, GroupType, PartType},
     GeoInfo,
+    PartInfo,
+    AttributeInfo,
 };
-use crate::ffi::{AttributeInfo, PartInfo};
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringsArray;
 use std::ffi::CString;

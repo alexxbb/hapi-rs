@@ -1,4 +1,5 @@
 #![allow(clippy::all)]
+use crate::geometry::*;
 use crate::parameter::*;
 use crate::session::*;
 use once_cell::sync::Lazy;
@@ -123,5 +124,37 @@ fn node_parameters() -> Result<()> {
             assert_eq!(sp.get_value()?[0], "set from callback");
         }
     }
+    Ok(())
+}
+
+#[test]
+fn geometry_triangle() -> Result<()> {
+    let node = SESSION.create_input_node("test")?;
+    let geo = node.geometry()?.unwrap();
+
+    let part = PartInfo::default()
+        .with_part_type(PartType::Mesh)
+        .with_face_count(1)
+        .with_point_count(3)
+        .with_vertex_count(3);
+    geo.set_part_info(&part)?;
+    let info = AttributeInfo::default()
+        .with_count(part.point_count())
+        .with_tuple_size(3)
+        .with_owner(AttributeOwner::Point)
+        .with_storage(StorageType::Float);
+    let attr_p = geo.add_attribute::<f32>(part.part_id(), "P", &info)?;
+    attr_p.set(
+        part.part_id(),
+        &[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
+    )?;
+    geo.set_vertex_list(0, [0, 1, 2])?;
+    geo.set_face_counts(0, [3])?;
+    geo.commit()?;
+
+    node.cook_blocking(None)?;
+
+    let val: Vec<_> = attr_p.read(part.part_id())?;
+    assert_eq!(val.len(), 9);
     Ok(())
 }

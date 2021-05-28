@@ -119,8 +119,8 @@ impl<'node> ParmInfo<'node> {
 
 // TODO: Should be private
 pub struct ParmNodeWrap<'session> {
-    pub info: ParmInfo<'session>,
-    pub node: &'session HoudiniNode,
+    pub(crate) info: ParmInfo<'session>,
+    pub(crate) node: &'session HoudiniNode,
 }
 
 #[derive(Debug)]

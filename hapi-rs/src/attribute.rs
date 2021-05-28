@@ -1,7 +1,12 @@
 use std::marker::PhantomData;
 
 use crate::errors::Result;
-pub use crate::ffi::AttributeInfo;
+pub use crate::ffi::{
+    AttributeInfo
+};
+pub use crate::ffi::raw:: {
+    StorageType
+};
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringsArray;
 use std::ffi::{CStr, CString};
