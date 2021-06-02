@@ -128,6 +128,15 @@ fn node_parameters() -> Result<()> {
 }
 
 #[test]
+fn nodes() -> Result<()> {
+    let obj = HoudiniNode::get_manager_node(SESSION.clone(), NodeType::Obj)?;
+    SESSION.create_node("geo", Some("some_name"), Some(obj.handle))?;
+    assert!(obj.node("some_name")?.is_some());
+    Ok(())
+}
+
+
+#[test]
 fn geometry_triangle() -> Result<()> {
     let node = SESSION.create_input_node("test")?;
     let geo = node.geometry()?.unwrap();

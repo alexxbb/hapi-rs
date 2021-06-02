@@ -331,6 +331,7 @@ where
 
 pub struct SessionOptions {
     pub cook_opt: CookOptions,
+    // TODO: threaded seems a better name for unsync
     pub unsync: bool,
     pub cleanup: bool,
     pub ignore_already_init: bool,

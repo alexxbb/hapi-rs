@@ -204,6 +204,29 @@ impl<'session> HoudiniNode {
         Ok(ids.iter().map(|i| NodeHandle(*i, ())).collect())
     }
 
+    /// Search child node by name, relatively expensive, due to retrieving node names
+    pub fn node(&self, name: &str) -> Result<Option<HoudiniNode>> {
+        let types = self.info.node_type();
+        let flags = NodeFlags::Any;
+        let nodes = crate::ffi::get_compose_child_node_list(self, types, flags, false)?;
+        let handle = nodes
+            .iter()
+            .find(|id| {
+            let h = NodeHandle(**id, ());
+            match h.info(self.session.clone()) {
+                Ok(info) => {
+                    info.name().expect("oops") == name
+                }
+                Err(_) => {warn!("Failed to get NodeInfo"); false}
+            }
+        });
+
+        match handle {
+            None => {Ok(None)}
+            Some(id) => Ok(Some(NodeHandle(*id, ()).to_node(&self.session)?))
+        }
+    }
+
     pub fn parent_node(&self) -> Result<NodeHandle> {
         Ok(self.info.parent_id())
     }
