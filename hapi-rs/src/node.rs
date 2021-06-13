@@ -231,25 +231,22 @@ impl<'session> HoudiniNode {
         Ok(self.info.parent_id())
     }
 
-    pub fn parameter(&'session self, name: &str) -> Result<Parameter<'session>> {
+    pub fn parameter(&'session self, name: &str) -> Result<Parameter> {
         let parm_info = crate::ffi::ParmInfo::from_parm_name(name, self)?;
         Ok(Parameter::new(self, parm_info))
     }
 
-    pub fn parameters(&'session self) -> Result<Vec<Parameter<'session>>> {
+    pub fn parameters(&'session self) -> Result<Vec<ParmInfo>> {
         let infos = crate::ffi::get_parameters(self)?;
         Ok(infos
             .into_iter()
-            .map(|i| {
-                Parameter::new(
-                    self,
+            .map(|i|
                     ParmInfo {
                         inner: i,
-                        session: &self.session,
+                        session: self.session.clone(),
                         name: None,
-                    },
-                )
-            })
+                    }
+            )
             .collect())
     }
 

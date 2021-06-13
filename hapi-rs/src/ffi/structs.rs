@@ -140,13 +140,13 @@ impl<'s> ParmChoiceInfo<'_> {
 }
 
 #[derive(Debug)]
-pub struct ParmInfo<'session> {
+pub struct ParmInfo {
     pub(crate) inner: HAPI_ParmInfo,
-    pub(crate) session: &'session Session,
+    pub(crate) session: Session,
     pub(crate) name: Option<CString>,
 }
 
-impl<'session> ParmInfo<'session> {
+impl ParmInfo {
     get!(id->id->[handle: ParmHandle]);
     get!(parent_id->parentId->[handle: ParmHandle]);
     get!(child_index->childIndex->i32);

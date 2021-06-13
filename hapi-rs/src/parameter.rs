@@ -15,10 +15,10 @@ pub use crate::{
     session::Session,
 };
 
-pub trait ParmBaseTrait<'s> {
+pub trait ParmBaseTrait {
     type ValueType;
 
-    fn c_name(&'s self) -> Result<Cow<'s, CString>> {
+    fn c_name(&self) -> Result<Cow<'_, CString>> {
         let info = &self.wrap().info;
         match info.name.as_ref() {
             None => Ok(Cow::Owned(info.name_cstr()?)),
@@ -26,7 +26,7 @@ pub trait ParmBaseTrait<'s> {
         }
     }
 
-    fn name(&'s self) -> Result<Cow<'s, str>> {
+    fn name(&self) -> Result<Cow<'_, str>> {
         match self.c_name()? {
             Cow::Borrowed(s) => unsafe {
                 let bytes = s.as_bytes();
@@ -40,12 +40,12 @@ pub trait ParmBaseTrait<'s> {
     fn is_menu(&self) -> bool {
         !matches!(self.wrap().info.choice_list_type(), ChoiceListType::None)
     }
-    fn wrap(&self) -> &ParmNodeWrap<'s>;
+    fn wrap(&self) -> &ParmNodeWrap;
     // TODO find a way to make it private
-    fn info(&self) -> &ParmInfo<'s> {
+    fn info(&self) -> &ParmInfo {
         &self.wrap().info
     }
-    fn menu_items(&'s self) -> Option<Result<Vec<ParmChoiceInfo<'s>>>> {
+    fn menu_items(&self) -> Option<Result<Vec<ParmChoiceInfo<'_>>>> {
         if !self.is_menu() {
             return None;
         }
@@ -65,16 +65,16 @@ pub trait ParmBaseTrait<'s> {
         });
         Some(parms)
     }
-    fn expression(&'s self, index: i32) -> Result<String> {
+    fn expression(&self, index: i32) -> Result<String> {
         let wrap = self.wrap();
         crate::ffi::get_parm_expression(&wrap.node, &self.c_name()?, index)
     }
 
-    fn has_expression(&'s self, index: i32) -> Result<bool> {
+    fn has_expression(&self, index: i32) -> Result<bool> {
         crate::ffi::parm_has_expression(&self.wrap().node, &self.c_name()?, index)
     }
 
-    fn set_expression(&'s self, value: &str, index: i32) -> Result<()> {
+    fn set_expression(&self, value: &str, index: i32) -> Result<()> {
         let wrap = self.wrap();
         let value = CString::new(value)?;
         crate::ffi::set_parm_expression(&wrap.node, &wrap.info.id(), &value, index)
@@ -95,66 +95,66 @@ impl ParmHandle {
         let id = crate::ffi::get_parm_id_from_name(&name, node)?;
         Ok(ParmHandle(id, ()))
     }
-    pub fn info<'s>(&self, node: &'s HoudiniNode) -> Result<ParmInfo<'s>> {
+    pub fn info(&self, node: &HoudiniNode) -> Result<ParmInfo> {
         let info = crate::ffi::get_parm_info(node, &self)?;
         Ok(ParmInfo {
             inner: info,
-            session: &node.session,
+            session: node.session.clone(),
             name: None,
         })
     }
 }
 
-impl<'node> ParmInfo<'node> {
-    pub fn from_parm_name(name: &str, node: &'node HoudiniNode) -> Result<Self> {
+impl ParmInfo {
+    pub fn from_parm_name(name: &str, node: &HoudiniNode) -> Result<Self> {
         let name = CString::new(name)?;
         let info = crate::ffi::get_parm_info_from_name(&node, &name);
         info.map(|info| ParmInfo {
             inner: info,
-            session: &node.session,
+            session: node.session.clone(),
             name: Some(name),
         })
     }
 }
 
 // TODO: Should be private
-pub struct ParmNodeWrap<'session> {
-    pub(crate) info: ParmInfo<'session>,
-    pub(crate) node: &'session HoudiniNode,
+pub struct ParmNodeWrap {
+    pub(crate) info: ParmInfo,
+    pub(crate) node: HoudiniNode,
 }
 
 #[derive(Debug)]
-pub struct BaseParameter<'session> {
-    pub(crate) wrap: ParmNodeWrap<'session>,
+pub struct BaseParameter {
+    pub(crate) wrap: ParmNodeWrap,
 }
 
 #[derive(Debug)]
-pub struct FloatParameter<'session> {
-    pub(crate) wrap: ParmNodeWrap<'session>,
+pub struct FloatParameter{
+    pub(crate) wrap: ParmNodeWrap,
 }
 
 #[derive(Debug)]
-pub struct IntParameter<'session> {
-    pub(crate) wrap: ParmNodeWrap<'session>,
+pub struct IntParameter{
+    pub(crate) wrap: ParmNodeWrap,
 }
 
 #[derive(Debug)]
-pub struct StringParameter<'session> {
-    pub(crate) wrap: ParmNodeWrap<'session>,
+pub struct StringParameter{
+    pub(crate) wrap: ParmNodeWrap,
 }
 
 #[derive(Debug)]
-pub enum Parameter<'session> {
-    Float(FloatParameter<'session>),
-    Int(IntParameter<'session>),
-    String(StringParameter<'session>),
-    Button(IntParameter<'session>),
-    Other(BaseParameter<'session>),
+pub enum Parameter{
+    Float(FloatParameter),
+    Int(IntParameter),
+    String(StringParameter),
+    Button(IntParameter),
+    Other(BaseParameter),
 }
 
-impl<'node> Parameter<'node> {
-    pub(crate) fn new(node: &'node HoudiniNode, info: ParmInfo<'node>) -> Parameter<'node> {
-        let base = ParmNodeWrap { info, node };
+impl Parameter{
+    pub(crate) fn new(node: &HoudiniNode, info: ParmInfo) -> Parameter {
+        let base = ParmNodeWrap { info, node: node.clone() };
         match base.info.parm_type() {
             ParmType::Int | ParmType::Toggle | ParmType::Folder | ParmType::Folderlist => {
                 Parameter::Int(IntParameter { wrap: base })
@@ -184,13 +184,11 @@ impl<'node> Parameter<'node> {
         }
     }
 
-    pub fn parent(&self) -> Result<Option<Parameter>> {
+    pub fn parent(&self) -> Result<Option<ParmInfo>> {
         match self.info().parent_id() {
             ParmHandle(-1, ()) => Ok(None),
             handle => {
-                let node = self.base().node;
-                let info = handle.info(node)?;
-                Ok(Some(Parameter::new(node, info)))
+                Ok(Some(handle.info(&self.base().node)?))
             }
         }
     }
@@ -206,10 +204,10 @@ impl<'node> Parameter<'node> {
     }
 }
 
-impl<'s> ParmBaseTrait<'s> for FloatParameter<'s> {
+impl ParmBaseTrait for FloatParameter{
     type ValueType = f32;
 
-    fn wrap(&self) -> &ParmNodeWrap<'s> {
+    fn wrap(&self) -> &ParmNodeWrap{
         &self.wrap
     }
 
@@ -232,10 +230,10 @@ impl<'s> ParmBaseTrait<'s> for FloatParameter<'s> {
     }
 }
 
-impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
+impl ParmBaseTrait for IntParameter{
     type ValueType = i32;
 
-    fn wrap(&self) -> &ParmNodeWrap<'s> {
+    fn wrap(&self) -> &ParmNodeWrap{
         &self.wrap
     }
 
@@ -255,7 +253,7 @@ impl<'s> ParmBaseTrait<'s> for IntParameter<'s> {
     }
 }
 
-impl<'s> IntParameter<'s> {
+impl IntParameter {
     pub fn press_button(&self) -> Result<()> {
         if !matches!(self.wrap.info.parm_type(), ParmType::Button) {
             warn!("Parm {} not a Button type", self.wrap.info.name()?);
@@ -264,10 +262,10 @@ impl<'s> IntParameter<'s> {
     }
 }
 
-impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
+impl ParmBaseTrait for StringParameter {
     type ValueType = String;
 
-    fn wrap(&self) -> &ParmNodeWrap<'s> {
+    fn wrap(&self) -> &ParmNodeWrap {
         &self.wrap
     }
 
@@ -299,7 +297,7 @@ impl<'s> ParmBaseTrait<'s> for StringParameter<'s> {
     }
 }
 
-impl std::fmt::Debug for ParmNodeWrap<'_> {
+impl std::fmt::Debug for ParmNodeWrap {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Parameter[{name} of type {type:?}]",
                name=self.info.name().unwrap(),

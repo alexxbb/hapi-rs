@@ -34,7 +34,7 @@ impl AssetLibrary {
             .map(|a| a.into_iter().collect())
     }
 
-    pub fn get_asset_parms(&self, _asset_name: impl AsRef<str>) -> Result<Vec<ParmInfo<'_>>> {
+    pub fn get_asset_parms(&self, _asset_name: impl AsRef<str>) -> Result<Vec<ParmInfo>> {
         unimplemented!("Crashes HARS as of 18.5.531");
         // let cs = CString::new(asset_name.as_ref())?;
         // let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &cs, &self.session)?;
