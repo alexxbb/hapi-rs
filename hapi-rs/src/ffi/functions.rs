@@ -463,16 +463,25 @@ pub fn get_asset_def_parm_count(
     Ok(parms)
 }
 
-pub fn get_asset_parm_info() -> Result<()> {
-    unimplemented!("Crashes HARS as of 18.5.531");
-    // ffi::HAPI_GetAssetDefinitionParmInfos(
-    //     self.session.ptr(),
-    //     self.lib_id,
-    //     asset_name.as_ptr(),
-    //     parms.as_mut_ptr(),
-    //     0,
-    //     num_parms,
-    // ).result_with_session(|| self.session.clone())?;
+pub fn get_asset_def_parm_info(
+    library_id: i32,
+    asset: &CStr,
+    count: i32,
+    session: &Session,
+) -> Result<Vec<raw::HAPI_ParmInfo>> {
+    unsafe {
+        let mut parms = vec![raw::HAPI_ParmInfo_Create(); count as usize];
+        raw::HAPI_GetAssetDefinitionParmInfos(
+            session.ptr(),
+            library_id,
+            asset.as_ptr(),
+            parms.as_mut_ptr(),
+            0,
+            count,
+        )
+        .result_with_session(|| session.clone())?;
+        Ok(parms)
+    }
 }
 
 pub fn get_string_batch_size(handles: &[i32], session: &Session) -> Result<i32> {
@@ -1289,6 +1298,6 @@ pub fn set_geo_face_counts(node: &HoudiniNode, part_id: i32, list: &[i32]) -> Re
             0,
             list.len() as i32,
         )
-            .result_with_session(|| node.session.clone())
+        .result_with_session(|| node.session.clone())
     }
 }

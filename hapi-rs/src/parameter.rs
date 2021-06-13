@@ -40,11 +40,8 @@ pub trait ParmBaseTrait {
     fn is_menu(&self) -> bool {
         !matches!(self.wrap().info.choice_list_type(), ChoiceListType::None)
     }
+    #[doc(hidden)]
     fn wrap(&self) -> &ParmNodeWrap;
-    // TODO find a way to make it private
-    fn info(&self) -> &ParmInfo {
-        &self.wrap().info
-    }
     fn menu_items(&self) -> Option<Result<Vec<ParmChoiceInfo<'_>>>> {
         if !self.is_menu() {
             return None;
@@ -117,7 +114,6 @@ impl ParmInfo {
     }
 }
 
-// TODO: Should be private
 pub struct ParmNodeWrap {
     pub(crate) info: ParmInfo,
     pub(crate) node: HoudiniNode,
@@ -129,22 +125,22 @@ pub struct BaseParameter {
 }
 
 #[derive(Debug)]
-pub struct FloatParameter{
+pub struct FloatParameter {
     pub(crate) wrap: ParmNodeWrap,
 }
 
 #[derive(Debug)]
-pub struct IntParameter{
+pub struct IntParameter {
     pub(crate) wrap: ParmNodeWrap,
 }
 
 #[derive(Debug)]
-pub struct StringParameter{
+pub struct StringParameter {
     pub(crate) wrap: ParmNodeWrap,
 }
 
 #[derive(Debug)]
-pub enum Parameter{
+pub enum Parameter {
     Float(FloatParameter),
     Int(IntParameter),
     String(StringParameter),
@@ -152,9 +148,12 @@ pub enum Parameter{
     Other(BaseParameter),
 }
 
-impl Parameter{
+impl Parameter {
     pub(crate) fn new(node: &HoudiniNode, info: ParmInfo) -> Parameter {
-        let base = ParmNodeWrap { info, node: node.clone() };
+        let base = ParmNodeWrap {
+            info,
+            node: node.clone(),
+        };
         match base.info.parm_type() {
             ParmType::Int | ParmType::Toggle | ParmType::Folder | ParmType::Folderlist => {
                 Parameter::Int(IntParameter { wrap: base })
@@ -187,9 +186,7 @@ impl Parameter{
     pub fn parent(&self) -> Result<Option<ParmInfo>> {
         match self.info().parent_id() {
             ParmHandle(-1, ()) => Ok(None),
-            handle => {
-                Ok(Some(handle.info(&self.base().node)?))
-            }
+            handle => Ok(Some(handle.info(&self.base().node)?)),
         }
     }
 
@@ -204,10 +201,10 @@ impl Parameter{
     }
 }
 
-impl ParmBaseTrait for FloatParameter{
+impl ParmBaseTrait for FloatParameter {
     type ValueType = f32;
 
-    fn wrap(&self) -> &ParmNodeWrap{
+    fn wrap(&self) -> &ParmNodeWrap {
         &self.wrap
     }
 
@@ -230,10 +227,10 @@ impl ParmBaseTrait for FloatParameter{
     }
 }
 
-impl ParmBaseTrait for IntParameter{
+impl ParmBaseTrait for IntParameter {
     type ValueType = i32;
 
-    fn wrap(&self) -> &ParmNodeWrap{
+    fn wrap(&self) -> &ParmNodeWrap {
         &self.wrap
     }
 

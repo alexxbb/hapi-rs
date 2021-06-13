@@ -47,11 +47,11 @@ impl std::fmt::Debug for ffi::NodeInfo {
 }
 
 impl ffi::NodeInfo {
-    pub fn new(session: Session, node: &NodeHandle) -> Result<Self> {
+    pub fn new(session: &Session, node: &NodeHandle) -> Result<Self> {
         let info = crate::ffi::get_node_info(node, &session)?;
         Ok(ffi::NodeInfo {
             inner: info,
-            session,
+            session: session.clone(),
         })
     }
 }
@@ -60,12 +60,12 @@ impl ffi::NodeInfo {
 pub struct NodeHandle(pub ffi::raw::HAPI_NodeId, pub(crate) ());
 
 impl NodeHandle {
-    pub fn info(&self, session: Session) -> Result<NodeInfo> {
+    pub fn info(&self, session: &Session) -> Result<NodeInfo> {
         NodeInfo::new(session, self)
     }
 
     pub fn is_valid(&self, session: &Session) -> Result<bool> {
-        let info = self.info(session.clone())?;
+        let info = self.info(session)?;
         crate::ffi::is_node_valid(&info)
     }
 
@@ -93,7 +93,7 @@ impl std::fmt::Debug for HoudiniNode {
 impl<'session> HoudiniNode {
     pub(crate) fn new(session: Session, hdl: NodeHandle, info: Option<NodeInfo>) -> Result<Self> {
         let info = match info {
-            None => NodeInfo::new(session.clone(), &hdl)?,
+            None => NodeInfo::new(&session, &hdl)?,
             Some(i) => i,
         };
         Ok(HoudiniNode {
@@ -209,26 +209,29 @@ impl<'session> HoudiniNode {
         let types = self.info.node_type();
         let flags = NodeFlags::Any;
         let nodes = crate::ffi::get_compose_child_node_list(self, types, flags, false)?;
-        let handle = nodes
-            .iter()
-            .find(|id| {
+        let handle = nodes.iter().find(|id| {
             let h = NodeHandle(**id, ());
-            match h.info(self.session.clone()) {
-                Ok(info) => {
-                    info.name().expect("oops") == name
+            match h.info(&self.session) {
+                Ok(info) => info.name().expect("oops") == name,
+                Err(_) => {
+                    warn!("Failed to get NodeInfo");
+                    false
                 }
-                Err(_) => {warn!("Failed to get NodeInfo"); false}
             }
         });
 
         match handle {
-            None => {Ok(None)}
-            Some(id) => Ok(Some(NodeHandle(*id, ()).to_node(&self.session)?))
+            None => Ok(None),
+            Some(id) => Ok(Some(NodeHandle(*id, ()).to_node(&self.session)?)),
         }
     }
 
-    pub fn parent_node(&self) -> Result<NodeHandle> {
-        Ok(self.info.parent_id())
+    pub fn parent_node(&self) -> Option<NodeHandle> {
+        let h = self.info.parent_id();
+        match h.0 > -1 {
+            true => Some(h),
+            false => None,
+        }
     }
 
     pub fn parameter(&'session self, name: &str) -> Result<Parameter> {
@@ -240,13 +243,11 @@ impl<'session> HoudiniNode {
         let infos = crate::ffi::get_parameters(self)?;
         Ok(infos
             .into_iter()
-            .map(|i|
-                    ParmInfo {
-                        inner: i,
-                        session: self.session.clone(),
-                        name: None,
-                    }
-            )
+            .map(|i| ParmInfo {
+                inner: i,
+                session: self.session.clone(),
+                name: None,
+            })
             .collect())
     }
 

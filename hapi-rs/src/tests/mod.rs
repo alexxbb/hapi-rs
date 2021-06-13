@@ -62,7 +62,7 @@ fn load_asset() -> Result<()> {
     Ok(())
 }
 
-/// This crashes HARS do to sesi bug
+#[test]
 #[allow(unused)]
 fn asset_parameters() {
     assert!(SESSION.is_valid());
