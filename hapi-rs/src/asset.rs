@@ -60,6 +60,19 @@ impl AssetLibrary {
             )),
         }
     }
+
+    /// Return a vec of parameters of the first available asset in the library
+    pub fn try_get_asset_parms(&self) -> Result<Vec<ParmInfo>> {
+        use crate::errors::{HapiError, Kind};
+        match self.get_asset_names()?.first() {
+            Some(name) => self.get_asset_parms(name),
+            None => Err(HapiError::new(
+                Kind::Other("Empty AssetLibrary".to_string()),
+                None,
+                None,
+            )),
+        }
+    }
 }
 
 impl<'node> AssetInfo<'node> {
