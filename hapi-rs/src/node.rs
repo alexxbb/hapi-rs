@@ -47,7 +47,7 @@ impl std::fmt::Debug for ffi::NodeInfo {
 }
 
 impl ffi::NodeInfo {
-    pub fn new(session: &Session, node: &NodeHandle) -> Result<Self> {
+    pub fn new(session: &Session, node: NodeHandle) -> Result<Self> {
         let info = crate::ffi::get_node_info(node, &session)?;
         Ok(ffi::NodeInfo {
             inner: info,
@@ -61,7 +61,7 @@ pub struct NodeHandle(pub ffi::raw::HAPI_NodeId, pub(crate) ());
 
 impl NodeHandle {
     pub fn info(&self, session: &Session) -> Result<NodeInfo> {
-        NodeInfo::new(session, self)
+        NodeInfo::new(session, *self)
     }
 
     pub fn is_valid(&self, session: &Session) -> Result<bool> {
@@ -78,7 +78,7 @@ impl NodeHandle {
 pub struct HoudiniNode {
     pub handle: NodeHandle,
     pub session: Session,
-    pub info: NodeInfo,
+    pub info: NodeInfo, // TODO: Rc Maybe?
 }
 
 impl std::fmt::Debug for HoudiniNode {
@@ -91,13 +91,13 @@ impl std::fmt::Debug for HoudiniNode {
 }
 
 impl<'session> HoudiniNode {
-    pub(crate) fn new(session: Session, hdl: NodeHandle, info: Option<NodeInfo>) -> Result<Self> {
+    pub(crate) fn new(session: Session, handle: NodeHandle, info: Option<NodeInfo>) -> Result<Self> {
         let info = match info {
-            None => NodeInfo::new(&session, &hdl)?,
+            None => NodeInfo::new(&session, handle)?,
             Some(i) => i,
         };
         Ok(HoudiniNode {
-            handle: hdl,
+            handle,
             session,
             info,
         })
@@ -236,17 +236,17 @@ impl<'session> HoudiniNode {
 
     pub fn parameter(&'session self, name: &str) -> Result<Parameter> {
         let parm_info = crate::ffi::ParmInfo::from_parm_name(name, self)?;
-        Ok(Parameter::new(self, parm_info))
+        Ok(Parameter::new(self.handle, parm_info))
     }
 
-    pub fn parameters(&'session self) -> Result<Vec<ParmInfo>> {
+    pub fn parameters(&'session self) -> Result<Vec<Parameter>> {
         let infos = crate::ffi::get_parameters(self)?;
         Ok(infos
             .into_iter()
             .map(|i| ParmInfo {
                 inner: i,
                 session: self.session.clone(),
-            })
+            }.into_node_parm(self.handle))
             .collect())
     }
 

@@ -79,7 +79,6 @@ macro_rules! impl_attrib_type {
                 info: &AttributeInfo,
                 values: &[Self::Type],
             ) -> Result<()> {
-                dbg!(info.count());
                 crate::ffi::$set_func(node, part_id, name, &info.inner, values, 0, info.count())
             }
         }

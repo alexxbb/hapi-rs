@@ -1,5 +1,4 @@
 use std::ffi::CString;
-use std::fmt::Formatter;
 
 use log::warn;
 
@@ -25,13 +24,14 @@ pub trait ParmBaseTrait {
     }
     #[doc(hidden)]
     fn wrap(&self) -> &ParmNodeWrap;
-    fn menu_items(&self) -> Option<Result<Vec<ParmChoiceInfo<'_>>>> {
+    fn menu_items(&self) -> Result<Option<Vec<ParmChoiceInfo<'_>>>> {
         if !self.is_menu() {
-            return None;
+            return Ok(None);
         }
         let wrap = self.wrap();
         let parms = crate::ffi::get_parm_choice_list(
-            &wrap.node,
+            wrap.node,
+            &wrap.info.session,
             wrap.info.choice_index(),
             wrap.info.choice_count(),
         );
@@ -39,28 +39,34 @@ pub trait ParmBaseTrait {
             v.into_iter()
                 .map(|p| ParmChoiceInfo {
                     inner: p,
-                    session: &wrap.node.session,
+                    session: &wrap.info.session,
                 })
                 .collect::<Vec<ParmChoiceInfo<'_>>>()
-        });
-        Some(parms)
+        })?;
+        Ok(Some(parms))
     }
     fn expression(&self, index: i32) -> Result<String> {
         let wrap = self.wrap();
         let name = wrap.info.name_cstr()?;
-        crate::ffi::get_parm_expression(&wrap.node, &name, index)
+        crate::ffi::get_parm_expression(wrap.node, &wrap.info.session, &name, index)
     }
 
     fn has_expression(&self, index: i32) -> Result<bool> {
         let wrap = self.wrap();
         let name = wrap.info.name_cstr()?;
-        crate::ffi::parm_has_expression(&wrap.node, &name, index)
+        crate::ffi::parm_has_expression(wrap.node, &wrap.info.session, &name, index)
     }
 
     fn set_expression(&self, value: &str, index: i32) -> Result<()> {
         let wrap = self.wrap();
         let value = CString::new(value)?;
-        crate::ffi::set_parm_expression(&wrap.node, &wrap.info.id(), &value, index)
+        crate::ffi::set_parm_expression(
+            wrap.node,
+            &wrap.info.session,
+            wrap.info.id(),
+            &value,
+            index,
+        )
     }
 
     fn get_value(&self) -> Result<Vec<Self::ValueType>>;
@@ -69,17 +75,17 @@ pub trait ParmBaseTrait {
         T: AsRef<[Self::ValueType]>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ParmHandle(pub HAPI_ParmId, pub(crate) ());
 
 impl ParmHandle {
     pub fn from_name(name: &str, node: &HoudiniNode) -> Result<Self> {
         let name = CString::new(name)?;
-        let id = crate::ffi::get_parm_id_from_name(&name, node)?;
+        let id = crate::ffi::get_parm_id_from_name(&name, node.handle, &node.session)?;
         Ok(ParmHandle(id, ()))
     }
     pub fn info(&self, node: &HoudiniNode) -> Result<ParmInfo> {
-        let info = crate::ffi::get_parm_info(node, &self)?;
+        let info = crate::ffi::get_parm_info(node.handle, &node.session, *self)?;
         Ok(ParmInfo {
             inner: info,
             session: node.session.clone(),
@@ -90,17 +96,22 @@ impl ParmHandle {
 impl ParmInfo {
     pub fn from_parm_name(name: &str, node: &HoudiniNode) -> Result<Self> {
         let name = CString::new(name)?;
-        let info = crate::ffi::get_parm_info_from_name(&node, &name);
+        let info = crate::ffi::get_parm_info_from_name(node.handle, &node.session, &name);
         info.map(|info| ParmInfo {
             inner: info,
             session: node.session.clone(),
         })
     }
+
+    pub fn into_node_parm(self, node: NodeHandle) -> Parameter {
+        Parameter::new(node, self)
+    }
 }
 
+#[derive(Debug)]
 pub struct ParmNodeWrap {
     pub(crate) info: ParmInfo,
-    pub(crate) node: HoudiniNode,
+    pub(crate) node: NodeHandle,
 }
 
 #[derive(Debug)]
@@ -133,11 +144,8 @@ pub enum Parameter {
 }
 
 impl Parameter {
-    pub(crate) fn new(node: &HoudiniNode, info: ParmInfo) -> Parameter {
-        let base = ParmNodeWrap {
-            info,
-            node: node.clone(),
-        };
+    pub(crate) fn new(node: NodeHandle, info: ParmInfo) -> Parameter {
+        let base = ParmNodeWrap { info, node };
         match base.info.parm_type() {
             ParmType::Int | ParmType::Toggle | ParmType::Folder | ParmType::Folderlist => {
                 Parameter::Int(IntParameter { wrap: base })
@@ -157,10 +165,22 @@ impl Parameter {
         &self.base().info
     }
 
+    pub fn name(&self) -> Result<String> {
+        self.info().name()
+    }
+
     pub fn parent(&self) -> Result<Option<ParmInfo>> {
-        match self.info().parent_id() {
+        let wrap = self.base();
+        match wrap.info.parent_id() {
             ParmHandle(-1, ()) => Ok(None),
-            handle => Ok(Some(handle.info(&self.base().node)?)),
+            handle => {
+                let session = wrap.info.session.clone();
+                let info = crate::ffi::get_parm_info(wrap.node, &session, handle)?;
+                Ok(Some(ParmInfo {
+                    inner: info,
+                    session,
+                }))
+            }
         }
     }
 
@@ -183,9 +203,12 @@ impl ParmBaseTrait for FloatParameter {
     }
 
     fn get_value(&self) -> Result<Vec<Self::ValueType>> {
-        let start = self.wrap.info.float_values_index();
-        let count = self.wrap.info.size();
-        crate::ffi::get_parm_float_values(&self.wrap.node, start, count)
+        crate::ffi::get_parm_float_values(
+            self.wrap.node,
+            &self.wrap.info.session,
+            self.wrap.info.float_values_index(),
+            self.wrap.info.size(),
+        )
     }
 
     fn set_value<T>(&self, val: T) -> Result<()>
@@ -193,7 +216,8 @@ impl ParmBaseTrait for FloatParameter {
         T: AsRef<[Self::ValueType]>,
     {
         crate::ffi::set_parm_float_values(
-            &self.wrap.node,
+            self.wrap.node,
+            &self.wrap.info.session,
             self.wrap.info.float_values_index(),
             self.wrap.info.size(),
             val.as_ref(),
@@ -209,18 +233,25 @@ impl ParmBaseTrait for IntParameter {
     }
 
     fn get_value(&self) -> Result<Vec<Self::ValueType>> {
-        let start = self.wrap.info.int_values_index();
-        let count = self.wrap.info.size();
-        crate::ffi::get_parm_int_values(&self.wrap.node, start, count)
+        crate::ffi::get_parm_int_values(
+            self.wrap.node,
+            &self.wrap.info.session,
+            self.wrap.info.int_values_index(),
+            self.wrap.info.size(),
+        )
     }
 
     fn set_value<T>(&self, val: T) -> Result<()>
     where
         T: AsRef<[Self::ValueType]>,
     {
-        let start = self.wrap.info.int_values_index();
-        let count = self.wrap.info.size();
-        crate::ffi::set_parm_int_values(&self.wrap.node, start, count, val.as_ref())
+        crate::ffi::set_parm_int_values(
+            self.wrap.node,
+            &self.wrap.info.session,
+            self.wrap.info.int_values_index(),
+            self.wrap.info.size(),
+            val.as_ref(),
+        )
     }
 }
 
@@ -241,37 +272,34 @@ impl ParmBaseTrait for StringParameter {
     }
 
     fn get_value(&self) -> Result<Vec<String>> {
-        let start = self.wrap.info.string_values_index();
-        let count = self.wrap.info.size();
-        Ok(
-            crate::ffi::get_parm_string_values(&self.wrap.node, start, count)?
-                .into_iter()
-                .collect::<Vec<_>>(),
-        )
+        Ok(crate::ffi::get_parm_string_values(
+            self.wrap.node,
+            &self.wrap.info.session,
+            self.wrap.info.string_values_index(),
+            self.wrap.info.size(),
+        )?
+        .into_iter()
+        .collect::<Vec<_>>())
     }
 
     // TODO Maybe take it out of the trait? AsRef makes it an extra String copy. Consider ToOwned?
     // What a hell did I mean by that?
     // Update: 2 month later still can't remember
+    // Update: 3 month later. Still no clue, moving on for now
     fn set_value<T>(&self, val: T) -> Result<()>
     where
         T: AsRef<[Self::ValueType]>,
     {
-        // let start = self.wrap.info.string_values_index();
-        // let count = self.wrap.info.size();
         let c_str: std::result::Result<Vec<CString>, _> = val
             .as_ref()
             .iter()
             .map(|s| CString::new(s.clone()))
             .collect();
-        crate::ffi::set_parm_string_values(&self.wrap.node, &self.wrap.info.id(), &c_str?)
-    }
-}
-
-impl std::fmt::Debug for ParmNodeWrap {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Parameter[{name} of type {type:?}]",
-               name=self.info.name().unwrap(),
-                type=self.info.parm_type())
+        crate::ffi::set_parm_string_values(
+            self.wrap.node,
+            &self.wrap.info.session,
+            &self.wrap.info.id(),
+            &c_str?,
+        )
     }
 }

@@ -89,7 +89,7 @@ fn node_parameters() -> Result<()> {
         let val = p.get_value()?;
         assert_eq!(&val, &[0.7, 0.5, 0.3]);
     }
-    if let Parameter::String(p) = node.parameter("single_float")? {
+    if let Parameter::Float(p) = node.parameter("single_float")? {
         p.set_expression("$T", 0)?;
         assert_eq!("$T", p.expression(0)?);
     }
@@ -105,9 +105,10 @@ fn node_parameters() -> Result<()> {
     if let Parameter::Int(p) = node.parameter("ord_menu")? {
         assert!(p.is_menu());
         assert_eq!(p.get_value()?[0], 0);
-        let items = p.menu_items().unwrap()?;
-        assert_eq!(items[0].value()?, "foo");
-        assert_eq!(items[0].label()?, "Foo");
+        if let Some(items) = p.menu_items()? {
+            assert_eq!(items[0].value()?, "foo");
+            assert_eq!(items[0].label()?, "Foo");
+        }
     }
 
     if let Parameter::Int(p) = node.parameter("toggle")? {
