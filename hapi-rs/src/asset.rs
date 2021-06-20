@@ -43,7 +43,6 @@ impl AssetLibrary {
                 .map(|info| ParmInfo {
                     inner: info,
                     session: self.session.clone(),
-                    name: None,
                 })
                 .collect(),
         )

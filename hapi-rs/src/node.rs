@@ -246,7 +246,6 @@ impl<'session> HoudiniNode {
             .map(|i| ParmInfo {
                 inner: i,
                 session: self.session.clone(),
-                name: None,
             })
             .collect())
     }

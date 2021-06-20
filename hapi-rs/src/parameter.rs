@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::ffi::CString;
 use std::fmt::Formatter;
 
@@ -18,24 +17,8 @@ pub use crate::{
 pub trait ParmBaseTrait {
     type ValueType;
 
-    fn c_name(&self) -> Result<Cow<'_, CString>> {
-        let info = &self.wrap().info;
-        match info.name.as_ref() {
-            None => Ok(Cow::Owned(info.name_cstr()?)),
-            Some(n) => Ok(Cow::Borrowed(n)),
-        }
-    }
-
-    fn name(&self) -> Result<Cow<'_, str>> {
-        match self.c_name()? {
-            Cow::Borrowed(s) => unsafe {
-                let bytes = s.as_bytes();
-                Ok(Cow::Borrowed(std::str::from_utf8_unchecked(
-                    &bytes[..bytes.len() - 1],
-                )))
-            },
-            Cow::Owned(s) => Ok(Cow::Owned(s.into_string().unwrap())),
-        }
+    fn name(&self) -> Result<String> {
+        self.wrap().info.name()
     }
     fn is_menu(&self) -> bool {
         !matches!(self.wrap().info.choice_list_type(), ChoiceListType::None)
@@ -64,11 +47,14 @@ pub trait ParmBaseTrait {
     }
     fn expression(&self, index: i32) -> Result<String> {
         let wrap = self.wrap();
-        crate::ffi::get_parm_expression(&wrap.node, &self.c_name()?, index)
+        let name = wrap.info.name_cstr()?;
+        crate::ffi::get_parm_expression(&wrap.node, &name, index)
     }
 
     fn has_expression(&self, index: i32) -> Result<bool> {
-        crate::ffi::parm_has_expression(&self.wrap().node, &self.c_name()?, index)
+        let wrap = self.wrap();
+        let name = wrap.info.name_cstr()?;
+        crate::ffi::parm_has_expression(&wrap.node, &name, index)
     }
 
     fn set_expression(&self, value: &str, index: i32) -> Result<()> {
@@ -97,7 +83,6 @@ impl ParmHandle {
         Ok(ParmInfo {
             inner: info,
             session: node.session.clone(),
-            name: None,
         })
     }
 }
@@ -109,7 +94,6 @@ impl ParmInfo {
         info.map(|info| ParmInfo {
             inner: info,
             session: node.session.clone(),
-            name: Some(name),
         })
     }
 }
@@ -171,16 +155,6 @@ impl Parameter {
     }
     pub fn info(&self) -> &ParmInfo {
         &self.base().info
-    }
-
-    pub fn name(&self) -> Result<Cow<'_, str>> {
-        match self {
-            Parameter::Float(p) => p.name(),
-            Parameter::Int(p) => p.name(),
-            Parameter::Button(p) => p.name(),
-            Parameter::String(p) => p.name(),
-            Parameter::Other(p) => p.wrap.info.name().map(Cow::Owned),
-        }
     }
 
     pub fn parent(&self) -> Result<Option<ParmInfo>> {

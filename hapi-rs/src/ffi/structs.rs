@@ -143,7 +143,6 @@ impl<'s> ParmChoiceInfo<'_> {
 pub struct ParmInfo {
     pub(crate) inner: HAPI_ParmInfo,
     pub(crate) session: Session,
-    pub(crate) name: Option<CString>,
 }
 
 impl ParmInfo {
