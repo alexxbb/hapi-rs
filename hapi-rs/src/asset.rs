@@ -4,11 +4,94 @@ use log::debug;
 
 use crate::ffi::raw as ffi;
 use crate::{
-    errors::Result,
+    errors::{Result, HapiError, Kind},
     ffi::{AssetInfo, ParmInfo},
     node::HoudiniNode,
     session::Session,
 };
+use std::ops::Deref;
+use crate::ffi::raw::ParmType;
+
+struct AssetParmValues {
+    int: Vec<i32>,
+    float: Vec<f32>,
+    string: Vec<String>,
+}
+
+pub struct AssetParameters {
+    infos: Vec<ParmInfo>,
+    values: AssetParmValues,
+}
+
+impl<'a> IntoIterator for &'a AssetParameters {
+    type Item = AssetParm<'a>;
+    type IntoIter = AssetParmIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        AssetParmIter {
+            iter: self.infos.iter(),
+            values: &self.values,
+        }
+    }
+}
+
+pub struct AssetParmIter<'a> {
+    iter: std::slice::Iter<'a, ParmInfo>,
+    values: &'a AssetParmValues,
+}
+
+impl<'a> Iterator for AssetParmIter<'a> {
+    type Item = AssetParm<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|info| AssetParm {
+            info,
+            values: &self.values,
+        })
+    }
+}
+
+pub struct AssetParm<'a> {
+    info: &'a ParmInfo,
+    values: &'a AssetParmValues,
+}
+
+impl<'a> std::ops::Deref for AssetParm<'a> {
+    type Target = ParmInfo;
+
+    fn deref(&self) -> &Self::Target {
+        &self.info
+    }
+}
+
+#[derive(Debug)]
+pub enum ParmValue<'a> {
+    Int(&'a [i32]),
+    Float(&'a [f32]),
+    String(&'a [String]),
+    Other(String)
+}
+
+impl<'a> AssetParm<'a> {
+    pub fn default_values(&self) -> ParmValue<'a> {
+        let size = self.info.size() as usize;
+       match self.info.parm_type() {
+           ParmType::Int => {
+               let start = self.info.int_values_index() as usize;
+               ParmValue::Int(&self.values.int[start..start + size])
+           }
+           ParmType::Float => {
+               let start = self.info.float_values_index() as usize;
+               ParmValue::Float(&self.values.float[start..start + size])
+}
+           ParmType::String | ParmType::PathFileGeo => {
+               let start = self.info.string_values_index() as usize;
+               ParmValue::String(&self.values.string[start..start + size])
+}
+           _ => ParmValue::Other(format!("TODO: {:?}", self.info.parm_type()))
+       }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct AssetLibrary {
@@ -34,19 +117,6 @@ impl AssetLibrary {
             .map(|a| a.into_iter().collect())
     }
 
-    pub fn get_asset_parms(&self, asset_name: impl AsRef<str>) -> Result<Vec<ParmInfo>> {
-        let cs = CString::new(asset_name.as_ref())?;
-        let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &cs, &self.session)?;
-        Ok(
-            crate::ffi::get_asset_def_parm_info(self.lib_id, &cs, count.parm_count, &self.session)?
-                .into_iter()
-                .map(|info| ParmInfo {
-                    inner: info,
-                    session: self.session.clone(),
-                })
-                .collect(),
-        )
-    }
     /// Try to create the first available asset in the library
     pub fn try_create_first(&self) -> Result<HoudiniNode> {
         use crate::errors::{HapiError, Kind};
@@ -60,17 +130,23 @@ impl AssetLibrary {
         }
     }
 
-    /// Return a vec of parameters of the first available asset in the library
-    pub fn try_get_asset_parms(&self) -> Result<Vec<ParmInfo>> {
-        use crate::errors::{HapiError, Kind};
-        match self.get_asset_names()?.first() {
-            Some(name) => self.get_asset_parms(name),
-            None => Err(HapiError::new(
-                Kind::Other("Empty AssetLibrary".to_string()),
-                None,
-                None,
-            )),
-        }
+
+    pub fn get_asset_parms(&self, asset: impl AsRef<str>) -> Result<AssetParameters> {
+        let asset = CString::new(asset.as_ref())?;
+        let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &asset, &self.session)?;
+        let infos = crate::ffi::get_asset_def_parm_info(self.lib_id, &asset, count.parm_count, &self.session)?
+            .into_iter()
+            .map(|info| ParmInfo {
+                inner: info,
+                session: self.session.clone(),
+            });
+        let values = crate::ffi::get_asset_def_parm_values(self.lib_id, &asset, &self.session, &count)?;
+        let values = AssetParmValues {
+            int: values.0,
+            float: values.1,
+            string: values.2
+        };
+        Ok(AssetParameters{ infos: infos.collect(), values })
     }
 }
 

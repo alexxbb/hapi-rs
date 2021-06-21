@@ -15,25 +15,17 @@ pub unsafe fn run() -> Result<()> {
     let mut opts = SessionOptions::default();
     opts.cook_opt = CookOptions::default().with_clear_errors_and_warnings(true);
     opts.cleanup = true;
-    // opts.unsync = true;
-    let mut session = hapi_rs::session::simple_session(Some(&opts))?;
-    // let mut session = Session::connect_to_pipe("c:/Temp/hars")?;
-    // session.initialize(&opts);
-    let otl = std::env::current_dir().unwrap().join("otls/cook_err_fatal.hda");
+    // let mut session = hapi_rs::session::simple_session(Some(&opts))?;
+    let mut session = Session::connect_to_pipe("c:/Temp/hapi")?;
+    session.initialize(&opts);
+    let otl = std::env::current_dir().unwrap().join("otls/hapi_parms.hda");
     let library = session.load_asset_file(otl.to_string_lossy())?;
-    let node = library.try_create_first()?;
 
-    if let Err(e) = node.cook(None) {
-        println!("Oops: {}\n{}", e, node.cook_result(StatusVerbosity::Errors)?);
+    let parms = library.get_asset_parms(&library.get_asset_names()?[0])?;
+    for p in &parms {
+        println!("{:?}", p.default_values());
     }
 
-    // println!("{}", session.get_cook_result_string(StatusVerbosity::All)?);
-    // let err = session.get_cook_result_string(StatusVerbosity::Statusverbosity2)?;
-    // println!("Status: {}", err);
-    // let geo = node.geometry()?.unwrap();
-    // let part = geo.part_info(0)?;
-    // let attribs = geo.get_attribute_names(AttributeOwner::Point, &part)?;
-    // geo.save_to_file("c:/temp/debug.geo")?;
-    // session.save_hip("c:/temp/debug.hip")?;
+
     Ok(())
 }
