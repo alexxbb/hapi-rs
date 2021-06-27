@@ -1,21 +1,23 @@
 use std::ffi::CString;
 
-use log::debug;
+use log::{debug, warn};
 
 use crate::ffi::raw as ffi;
+use crate::ffi::raw::{ChoiceListType, ParmType};
 use crate::{
-    errors::{Result, HapiError, Kind},
+    errors::{HapiError, Kind, Result},
     ffi::{AssetInfo, ParmInfo},
     node::HoudiniNode,
+    parameter::ParmChoiceInfo,
     session::Session,
 };
 use std::ops::Deref;
-use crate::ffi::raw::ParmType;
 
 struct AssetParmValues {
     int: Vec<i32>,
     float: Vec<f32>,
     string: Vec<String>,
+    menus: Vec<ParmChoiceInfo>,
 }
 
 pub struct AssetParameters {
@@ -69,27 +71,42 @@ pub enum ParmValue<'a> {
     Int(&'a [i32]),
     Float(&'a [f32]),
     String(&'a [String]),
-    Other(String)
+    Toggle(bool),
+    Other(String),
 }
 
 impl<'a> AssetParm<'a> {
-    pub fn default_values(&self) -> ParmValue<'a> {
+    pub fn default_value(&self) -> ParmValue<'a> {
         let size = self.info.size() as usize;
-       match self.info.parm_type() {
-           ParmType::Int => {
-               let start = self.info.int_values_index() as usize;
-               ParmValue::Int(&self.values.int[start..start + size])
-           }
-           ParmType::Float => {
-               let start = self.info.float_values_index() as usize;
-               ParmValue::Float(&self.values.float[start..start + size])
-}
-           ParmType::String | ParmType::PathFileGeo => {
-               let start = self.info.string_values_index() as usize;
-               ParmValue::String(&self.values.string[start..start + size])
-}
-           _ => ParmValue::Other(format!("TODO: {:?}", self.info.parm_type()))
-       }
+        use ParmType::*;
+        match self.info.parm_type() {
+            Int | Button => {
+                let start = self.info.int_values_index() as usize;
+                ParmValue::Int(&self.values.int[start..start + size])
+            }
+            Toggle => {
+                let start = self.info.int_values_index() as usize;
+                ParmValue::Toggle(self.values.int[start] == 1)
+            }
+            Float => {
+                let start = self.info.float_values_index() as usize;
+                ParmValue::Float(&self.values.float[start..start + size])
+            }
+            String | PathFileGeo | PathFile | PathFileImage | PathFileDir => {
+                let start = self.info.string_values_index() as usize;
+                ParmValue::String(&self.values.string[start..start + size])
+            }
+            _ => ParmValue::Other(format!("TODO: {:?}", self.info.parm_type())),
+        }
+    }
+
+    pub fn menu_items(&self) -> Option<&[ParmChoiceInfo]> {
+        if let ChoiceListType::None = self.choice_list_type() {
+            return None;
+        }
+        let count = self.info.choice_count() as usize;
+        let start = self.info.choice_index() as usize;
+        Some(&self.values.menus[start..start + count])
     }
 }
 
@@ -130,23 +147,36 @@ impl AssetLibrary {
         }
     }
 
-
     pub fn get_asset_parms(&self, asset: impl AsRef<str>) -> Result<AssetParameters> {
         let asset = CString::new(asset.as_ref())?;
         let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &asset, &self.session)?;
-        let infos = crate::ffi::get_asset_def_parm_info(self.lib_id, &asset, count.parm_count, &self.session)?
+        let infos = crate::ffi::get_asset_def_parm_info(
+            self.lib_id,
+            &asset,
+            count.parm_count,
+            &self.session,
+        )?
             .into_iter()
             .map(|info| ParmInfo {
                 inner: info,
                 session: self.session.clone(),
             });
-        let values = crate::ffi::get_asset_def_parm_values(self.lib_id, &asset, &self.session, &count)?;
+        let values =
+            crate::ffi::get_asset_def_parm_values(self.lib_id, &asset, &self.session, &count)?;
+        let mut menus = values.3.into_iter().map(|info| ParmChoiceInfo {
+            inner: info,
+            session: self.session.clone(),
+        });
         let values = AssetParmValues {
             int: values.0,
             float: values.1,
-            string: values.2
+            string: values.2,
+            menus: menus.collect(),
         };
-        Ok(AssetParameters{ infos: infos.collect(), values })
+        Ok(AssetParameters {
+            infos: infos.collect(),
+            values,
+        })
     }
 }
 

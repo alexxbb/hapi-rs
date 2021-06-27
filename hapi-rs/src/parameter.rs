@@ -24,7 +24,7 @@ pub trait ParmBaseTrait {
     }
     #[doc(hidden)]
     fn wrap(&self) -> &ParmNodeWrap;
-    fn menu_items(&self) -> Result<Option<Vec<ParmChoiceInfo<'_>>>> {
+    fn menu_items(&self) -> Result<Option<Vec<ParmChoiceInfo>>> {
         if !self.is_menu() {
             return Ok(None);
         }
@@ -39,9 +39,9 @@ pub trait ParmBaseTrait {
             v.into_iter()
                 .map(|p| ParmChoiceInfo {
                     inner: p,
-                    session: &wrap.info.session,
+                    session: wrap.info.session.clone(),
                 })
-                .collect::<Vec<ParmChoiceInfo<'_>>>()
+                .collect::<Vec<ParmChoiceInfo>>()
         })?;
         Ok(Some(parms))
     }

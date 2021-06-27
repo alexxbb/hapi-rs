@@ -129,12 +129,12 @@ macro_rules! wrap {
 }
 
 #[derive(Debug)]
-pub struct ParmChoiceInfo<'s> {
+pub struct ParmChoiceInfo {
     pub(crate) inner: HAPI_ParmChoiceInfo,
-    pub(crate) session: &'s Session,
+    pub(crate) session: Session,
 }
 
-impl<'s> ParmChoiceInfo<'_> {
+impl ParmChoiceInfo {
     get!(value->valueSH->Result<String>);
     get!(label->labelSH->Result<String>);
 }
