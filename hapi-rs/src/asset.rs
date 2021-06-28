@@ -1,6 +1,6 @@
 use std::ffi::CString;
 
-use log::{debug, warn};
+use log::debug;
 
 use crate::ffi::raw as ffi;
 use crate::ffi::raw::{ChoiceListType, ParmType};
@@ -11,7 +11,6 @@ use crate::{
     parameter::ParmChoiceInfo,
     session::Session,
 };
-use std::ops::Deref;
 
 struct AssetParmValues {
     int: Vec<i32>,
@@ -134,11 +133,10 @@ impl AssetLibrary {
             .map(|a| a.into_iter().collect())
     }
 
-    /// Try to create the first available asset in the library
-    pub fn try_create_first(&self) -> Result<HoudiniNode> {
-        use crate::errors::{HapiError, Kind};
+    /// Returns the name of first asset in the library
+    pub fn get_first_name(&self) -> Result<String> {
         match self.get_asset_names()?.first() {
-            Some(name) => self.session.create_node_blocking(name, None, None),
+            Some(name) => Ok(name.clone()),
             None => Err(HapiError::new(
                 Kind::Other("Empty AssetLibrary".to_string()),
                 None,
@@ -147,12 +145,25 @@ impl AssetLibrary {
         }
     }
 
-    pub fn get_asset_parms(&self, asset: impl AsRef<str>) -> Result<AssetParameters> {
-        let asset = CString::new(asset.as_ref())?;
-        let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &asset, &self.session)?;
+    /// Try to create the first available asset in the library
+    pub fn try_create_first(&self) -> Result<HoudiniNode> {
+        self.session
+            .create_node_blocking(&self.get_first_name()?, None, None)
+    }
+
+    pub fn get_asset_parms(&self, asset: Option<&str>) -> Result<AssetParameters> {
+        let mut _name;
+        let asset_name = if let Some(name) = asset {
+            name
+        } else {
+            _name = self.get_first_name()?;
+            _name.as_str()
+        };
+        let asset_name = CString::new(asset_name)?;
+        let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &asset_name, &self.session)?;
         let infos = crate::ffi::get_asset_def_parm_info(
             self.lib_id,
-            &asset,
+            &asset_name,
             count.parm_count,
             &self.session,
         )?
@@ -162,8 +173,8 @@ impl AssetLibrary {
                 session: self.session.clone(),
             });
         let values =
-            crate::ffi::get_asset_def_parm_values(self.lib_id, &asset, &self.session, &count)?;
-        let mut menus = values.3.into_iter().map(|info| ParmChoiceInfo {
+            crate::ffi::get_asset_def_parm_values(self.lib_id, &asset_name, &self.session, &count)?;
+        let menus = values.3.into_iter().map(|info| ParmChoiceInfo {
             inner: info,
             session: self.session.clone(),
         });

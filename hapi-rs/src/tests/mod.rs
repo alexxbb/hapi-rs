@@ -70,7 +70,7 @@ fn asset_parameters() {
     let lib = SESSION
         .load_asset_file(otl)
         .expect(&format!("Could not load {}", otl));
-    let parms = lib.get_asset_parms("Object/hapi_parms");
+    let parms = lib.get_asset_parms(Some("Object/hapi_parms"));
     assert!(parms.is_ok());
 }
 
