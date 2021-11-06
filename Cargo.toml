@@ -2,6 +2,6 @@
 members = [
     "hapi-rs",
 #    "hapi-server",
-    "hapi-viewport",
-    "__dev",
+#    "hapi-viewport",
+#    "__dev",
 ]

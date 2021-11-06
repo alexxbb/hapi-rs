@@ -117,9 +117,28 @@ impl From<std::ffi::NulError> for HapiError {
 impl std::error::Error for HapiError {}
 
 impl HapiResult {
-    pub(crate) fn to_result<R: Default, F>(self, err: F) -> Result<R>
+    #[allow(unused)]
+    pub(crate) fn to_result<R: Default>(self) -> Result<R> {
+        match self {
+            HapiResult::Success => Ok(R::default()),
+            e => {
+                Err(HapiError::new(Kind::Hapi(e), None, None))
+            }
+        }
+    }
+    pub(crate) fn result_with_session<F>(self, op: F) -> Result<()>
     where
-        F: FnOnce() -> (Option<Session>, Option<Cow<'static, str>>),
+        F: FnOnce() -> Session,
+    {
+        self.to_result_with_extra(|| (Some(op()), None))
+    }
+
+    pub(crate) fn result_with_message<M: Into<Cow<'static, str>>>(self, msg: M) -> Result<()> {
+        self.to_result_with_extra(|| (None, Some(msg.into())))
+    }
+    fn to_result_with_extra<R: Default, F>(self, err: F) -> Result<R>
+        where
+            F: FnOnce() -> (Option<Session>, Option<Cow<'static, str>>),
     {
         match self {
             HapiResult::Success => Ok(R::default()),
@@ -128,15 +147,5 @@ impl HapiResult {
                 Err(HapiError::new(Kind::Hapi(e), session, message))
             }
         }
-    }
-    pub(crate) fn result_with_session<F>(self, op: F) -> Result<()>
-    where
-        F: FnOnce() -> Session,
-    {
-        self.to_result(|| (Some(op()), None))
-    }
-
-    pub(crate) fn result_with_message<M: Into<Cow<'static, str>>>(self, msg: M) -> Result<()> {
-        self.to_result(|| (None, Some(msg.into())))
     }
 }
