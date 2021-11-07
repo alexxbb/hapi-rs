@@ -634,12 +634,12 @@ pub fn get_server_env_var_list(session: &Session, count: i32) -> Result<Vec<i32>
     }
 }
 
-pub fn get_server_env_str(session: &Session, key: &CStr) -> Result<String> {
+pub fn get_server_env_str(session: &Session, key: &CStr) -> Result<i32> {
     unsafe {
         let mut val = uninit!();
         raw::HAPI_GetServerEnvString(session.ptr(), key.as_ptr(), val.as_mut_ptr())
             .result_with_session(|| session.clone())?;
-        session.get_string(val.assume_init())
+        Ok(val.assume_init())
     }
 }
 

@@ -18,6 +18,7 @@ pub enum Kind {
     Hapi(HapiResult),
     // TODO: Maybe include original string with null byte
     NullByte,
+    Utf8Error,
     Other(String)
 }
 
@@ -50,6 +51,7 @@ impl Kind {
             Kind::Hapi(UserInterrupted) => "USER_INTERRUPTED",
             Kind::Hapi(InvalidSession) => "INVALID_SESSION",
             Kind::NullByte => "String contains null byte!",
+            Kind::Utf8Error => "String is not UTF-8!",
             Kind::Other(s) => &s
         }
     }
@@ -111,6 +113,12 @@ impl std::fmt::Display for HapiError {
 impl From<std::ffi::NulError> for HapiError {
     fn from(_: std::ffi::NulError) -> Self {
         HapiError::new(Kind::NullByte, None, None)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for HapiError {
+    fn from(_: std::string::FromUtf8Error) -> Self {
+        HapiError::new(Kind::Utf8Error, None, None)
     }
 }
 

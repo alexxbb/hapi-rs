@@ -102,15 +102,14 @@ impl std::iter::IntoIterator for StringsArray {
 }
 
 pub fn get_string(handle: i32, session: &Session) -> Result<String> {
-    unsafe {
-        let bytes = get_string_bytes(handle, session)?;
-        Ok(String::from_utf8_unchecked(bytes))
-    }
+    let bytes = get_string_bytes(handle, session)?;
+    String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
 }
 
 pub fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
     unsafe {
         let bytes = get_string_bytes(handle, session)?;
+        // SAFETY: HAPI C API can not return strings with interior zero byte
         Ok(CString::from_vec_unchecked(bytes))
     }
 }
@@ -129,4 +128,38 @@ pub fn get_strings_array(handles: &[i32], session: &Session) -> Result<StringsAr
         vec![]
     };
     Ok(StringsArray { bytes })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tests::with_session;
+    use crate::ffi;
+    use std::ffi::CString;
+
+    #[test]
+    fn test_get_string() {
+        with_session(|session|{
+            let h = ffi::get_server_env_str(session, &CString::new("HFS").unwrap()).unwrap();
+            assert!(super::get_string(h, session).is_ok());
+            assert!(super::get_cstring(h, session).is_ok());
+
+        });
+
+    }
+
+    #[test]
+    fn test_get_string_array() {
+        with_session(|session|{
+            let handles = ffi::get_server_env_var_list(session, 10).unwrap();
+            let values = super::get_strings_array(&handles, session);
+            assert!(values.is_ok());
+            let values = values.unwrap();
+            assert_eq!(values.iter_str().count(), 10);
+            assert_eq!(values.iter_cstr().count(), 10);
+            assert_eq!(values.into_iter().count(), 10);
+
+        });
+
+    }
+
 }
