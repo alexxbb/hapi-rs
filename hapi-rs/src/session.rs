@@ -27,7 +27,7 @@ impl EnvVariable for str {
 
     fn get_value(session: &Session, key: impl AsRef<str>) -> Result<String> {
         let key = CString::new(key.as_ref())?;
-        crate::ffi::get_server_env_str(session, &key)
+        session.get_string(crate::ffi::get_server_env_str(session, &key)?)
     }
 
     fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()> {
@@ -297,10 +297,10 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) {
         if Arc::strong_count(&self.handle) == 1 {
-            eprintln!("Dropping session");
+            debug!("Dropping session");
             assert!(self.is_valid(), "Session invalid in Drop");
             if self.cleanup {
-                eprintln!("Cleaning up session");
+                debug!("Cleaning up session");
                 if let Err(e) = self.cleanup() {
                     error!("Cleanup failed in Drop: {}", e);
                 }
@@ -450,6 +450,7 @@ pub fn simple_session(options: Option<&SessionOptions>) -> Result<Session> {
     use std::time::SystemTime;
     let mut hash = DefaultHasher::new();
     SystemTime::now().hash(&mut hash);
+    std::thread::current().id().hash(&mut hash);
     let file = std::env::temp_dir().join(format!("hars-session-{}", hash.finish()));
     let file = file.to_string_lossy();
     start_engine_pipe_server(&file, true, 2000.0)?;
