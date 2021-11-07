@@ -6,20 +6,23 @@ use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::thread_local;
 
+
+// Organisational idea: tests/ folder will contain more complex tests while
+// API tests go into the appropriate source file.
+
 thread_local! {
     static SESSION: Lazy<Session> = Lazy::new(|| {
         simple_session(None).expect("Could not create test session")
 });
 }
 
-pub fn with_session(func: impl FnOnce(&Lazy<Session>)) {
+pub(crate) fn with_session(func: impl FnOnce(&Lazy<Session>)) {
     SESSION.with(|session| {
         func(session);
-        // let _ = session.cleanup();
     })
 }
 
-pub static OTLS: Lazy<HashMap<&str, String>> = Lazy::new(|| {
+pub(crate) static OTLS: Lazy<HashMap<&str, String>> = Lazy::new(|| {
     let mut map = HashMap::new();
     let root = format!(
         "{}/otls",
@@ -33,35 +36,7 @@ pub static OTLS: Lazy<HashMap<&str, String>> = Lazy::new(|| {
     map
 });
 
-#[test]
-fn create_and_init() {
-    with_session(|s| assert!(s.is_valid()));
-}
 
-#[test]
-fn session_time() {
-    with_session(|session| {
-        let opt = crate::TimelineOptions::default().with_end_time(5.5);
-        assert!(session.set_timeline_options(opt.clone()).is_ok());
-        let opt2 = session.get_timeline_options().expect("timeline_options");
-        assert!(opt.end_time().eq(&opt2.end_time()));
-        session.set_time(4.12).expect("set_time");
-        assert!(session.get_time().expect("get_time").eq(&4.12));
-    });
-}
-
-#[test]
-fn server_env() -> Result<()> {
-    // Starting new separate session because getting/setting env variables from multiple
-    // clients ( threads ) break the server
-    let session = simple_session(None).expect("Could not start session");
-    session.set_server_var::<str>("FOO", "foo_string")?;
-    assert_eq!(session.get_server_var::<str>("FOO")?, "foo_string");
-    session.set_server_var::<i32>("BAR", &123)?;
-    assert_eq!(session.get_server_var::<i32>("BAR")?, 123);
-    assert_eq!(session.get_server_variables()?.is_empty(), false);
-    Ok(())
-}
 
 #[test]
 fn load_asset() {

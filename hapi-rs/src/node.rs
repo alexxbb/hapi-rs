@@ -128,7 +128,7 @@ impl<'session> HoudiniNode {
     }
 
     /// In sync mode (single threaded), the error will be available in Err(..) while
-    /// in unsync mode (cookng thread), the error will be in Ok(..)
+    /// in threaded mode the error will be in Ok(..)
     pub fn cook_blocking(&self, options: Option<&CookOptions>) -> Result<CookResult> {
         self.cook(options)?;
         self.session.cook()
@@ -168,7 +168,7 @@ impl<'session> HoudiniNode {
         cook: bool,
     ) -> Result<HoudiniNode> {
         let node = HoudiniNode::create(name, label, parent, session.clone(), cook);
-        if node.is_ok() && session.unsync {
+        if node.is_ok() && session.threaded {
             session.cook()?;
         }
         node

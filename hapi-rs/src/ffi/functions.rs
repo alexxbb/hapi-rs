@@ -701,7 +701,7 @@ pub fn initialize_session(session: &raw::HAPI_Session, options: &SessionOptions)
         raw::HAPI_Initialize(
             session as *const _,
             options.cook_opt.ptr(),
-            options.unsync as i8,
+            options.threaded as i8,
             -1,
             options
                 .env_files
@@ -741,12 +741,12 @@ pub fn close_session(session: &Session) -> Result<()> {
     unsafe { raw::HAPI_CloseSession(session.ptr()).result_with_session(|| session.clone()) }
 }
 
-pub fn is_session_initialized(session: &Session) -> Result<bool> {
+pub fn is_session_initialized(session: &Session) -> bool {
     unsafe {
         match raw::HAPI_IsInitialized(session.ptr()) {
-            raw::HapiResult::Success => Ok(true),
-            raw::HapiResult::NotInitialized => Ok(false),
-            e => Err(e.into()),
+            raw::HapiResult::Success => true,
+            raw::HapiResult::NotInitialized => false,
+            e => panic!("HAPI_IsInitialized error: {:?}", e),
         }
     }
 }

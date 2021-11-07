@@ -61,7 +61,7 @@ pub enum CookResult {
 #[derive(Debug, Clone)]
 pub struct Session {
     handle: Arc<crate::ffi::raw::HAPI_Session>,
-    pub unsync: bool,
+    pub threaded: bool,
     cleanup: bool,
 }
 
@@ -75,15 +75,6 @@ impl Session {
         self.handle.id
     }
 
-    pub fn new_in_process() -> Result<Session> {
-        debug!("Creating new in-process session");
-        let ses = crate::ffi::create_inprocess_session()?;
-        Ok(Session {
-            handle: Arc::new(ses),
-            unsync: false,
-            cleanup: true,
-        })
-    }
 
     pub fn set_server_var<T: EnvVariable + ?Sized>(&self, key: &str, value: &T::Type) -> Result<()> {
         T::set_value(self, key, value)
@@ -99,31 +90,9 @@ impl Session {
         crate::stringhandle::get_strings_array(&handles, self)
     }
 
-    pub fn connect_to_pipe(pipe: &str) -> Result<Session> {
-        debug!("Connecting to Thrift session: {}", pipe);
-        let path = CString::new(pipe)?;
-        let session = crate::ffi::new_thrift_piped_session(&path)?;
-        Ok(Session {
-            handle: Arc::new(session),
-            unsync: false,
-            cleanup: false,
-        })
-    }
-
-    pub fn connect_to_socket(addr: std::net::SocketAddrV4) -> Result<Session> {
-        debug!("Connecting to socket server: {:?}", addr);
-        let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
-        let session = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
-        Ok(Session {
-            handle: Arc::new(session),
-            unsync: false,
-            cleanup: false,
-        })
-    }
-
     pub fn initialize(&mut self, opts: &SessionOptions) -> Result<()> {
         debug!("Initializing session");
-        self.unsync = opts.unsync;
+        self.threaded = opts.threaded;
         self.cleanup = opts.cleanup;
         let res = crate::ffi::initialize_session(self.handle.as_ref(), opts);
         if !opts.ignore_already_init {
@@ -149,12 +118,7 @@ impl Session {
         crate::ffi::cleanup_session(self)
     }
 
-    pub fn close_session(self) -> Result<()> {
-        debug!("Closing session");
-        crate::ffi::close_session(&self)
-    }
-
-    pub fn is_initialized(&self) -> Result<bool> {
+    pub fn is_initialized(&self) -> bool {
         crate::ffi::is_session_initialized(self)
     }
 
@@ -248,7 +212,7 @@ impl Session {
 
     /// In threaded mode wait for Session finishes cooking. In single thread mode, immediately return
     pub fn cook(&self) -> Result<CookResult> {
-        if self.unsync {
+        if self.threaded {
             loop {
                 match self.get_status(StatusType::CookState)? {
                     State::Ready => break Ok(CookResult::Succeeded),
@@ -298,19 +262,55 @@ impl Drop for Session {
     fn drop(&mut self) {
         if Arc::strong_count(&self.handle) == 1 {
             debug!("Dropping session");
-            assert!(self.is_valid(), "Session invalid in Drop");
-            if self.cleanup {
-                debug!("Cleaning up session");
-                if let Err(e) = self.cleanup() {
-                    error!("Cleanup failed in Drop: {}", e);
+            if self.is_valid() {
+                if self.cleanup {
+                    debug!("Cleaning up session");
+                    if let Err(e) = self.cleanup() {
+                        error!("Cleanup failed in Drop: {}", e);
+                    }
                 }
-            }
-            if let Err(e) = crate::ffi::close_session(self) {
-                error!("Closing session failed in Drop: {}", e);
+                if let Err(e) = crate::ffi::close_session(self) {
+                    error!("Closing session failed in Drop: {}", e);
+                }
+
             }
         }
     }
 }
+
+
+pub fn connect_to_pipe(pipe: &str) -> Result<Session> {
+    debug!("Connecting to Thrift session: {}", pipe);
+    let path = CString::new(pipe)?;
+    let session = crate::ffi::new_thrift_piped_session(&path)?;
+    Ok(Session {
+        handle: Arc::new(session),
+        threaded: false,
+        cleanup: false,
+    })
+}
+
+pub fn connect_to_socket(addr: std::net::SocketAddrV4) -> Result<Session> {
+    debug!("Connecting to socket server: {:?}", addr);
+    let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
+    let session = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
+    Ok(Session {
+        handle: Arc::new(session),
+        threaded: false,
+        cleanup: false,
+    })
+}
+
+pub fn new_in_process() -> Result<Session> {
+    debug!("Creating new in-process session");
+    let ses = crate::ffi::create_inprocess_session()?;
+    Ok(Session {
+        handle: Arc::new(ses),
+        threaded: false,
+        cleanup: true,
+    })
+}
+
 
 /// Join a sequence of paths into a single String
 fn join_paths<I>(files: I) -> String
@@ -331,8 +331,7 @@ where
 
 pub struct SessionOptions {
     pub cook_opt: CookOptions,
-    // TODO: threaded seems a better name for unsync
-    pub unsync: bool,
+    pub threaded: bool,
     pub cleanup: bool,
     pub ignore_already_init: bool,
     pub env_files: Option<CString>,
@@ -346,7 +345,7 @@ impl Default for SessionOptions {
     fn default() -> Self {
         SessionOptions {
             cook_opt: CookOptions::default(),
-            unsync: false,
+            threaded: false,
             cleanup: false,
             ignore_already_init: false,
             env_files: None,
@@ -454,7 +453,54 @@ pub fn simple_session(options: Option<&SessionOptions>) -> Result<Session> {
     let file = std::env::temp_dir().join(format!("hars-session-{}", hash.finish()));
     let file = file.to_string_lossy();
     start_engine_pipe_server(&file, true, 2000.0)?;
-    let mut session = Session::connect_to_pipe(&file)?;
+    let mut session = connect_to_pipe(&file)?;
     session.initialize(options.unwrap_or(&SessionOptions::default()))?;
     Ok(session)
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use crate::tests::with_session;
+
+
+    #[test]
+    fn init_and_teardown() {
+        let mut opt = super::SessionOptions::default();
+        opt.set_dso_search_paths(["/path/one", "/path/two"]);
+        opt.set_otl_search_paths(["/path/thee", "/path/four"]);
+        let mut ses = super::simple_session(Some(&opt)).unwrap();
+        assert!(ses.is_initialized());
+        assert!(ses.is_valid());
+        assert!(ses.cleanup().is_ok());
+        assert!(!ses.is_initialized());
+        ses.initialize(&opt).unwrap();
+        assert!(ses.is_initialized());
+    }
+
+
+    #[test]
+    fn session_time() {
+        with_session(|session| {
+            let opt = crate::TimelineOptions::default().with_end_time(5.5);
+            assert!(session.set_timeline_options(opt.clone()).is_ok());
+            let opt2 = session.get_timeline_options().expect("timeline_options");
+            assert!(opt.end_time().eq(&opt2.end_time()));
+            session.set_time(4.12).expect("set_time");
+            assert!(session.get_time().expect("get_time").eq(&4.12));
+        });
+    }
+
+    #[test]
+    fn server_env() {
+        // Starting new separate session because getting/setting env variables from multiple
+        // clients ( threads ) break the server
+        let session = super::simple_session(None).expect("Could not start session");
+        session.set_server_var::<str>("FOO", "foo_string").unwrap();
+        assert_eq!(session.get_server_var::<str>("FOO").unwrap(), "foo_string");
+        session.set_server_var::<i32>("BAR", &123).unwrap();
+        assert_eq!(session.get_server_var::<i32>("BAR").unwrap(), 123);
+        assert_eq!(session.get_server_variables().unwrap().is_empty(), false);
+    }
 }
