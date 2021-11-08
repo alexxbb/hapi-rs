@@ -167,11 +167,11 @@ impl AssetLibrary {
             count.parm_count,
             &self.session,
         )?
-            .into_iter()
-            .map(|info| ParmInfo {
-                inner: info,
-                session: self.session.clone(),
-            });
+        .into_iter()
+        .map(|info| ParmInfo {
+            inner: info,
+            session: self.session.clone(),
+        });
         let values =
             crate::ffi::get_asset_def_parm_values(self.lib_id, &asset_name, &self.session, &count)?;
         let menus = values.3.into_iter().map(|info| ParmChoiceInfo {

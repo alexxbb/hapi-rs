@@ -14,12 +14,10 @@ mod tests;
 pub use errors::Result;
 pub use stringhandle::get_string;
 
-pub use crate::ffi::{
-    TimelineOptions
-};
+pub use crate::ffi::TimelineOptions;
 
 pub use crate::ffi::raw::{
-    HapiResult, NodeFlags, NodeType, State, StatusType, StatusVerbosity, StorageType, PartType
+    HapiResult, NodeFlags, NodeType, PartType, State, StatusType, StatusVerbosity, StorageType,
 };
 
 #[derive(Debug)]

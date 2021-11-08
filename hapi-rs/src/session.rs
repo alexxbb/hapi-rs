@@ -6,6 +6,7 @@ use std::{
 
 use log::{debug, error, warn};
 
+pub use crate::ffi::PartInfo;
 pub use crate::{
     asset::AssetLibrary,
     errors::*,
@@ -14,11 +15,11 @@ pub use crate::{
     node::{HoudiniNode, NodeHandle},
     stringhandle::StringsArray,
 };
-pub use crate::ffi::PartInfo;
 
 pub trait EnvVariable {
     type Type: ?Sized + ToOwned;
-    fn get_value(session: &Session, key: impl AsRef<str>) -> Result<<Self::Type as ToOwned>::Owned>;
+    fn get_value(session: &Session, key: impl AsRef<str>)
+        -> Result<<Self::Type as ToOwned>::Owned>;
     fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()>;
 }
 
@@ -75,12 +76,18 @@ impl Session {
         self.handle.id
     }
 
-
-    pub fn set_server_var<T: EnvVariable + ?Sized>(&self, key: &str, value: &T::Type) -> Result<()> {
+    pub fn set_server_var<T: EnvVariable + ?Sized>(
+        &self,
+        key: &str,
+        value: &T::Type,
+    ) -> Result<()> {
         T::set_value(self, key, value)
     }
 
-    pub fn get_server_var<T: EnvVariable + ?Sized>(&self, key: &str) -> Result<<T::Type as ToOwned>::Owned> {
+    pub fn get_server_var<T: EnvVariable + ?Sized>(
+        &self,
+        key: &str,
+    ) -> Result<<T::Type as ToOwned>::Owned> {
         T::get_value(self, key)
     }
 
@@ -272,12 +279,10 @@ impl Drop for Session {
                 if let Err(e) = crate::ffi::close_session(self) {
                     error!("Closing session failed in Drop: {}", e);
                 }
-
             }
         }
     }
 }
-
 
 pub fn connect_to_pipe(pipe: &str) -> Result<Session> {
     debug!("Connecting to Thrift session: {}", pipe);
@@ -310,7 +315,6 @@ pub fn new_in_process() -> Result<Session> {
         cleanup: true,
     })
 }
-
 
 /// Join a sequence of paths into a single String
 fn join_paths<I>(files: I) -> String
@@ -458,12 +462,9 @@ pub fn simple_session(options: Option<&SessionOptions>) -> Result<Session> {
     Ok(session)
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use crate::tests::with_session;
-
 
     #[test]
     fn init_and_teardown() {
@@ -479,7 +480,6 @@ mod tests {
         assert!(ses.is_initialized());
     }
 
-
     #[test]
     fn session_time() {
         with_session(|session| {
@@ -493,7 +493,7 @@ mod tests {
     }
 
     #[test]
-    fn server_env() {
+    fn server_variables() {
         // Starting new separate session because getting/setting env variables from multiple
         // clients ( threads ) break the server
         let session = super::simple_session(None).expect("Could not start session");
@@ -502,5 +502,48 @@ mod tests {
         session.set_server_var::<i32>("BAR", &123).unwrap();
         assert_eq!(session.get_server_var::<i32>("BAR").unwrap(), 123);
         assert_eq!(session.get_server_variables().unwrap().is_empty(), false);
+    }
+
+    #[test]
+    fn create_node_blocking() {
+        with_session(|session| {
+            session
+                .create_node("Object/geo", Some("some_name"), None)
+                .unwrap();
+        });
+    }
+
+    #[test]
+    fn load_asset_library() {
+        use crate::tests::OTLS;
+        with_session(|session| {
+            assert!(session.load_asset_file(&OTLS["spaceship"]).is_ok());
+        });
+    }
+
+    #[test]
+    fn create_node_async() {
+        use crate::ffi::raw::{NodeFlags, NodeType};
+        use crate::tests::OTLS;
+        let mut opt = super::SessionOptions::default();
+        opt.threaded = true;
+        let session = super::simple_session(Some(&opt)).unwrap();
+        let lib = session.load_asset_file(&OTLS["spaceship"]).unwrap();
+        let node = lib.try_create_first().unwrap();
+        assert_eq!(
+            node.cook_count(NodeType::None, NodeFlags::None, true)
+                .unwrap(),
+            0
+        );
+        node.cook(None).unwrap(); // in threaded mode always successful
+        assert_eq!(
+            node.cook_count(NodeType::None, NodeFlags::None, true)
+                .unwrap(),
+            1
+        );
+        assert!(matches!(
+            session.cook().unwrap(),
+            super::CookResult::Succeeded
+        ));
     }
 }

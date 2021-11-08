@@ -519,7 +519,8 @@ pub fn get_asset_def_parm_values(
             choice_values.as_mut_ptr(),
             0,
             count.choice_count,
-        ).result_with_session(||session.clone())?;
+        )
+        .result_with_session(|| session.clone())?;
     }
 
     let string_array = crate::stringhandle::get_strings_array(&string_handles, session)?;

@@ -6,7 +6,6 @@ use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::thread_local;
 
-
 // Organisational idea: tests/ folder will contain more complex tests while
 // API tests go into the appropriate source file.
 
@@ -33,10 +32,9 @@ pub(crate) static OTLS: Lazy<HashMap<&str, String>> = Lazy::new(|| {
             .to_string_lossy()
     );
     map.insert("parameters", format!("{}/hapi_parms.hda", root));
+    map.insert("spaceship", format!("{}/spaceship.otl", root));
     map
 });
-
-
 
 #[test]
 fn load_asset() {
@@ -120,18 +118,6 @@ fn node_parameters() {
                 assert_eq!(sp.get_value().unwrap()[0], "set from callback");
             }
         }
-    });
-}
-
-#[test]
-fn nodes() {
-    with_session(|session| {
-        let obj = HoudiniNode::get_manager_node((*session).clone(), NodeType::Obj).unwrap();
-        session
-            .create_node("geo", Some("some_name"), Some(obj.handle))
-            .unwrap();
-        assert!(obj.node("some_name").unwrap().is_some());
-        session.cleanup().unwrap();
     });
 }
 

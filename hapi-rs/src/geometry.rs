@@ -4,9 +4,7 @@ pub use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
     raw::{AttributeOwner, GroupType, PartType},
-    GeoInfo,
-    PartInfo,
-    AttributeInfo,
+    AttributeInfo, GeoInfo, PartInfo,
 };
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringsArray;
@@ -21,9 +19,7 @@ pub struct Geometry<'session> {
 
 impl<'session> Geometry<'session> {
     pub fn part_info(&'session self, id: i32) -> Result<PartInfo> {
-        crate::ffi::get_part_info(&self.node, id).map(|inner| PartInfo {
-            inner,
-        })
+        crate::ffi::get_part_info(&self.node, id).map(|inner| PartInfo { inner })
     }
 
     pub fn set_part_info(&self, info: &PartInfo) -> Result<()> {
@@ -88,7 +84,7 @@ impl<'session> Geometry<'session> {
         if inner.exists < 1 {
             return Ok(None);
         }
-        let attrib = Attribute::new(name, AttributeInfo { inner}, &self.node);
+        let attrib = Attribute::new(name, AttributeInfo { inner }, &self.node);
         Ok(Some(attrib))
     }
 
@@ -100,7 +96,11 @@ impl<'session> Geometry<'session> {
     ) -> Result<Attribute<T>> {
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
-        Ok(Attribute::new(name, AttributeInfo { inner: info.inner}, &self.node))
+        Ok(Attribute::new(
+            name,
+            AttributeInfo { inner: info.inner },
+            &self.node,
+        ))
     }
 
     pub fn save_to_file(&self, filepath: &str) -> Result<()> {

@@ -19,7 +19,7 @@ pub enum Kind {
     // TODO: Maybe include original string with null byte
     NullByte,
     Utf8Error,
-    Other(String)
+    Other(String),
 }
 
 impl Kind {
@@ -52,7 +52,7 @@ impl Kind {
             Kind::Hapi(InvalidSession) => "INVALID_SESSION",
             Kind::NullByte => "String contains null byte!",
             Kind::Utf8Error => "String is not UTF-8!",
-            Kind::Other(s) => &s
+            Kind::Other(s) => &s,
         }
     }
 }
@@ -129,9 +129,7 @@ impl HapiResult {
     pub(crate) fn to_result<R: Default>(self) -> Result<R> {
         match self {
             HapiResult::Success => Ok(R::default()),
-            e => {
-                Err(HapiError::new(Kind::Hapi(e), None, None))
-            }
+            e => Err(HapiError::new(Kind::Hapi(e), None, None)),
         }
     }
     pub(crate) fn result_with_session<F>(self, op: F) -> Result<()>
@@ -145,8 +143,8 @@ impl HapiResult {
         self.to_result_with_extra(|| (None, Some(msg.into())))
     }
     fn to_result_with_extra<R: Default, F>(self, err: F) -> Result<R>
-        where
-            F: FnOnce() -> (Option<Session>, Option<Cow<'static, str>>),
+    where
+        F: FnOnce() -> (Option<Session>, Option<Cow<'static, str>>),
     {
         match self {
             HapiResult::Success => Ok(R::default()),

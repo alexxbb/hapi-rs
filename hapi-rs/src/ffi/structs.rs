@@ -1,4 +1,3 @@
-use paste::paste;
 use super::raw::*;
 use crate::{
     errors::Result,
@@ -6,6 +5,7 @@ use crate::{
     parameter::ParmHandle,
     session::Session,
 };
+use paste::paste;
 use std::ffi::CString;
 
 macro_rules! get {

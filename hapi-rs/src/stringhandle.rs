@@ -132,24 +132,22 @@ pub fn get_strings_array(handles: &[i32], session: &Session) -> Result<StringsAr
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::with_session;
     use crate::ffi;
+    use crate::tests::with_session;
     use std::ffi::CString;
 
     #[test]
     fn test_get_string() {
-        with_session(|session|{
+        with_session(|session| {
             let h = ffi::get_server_env_str(session, &CString::new("HFS").unwrap()).unwrap();
             assert!(super::get_string(h, session).is_ok());
             assert!(super::get_cstring(h, session).is_ok());
-
         });
-
     }
 
     #[test]
     fn test_get_string_array() {
-        with_session(|session|{
+        with_session(|session| {
             let handles = ffi::get_server_env_var_list(session, 10).unwrap();
             let values = super::get_strings_array(&handles, session);
             assert!(values.is_ok());
@@ -157,9 +155,6 @@ mod tests {
             assert_eq!(values.iter_str().count(), 10);
             assert_eq!(values.iter_cstr().count(), 10);
             assert_eq!(values.into_iter().count(), 10);
-
         });
-
     }
-
 }

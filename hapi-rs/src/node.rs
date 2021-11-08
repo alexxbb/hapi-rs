@@ -91,7 +91,11 @@ impl std::fmt::Debug for HoudiniNode {
 }
 
 impl<'session> HoudiniNode {
-    pub(crate) fn new(session: Session, handle: NodeHandle, info: Option<NodeInfo>) -> Result<Self> {
+    pub(crate) fn new(
+        session: Session,
+        handle: NodeHandle,
+        info: Option<NodeInfo>,
+    ) -> Result<Self> {
         let info = match info {
             None => NodeInfo::new(&session, handle)?,
             Some(i) => i,
@@ -243,10 +247,13 @@ impl<'session> HoudiniNode {
         let infos = crate::ffi::get_parameters(self)?;
         Ok(infos
             .into_iter()
-            .map(|i| ParmInfo {
-                inner: i,
-                session: self.session.clone(),
-            }.into_node_parm(self.handle))
+            .map(|i| {
+                ParmInfo {
+                    inner: i,
+                    session: self.session.clone(),
+                }
+                .into_node_parm(self.handle)
+            })
             .collect())
     }
 

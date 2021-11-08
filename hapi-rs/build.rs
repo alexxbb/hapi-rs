@@ -11,8 +11,7 @@ fn main() {
     } else if cfg!(target_os = "windows") {
         filename = "libHAPIL";
         lib_dir = format!("{}/custom/houdini/dsolib", hfs);
-    }
-    else {
+    } else {
         filename = "HAPIL";
         lib_dir = format!("{}/dsolib", hfs);
     }
