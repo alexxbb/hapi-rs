@@ -603,6 +603,7 @@ pub fn create_inprocess_session() -> Result<raw::HAPI_Session> {
     }
 }
 
+// TODO: This is buggy!
 pub fn set_server_env_str(session: &Session, key: &CStr, value: &CStr) -> Result<()> {
     unsafe {
         raw::HAPI_SetServerEnvString(session.ptr(), key.as_ptr(), value.as_ptr())

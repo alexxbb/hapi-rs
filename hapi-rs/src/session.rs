@@ -351,7 +351,7 @@ impl Default for SessionOptions {
             cook_opt: CookOptions::default(),
             threaded: false,
             cleanup: false,
-            ignore_already_init: false,
+            ignore_already_init: true,
             env_files: None,
             otl_path: None,
             dso_path: None,

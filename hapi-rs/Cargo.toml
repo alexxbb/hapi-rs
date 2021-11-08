@@ -1,5 +1,9 @@
 [package]
 name = "hapi-rs"
+description = "Rust bindings to Houdini Engine API"
+documentation = "https://docs.rs/hapi-rs"
+repository = "https://github.com/alexxbb/hapi-rs/"
+readme = "README.md"
 version = "0.1.0"
 authors = ["Alex Rusev <hou.alexx@gmail.com>"]
 edition = "2021"

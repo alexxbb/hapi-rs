@@ -133,8 +133,9 @@ pub fn get_strings_array(handles: &[i32], session: &Session) -> Result<StringsAr
 #[cfg(test)]
 mod tests {
     use crate::ffi;
+    use crate::session::simple_session;
     use crate::tests::with_session;
-    use std::ffi::CString;
+    use std::ffi::{CStr, CString};
 
     #[test]
     fn test_get_string() {
@@ -147,14 +148,36 @@ mod tests {
 
     #[test]
     fn test_get_string_array() {
-        with_session(|session| {
-            let handles = ffi::get_server_env_var_list(session, 10).unwrap();
-            let values = super::get_strings_array(&handles, session);
-            assert!(values.is_ok());
-            let values = values.unwrap();
-            assert_eq!(values.iter_str().count(), 10);
-            assert_eq!(values.iter_cstr().count(), 10);
-            assert_eq!(values.into_iter().count(), 10);
-        });
+        let session = simple_session(None).expect("simple session");
+        session
+            .set_server_var::<str>("TEST", "177")
+            .expect("could not set var");
+        let var_count = ffi::get_server_env_var_count(&session).unwrap();
+        let handles = ffi::get_server_env_var_list(&session, var_count).unwrap();
+        let array = super::get_strings_array(&handles, &session).unwrap();
+        assert_eq!(array.iter_str().count(), var_count as usize);
+        assert_eq!(array.iter_cstr().count(), var_count as usize);
+        assert!(array.iter_str().find(|s| *s == "TEST=177").is_some());
+        assert!(array
+            .iter_cstr()
+            .find(|s| *s == unsafe { CStr::from_bytes_with_nul_unchecked(b"TEST=177\0") })
+            .is_some());
+        let mut owned: super::OwnedStringIter = array.into_iter();
+        assert!(owned.find(|s| *s == "TEST=177").is_some());
+    }
+
+    #[test]
+    #[ignore]
+    fn test_get_string_x() {
+        // let session = simple_session(None).expect("simple session");
+        // let count = ffi::get_server_env_var_count(&session).expect("environment count");
+        // let handles = ffi::get_server_env_var_list(&session, count).expect("environment handles");
+        // let handles = __raw_string_handles();
+        // let bytes = get_string_bytes(handles[0], &SESSION);
+        // assert!(bytes.is_ok());
+        // assert!(get_string(handles[0], &SESSION).is_ok());
+        // assert!(get_cstring(handles[0], &SESSION).is_ok());
+        // let array = get_strings_array(&handles, &SESSION);
+        // assert!(array.is_ok());
     }
 }

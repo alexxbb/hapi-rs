@@ -9,16 +9,11 @@ use std::thread_local;
 // Organisational idea: tests/ folder will contain more complex tests while
 // API tests go into the appropriate source file.
 
-thread_local! {
-    static SESSION: Lazy<Session> = Lazy::new(|| {
-        simple_session(None).expect("Could not create test session")
-});
-}
+static SESSION: Lazy<Session> =
+    Lazy::new(|| simple_session(None).expect("Could not create test session"));
 
 pub(crate) fn with_session(func: impl FnOnce(&Lazy<Session>)) {
-    SESSION.with(|session| {
-        func(session);
-    })
+    func(&SESSION);
 }
 
 pub(crate) static OTLS: Lazy<HashMap<&str, String>> = Lazy::new(|| {
