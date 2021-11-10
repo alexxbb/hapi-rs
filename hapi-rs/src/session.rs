@@ -456,7 +456,7 @@ pub fn simple_session(options: Option<&SessionOptions>) -> Result<Session> {
     std::thread::current().id().hash(&mut hash);
     let file = std::env::temp_dir().join(format!("hars-session-{}", hash.finish()));
     let file = file.to_string_lossy();
-    start_engine_pipe_server(&file, true, 2000.0)?;
+    start_engine_pipe_server(&file, false, 4000.0)?;
     let mut session = connect_to_pipe(&file)?;
     session.initialize(options.unwrap_or(&SessionOptions::default()))?;
     Ok(session)
