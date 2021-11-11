@@ -59,7 +59,7 @@ pub enum CookResult {
     Errored(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Session {
     handle: Arc<crate::ffi::raw::HAPI_Session>,
     pub threaded: bool,
@@ -456,7 +456,7 @@ pub fn simple_session(options: Option<&SessionOptions>) -> Result<Session> {
     std::thread::current().id().hash(&mut hash);
     let file = std::env::temp_dir().join(format!("hars-session-{}", hash.finish()));
     let file = file.to_string_lossy();
-    start_engine_pipe_server(&file, false, 4000.0)?;
+    start_engine_pipe_server(&file, true, 4000.0)?;
     let mut session = connect_to_pipe(&file)?;
     session.initialize(options.unwrap_or(&SessionOptions::default()))?;
     Ok(session)
@@ -464,7 +464,7 @@ pub fn simple_session(options: Option<&SessionOptions>) -> Result<Session> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::with_session;
+    use crate::tests::{with_session, OTLS};
 
     #[test]
     fn init_and_teardown() {
@@ -515,16 +515,23 @@ mod tests {
 
     #[test]
     fn load_asset_library() {
-        use crate::tests::OTLS;
         with_session(|session| {
             assert!(session.load_asset_file(&OTLS["spaceship"]).is_ok());
         });
     }
 
     #[test]
+    fn load_asset() {
+        with_session(|session| {
+            let otl = OTLS.get("parameters").unwrap();
+            let lib = session.load_asset_file(otl);
+            assert!(lib.is_ok(), "load_asset_file");
+        });
+    }
+
+    #[test]
     fn create_node_async() {
         use crate::ffi::raw::{NodeFlags, NodeType};
-        use crate::tests::OTLS;
         let mut opt = super::SessionOptions::default();
         opt.threaded = true;
         let session = super::simple_session(Some(&opt)).unwrap();

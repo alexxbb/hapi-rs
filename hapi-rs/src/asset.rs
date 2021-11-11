@@ -199,3 +199,55 @@ impl<'node> AssetInfo<'node> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::tests::{with_session, OTLS};
+
+    fn _load_asset(name: &str, ses: &super::Session) -> super::AssetLibrary {
+        let otl = OTLS.get(name).expect("otl not found");
+        ses.load_asset_file(otl).expect("load_asset_file")
+    }
+
+    #[test]
+    fn get_asset_count() {
+        with_session(|session| {
+            let lib = _load_asset("parameters", &session);
+            assert_eq!(lib.get_asset_count().expect("get_asset_count"), 1);
+        });
+    }
+
+    #[test]
+    fn get_asset_names() {
+        with_session(|session| {
+            let lib = _load_asset("parameters", &session);
+            assert!(lib
+                .get_asset_names()
+                .expect("get_asset_name")
+                .contains(&"Object/hapi_parms".to_string()));
+        });
+    }
+
+    #[test]
+    fn get_first_name() {
+        with_session(|session| {
+            let lib = _load_asset("parameters", &session);
+            assert_eq!(lib.get_first_name(), Ok(String::from("Object/hapi_parms")));
+        });
+    }
+
+    #[test]
+    #[ignore]
+    fn asset_parameters() {
+        // TODO: This is crashing the server
+        // with_session(|session| {
+        //     assert!(session.is_valid());
+        //     let otl = OTLS.get("parameters").unwrap();
+        //     let lib = session
+        //         .load_asset_file(otl)
+        //         .expect(&format!("Could not load {}", otl));
+        //     let _ = lib.get_asset_parms(Some("Object/hapi_parms"));
+        //     // assert!(parms.is_ok());
+        // });
+    }
+}

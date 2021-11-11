@@ -9,6 +9,7 @@ pub(crate) mod raw {
     pub use super::bindings::*;
 }
 
+mod extensions;
 mod functions;
 mod structs;
 

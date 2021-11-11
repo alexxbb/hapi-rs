@@ -1,7 +1,6 @@
-use std::time::Duration;
 use once_cell::sync::OnceCell;
 // use flume::Receiver;
-use crossbeam_channel::{Receiver, bounded, TryRecvError};
+use crossbeam_channel::{bounded, Receiver, TryRecvError};
 use hapi_rs::session::*;
 
 static POOL: OnceCell<Receiver<Session>> = OnceCell::new();
@@ -20,7 +19,7 @@ fn get_session() -> Session {
                 match session {
                     Ok(session) => {
                         if tx.send(session).is_err() {
-                            break
+                            break;
                         };
                     }
                     Err(e) => {
@@ -36,18 +35,15 @@ fn get_session() -> Session {
 }
 
 fn stress() {
-
     let (tx, rx) = bounded(NUM_SESSIONS);
 
     for i in 0..4 {
         let tx_ = tx.clone();
-        let h = std::thread::spawn(move ||{
-            loop {
-                let s = simple_session(None).unwrap();
-                if tx_.send(s).is_err() {
-                    break
-                };
-            }
+        let h = std::thread::spawn(move || loop {
+            let s = simple_session(None).unwrap();
+            if tx_.send(s).is_err() {
+                break;
+            };
         });
     }
 
@@ -58,9 +54,9 @@ fn stress() {
 
 fn tst() {
 
-    if let Err(e) = hapi_rs::session::connect_to_pipe("/var/folders/xt/cgm6y73n5g54r3v5f6rrzpxc0000gn/T/.tmpleadcP") {
-        println!("{}", hapi_rs::session::get_connection_error(false).unwrap());
-    }
+    // if let Err(e) = hapi_rs::session::connect_to_pipe("/var/folders/xt/cgm6y73n5g54r3v5f6rrzpxc0000gn/T/.tmpleadcP") {
+    //     println!("{}", hapi_rs::session::get_connection_error(false).unwrap());
+    // }
 }
 fn main() {
     tst();

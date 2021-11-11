@@ -8,11 +8,10 @@ use std::collections::HashMap;
 // Organisational idea: tests/ folder will contain more complex tests while
 // API tests go into the appropriate source file.
 
-static SESSION: Lazy<Session> =
-    Lazy::new(|| {
-        env_logger::init();
-        simple_session(None).expect("Could not create test session")
-    });
+static SESSION: Lazy<Session> = Lazy::new(|| {
+    env_logger::init();
+    simple_session(None).expect("Could not create test session")
+});
 
 pub(crate) fn with_session(func: impl FnOnce(&Lazy<Session>)) {
     func(&SESSION);
@@ -32,35 +31,6 @@ pub(crate) static OTLS: Lazy<HashMap<&str, String>> = Lazy::new(|| {
     map.insert("spaceship", format!("{}/spaceship.otl", root));
     map
 });
-
-#[test]
-fn load_asset() {
-    with_session(|session| {
-        let otl = OTLS.get("parameters").unwrap();
-        let lib = session.load_asset_file(otl).expect("load_asset_file");
-        assert_eq!(lib.get_asset_count().expect("get_asset_count"), 1);
-        assert!(lib
-            .get_asset_names()
-            .expect("get_asset_name")
-            .contains(&"Object/hapi_parms".to_string()));
-        lib.try_create_first().expect("try_create_first");
-    });
-}
-
-#[test]
-#[ignore]
-fn asset_parameters() {
-    // TODO: This is crashing the server
-    // with_session(|session| {
-    //     assert!(session.is_valid());
-    //     let otl = OTLS.get("parameters").unwrap();
-    //     let lib = session
-    //         .load_asset_file(otl)
-    //         .expect(&format!("Could not load {}", otl));
-    //     let _ = lib.get_asset_parms(Some("Object/hapi_parms"));
-    //     // assert!(parms.is_ok());
-    // });
-}
 
 #[test]
 fn node_parameters() {

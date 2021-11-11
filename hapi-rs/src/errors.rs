@@ -5,14 +5,14 @@ use std::borrow::Cow;
 
 pub type Result<T> = std::result::Result<T, HapiError>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct HapiError {
     pub kind: Kind,
     pub message: Option<Cow<'static, str>>,
     pub(crate) session: Option<Session>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Kind {
     Hapi(HapiResult),
