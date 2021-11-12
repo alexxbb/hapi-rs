@@ -463,8 +463,34 @@ pub fn simple_session(options: Option<&SessionOptions>) -> Result<Session> {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::tests::{with_session, OTLS};
+pub(crate) mod tests {
+    use crate::session::*;
+    use once_cell::sync::Lazy;
+    use std::collections::HashMap;
+
+    static SESSION: Lazy<Session> = Lazy::new(|| {
+        env_logger::init();
+        simple_session(None).expect("Could not create test session")
+    });
+
+    pub(crate) fn with_session(func: impl FnOnce(&Lazy<Session>)) {
+        func(&SESSION);
+    }
+
+    pub(crate) static OTLS: Lazy<HashMap<&str, String>> = Lazy::new(|| {
+        let mut map = HashMap::new();
+        let root = format!(
+            "{}/otls",
+            std::env::current_dir()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .to_string_lossy()
+        );
+        map.insert("parameters", format!("{}/hapi_parms.hda", root));
+        map.insert("spaceship", format!("{}/spaceship.otl", root));
+        map
+    });
 
     #[test]
     fn init_and_teardown() {

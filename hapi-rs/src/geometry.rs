@@ -112,3 +112,46 @@ impl<'session> Geometry<'session> {
         crate::ffi::commit_geo(&self.node)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::session::tests::with_session;
+
+    #[test]
+    fn geometry_triangle() {
+        with_session(|session| {
+            let node = session.create_input_node("test").expect("input node");
+            let geo = node.geometry().expect("geometry").unwrap();
+
+            let part = PartInfo::default()
+                .with_part_type(PartType::Mesh)
+                .with_face_count(1)
+                .with_point_count(3)
+                .with_vertex_count(3);
+            geo.set_part_info(&part).expect("part_info");
+            let info = AttributeInfo::default()
+                .with_count(part.point_count())
+                .with_tuple_size(3)
+                .with_owner(AttributeOwner::Point)
+                .with_storage(StorageType::Float);
+            let attr_p = geo
+                .add_attribute::<f32>(part.part_id(), "P", &info)
+                .unwrap();
+            attr_p
+                .set(
+                    part.part_id(),
+                    &[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
+                )
+                .unwrap();
+            geo.set_vertex_list(0, [0, 1, 2]).unwrap();
+            geo.set_face_counts(0, [3]).unwrap();
+            geo.commit().expect("commit");
+
+            node.cook_blocking(None).expect("cook");
+
+            let val: Vec<_> = attr_p.read(part.part_id()).expect("read_attribute");
+            assert_eq!(val.len(), 9);
+        });
+    }
+}

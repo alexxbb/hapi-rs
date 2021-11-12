@@ -1,6 +1,8 @@
+#![allow(dead_code)]
+
 use once_cell::sync::OnceCell;
 // use flume::Receiver;
-use crossbeam_channel::{bounded, Receiver, TryRecvError};
+use crossbeam_channel::{bounded, Receiver};
 use hapi_rs::session::*;
 
 static POOL: OnceCell<Receiver<Session>> = OnceCell::new();

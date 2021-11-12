@@ -202,7 +202,7 @@ impl<'node> AssetInfo<'node> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::{with_session, OTLS};
+    use crate::session::tests::{with_session, OTLS};
 
     fn _load_asset(name: &str, ses: &super::Session) -> super::AssetLibrary {
         let otl = OTLS.get(name).expect("otl not found");

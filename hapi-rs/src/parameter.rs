@@ -303,3 +303,66 @@ impl ParmBaseTrait for StringParameter {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::session::tests::{with_session, OTLS};
+
+    #[test]
+    fn node_parameters() {
+        with_session(|session| {
+            let otl = OTLS.get("parameters").unwrap();
+            let _lib = session.load_asset_file(otl).unwrap();
+            let node = session
+                .create_node_blocking("Object/hapi_parms", None, None)
+                .expect("create_node");
+            for p in node.parameters().unwrap() {
+                assert!(p.name().is_ok());
+            }
+            if let Parameter::Float(p) = node.parameter("color").unwrap() {
+                let val = p.get_value().unwrap();
+                assert_eq!(&val, &[0.55, 0.75, 0.95]);
+                p.set_value([0.7, 0.5, 0.3]).unwrap();
+                let val = p.get_value().unwrap();
+                assert_eq!(&val, &[0.7, 0.5, 0.3]);
+            }
+            if let Parameter::Float(p) = node.parameter("single_float").unwrap() {
+                p.set_expression("$T", 0).unwrap();
+                assert_eq!("$T", p.expression(0).unwrap());
+            }
+
+            if let Parameter::String(p) = node.parameter("multi_string").unwrap() {
+                let mut value = p.get_value().unwrap();
+                assert_eq!(vec!["foo 1", "bar 2", "baz 3"], value);
+                value[0] = "cheese".to_owned();
+                p.set_value(value).unwrap();
+                assert_eq!("cheese", p.get_value().unwrap()[0]);
+            }
+
+            if let Parameter::Int(p) = node.parameter("ord_menu").unwrap() {
+                assert!(p.is_menu());
+                assert_eq!(p.get_value().unwrap()[0], 0);
+                if let Some(items) = p.menu_items().unwrap() {
+                    assert_eq!(items[0].value().unwrap(), "foo");
+                    assert_eq!(items[0].label().unwrap(), "Foo");
+                }
+            }
+
+            if let Parameter::Int(p) = node.parameter("toggle").unwrap() {
+                assert_eq!(p.get_value().unwrap()[0], 0);
+                p.set_value([1]).unwrap();
+                assert_eq!(p.get_value().unwrap()[0], 1);
+            }
+
+            // test button callback
+            if let Parameter::Button(ip) = node.parameter("button").unwrap() {
+                if let Parameter::String(sp) = node.parameter("single_string").unwrap() {
+                    assert_eq!(sp.get_value().unwrap()[0], "hello");
+                    ip.press_button().unwrap();
+                    assert_eq!(sp.get_value().unwrap()[0], "set from callback");
+                }
+            }
+        });
+    }
+}

@@ -8,8 +8,6 @@ pub mod node;
 pub mod parameter;
 pub mod session;
 mod stringhandle;
-#[cfg(test)]
-mod tests;
 
 pub use errors::Result;
 pub use stringhandle::get_string;

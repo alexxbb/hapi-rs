@@ -109,7 +109,7 @@ pub fn get_string(handle: i32, session: &Session) -> Result<String> {
 pub fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
     unsafe {
         let bytes = get_string_bytes(handle, session)?;
-        // SAFETY: HAPI C API can not return strings with interior zero byte
+        // SAFETY: HAPI C API should not return strings with interior zero byte
         Ok(CString::from_vec_unchecked(bytes))
     }
 }
@@ -134,7 +134,7 @@ pub fn get_strings_array(handles: &[i32], session: &Session) -> Result<StringsAr
 mod tests {
     use crate::ffi;
     use crate::session::simple_session;
-    use crate::tests::with_session;
+    use crate::session::tests::with_session;
     use std::ffi::{CStr, CString};
 
     #[test]
@@ -147,7 +147,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_string_array() {
+    fn test_string_array() {
         let session = simple_session(None).expect("simple session");
         session
             .set_server_var::<str>("TEST", "177")
@@ -164,20 +164,5 @@ mod tests {
             .is_some());
         let mut owned: super::OwnedStringIter = array.into_iter();
         assert!(owned.find(|s| *s == "TEST=177").is_some());
-    }
-
-    #[test]
-    #[ignore]
-    fn test_get_string_x() {
-        // let session = simple_session(None).expect("simple session");
-        // let count = ffi::get_server_env_var_count(&session).expect("environment count");
-        // let handles = ffi::get_server_env_var_list(&session, count).expect("environment handles");
-        // let handles = __raw_string_handles();
-        // let bytes = get_string_bytes(handles[0], &SESSION);
-        // assert!(bytes.is_ok());
-        // assert!(get_string(handles[0], &SESSION).is_ok());
-        // assert!(get_cstring(handles[0], &SESSION).is_ok());
-        // let array = get_strings_array(&handles, &SESSION);
-        // assert!(array.is_ok());
     }
 }
