@@ -15,7 +15,7 @@ pub use crate::{
     ffi::CookOptions,
 };
 
-const fn node_type_name(tp: NodeType) -> &'static str {
+pub const fn node_type_name(tp: NodeType) -> &'static str {
     match tp {
         NodeType::Sop => "Sop",
         NodeType::Obj => "Obj",
@@ -26,23 +26,6 @@ const fn node_type_name(tp: NodeType) -> &'static str {
         NodeType::Vop => "Vop",
         NodeType::Chop => "Chop",
         _ => "Unknown",
-    }
-}
-
-impl std::fmt::Debug for ffi::NodeInfo {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NodeInfo")
-            .field("name", &self.name().unwrap())
-            .field("internal_path", &self.internal_path().unwrap())
-            .field("type", &node_type_name(self.node_type()))
-            .field("is_valid", &self.is_valid())
-            .field("time_dependent", &self.is_time_dependent())
-            .field("total_cook_count", &self.total_cook_count())
-            .field("parm_count", &self.parm_count())
-            .field("child_count", &self.child_node_count())
-            .field("input_count", &self.input_count())
-            .field("output_count", &self.output_count())
-            .finish()
     }
 }
 
@@ -303,5 +286,14 @@ impl<'session> HoudiniNode {
             }
             NodeType(_) => Ok(None),
         }
+    }
+
+    pub fn connect_input(
+        &self,
+        input_num: i32,
+        source: &HoudiniNode,
+        output_num: i32,
+    ) -> Result<()> {
+        crate::ffi::connect_node_input(self, input_num, source, output_num)
     }
 }

@@ -753,9 +753,9 @@ pub fn is_session_initialized(session: &Session) -> bool {
     }
 }
 
-pub fn save_hip(session: &Session, name: &CStr) -> Result<()> {
+pub fn save_hip(session: &Session, name: &CStr, lock_nodes: bool) -> Result<()> {
     unsafe {
-        raw::HAPI_SaveHIPFile(session.ptr(), name.as_ptr(), 0)
+        raw::HAPI_SaveHIPFile(session.ptr(), name.as_ptr(), lock_nodes as i8)
             .result_with_session(|| session.clone())
     }
 }
@@ -952,8 +952,26 @@ pub fn get_parameters(node: &HoudiniNode) -> Result<Vec<raw::HAPI_ParmInfo>> {
             0,
             node.info.parm_count(),
         )
-        .result_with_session(|| node.session.clone())?;
+            .result_with_session(|| node.session.clone())?;
         Ok(parms)
+    }
+}
+
+pub fn connect_node_input(
+    node_id: &HoudiniNode,
+    input_index: i32,
+    node_id_to_connect: &HoudiniNode,
+    output_index: i32,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_ConnectNodeInput(
+            node_id.session.ptr(),
+            node_id.handle.0,
+            input_index,
+            node_id_to_connect.handle.0,
+            output_index,
+        )
+            .result_with_session(|| node_id.session.clone())
     }
 }
 

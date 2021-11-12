@@ -90,8 +90,8 @@ impl<'session> Geometry<'session> {
 
     pub fn add_attribute<T: AttribDataType>(
         &self,
-        part_id: i32,
         name: &str,
+        part_id: i32,
         info: &AttributeInfo,
     ) -> Result<Attribute<T>> {
         let name = CString::new(name)?;
@@ -136,7 +136,7 @@ mod tests {
                 .with_owner(AttributeOwner::Point)
                 .with_storage(StorageType::Float);
             let attr_p = geo
-                .add_attribute::<f32>(part.part_id(), "P", &info)
+                .add_attribute::<f32>("P", part.part_id(), &info)
                 .unwrap();
             attr_p
                 .set(

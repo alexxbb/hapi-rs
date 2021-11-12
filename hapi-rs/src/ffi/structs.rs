@@ -218,6 +218,23 @@ impl NodeInfo {
     get!(parent_id->parentId->[handle: NodeHandle]);
 }
 
+impl std::fmt::Debug for NodeInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NodeInfo")
+            .field("name", &self.name().unwrap())
+            .field("internal_path", &self.internal_path().unwrap())
+            .field("type", &crate::node::node_type_name(self.node_type()))
+            .field("is_valid", &self.is_valid())
+            .field("time_dependent", &self.is_time_dependent())
+            .field("total_cook_count", &self.total_cook_count())
+            .field("parm_count", &self.parm_count())
+            .field("child_count", &self.child_node_count())
+            .field("input_count", &self.input_count())
+            .field("output_count", &self.output_count())
+            .finish()
+    }
+}
+
 #[derive(Debug)]
 pub struct CookOptions {
     pub(crate) inner: HAPI_CookOptions,

@@ -152,10 +152,10 @@ impl Session {
         HoudiniNode::create_blocking(name, label, parent, self.clone(), false)
     }
 
-    pub fn save_hip(&self, name: &str) -> Result<()> {
+    pub fn save_hip(&self, name: &str, lock_nodes: bool) -> Result<()> {
         debug!("Saving hip file: {}", name);
         let name = CString::new(name)?;
-        crate::ffi::save_hip(self, &name)
+        crate::ffi::save_hip(self, &name, lock_nodes)
     }
 
     pub fn load_hip(&self, name: &str, cook: bool) -> Result<()> {
