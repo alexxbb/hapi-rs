@@ -95,22 +95,22 @@ main( int argc, char **argv )
 			   0, 4, 5, 1 };
     
     ENSURE_SUCCESS( HAPI_SetVertexList( &session, newNode, 0, vertices, 0, 24 ) );
-   
-    int face_counts [ 6 ] = { 4, 4, 4, 4, 4, 4 };
 
-    ENSURE_SUCCESS( HAPI_SetFaceCounts( &session, newNode, 0, face_counts, 0, 6 ) );
-    
-    ENSURE_SUCCESS( HAPI_CommitGeo( &session, newNode ) );
+    int face_counts[6] = {4, 4, 4, 4, 4, 4};
+
+    ENSURE_SUCCESS(HAPI_SetFaceCounts(&session, newNode, 0, face_counts, 0, 6));
+
+    ENSURE_SUCCESS(HAPI_CommitGeo(&session, newNode));
 
     HAPI_NodeId subdivideNode;
 
-    ENSURE_SUCCESS( HAPI_CreateNode( &session, -1, "Sop/subdivide", "Cube Subdivider", true, &subdivideNode ) );
-    
-    ENSURE_SUCCESS( HAPI_ConnectNodeInput( &session, subdivideNode, 0, newNode ) );
+    ENSURE_SUCCESS(HAPI_CreateNode(&session, -1, "Sop/subdivide", "Cube Subdivider", true, &subdivideNode));
 
-    ENSURE_SUCCESS( HAPI_SaveHIPFile( &session, "otls/connecting_assets.hip", false ) );
-    
-    HAPI_Cleanup( &session );
+    ENSURE_SUCCESS(HAPI_ConnectNodeInput(&session, subdivideNode, 0, newNode, 0));
+
+    ENSURE_SUCCESS(HAPI_SaveHIPFile(&session, "otls/connecting_assets.hip", false));
+
+    HAPI_Cleanup(&session);
 
     return 0;
 }

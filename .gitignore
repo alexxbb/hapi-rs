@@ -3,4 +3,5 @@ Cargo.lock
 .idea
 build
 backup
+cmake-build-*
 _build

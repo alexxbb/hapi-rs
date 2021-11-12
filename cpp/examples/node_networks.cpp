@@ -86,27 +86,26 @@ main( int argc, char ** argv )
 
     std::cout << "Editable Node Network Child Count: "
 	      << childCount << std::endl;
-    
-    std::vector< HAPI_NodeId > childNodeIds( childCount );
-    ENSURE_SUCCESS( HAPI_GetComposedChildNodeList( &session, editableNetworkId,
-						   &childNodeIds.front(), childCount ) );
 
-    printChildNodeInfo( session, childNodeIds );
+    std::vector<HAPI_NodeId> childNodeIds(childCount);
+    ENSURE_SUCCESS(HAPI_GetComposedChildNodeList(&session, editableNetworkId,
+                                                 &childNodeIds.front(), childCount));
+
+    printChildNodeInfo(session, childNodeIds);
 
     HAPI_NodeId anotherBoxNode;
-    ENSURE_SUCCESS( HAPI_CreateNode( &session, editableNetworkId, "geo",
-				     "ProgrammaticBox", false, &anotherBoxNode ) );
-    
-    ENSURE_SUCCESS( HAPI_ConnectNodeInput( &session, anotherBoxNode, 0, childNodeIds[ 0 ] ) );
-    
-    ENSURE_SUCCESS( HAPI_CookNode( &session, anotherBoxNode, &cookOptions ) );
-    
+    ENSURE_SUCCESS(HAPI_CreateNode(&session, editableNetworkId, "geo",
+                                   "ProgrammaticBox", false, &anotherBoxNode));
+
+    ENSURE_SUCCESS(HAPI_ConnectNodeInput(&session, anotherBoxNode, 0, childNodeIds[0], 0));
+
+    ENSURE_SUCCESS(HAPI_CookNode(&session, anotherBoxNode, &cookOptions));
+
     int boxCookStatus;
     HAPI_Result boxCookResult;
 
-    do
-    {
-	boxCookResult = HAPI_GetStatus( &session, HAPI_STATUS_COOK_STATE, &boxCookStatus );
+    do {
+        boxCookResult = HAPI_GetStatus(&session, HAPI_STATUS_COOK_STATE, &boxCookStatus);
     }
     while ( boxCookStatus > HAPI_STATE_MAX_READY_STATE && boxCookResult == HAPI_RESULT_SUCCESS );
 

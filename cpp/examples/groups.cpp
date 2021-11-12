@@ -117,24 +117,24 @@ main( int argc, char **argv )
 	    pointMembership[ ii ] = 0; 
 	}
     }
-    
-    ENSURE_SUCCESS( HAPI_SetGroupMembership( &session, cubeNode, cubePart.id, HAPI_GROUPTYPE_POINT,
-					     "pointGroup", pointMembership, 0, groupElementCount ) );
-    
-    ENSURE_SUCCESS( HAPI_CommitGeo( &session, cubeNode ) );
-    
-    HAPI_NodeId xformNode;
-    ENSURE_SUCCESS( HAPI_CreateNode( &session, -1, "Sop/xform", "PointGroupManipulator", false, &xformNode ) );
 
-    ENSURE_SUCCESS( HAPI_ConnectNodeInput( &session, xformNode, 0, cubeNode ) );
+    ENSURE_SUCCESS(HAPI_SetGroupMembership(&session, cubeNode, cubePart.id, HAPI_GROUPTYPE_POINT,
+                                           "pointGroup", pointMembership, 0, groupElementCount));
+
+    ENSURE_SUCCESS(HAPI_CommitGeo(&session, cubeNode));
+
+    HAPI_NodeId xformNode;
+    ENSURE_SUCCESS(HAPI_CreateNode(&session, -1, "Sop/xform", "PointGroupManipulator", false, &xformNode));
+
+    ENSURE_SUCCESS(HAPI_ConnectNodeInput(&session, xformNode, 0, cubeNode, 0));
 
     // Set xform parameters
 
     HAPI_NodeInfo xformInfo;
-    ENSURE_SUCCESS( HAPI_GetNodeInfo( &session, xformNode, &xformInfo ) );
+    ENSURE_SUCCESS(HAPI_GetNodeInfo(&session, xformNode, &xformInfo));
 
-    HAPI_ParmInfo * parmInfos = new HAPI_ParmInfo[ xformInfo.parmCount ];
-    ENSURE_SUCCESS( HAPI_GetParameters( &session, xformNode, parmInfos, 0, xformInfo.parmCount ) );
+    HAPI_ParmInfo *parmInfos = new HAPI_ParmInfo[xformInfo.parmCount];
+    ENSURE_SUCCESS(HAPI_GetParameters(&session, xformNode, parmInfos, 0, xformInfo.parmCount));
 
     int groupParmIndex = -1;
     int tParmIndex = -1;
