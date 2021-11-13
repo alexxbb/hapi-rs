@@ -1118,6 +1118,66 @@ pub fn set_curve_info(node: &HoudiniNode, info: &CurveInfo, part_id: i32) -> Res
     }
 }
 
+pub fn get_curve_info(node: &HoudiniNode, part_id: i32) -> Result<raw::HAPI_CurveInfo> {
+    unsafe {
+        let mut info = uninit!();
+        super::raw::HAPI_GetCurveInfo(node.session.ptr(), node.handle.0, part_id, info.as_mut_ptr())
+            .result_with_session(|| node.session.clone());
+        Ok(info.assume_init())
+    }
+}
+
+
+pub fn get_curve_counts(node: &HoudiniNode, part_id: i32, start: i32, length: i32) -> Result<Vec<i32>> {
+    unsafe {
+        let mut array = vec![0; length as usize];
+        unsafe {
+            raw::HAPI_GetCurveCounts(
+                node.session.ptr(),
+                node.handle.0,
+                part_id,
+                array.as_mut_ptr(),
+                start,
+                length,
+            )
+                .result_with_session(|| node.session.clone())?;
+        }
+        Ok(array)
+    }
+}
+
+pub fn get_curve_orders(node: &HoudiniNode, part_id: i32, start: i32, length: i32) -> Result<Vec<i32>> {
+    unsafe {
+        let mut array = vec![0; length as usize];
+        raw::HAPI_GetCurveOrders(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            array.as_mut_ptr(),
+            start,
+            length,
+        )
+            .result_with_session(|| node.session.clone())?;
+        Ok(array)
+    }
+}
+
+pub fn get_curve_knots(node: &HoudiniNode, part_id: i32, start: i32, length: i32) -> Result<Vec<f32>> {
+    unsafe {
+        let mut array = vec![0.0; length as usize];
+        raw::HAPI_GetCurveKnots(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            array.as_mut_ptr(),
+            start,
+            length,
+        )
+            .result_with_session(|| node.session.clone())?;
+        Ok(array)
+    }
+}
+
 pub fn set_curve_counts(node: &HoudiniNode, part_id: i32, count: &[i32]) -> Result<()> {
     unsafe {
         super::raw::HAPI_SetCurveCounts(
@@ -1317,7 +1377,7 @@ pub fn get_attribute_string_buffer(
     }
 }
 
-pub fn get_face_counts(node: &HoudiniNode, part_id: i32, length: i32) -> Result<Vec<i32>> {
+pub fn get_face_counts(node: &HoudiniNode, part_id: i32, start: i32, length: i32) -> Result<Vec<i32>> {
     let mut array = vec![0; length as usize];
     unsafe {
         raw::HAPI_GetFaceCounts(
@@ -1325,10 +1385,10 @@ pub fn get_face_counts(node: &HoudiniNode, part_id: i32, length: i32) -> Result<
             node.handle.0,
             part_id,
             array.as_mut_ptr(),
-            0,
+            start,
             length,
         )
-        .result_with_session(|| node.session.clone())?;
+            .result_with_session(|| node.session.clone())?;
     }
     Ok(array)
 }

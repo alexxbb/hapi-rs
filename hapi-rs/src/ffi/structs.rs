@@ -374,7 +374,7 @@ wrap!(
     [get|set] end_time->endTime->[f32];
 );
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CurveInfo {
     pub(crate) inner: HAPI_CurveInfo,
 }

@@ -3,8 +3,8 @@ use std::borrow::Cow;
 pub use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
-    raw::{AttributeOwner, GroupType, PartType, CurveType, CurveOrders},
-    AttributeInfo, GeoInfo, CurveInfo, PartInfo,
+    raw::{AttributeOwner, CurveOrders, CurveType, GroupType, PartType},
+    AttributeInfo, CurveInfo, GeoInfo, PartInfo,
 };
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringsArray;
@@ -52,6 +52,30 @@ impl<'session> Geometry<'session> {
             inner,
             session: &self.node.session,
         })
+    }
+    pub fn curve_info(&self, part_id: i32) -> Result<CurveInfo> {
+        crate::ffi::get_curve_info(&self.node, part_id).map(|inner| CurveInfo { inner })
+    }
+
+    /// Retrieve the number of vertices for each curve in the part.
+    pub fn curve_counts(&self, part_id: i32, start: i32, length: i32) -> Result<Vec<i32>> {
+        crate::ffi::get_curve_counts(&self.node, part_id, start, length)
+    }
+
+    /// Retrieve the orders for each curve in the part if the curve has varying order.
+    pub fn curve_orders(&self, part_id: i32, start: i32, length: i32) -> Result<Vec<i32>> {
+        crate::ffi::get_curve_orders(&self.node, part_id, start, length)
+    }
+
+    /// Retrieve the knots of the curves in this part.
+    pub fn curve_knots(&self, part_id: i32, start: i32, length: i32) -> Result<Vec<f32>> {
+        crate::ffi::get_curve_knots(&self.node, part_id, start, length)
+    }
+
+    pub fn partitions(&self) -> Result<Vec<PartInfo>> {
+        (0..self.info.part_count() + 1)
+            .map(|i| self.part_info(i))
+            .collect()
     }
 
     pub fn get_face_counts(&self, _info: &PartInfo) -> Result<Vec<i32>> {
