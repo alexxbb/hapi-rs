@@ -3,8 +3,8 @@ use std::borrow::Cow;
 pub use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
-    raw::{AttributeOwner, GroupType, PartType},
-    AttributeInfo, GeoInfo, PartInfo,
+    raw::{AttributeOwner, GroupType, PartType, CurveType, CurveOrders},
+    AttributeInfo, GeoInfo, CurveInfo, PartInfo,
 };
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringsArray;
@@ -25,6 +25,18 @@ impl<'session> Geometry<'session> {
     pub fn set_part_info(&self, info: &PartInfo) -> Result<()> {
         // TODO: Should part_id be provided by user or by PartInfo?
         crate::ffi::set_part_info(&self.node, info)
+    }
+
+    pub fn set_curve_info(&self, info: &CurveInfo, part_id: i32) -> Result<()> {
+        crate::ffi::set_curve_info(&self.node, info, part_id)
+    }
+
+    pub fn set_curve_counts(&self, part_id: i32, count: &[i32]) -> Result<()> {
+        crate::ffi::set_curve_counts(&self.node, part_id, count)
+    }
+
+    pub fn set_curve_knots(&self, part_id: i32, knots: &[f32]) -> Result<()> {
+        crate::ffi::set_curve_knots(&self.node, part_id, knots)
     }
 
     pub fn set_vertex_list(&self, part_id: i32, list: impl AsRef<[i32]>) -> Result<()> {

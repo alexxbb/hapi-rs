@@ -373,3 +373,20 @@ wrap!(
     [get|set] start_time->startTime->[f32];
     [get|set] end_time->endTime->[f32];
 );
+
+#[derive(Debug)]
+pub struct CurveInfo {
+    pub(crate) inner: HAPI_CurveInfo,
+}
+
+wrap!(
+    Default CurveInfo [HAPI_CurveInfo_Create => HAPI_CurveInfo];
+    [get|set] curve_type->curveType->[CurveType];
+    [get|set] curve_count->curveCount->[i32];
+    [get|set] vertex_count->vertexCount->[i32];
+    [get|set] knot_count->knotCount->[i32];
+    [get|set] periodic->isPeriodic->[bool];
+    [get|set] rational->isRational->[bool];
+    [get|set] has_knots->hasKnots->[bool];
+    [get|set] order->order->[i32];
+);

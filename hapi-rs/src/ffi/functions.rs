@@ -13,7 +13,7 @@ use crate::{
 };
 
 use super::raw;
-use crate::ffi::PartInfo;
+use crate::ffi::{CurveInfo, PartInfo};
 
 macro_rules! uninit {
     () => {
@@ -1107,7 +1107,42 @@ pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {
             info.part_id(),
             &info.inner,
         )
-        .result_with_session(|| node.session.clone())
+            .result_with_session(|| node.session.clone())
+    }
+}
+
+pub fn set_curve_info(node: &HoudiniNode, info: &CurveInfo, part_id: i32) -> Result<()> {
+    unsafe {
+        super::raw::HAPI_SetCurveInfo(node.session.ptr(), node.handle.0, part_id, &info.inner)
+            .result_with_session(|| node.session.clone())
+    }
+}
+
+pub fn set_curve_counts(node: &HoudiniNode, part_id: i32, count: &[i32]) -> Result<()> {
+    unsafe {
+        super::raw::HAPI_SetCurveCounts(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            count.as_ptr(),
+            0,
+            count.len() as i32,
+        )
+            .result_with_session(|| node.session.clone())
+    }
+}
+
+pub fn set_curve_knots(node: &HoudiniNode, part_id: i32, knots: &[f32]) -> Result<()> {
+    unsafe {
+        super::raw::HAPI_SetCurveKnots(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            knots.as_ptr(),
+            0,
+            knots.len() as i32,
+        )
+            .result_with_session(|| node.session.clone())
     }
 }
 
