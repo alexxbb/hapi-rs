@@ -73,6 +73,12 @@ impl std::fmt::Debug for HoudiniNode {
     }
 }
 
+impl From<HoudiniNode> for NodeHandle {
+    fn from(n: HoudiniNode) -> Self {
+        n.handle
+    }
+}
+
 impl<'session> HoudiniNode {
     pub(crate) fn new(
         session: Session,
@@ -97,8 +103,8 @@ impl<'session> HoudiniNode {
         Ok(self.info.is_valid())
     }
 
-    pub fn path(&self, relative_to: Option<&HoudiniNode>) -> Result<String> {
-        crate::ffi::get_node_path(self, relative_to)
+    pub fn path(&self, relative_to: Option<NodeHandle>) -> Result<String> {
+        crate::ffi::get_node_path(&self.session, self.handle, relative_to)
     }
 
     pub fn cook(&self, options: Option<&CookOptions>) -> Result<()> {
@@ -130,10 +136,10 @@ impl<'session> HoudiniNode {
         crate::ffi::get_total_cook_count(self, node_types, node_flags, recurse)
     }
 
-    pub fn create(
+    pub fn create<H: Into<NodeHandle>>(
         name: &str,
         label: Option<&str>,
-        parent: Option<NodeHandle>,
+        parent: Option<H>,
         session: Session,
         cook: bool,
     ) -> Result<HoudiniNode> {
@@ -143,14 +149,14 @@ impl<'session> HoudiniNode {
         }
         let name = CString::new(name)?;
         let label = label.map(|s| CString::new(s).unwrap());
-        let id = crate::ffi::create_node(&name, label.as_deref(), &session, parent, cook)?;
+        let id = crate::ffi::create_node(&name, label.as_deref(), &session, parent.map(|t| t.into()), cook)?;
         HoudiniNode::new(session, NodeHandle(id, ()), None)
     }
 
-    pub fn create_blocking(
+    pub fn create_blocking<H: Into<NodeHandle>>(
         name: &str,
         label: Option<&str>,
-        parent: Option<NodeHandle>,
+        parent: Option<H>,
         session: Session,
         cook: bool,
     ) -> Result<HoudiniNode> {
@@ -288,14 +294,13 @@ impl<'session> HoudiniNode {
         }
     }
 
-    // TODO: Make functions generic over HoudiniNode/NodeHandle
-    pub fn connect_input(
+    pub fn connect_input<H: Into<NodeHandle>>(
         &self,
         input_num: i32,
-        source: NodeHandle,
+        source: H,
         output_num: i32,
     ) -> Result<()> {
         crate::ffi::connect_node_input(
-            &self.session, self.handle, input_num, source, output_num)
+            &self.session, self.handle, input_num, source.into(), output_num)
     }
 }
