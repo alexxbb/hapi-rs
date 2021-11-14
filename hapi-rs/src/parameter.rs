@@ -147,7 +147,7 @@ impl Parameter {
     pub(crate) fn new(node: NodeHandle, info: ParmInfo) -> Parameter {
         let base = ParmNodeWrap { info, node };
         match base.info.parm_type() {
-            ParmType::Int | ParmType::Toggle | ParmType::Folder | ParmType::Folderlist => {
+            ParmType::Int | ParmType::Toggle | ParmType::Multiparmlist => {
                 Parameter::Int(IntParameter { wrap: base })
             }
             ParmType::Button => Parameter::Button(IntParameter { wrap: base }),
