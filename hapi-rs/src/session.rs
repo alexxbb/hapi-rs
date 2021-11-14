@@ -488,7 +488,7 @@ pub(crate) mod tests {
                 .to_string_lossy()
         );
         map.insert("parameters", format!("{}/hapi_parms.hda", root));
-        map.insert("spaceship", format!("{}/spaceship.otl", root));
+        map.insert("spaceship", format!("{}/sesi/SideFX_spaceship.otl", root));
         map
     });
 

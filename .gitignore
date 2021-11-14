@@ -3,5 +3,7 @@ Cargo.lock
 .idea
 build
 backup
+otls/backup
 cmake-build-*
 _build
+*.hip*

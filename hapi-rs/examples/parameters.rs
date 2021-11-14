@@ -5,7 +5,7 @@ use prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR as FORMAT;
 use prettytable::*;
 
 fn main() -> Result<()> {
-    let otl = "otls/spaceship.otl";
+    let otl = "otls/sesi/SideFX_spaceship.otl";
     let mut session = new_in_process()?;
     let mut opt = SessionOptions::default();
     opt.threaded = true;
