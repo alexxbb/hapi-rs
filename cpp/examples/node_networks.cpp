@@ -29,7 +29,7 @@ static void printChildNodeInfo(HAPI_Session &session, std::vector<HAPI_NodeId> &
 
 int
 main(int argc, char **argv) {
-    const char *hdaFile = argc == 2 ? argv[1] : "otls/FourShapes.hda";
+    const char *hdaFile = argc == 2 ? argv[1] : "otls/sesi/FourShapes.hda";
 
     HAPI_CookOptions cookOptions = HAPI_CookOptions_Create();
 

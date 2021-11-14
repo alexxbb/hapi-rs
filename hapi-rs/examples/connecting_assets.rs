@@ -50,7 +50,7 @@ fn main() -> Result<()> {
     geom.commit()?;
 
     let subdivide_node = session.create_node("Sop/subdivide", Some("Cube Subdivider"), None)?;
-    subdivide_node.connect_input(0, &new_node, 0)?;
+    subdivide_node.connect_input(0, new_node.handle, 0)?;
     session.save_hip("connecting_assets.hip", false)?;
     println!("Saving connecting_assets.hip");
     Ok(())

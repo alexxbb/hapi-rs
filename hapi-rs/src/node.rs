@@ -155,7 +155,7 @@ impl<'session> HoudiniNode {
         cook: bool,
     ) -> Result<HoudiniNode> {
         let node = HoudiniNode::create(name, label, parent, session.clone(), cook);
-        if node.is_ok() && session.threaded {
+        if node.is_ok() && session.threaded.get() {
             session.cook()?;
         }
         node
@@ -288,12 +288,14 @@ impl<'session> HoudiniNode {
         }
     }
 
+    // TODO: Make functions generic over HoudiniNode/NodeHandle
     pub fn connect_input(
         &self,
         input_num: i32,
-        source: &HoudiniNode,
+        source: NodeHandle,
         output_num: i32,
     ) -> Result<()> {
-        crate::ffi::connect_node_input(self, input_num, source, output_num)
+        crate::ffi::connect_node_input(
+            &self.session, self.handle, input_num, source, output_num)
     }
 }

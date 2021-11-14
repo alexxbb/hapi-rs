@@ -958,9 +958,10 @@ pub fn get_parameters(node: &HoudiniNode) -> Result<Vec<raw::HAPI_ParmInfo>> {
 }
 
 pub fn connect_node_input(
-    node_id: &HoudiniNode,
+    session: &Session,
+    node_id: NodeHandle,
     input_index: i32,
-    node_id_to_connect: &HoudiniNode,
+    node_id_to_connect: NodeHandle,
     output_index: i32,
 ) -> Result<()> {
     unsafe {
