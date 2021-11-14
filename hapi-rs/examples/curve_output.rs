@@ -23,7 +23,7 @@ fn main() -> Result<()> {
 
         for part_info in geo.partitions()? {
             if part_info.part_type() == PartType::Curve {
-                print_curve_info(&geo, &obj_info, &part_info);
+                print_curve_info(&geo, &obj_info, &part_info)?;
             }
         }
     }

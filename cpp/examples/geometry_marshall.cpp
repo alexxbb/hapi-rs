@@ -86,9 +86,9 @@ main(int argc, char **argv) {
     ENSURE_SUCCESS(HAPI_SetFaceCounts(&session, newNode, 0, face_counts, 0, 1));
 
     char **strs = new char *[3];
-    strs[0] = _strdup("strPoint1 ");
-    strs[1] = _strdup("strPoint2 ");
-    strs[2] = _strdup("strPoint3 ");
+    strs[0] = strdup("strPoint1 ");
+    strs[1] = strdup("strPoint2 ");
+    strs[2] = strdup("strPoint3 ");
 
     newNodePointInfo.count = 3;
     newNodePointInfo.tupleSize = 1;

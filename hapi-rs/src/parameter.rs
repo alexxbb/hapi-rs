@@ -286,6 +286,7 @@ impl ParmBaseTrait for StringParameter {
     // What a hell did I mean by that?
     // Update: 2 month later still can't remember
     // Update: 3 month later. Still no clue, moving on for now
+    // Update: 1 year past. Meh, maybe later
     fn set_value<T>(&self, val: T) -> Result<()>
     where
         T: AsRef<[Self::ValueType]>,

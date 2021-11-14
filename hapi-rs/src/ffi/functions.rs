@@ -2,10 +2,11 @@
 
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
-use std::ptr::null;
+use std::ptr::{null, null_mut};
 
 use crate::{
     errors::Result,
+    geometry::GeoInfo,
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
     session::{CookOptions, Session, SessionOptions},
@@ -952,7 +953,7 @@ pub fn get_parameters(node: &HoudiniNode) -> Result<Vec<raw::HAPI_ParmInfo>> {
             0,
             node.info.parm_count(),
         )
-            .result_with_session(|| node.session.clone())?;
+        .result_with_session(|| node.session.clone())?;
         Ok(parms)
     }
 }
@@ -971,7 +972,7 @@ pub fn connect_node_input(
             node_id_to_connect.handle.0,
             output_index,
         )
-            .result_with_session(|| node_id.session.clone())
+        .result_with_session(|| node_id.session.clone())
     }
 }
 
@@ -1090,6 +1091,13 @@ pub fn get_geo_info(node: &HoudiniNode) -> Result<raw::HAPI_GeoInfo> {
     }
 }
 
+pub fn get_group_count_by_type(geo_info: &GeoInfo, group_type: raw::GroupType) -> i32 {
+    // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
+    // actually shouldn't?
+    let ptr = (&geo_info.inner as *const _) as *mut raw::HAPI_GeoInfo;
+    unsafe { raw::HAPI_GeoInfo_GetGroupCountByType(ptr, group_type) }
+}
+
 pub fn get_part_info(node: &HoudiniNode, id: i32) -> Result<raw::HAPI_PartInfo> {
     unsafe {
         let mut info = uninit!();
@@ -1107,7 +1115,7 @@ pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {
             info.part_id(),
             &info.inner,
         )
-            .result_with_session(|| node.session.clone())
+        .result_with_session(|| node.session.clone())
     }
 }
 
@@ -1127,7 +1135,7 @@ pub fn get_curve_info(node: &HoudiniNode, part_id: i32) -> Result<raw::HAPI_Curv
             part_id,
             info.as_mut_ptr(),
         )
-            .result_with_session(|| node.session.clone())?;
+        .result_with_session(|| node.session.clone())?;
         Ok(info.assume_init())
     }
 }
@@ -1148,7 +1156,7 @@ pub fn get_curve_counts(
             start,
             length,
         )
-            .result_with_session(|| node.session.clone())?;
+        .result_with_session(|| node.session.clone())?;
         Ok(array)
     }
 }
@@ -1169,7 +1177,7 @@ pub fn get_curve_orders(
             start,
             length,
         )
-            .result_with_session(|| node.session.clone())?;
+        .result_with_session(|| node.session.clone())?;
         Ok(array)
     }
 }
@@ -1190,7 +1198,7 @@ pub fn get_curve_knots(
             start,
             length,
         )
-            .result_with_session(|| node.session.clone())?;
+        .result_with_session(|| node.session.clone())?;
         Ok(array)
     }
 }
@@ -1205,7 +1213,7 @@ pub fn set_curve_counts(node: &HoudiniNode, part_id: i32, count: &[i32]) -> Resu
             0,
             count.len() as i32,
         )
-            .result_with_session(|| node.session.clone())
+        .result_with_session(|| node.session.clone())
     }
 }
 
@@ -1219,7 +1227,7 @@ pub fn set_curve_knots(node: &HoudiniNode, part_id: i32, knots: &[f32]) -> Resul
             0,
             knots.len() as i32,
         )
-            .result_with_session(|| node.session.clone())
+        .result_with_session(|| node.session.clone())
     }
 }
 
@@ -1410,9 +1418,84 @@ pub fn get_face_counts(
             start,
             length,
         )
-            .result_with_session(|| node.session.clone())?;
+        .result_with_session(|| node.session.clone())?;
     }
     Ok(array)
+}
+
+pub fn get_element_count_by_group(part_info: &PartInfo, group_type: raw::GroupType) -> i32 {
+    // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
+    // actually shouldn't?
+    let ptr = (&part_info.inner as *const raw::HAPI_PartInfo) as *mut raw::HAPI_PartInfo;
+    unsafe { raw::HAPI_PartInfo_GetElementCountByGroupType(ptr, group_type) }
+}
+
+pub fn add_group(
+    session: &Session,
+    node: NodeHandle,
+    part_id: i32,
+    group_type: raw::GroupType,
+    group_name: &CStr,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_AddGroup(
+            session.ptr(),
+            node.0,
+            part_id,
+            group_type,
+            group_name.as_ptr(),
+        )
+        .result_with_session(|| session.clone())
+    }
+}
+
+pub fn set_group_membership(
+    session: &Session,
+    node: NodeHandle,
+    part_id: i32,
+    group_type: raw::GroupType,
+    group_name: &CStr,
+    array: &[i32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetGroupMembership(
+            session.ptr(),
+            node.0,
+            part_id,
+            group_type,
+            group_name.as_ptr(),
+            array.as_ptr(),
+            0,
+            array.len() as i32,
+        )
+        .result_with_session(|| session.clone())
+    }
+}
+
+pub fn get_group_membership(
+    session: &Session,
+    node: NodeHandle,
+    part_id: i32,
+    group_type: raw::GroupType,
+    group_name: &CStr,
+    length: i32,
+) -> Result<Vec<i32>> {
+    unsafe {
+        let mut array = vec![0; length as usize];
+        raw::HAPI_GetGroupMembership(
+            session.ptr(),
+            node.0,
+            part_id,
+            group_type,
+            group_name.as_ptr(),
+            null_mut::<i8>(),
+            array.as_mut_ptr(),
+            0,
+            length,
+        )
+        .result_with_session(|| session.clone())?;
+        Ok(array)
+    }
 }
 
 pub fn get_group_names(

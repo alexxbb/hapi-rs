@@ -139,6 +139,64 @@ impl<'session> Geometry<'session> {
         ))
     }
 
+    pub fn add_group(&self, part_id: i32, group_name: &str, group_type: GroupType) -> Result<()> {
+        let group_name = CString::new(group_name)?;
+        crate::ffi::add_group(
+            &self.node.session,
+            self.node.handle,
+            part_id,
+            group_type,
+            &group_name,
+        )
+    }
+
+    pub fn set_group_membership(
+        &self,
+        part_id: i32,
+        group_type: GroupType,
+        group_name: &str,
+        array: &[i32],
+    ) -> Result<()> {
+        let group_name = CString::new(group_name)?;
+        crate::ffi::set_group_membership(
+            &self.node.session,
+            self.node.handle,
+            part_id,
+            group_type,
+            &group_name,
+            array,
+        )
+    }
+
+    pub fn get_group_membership(
+        &self,
+        part_info: Option<&PartInfo>,
+        group_type: GroupType,
+        group_name: &str,
+    ) -> Result<Vec<i32>> {
+        let group_name = CString::new(group_name)?;
+        let tmp;
+        let part = match part_info {
+            None => {
+                tmp = self.part_info(0)?;
+                &tmp
+            }
+            Some(part) => part,
+        };
+        crate::ffi::get_group_membership(
+            &self.node.session,
+            self.node.handle,
+            part.part_id(),
+            group_type,
+            &group_name,
+            part.element_count_by_group(group_type),
+        )
+    }
+
+    pub fn group_count_by_type(&self, group_type: GroupType) -> i32 {
+        crate::ffi::get_group_count_by_type(&self.info, group_type)
+    }
+
     pub fn save_to_file(&self, filepath: &str) -> Result<()> {
         let path = CString::new(filepath)?;
         crate::ffi::save_geo_to_file(&self.node, &path)
@@ -146,6 +204,12 @@ impl<'session> Geometry<'session> {
 
     pub fn commit(&self) -> Result<()> {
         crate::ffi::commit_geo(&self.node)
+    }
+}
+
+impl PartInfo {
+    pub fn element_count_by_group(&self, group_type: GroupType) -> i32 {
+        crate::ffi::get_element_count_by_group(self, group_type)
     }
 }
 
