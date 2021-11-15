@@ -73,6 +73,10 @@ impl<'session> Geometry<'session> {
     }
 
     pub fn partitions(&self) -> Result<Vec<PartInfo>> {
+        #[cfg(debug_assertions)]
+        if self.node.info.total_cook_count() == 0 {
+            log::warn!("Node {} not cooked", self.node.path(None)?);
+        }
         (0..self.info.part_count() + 1)
             .map(|i| self.part_info(i))
             .collect()

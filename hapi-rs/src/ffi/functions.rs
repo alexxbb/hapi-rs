@@ -929,15 +929,15 @@ pub fn get_compose_child_node_list(
 
 pub fn get_composed_object_list(
     session: &Session,
-    parent_id: raw::HAPI_NodeId,
+    parent: NodeHandle,
 ) -> Result<Vec<raw::HAPI_ObjectInfo>> {
     unsafe {
         let mut count = uninit!();
-        raw::HAPI_ComposeObjectList(session.ptr(), parent_id, null(), count.as_mut_ptr())
+        raw::HAPI_ComposeObjectList(session.ptr(), parent.0, null(), count.as_mut_ptr())
             .result_with_session(|| session.clone())?;
         let count = count.assume_init();
         let mut obj_infos = vec![raw::HAPI_ObjectInfo_Create(); count as usize];
-        raw::HAPI_GetComposedObjectList(session.ptr(), parent_id, obj_infos.as_mut_ptr(), 0, count)
+        raw::HAPI_GetComposedObjectList(session.ptr(), parent.0, obj_infos.as_mut_ptr(), 0, count)
             .result_with_session(|| session.clone())?;
         Ok(obj_infos)
     }

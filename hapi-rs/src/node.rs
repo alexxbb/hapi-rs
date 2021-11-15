@@ -180,8 +180,8 @@ impl<'session> HoudiniNode {
 
     pub fn get_objects_info(&self) -> Result<Vec<ObjectInfo>> {
         let parent = match self.info.node_type() {
-            NodeType::Obj => self.info.parent_id().0,
-            _ => self.handle.0,
+            NodeType::Obj => NodeHandle(self.info.parent_id().0, ()),
+            _ => NodeHandle(self.handle.0, ()),
         };
         let infos = crate::ffi::get_composed_object_list(&self.session, parent)?;
         Ok(infos
