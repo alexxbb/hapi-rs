@@ -31,7 +31,7 @@ pub const fn node_type_name(tp: NodeType) -> &'static str {
 
 impl ffi::NodeInfo {
     pub fn new(session: &Session, node: NodeHandle) -> Result<Self> {
-        let info = crate::ffi::get_node_info(node, &session)?;
+        let info = crate::ffi::get_node_info(node, session)?;
         Ok(ffi::NodeInfo {
             inner: info,
             session: session.clone(),

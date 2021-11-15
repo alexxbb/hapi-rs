@@ -50,7 +50,7 @@ where
     }
 
     pub fn set(&self, part_id: i32, values: impl AsRef<[T::Type]>) -> Result<()> {
-        T::set(&self.name, &self.node, part_id, &self.info, values.as_ref())
+        T::set(&self.name, self.node, part_id, &self.info, values.as_ref())
     }
 }
 

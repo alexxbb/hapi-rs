@@ -157,12 +157,11 @@ mod tests {
         let array = super::get_strings_array(&handles, &session).unwrap();
         assert_eq!(array.iter_str().count(), var_count as usize);
         assert_eq!(array.iter_cstr().count(), var_count as usize);
-        assert!(array.iter_str().find(|s| *s == "TEST=177").is_some());
+        assert!(array.iter_str().any(|s| s == "TEST=177"));
         assert!(array
             .iter_cstr()
-            .find(|s| *s == unsafe { CStr::from_bytes_with_nul_unchecked(b"TEST=177\0") })
-            .is_some());
+            .any(|s| s == unsafe { CStr::from_bytes_with_nul_unchecked(b"TEST=177\0") }));
         let mut owned: super::OwnedStringIter = array.into_iter();
-        assert!(owned.find(|s| *s == "TEST=177").is_some());
+        assert!(owned.any(|s| s == "TEST=177"));
     }
 }

@@ -1,6 +1,5 @@
-/// connecting_assets.cpp
+// connecting_assets.cpp
 use hapi_rs::{attribute::*, geometry::*, session::*};
-use std::error::Error;
 
 fn main() -> Result<()> {
     let mut session = new_in_process()?;
@@ -13,7 +12,7 @@ fn main() -> Result<()> {
         .with_vertex_count(24)
         .with_point_count(8);
     let geom = new_node.geometry()?.expect("geometry");
-    geom.set_part_info(&part_info);
+    geom.set_part_info(&part_info)?;
     let p_info = AttributeInfo::default()
         .with_count(8)
         .with_tuple_size(3)

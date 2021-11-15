@@ -1,6 +1,6 @@
-use hapi_rs::session::{new_in_process, SessionOptions};
 use hapi_rs::parameter::{Parameter, ParmBaseTrait};
-use hapi_rs::{Result};
+use hapi_rs::session::{new_in_process, SessionOptions};
+use hapi_rs::Result;
 use prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR as FORMAT;
 use prettytable::*;
 

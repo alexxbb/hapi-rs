@@ -528,7 +528,7 @@ pub(crate) mod tests {
         assert_eq!(session.get_server_var::<str>("FOO").unwrap(), "foo_string");
         session.set_server_var::<i32>("BAR", &123).unwrap();
         assert_eq!(session.get_server_var::<i32>("BAR").unwrap(), 123);
-        assert_eq!(session.get_server_variables().unwrap().is_empty(), false);
+        assert!(!session.get_server_variables().unwrap().is_empty());
     }
 
     #[test]
