@@ -323,10 +323,10 @@ mod tests {
             }
             if let Parameter::Float(p) = node.parameter("color").unwrap() {
                 let val = p.get_value().unwrap();
-                assert_eq!(&val, &[0.55, 0.75, 0.95]);
+                assert_eq!(&val, &[0.55f32, 0.75, 0.95]);
                 p.set_value([0.7, 0.5, 0.3]).unwrap();
                 let val = p.get_value().unwrap();
-                assert_eq!(&val, &[0.7, 0.5, 0.3]);
+                assert_eq!(&val, &[0.7f32, 0.5, 0.3]);
             }
             if let Parameter::Float(p) = node.parameter("single_float").unwrap() {
                 p.set_expression("$T", 0).unwrap();

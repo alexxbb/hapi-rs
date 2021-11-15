@@ -52,7 +52,7 @@ impl Kind {
             Kind::Hapi(InvalidSession) => "INVALID_SESSION",
             Kind::NullByte => "String contains null byte!",
             Kind::Utf8Error => "String is not UTF-8!",
-            Kind::Other(s) => &s,
+            Kind::Other(s) => s,
         }
     }
 }

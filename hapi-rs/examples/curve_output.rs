@@ -1,5 +1,5 @@
-use hapi_rs::ffi::{GeoInfo, ObjectInfo, PartInfo};
-use hapi_rs::geometry::{AttributeOwner, CurveInfo, CurveOrders, CurveType, Geometry};
+use hapi_rs::ffi::{ObjectInfo, PartInfo};
+use hapi_rs::geometry::{AttributeOwner, CurveOrders, CurveType, Geometry};
 use hapi_rs::session::{new_in_process, SessionOptions};
 use hapi_rs::{NodeFlags, NodeType, PartType, Result};
 
@@ -19,11 +19,10 @@ fn main() -> Result<()> {
     for node_h in children {
         let node = node_h.to_node(&session)?;
         let geo = node.geometry()?.expect("geometry");
-        let geo_info = geo.geo_info()?;
 
         for part_info in geo.partitions()? {
             if part_info.part_type() == PartType::Curve {
-                print_curve_info(&geo, &obj_info, &part_info)?;
+                print_curve_info(&geo, obj_info, &part_info)?;
             }
         }
     }

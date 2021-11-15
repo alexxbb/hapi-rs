@@ -47,7 +47,7 @@ impl<'a> Iterator for AssetParmIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(|info| AssetParm {
             info,
-            values: &self.values,
+            values: self.values,
         })
     }
 }
@@ -61,7 +61,7 @@ impl<'a> std::ops::Deref for AssetParm<'a> {
     type Target = ParmInfo;
 
     fn deref(&self) -> &Self::Target {
-        &self.info
+        self.info
     }
 }
 
@@ -212,7 +212,7 @@ mod tests {
     #[test]
     fn get_asset_count() {
         with_session(|session| {
-            let lib = _load_asset("parameters", &session);
+            let lib = _load_asset("parameters", session);
             assert_eq!(lib.get_asset_count().expect("get_asset_count"), 1);
         });
     }
@@ -220,7 +220,7 @@ mod tests {
     #[test]
     fn get_asset_names() {
         with_session(|session| {
-            let lib = _load_asset("parameters", &session);
+            let lib = _load_asset("parameters", session);
             assert!(lib
                 .get_asset_names()
                 .expect("get_asset_name")
@@ -231,7 +231,7 @@ mod tests {
     #[test]
     fn get_first_name() {
         with_session(|session| {
-            let lib = _load_asset("parameters", &session);
+            let lib = _load_asset("parameters", session);
             assert_eq!(lib.get_first_name(), Ok(String::from("Object/hapi_parms")));
         });
     }

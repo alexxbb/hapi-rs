@@ -255,7 +255,7 @@ pub fn get_parm_expression(
         .result_with_session(|| session.clone())?;
         handle.assume_init()
     };
-    crate::stringhandle::get_string(handle, &session)
+    crate::stringhandle::get_string(handle, session)
 }
 
 pub fn parm_has_expression(

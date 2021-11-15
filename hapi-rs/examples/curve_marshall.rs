@@ -1,6 +1,5 @@
 /// curve_marshall.cpp
 use hapi_rs::{attribute::*, geometry::*, session::*};
-use std::error::Error;
 
 fn main() -> Result<()> {
     let mut session = new_in_process()?;
