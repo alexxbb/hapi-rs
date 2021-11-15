@@ -79,6 +79,12 @@ impl From<HoudiniNode> for NodeHandle {
     }
 }
 
+impl From<&HoudiniNode> for NodeHandle {
+    fn from(n: &HoudiniNode) -> Self {
+        n.handle
+    }
+}
+
 impl<'session> HoudiniNode {
     pub(crate) fn new(
         session: Session,
@@ -161,7 +167,7 @@ impl<'session> HoudiniNode {
         cook: bool,
     ) -> Result<HoudiniNode> {
         let node = HoudiniNode::create(name, label, parent, session.clone(), cook);
-        if node.is_ok() && session.threaded.get() {
+        if node.is_ok() && session.threaded {
             session.cook()?;
         }
         node

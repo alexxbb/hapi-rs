@@ -101,6 +101,8 @@ fn main() -> Result<()> {
             println!("Point {} is in pointGroup", pt)
         }
     }
-    session.save_hip("/tmp/bla.hip", true)?;
+    let hip = std::env::temp_dir().join("groups.hip");
+    session.save_hip(&hip.to_string_lossy(), true)?;
+    println!("Saving {}", hip.to_string_lossy());
     Ok(())
 }

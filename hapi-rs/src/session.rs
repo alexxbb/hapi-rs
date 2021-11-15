@@ -3,8 +3,6 @@ use std::{
     ffi::CString,
     sync::Arc,
 };
-use std::cell::Cell;
-
 use log::{debug, error, warn};
 
 pub use crate::ffi::PartInfo;
@@ -63,8 +61,8 @@ pub enum CookResult {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Session {
     handle: Arc<crate::ffi::raw::HAPI_Session>,
-    pub threaded: Cell<bool>,
-    cleanup: Cell<bool>,
+    pub threaded: bool,
+    cleanup: bool,
 }
 
 impl Session {
@@ -98,10 +96,10 @@ impl Session {
         crate::stringhandle::get_strings_array(&handles, self)
     }
 
-    pub fn initialize(&self, opts: &SessionOptions) -> Result<()> {
+    pub fn initialize(&mut self, opts: &SessionOptions) -> Result<()> {
         debug!("Initializing session");
-        self.threaded.replace(opts.threaded);
-        self.cleanup.replace(opts.cleanup);
+        self.threaded = opts.threaded;
+        self.cleanup = opts.cleanup;
         let res = crate::ffi::initialize_session(self.handle.as_ref(), opts);
         if !opts.ignore_already_init {
             return res;
@@ -220,7 +218,7 @@ impl Session {
 
     /// In threaded mode wait for Session finishes cooking. In single thread mode, immediately return
     pub fn cook(&self) -> Result<CookResult> {
-        if self.threaded.get() {
+        if self.threaded {
             loop {
                 match self.get_status(StatusType::CookState)? {
                     State::Ready => break Ok(CookResult::Succeeded),
@@ -271,7 +269,7 @@ impl Drop for Session {
         if Arc::strong_count(&self.handle) == 1 {
             debug!("Dropping session");
             if self.is_valid() {
-                if self.cleanup.get() {
+                if self.cleanup {
                     debug!("Cleaning up session");
                     if let Err(e) = self.cleanup() {
                         error!("Cleanup failed in Drop: {}", e);
@@ -291,8 +289,8 @@ pub fn connect_to_pipe(pipe: &str) -> Result<Session> {
     let session = crate::ffi::new_thrift_piped_session(&path)?;
     Ok(Session {
         handle: Arc::new(session),
-        threaded: Cell::new(false),
-        cleanup: Cell::new(false),
+        threaded: false,
+        cleanup: false,
     })
 }
 
@@ -302,8 +300,8 @@ pub fn connect_to_socket(addr: std::net::SocketAddrV4) -> Result<Session> {
     let session = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
     Ok(Session {
         handle: Arc::new(session),
-        threaded: Cell::new(false),
-        cleanup: Cell::new(false),
+        threaded: false,
+        cleanup: false,
     })
 }
 
@@ -312,8 +310,8 @@ pub fn new_in_process() -> Result<Session> {
     let ses = crate::ffi::create_inprocess_session()?;
     Ok(Session {
         handle: Arc::new(ses),
-        threaded: Cell::new(false),
-        cleanup: Cell::new(true),
+        threaded: false,
+        cleanup: false,
     })
 }
 
@@ -458,7 +456,7 @@ pub fn simple_session(options: Option<&SessionOptions>) -> Result<Session> {
     let file = std::env::temp_dir().join(format!("hars-session-{}", hash.finish()));
     let file = file.to_string_lossy();
     start_engine_pipe_server(&file, true, 4000.0)?;
-    let session = connect_to_pipe(&file)?;
+    let mut session = connect_to_pipe(&file)?;
     session.initialize(options.unwrap_or(&SessionOptions::default()))?;
     Ok(session)
 }

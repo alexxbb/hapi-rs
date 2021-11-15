@@ -48,7 +48,8 @@ fn main() -> Result<()> {
         ])?;
     geom.commit()?;
 
-    session.save_hip("curve_marshall.hip", true)?;
-    println!("Saving curve_marshall.hip");
+    let hip = std::env::temp_dir().join("curve_marshall.hip");
+    session.save_hip(&hip.to_string_lossy(), true)?;
+    println!("Saving {}", hip.to_string_lossy());
     Ok(())
 }

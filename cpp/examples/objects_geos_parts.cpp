@@ -38,7 +38,7 @@ static void processFloatAttrib(HAPI_Session &session, HAPI_AssetInfo &assetInfo,
 
 int
 main(int argc, char **argv) {
-    const char *hdaFile = argc == 2 ? argv[1] : "otls/TestShapes.hda";
+    const char *hdaFile = argc == 2 ? argv[1] : "otls/sesi/SideFX_spaceship.otl";
 
     HAPI_CookOptions cookOptions = HAPI_CookOptions_Create();
 
