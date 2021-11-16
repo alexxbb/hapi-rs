@@ -100,7 +100,7 @@ impl Session {
         debug!("Initializing session");
         self.threaded = opts.threaded;
         self.cleanup = opts.cleanup;
-        let res = crate::ffi::initialize_session(self.handle.as_ref(), opts);
+        let res = crate::ffi::initialize_session(self, opts);
         if !opts.ignore_already_init {
             return res;
         }

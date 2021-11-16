@@ -87,10 +87,9 @@ impl std::fmt::Display for HapiError {
         match &self.kind {
             Kind::Hapi(_) => {
                 if let Some(ref session) = self.session {
-                    let err_msg = session.get_status_string(
-                        StatusType::CallResult,
-                        StatusVerbosity::Errors,
-                    ).unwrap_or_else(|_| String::from("could not retrieve error message"));
+                    let err_msg = session
+                        .get_status_string(StatusType::CallResult, StatusVerbosity::Errors)
+                        .unwrap_or_else(|_| String::from("could not retrieve error message"));
                     write!(f, "[{}]: ", self.kind.description())?;
                     write!(f, "Engine Message: {}", err_msg)?;
                 }
@@ -125,42 +124,25 @@ impl From<std::string::FromUtf8Error> for HapiError {
 impl std::error::Error for HapiError {}
 
 impl HapiResult {
-    #[allow(unused)]
-    pub(crate) fn to_result<R: Default>(self) -> Result<R> {
+    fn _into_result<R: Default>(
+        self,
+        session: Option<&Session>,
+        message: Option<Cow<'static, str>>,
+    ) -> Result<R> {
         match self {
             HapiResult::Success => Ok(R::default()),
-            e => Err(HapiError::new(Kind::Hapi(e), None, None)),
-        }
-    }
-    pub(crate) fn result_with_session<F>(self, op: F) -> Result<()>
-    where
-        F: FnOnce() -> Session,
-    {
-        self.to_result_with_extra(|| (Some(op()), None))
-    }
-
-    pub(crate) fn result_with_message<M: Into<Cow<'static, str>>>(self, msg: M) -> Result<()> {
-        self.to_result_with_extra(|| (None, Some(msg.into())))
-    }
-    fn to_result_with_extra<R: Default, F>(self, err: F) -> Result<R>
-    where
-        F: FnOnce() -> (Option<Session>, Option<Cow<'static, str>>),
-    {
-        match self {
-            HapiResult::Success => Ok(R::default()),
-            e => {
-                let (session, message) = err();
-                Err(HapiError::new(Kind::Hapi(e), session, message))
-            }
+            err => Err(HapiError::new(Kind::Hapi(err), session.cloned(), message)),
         }
     }
 
     pub(crate) fn check_err<R: Default>(self, session: Option<&Session>) -> Result<R> {
-        match self {
-            HapiResult::Success => Ok(R::default()),
-            err => {
-                Err(HapiError::new(Kind::Hapi(err), session.cloned(), None))
-            }
-        }
+        self._into_result(session, None)
+    }
+
+    pub(crate) fn error_message<I: Into<Cow<'static, str>>, R: Default>(
+        self,
+        message: I,
+    ) -> Result<R> {
+        self._into_result(None, Some(message.into()))
     }
 }

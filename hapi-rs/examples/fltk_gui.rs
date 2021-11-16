@@ -6,7 +6,7 @@ use fltk::{
     window::*,
 };
 
-use hapi_rs::{parameter::*};
+use hapi_rs::parameter::*;
 
 const W: i32 = 600;
 const H: i32 = 700;
