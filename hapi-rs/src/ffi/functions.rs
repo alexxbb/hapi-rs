@@ -367,7 +367,11 @@ pub fn delete_node(node: HoudiniNode) -> Result<()> {
     }
 }
 
-pub fn get_node_path(session: &Session, node: NodeHandle, relative_to: Option<NodeHandle>) -> Result<String> {
+pub fn get_node_path(
+    session: &Session,
+    node: NodeHandle,
+    relative_to: Option<NodeHandle>,
+) -> Result<String> {
     unsafe {
         let mut sh = uninit!();
         raw::HAPI_GetNodePath(
@@ -376,7 +380,7 @@ pub fn get_node_path(session: &Session, node: NodeHandle, relative_to: Option<No
             relative_to.map(|n| n.0).unwrap_or(-1),
             sh.as_mut_ptr(),
         )
-            .result_with_session(|| session.clone())?;
+        .result_with_session(|| session.clone())?;
         crate::stringhandle::get_string(sh.assume_init(), &session)
     }
 }
@@ -973,7 +977,7 @@ pub fn connect_node_input(
             node_id_to_connect.0,
             output_index,
         )
-            .result_with_session(|| session.clone())
+        .result_with_session(|| session.clone())
     }
 }
 

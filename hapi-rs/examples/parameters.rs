@@ -5,12 +5,11 @@ use prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR as FORMAT;
 use prettytable::*;
 
 fn main() -> Result<()> {
-    let otl = "otls/sesi/SideFX_spaceship.otl";
     let mut session = new_in_process()?;
     let mut opt = SessionOptions::default();
     opt.threaded = true;
     session.initialize(&opt)?;
-    let lib = session.load_asset_file(otl)?;
+    let lib = session.load_asset_file("otls/sesi/SideFX_spaceship.otl")?;
     let node = lib.try_create_first()?;
     node.cook_blocking(None)?;
 

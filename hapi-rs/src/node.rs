@@ -155,7 +155,13 @@ impl<'session> HoudiniNode {
         }
         let name = CString::new(name)?;
         let label = label.map(|s| CString::new(s).unwrap());
-        let id = crate::ffi::create_node(&name, label.as_deref(), &session, parent.map(|t| t.into()), cook)?;
+        let id = crate::ffi::create_node(
+            &name,
+            label.as_deref(),
+            &session,
+            parent.map(|t| t.into()),
+            cook,
+        )?;
         HoudiniNode::new(session, NodeHandle(id, ()), None)
     }
 
@@ -233,12 +239,12 @@ impl<'session> HoudiniNode {
         }
     }
 
-    pub fn parameter(&'session self, name: &str) -> Result<Parameter> {
+    pub fn parameter(&self, name: &str) -> Result<Parameter> {
         let parm_info = crate::ffi::ParmInfo::from_parm_name(name, self)?;
         Ok(Parameter::new(self.handle, parm_info))
     }
 
-    pub fn parameters(&'session self) -> Result<Vec<Parameter>> {
+    pub fn parameters(&self) -> Result<Vec<Parameter>> {
         let infos = crate::ffi::get_parameters(self)?;
         Ok(infos
             .into_iter()
@@ -266,7 +272,7 @@ impl<'session> HoudiniNode {
         crate::ffi::reset_simulation(self)
     }
 
-    pub fn input_node(&'session self, idx: i32) -> Result<Option<HoudiniNode>> {
+    pub fn input_node(&self, idx: i32) -> Result<Option<HoudiniNode>> {
         crate::ffi::query_node_input(self, idx).map(|idx| {
             if idx == -1 {
                 None
@@ -307,6 +313,11 @@ impl<'session> HoudiniNode {
         output_num: i32,
     ) -> Result<()> {
         crate::ffi::connect_node_input(
-            &self.session, self.handle, input_num, source.into(), output_num)
+            &self.session,
+            self.handle,
+            input_num,
+            source.into(),
+            output_num,
+        )
     }
 }
