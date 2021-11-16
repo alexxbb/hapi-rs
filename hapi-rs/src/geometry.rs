@@ -78,7 +78,7 @@ impl<'session> Geometry<'session> {
             log::warn!("Node {} not cooked", self.node.path(None)?);
         }
         (0..self.info.part_count() + 1)
-            .map(|i| dbg!(self.part_info(i)))
+            .map(|i| self.part_info(i))
             .collect()
     }
 

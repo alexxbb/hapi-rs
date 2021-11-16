@@ -8,12 +8,10 @@ fn main() -> Result<()> {
     let mut session = new_in_process()?;
     session.initialize(&SessionOptions::default())?;
 
-    let lib = session.load_asset_file("_otls/sesi/SideFX_spaceship.otl")?;
+    let lib = session.load_asset_file("otls/sesi/SideFX_spaceship.otl")?;
     let node = lib.try_create_first()?;
     node.cook_blocking(None)?;
     let _asset_info = node.asset_info()?;
-
-    return Ok(());
 
     for info in node.get_objects_info()? {
         let obj_node = info.to_node()?;
@@ -28,8 +26,6 @@ fn main() -> Result<()> {
             }
         }
     }
-
-    // session.save_hip("/tmp/bla.hip", true)?;
 
     Ok(())
 }

@@ -34,7 +34,7 @@ impl Kind {
             Kind::Hapi(NotInitialized) => "NOT_INITIALIZED",
             Kind::Hapi(CantLoadfile) => "CANT_LOADFILE",
             Kind::Hapi(ParmSetFailed) => "PARM_SET_FAILED",
-            Kind::Hapi(InvalidArgument) => "PARM_SET_FAILED",
+            Kind::Hapi(InvalidArgument) => "INVALID_ARGUMENT",
             Kind::Hapi(CantLoadGeo) => "CANT_LOAD_GEO",
             Kind::Hapi(CantGeneratePreset) => "CANT_GENERATE_PRESET",
             Kind::Hapi(CantLoadPreset) => "CANT_LOAD_PRESET",
@@ -91,10 +91,10 @@ impl std::fmt::Display for HapiError {
                         .get_status_string(StatusType::CallResult, StatusVerbosity::Errors)
                         .unwrap_or_else(|_| String::from("could not retrieve error message"));
                     write!(f, "[{}]: ", self.kind.description())?;
-                    write!(f, "Engine Message: {}", err_msg)?;
+                    write!(f, "[Engine Message]: {} ", err_msg)?;
                 }
                 if let Some(ref msg) = self.message {
-                    write!(f, "Message: {}. Kind: {:?}", msg, self.kind)?;
+                    write!(f, "[Context Message]: {}", msg)?;
                 }
                 Ok(())
             }
