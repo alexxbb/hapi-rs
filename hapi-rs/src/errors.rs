@@ -2,10 +2,11 @@ use crate::session::Session;
 
 pub use crate::ffi::raw::{HapiResult, StatusType, StatusVerbosity};
 use std::borrow::Cow;
+use std::fmt::Formatter;
 
 pub type Result<T> = std::result::Result<T, HapiError>;
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct HapiError {
     pub kind: Kind,
     pub message: Option<Cow<'static, str>>,
@@ -85,28 +86,27 @@ impl std::fmt::Display for HapiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
             Kind::Hapi(_) => {
-                if let Some(session) = &self.session {
-                    let error = session.get_status_string(
+                if let Some(ref session) = self.session {
+                    let err_msg = session.get_status_string(
                         StatusType::CallResult,
-                        StatusVerbosity::Statusverbosity0,
-                    );
-                    write!(
-                        f,
-                        "{}: {}",
-                        self.kind.description(),
-                        error
-                            .ok()
-                            .or_else(|| self.message.as_ref().map(|s| s.to_string()))
-                            .unwrap_or_else(|| String::from("Zig"))
-                    )
-                } else if let Some(ref msg) = self.message {
-                    write!(f, "Message: {}. Kind: {:?}", msg, self.kind)
-                } else {
-                    write!(f, "Kind:{}", self.kind.description())
+                        StatusVerbosity::Errors,
+                    ).unwrap_or_else(|_| String::from("could not retrieve error message"));
+                    write!(f, "[{}]: ", self.kind.description())?;
+                    write!(f, "Engine Message: {}", err_msg)?;
                 }
+                if let Some(ref msg) = self.message {
+                    write!(f, "Message: {}. Kind: {:?}", msg, self.kind)?;
+                }
+                Ok(())
             }
             e => unreachable!("Unhandled error kind: {:?}", &e),
         }
+    }
+}
+
+impl std::fmt::Debug for HapiError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
@@ -151,6 +151,15 @@ impl HapiResult {
             e => {
                 let (session, message) = err();
                 Err(HapiError::new(Kind::Hapi(e), session, message))
+            }
+        }
+    }
+
+    pub(crate) fn check_err<R: Default>(self, session: Option<&Session>) -> Result<R> {
+        match self {
+            HapiResult::Success => Ok(R::default()),
+            err => {
+                Err(HapiError::new(Kind::Hapi(err), session.cloned(), None))
             }
         }
     }

@@ -401,7 +401,7 @@ pub fn load_library_from_file(path: &CStr, session: &Session, _override: bool) -
             _override as i8,
             lib_id.as_mut_ptr(),
         )
-        .result_with_session(|| session.clone())?;
+            .check_err(Some(&session))?;
         Ok(lib_id.assume_init())
     }
 }
