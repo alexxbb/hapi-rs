@@ -72,6 +72,19 @@ impl<'session> Geometry<'session> {
         crate::ffi::get_curve_knots(&self.node, part_id, start, length)
     }
 
+    /// Get array containing the vertex-point associations where the
+    /// ith element in the array is the point index the ith vertex
+    /// associates with.
+    pub fn vertex_list(&self, part: &PartInfo) -> Result<Vec<i32>> {
+        crate::ffi::get_geo_vertex_list(
+            &self.node.session,
+            self.node.handle,
+            part.part_id(),
+            0,
+            part.vertex_count(),
+        )
+    }
+
     pub fn partitions(&self) -> Result<Vec<PartInfo>> {
         #[cfg(debug_assertions)]
         if self.node.info.total_cook_count() == 0 {
@@ -82,9 +95,14 @@ impl<'session> Geometry<'session> {
             .collect()
     }
 
-    pub fn get_face_counts(&self, _info: &PartInfo) -> Result<Vec<i32>> {
-        todo!()
-        // crate::ffi::get_face_counts(&self.node, info.part_id(), info.face_count())
+    pub fn get_face_counts(&self, part: &PartInfo) -> Result<Vec<i32>> {
+        crate::ffi::get_face_counts(
+            &self.node.session,
+            self.node.handle,
+            part.part_id(),
+            0,
+            part.face_count(),
+        )
     }
 
     pub fn get_group_names(&self, group_type: GroupType) -> Result<StringsArray> {

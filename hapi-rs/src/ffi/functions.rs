@@ -1400,7 +1400,8 @@ pub fn get_attribute_string_buffer(
 }
 
 pub fn get_face_counts(
-    node: &HoudiniNode,
+    session: &Session,
+    node: NodeHandle,
     part_id: i32,
     start: i32,
     length: i32,
@@ -1408,14 +1409,14 @@ pub fn get_face_counts(
     let mut array = vec![0; length as usize];
     unsafe {
         raw::HAPI_GetFaceCounts(
-            node.session.ptr(),
-            node.handle.0,
+            session.ptr(),
+            node.0,
             part_id,
             array.as_mut_ptr(),
             start,
             length,
         )
-            .check_err(Some(&node.session))?;
+            .check_err(Some(&session))?;
     }
     Ok(array)
 }
@@ -1545,6 +1546,29 @@ pub fn set_geo_vertex_list(node: &HoudiniNode, part_id: i32, list: &[i32]) -> Re
             .check_err(Some(&node.session))
     }
 }
+
+pub fn get_geo_vertex_list(
+    session: &Session,
+    node: NodeHandle,
+    part_id: i32,
+    start: i32,
+    length: i32,
+) -> Result<Vec<i32>> {
+    unsafe {
+        let mut array = vec![0; length as usize];
+        raw::HAPI_GetVertexList(
+            session.ptr(),
+            node.0,
+            part_id,
+            array.as_mut_ptr(),
+            start,
+            length,
+        )
+            .check_err(Some(&session))?;
+        Ok(array)
+    }
+}
+
 pub fn set_geo_face_counts(node: &HoudiniNode, part_id: i32, list: &[i32]) -> Result<()> {
     unsafe {
         raw::HAPI_SetFaceCounts(
