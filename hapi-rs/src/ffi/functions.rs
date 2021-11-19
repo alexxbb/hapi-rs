@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::raw;
-use crate::ffi::{CurveInfo, PartInfo};
+use crate::ffi::{CurveInfo, PartInfo, Viewport};
 
 macro_rules! uninit {
     () => {
@@ -1581,4 +1581,16 @@ pub fn set_geo_face_counts(node: &HoudiniNode, part_id: i32, list: &[i32]) -> Re
         )
             .check_err(Some(&node.session))
     }
+}
+
+pub fn get_viewport(session: &Session) -> Result<raw::HAPI_Viewport> {
+    let mut vp = uninit!();
+    unsafe {
+        raw::HAPI_GetViewport(session.ptr(), vp.as_mut_ptr()).check_err(Some(&session))?;
+        Ok(vp.assume_init())
+    }
+}
+
+pub fn set_viewport(session: &Session, viewport: &Viewport) -> Result<()> {
+    unsafe { raw::HAPI_SetViewport(session.ptr(), viewport.ptr()).check_err(Some(&session)) }
 }

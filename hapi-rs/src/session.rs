@@ -10,7 +10,7 @@ pub use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::raw::{HapiResult, State, StatusType, StatusVerbosity},
-    ffi::{CookOptions, TimelineOptions},
+    ffi::{CookOptions, TimelineOptions, Viewport},
     node::{HoudiniNode, NodeHandle},
     stringhandle::StringsArray,
 };
@@ -261,6 +261,14 @@ impl Session {
 
     pub fn set_use_houdini_time(&self, do_use: bool) -> Result<()> {
         crate::ffi::set_use_houdini_time(self, do_use)
+    }
+
+    pub fn get_viewport(&self) -> Result<Viewport> {
+        crate::ffi::get_viewport(self).map(|inner| Viewport { inner })
+    }
+
+    pub fn set_viewport(&self, viewport: &Viewport) -> Result<()> {
+        crate::ffi::set_viewport(self, viewport)
     }
 }
 
@@ -577,5 +585,19 @@ pub(crate) mod tests {
             session.cook().unwrap(),
             super::CookResult::Succeeded
         ));
+    }
+
+    #[test]
+    fn viewport() {
+        with_session(|session| {
+            let vp = Viewport::default()
+                .with_rotation([0.7, 0.7, 0.7, 0.7])
+                .with_position([0.0, 1.0, 0.0]).with_offset(3.5);
+            session.set_viewport(&vp).expect("set_viewport");
+            let vp2 = session.get_viewport().expect("get_viewport");
+            assert_eq!(vp.position(), vp2.position());
+            assert_eq!(vp.rotation(), vp2.rotation());
+            assert_eq!(vp.offset(), vp2.offset());
+        });
     }
 }

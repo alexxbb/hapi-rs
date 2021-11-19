@@ -390,3 +390,15 @@ wrap!(
     [get|set] has_knots->hasKnots->[bool];
     [get|set] order->order->[i32];
 );
+
+#[derive(Debug, Clone)]
+pub struct Viewport {
+    pub(crate) inner: HAPI_Viewport,
+}
+
+wrap!(
+    Default Viewport [HAPI_Viewport_Create => HAPI_Viewport];
+    [get|set] position->position->[[f32; 3]];
+    [get|set] rotation->rotationQuaternion->[[f32; 4]];
+    [get|set] offset->offset->[f32];
+);
