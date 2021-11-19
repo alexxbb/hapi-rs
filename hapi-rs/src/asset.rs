@@ -5,7 +5,7 @@ use log::debug;
 use crate::ffi::raw as ffi;
 use crate::ffi::raw::{ChoiceListType, ParmType};
 use crate::{
-    errors::{HapiError, Kind, Result},
+    errors::{Result},
     ffi::{AssetInfo, ParmInfo},
     node::HoudiniNode,
     parameter::ParmChoiceInfo,
@@ -134,32 +134,24 @@ impl AssetLibrary {
     }
 
     /// Returns the name of first asset in the library
-    pub fn get_first_name(&self) -> Result<String> {
-        match self.get_asset_names()?.first() {
-            Some(name) => Ok(name.clone()),
-            None => Err(HapiError::new(
-                Kind::Other("Empty AssetLibrary".to_string()),
-                None,
-                None,
-            )),
-        }
+    pub fn get_first_name(&self) -> Result<Option<String>> {
+        self.get_asset_names().map(|names|names.first().cloned())
     }
 
     /// Try to create the first available asset in the library
     pub fn try_create_first(&self) -> Result<HoudiniNode> {
+        let name = self.get_first_name()?
+            .ok_or_else(|| crate::errors::HapiError {
+            kind: crate::errors::Kind::Other("Library is empty".to_string()),
+            message: None,
+            session: None
+        })?;
         self.session
-            .create_node_blocking(&self.get_first_name()?, None, None)
+            .create_node_blocking(&name, None, None)
     }
 
-    pub fn get_asset_parms(&self, asset: Option<&str>) -> Result<AssetParameters> {
-        let mut _name;
-        let asset_name = if let Some(name) = asset {
-            name
-        } else {
-            _name = self.get_first_name()?;
-            _name.as_str()
-        };
-        let asset_name = CString::new(asset_name)?;
+    pub fn get_asset_parms(&self, asset: impl Into<Vec<u8>>) -> Result<AssetParameters> {
+        let asset_name = CString::new(asset.into())?;
         let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &asset_name, &self.session)?;
         let infos = crate::ffi::get_asset_def_parm_info(
             self.lib_id,
@@ -232,7 +224,7 @@ mod tests {
     fn get_first_name() {
         with_session(|session| {
             let lib = _load_asset("parameters", session);
-            assert_eq!(lib.get_first_name(), Ok(String::from("Object/hapi_parms")));
+            assert_eq!(lib.get_first_name(), Ok(Some(String::from("Object/hapi_parms"))));
         });
     }
 

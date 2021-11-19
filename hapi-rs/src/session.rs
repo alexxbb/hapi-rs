@@ -61,8 +61,8 @@ pub enum CookResult {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Session {
     handle: Arc<crate::ffi::raw::HAPI_Session>,
-    pub threaded: bool,
     cleanup: bool,
+    pub threaded: bool,
 }
 
 impl Session {

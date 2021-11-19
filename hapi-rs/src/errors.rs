@@ -17,7 +17,6 @@ pub struct HapiError {
 #[non_exhaustive]
 pub enum Kind {
     Hapi(HapiResult),
-    // TODO: Maybe include original string with null byte
     NullByte,
     Utf8Error,
     Other(String),
