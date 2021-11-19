@@ -1594,3 +1594,11 @@ pub fn get_viewport(session: &Session) -> Result<raw::HAPI_Viewport> {
 pub fn set_viewport(session: &Session, viewport: &Viewport) -> Result<()> {
     unsafe { raw::HAPI_SetViewport(session.ptr(), viewport.ptr()).check_err(Some(&session)) }
 }
+
+pub fn set_session_sync(session: &Session, enable: bool) -> Result<()> {
+    unsafe { raw::HAPI_SetSessionSync(session.ptr(), enable as i8).check_err(Some(&session)) }
+}
+
+pub fn set_node_display(session: &Session, node: NodeHandle, on: bool) -> Result<()> {
+    unsafe { raw::HAPI_SetNodeDisplay(session.ptr(), node.0, on as i32).check_err(Some(&session)) }
+}

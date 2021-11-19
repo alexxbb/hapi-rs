@@ -270,6 +270,10 @@ impl Session {
     pub fn set_viewport(&self, viewport: &Viewport) -> Result<()> {
         crate::ffi::set_viewport(self, viewport)
     }
+
+    pub fn set_session_sync(&self, enable: bool) -> Result<()> {
+        crate::ffi::set_session_sync(self, enable)
+    }
 }
 
 impl Drop for Session {

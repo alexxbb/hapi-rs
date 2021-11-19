@@ -152,6 +152,8 @@ impl<'session> HoudiniNode {
         debug!("Creating node: {}", name);
         if parent.is_none() && !name.contains('/') {
             warn!("Node name must be fully qualified if parent is not specified");
+        } else if parent.is_some() && name.contains("/") {
+            warn!("Cannot use fully qualified node name with parent");
         }
         let name = CString::new(name)?;
         let label = label.map(|s| CString::new(s).unwrap());
@@ -319,5 +321,28 @@ impl<'session> HoudiniNode {
             source.into(),
             output_num,
         )
+    }
+
+    pub fn set_display_flag(&self, on: bool) -> Result<()> {
+        crate::ffi::set_node_display(&self.session, self.handle, on)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::session::tests::with_session;
+
+
+    #[test]
+    fn node_flags() {
+        with_session(|session| {
+            let sop = session.create_node("Object/geo", None, None).unwrap();
+            let sphere = session.create_node("sphere", None, Some(sop.handle)).unwrap();
+            let _box = session.create_node("box", None, Some(sop.handle)).unwrap();
+            _box.set_display_flag(true).unwrap();
+            assert!(!sphere.geometry().unwrap().unwrap().info.is_display_geo());
+            sphere.set_display_flag(true).unwrap();
+            assert!(!_box.geometry().unwrap().unwrap().info.is_display_geo());
+        });
     }
 }
