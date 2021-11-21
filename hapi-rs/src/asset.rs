@@ -5,7 +5,7 @@ use log::debug;
 use crate::ffi::raw as ffi;
 use crate::ffi::raw::{ChoiceListType, ParmType};
 use crate::{
-    errors::{Result},
+    errors::Result,
     ffi::{AssetInfo, ParmInfo},
     node::HoudiniNode,
     parameter::ParmChoiceInfo,
@@ -135,19 +135,19 @@ impl AssetLibrary {
 
     /// Returns the name of first asset in the library
     pub fn get_first_name(&self) -> Result<Option<String>> {
-        self.get_asset_names().map(|names|names.first().cloned())
+        self.get_asset_names().map(|names| names.first().cloned())
     }
 
     /// Try to create the first available asset in the library
     pub fn try_create_first(&self) -> Result<HoudiniNode> {
-        let name = self.get_first_name()?
+        let name = self
+            .get_first_name()?
             .ok_or_else(|| crate::errors::HapiError {
-            kind: crate::errors::Kind::Other("Library is empty".to_string()),
-            message: None,
-            session: None
-        })?;
-        self.session
-            .create_node_blocking(&name, None, None)
+                kind: crate::errors::Kind::Other("Library is empty".to_string()),
+                message: None,
+                session: None,
+            })?;
+        self.session.create_node_blocking(&name, None, None)
     }
 
     pub fn get_asset_parms(&self, asset: impl Into<Vec<u8>>) -> Result<AssetParameters> {
@@ -224,7 +224,10 @@ mod tests {
     fn get_first_name() {
         with_session(|session| {
             let lib = _load_asset("parameters", session);
-            assert_eq!(lib.get_first_name(), Ok(Some(String::from("Object/hapi_parms"))));
+            assert_eq!(
+                lib.get_first_name(),
+                Ok(Some(String::from("Object/hapi_parms")))
+            );
         });
     }
 

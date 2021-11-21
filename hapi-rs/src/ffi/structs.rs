@@ -402,3 +402,32 @@ wrap!(
     [get|set] rotation->rotationQuaternion->[[f32; 4]];
     [get|set] offset->offset->[f32];
 );
+
+#[derive(Debug, Clone)]
+pub struct Transform {
+    pub(crate) inner: HAPI_Transform,
+}
+
+wrap!(
+    Default Transform [HAPI_Transform_Create => HAPI_Transform];
+    [get|set] position->position->[[f32;3]];
+    [get|set] rotation->rotationQuaternion->[[f32;4]];
+    [get|set] scale->scale->[[f32;3]];
+    [get|set] shear->shear->[[f32;3]];
+    [get|set] rst_order->rstOrder->[RSTOrder];
+);
+
+#[derive(Debug, Clone)]
+pub struct TransformEuler {
+    pub(crate) inner: HAPI_TransformEuler,
+}
+
+wrap!(
+    Default TransformEuler [HAPI_TransformEuler_Create => HAPI_TransformEuler];
+    [get|set] position->position->[[f32;3]];
+    [get|set] rotation->rotationEuler->[[f32;3]];
+    [get|set] scale->scale->[[f32;3]];
+    [get|set] shear->shear->[[f32;3]];
+    [get|set] roation_order->rotationOrder->[XYZOrder];
+    [get|set] rst_order->rstOrder->[RSTOrder];
+);

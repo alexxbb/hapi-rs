@@ -4,6 +4,7 @@ use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
 
+use crate::ffi::{CurveInfo, PartInfo, Viewport};
 use crate::{
     errors::Result,
     geometry::GeoInfo,
@@ -14,7 +15,6 @@ use crate::{
 };
 
 use super::raw;
-use crate::ffi::{CurveInfo, PartInfo, Viewport};
 
 macro_rules! uninit {
     () => {
@@ -1601,4 +1601,45 @@ pub fn set_session_sync(session: &Session, enable: bool) -> Result<()> {
 
 pub fn set_node_display(session: &Session, node: NodeHandle, on: bool) -> Result<()> {
     unsafe { raw::HAPI_SetNodeDisplay(session.ptr(), node.0, on as i32).check_err(Some(&session)) }
+}
+
+pub fn get_object_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_ObjectInfo> {
+    let mut info = uninit!();
+    unsafe {
+        raw::HAPI_GetObjectInfo(session.ptr(), node.0, info.as_mut_ptr())
+            .check_err(Some(&session))?;
+
+        Ok(info.assume_init())
+    }
+}
+
+pub fn get_object_transform(
+    session: &Session,
+    node: NodeHandle,
+    relative: Option<NodeHandle>,
+    rst: raw::RSTOrder,
+) -> Result<raw::HAPI_Transform> {
+    let mut t = uninit!();
+    unsafe {
+        raw::HAPI_GetObjectTransform(
+            session.ptr(),
+            node.0,
+            relative.map(|n| n.0).unwrap_or(-1),
+            rst,
+            t.as_mut_ptr(),
+        )
+            .check_err(Some(&session))?;
+        Ok(t.assume_init())
+    }
+}
+
+pub fn set_object_transform(
+    session: &Session,
+    node: NodeHandle,
+    transform: &raw::HAPI_TransformEuler,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetObjectTransform(session.ptr(), node.0, transform as *const _)
+            .check_err(Some(&session))
+    }
 }

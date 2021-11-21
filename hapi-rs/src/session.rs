@@ -596,7 +596,8 @@ pub(crate) mod tests {
         with_session(|session| {
             let vp = Viewport::default()
                 .with_rotation([0.7, 0.7, 0.7, 0.7])
-                .with_position([0.0, 1.0, 0.0]).with_offset(3.5);
+                .with_position([0.0, 1.0, 0.0])
+                .with_offset(3.5);
             session.set_viewport(&vp).expect("set_viewport");
             let vp2 = session.get_viewport().expect("get_viewport");
             assert_eq!(vp.position(), vp2.position());

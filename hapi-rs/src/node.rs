@@ -11,8 +11,10 @@ use crate::{
     session::{CookResult, Session},
 };
 pub use crate::{
-    ffi::raw::{ErrorCode, NodeFlags, NodeType, ParmType, State, StatusType, StatusVerbosity},
-    ffi::CookOptions,
+    ffi::raw::{
+        ErrorCode, NodeFlags, NodeType, ParmType, RSTOrder, State, StatusType, StatusVerbosity,
+    },
+    ffi::{CookOptions, Transform, TransformEuler},
 };
 
 pub const fn node_type_name(tp: NodeType) -> &'static str {
@@ -186,6 +188,13 @@ impl<'session> HoudiniNode {
         HoudiniNode::new(session, NodeHandle(id, ()), None)
     }
 
+    pub fn get_object_info(&self) -> Result<ObjectInfo<'_>> {
+        crate::ffi::get_object_info(&self.session, self.handle).map(|info| ObjectInfo {
+            inner: info,
+            session: &self.session,
+        })
+    }
+
     pub fn get_objects_info(&self) -> Result<Vec<ObjectInfo>> {
         let parent = match self.info.node_type() {
             NodeType::Obj => NodeHandle(self.info.parent_id().0, ()),
@@ -308,6 +317,24 @@ impl<'session> HoudiniNode {
         }
     }
 
+    pub fn get_transform(
+        &self,
+        rst_order: Option<RSTOrder>,
+        relative_to: Option<NodeHandle>,
+    ) -> Result<Transform> {
+        crate::ffi::get_object_transform(
+            &self.session,
+            self.handle,
+            relative_to,
+            rst_order.unwrap_or(RSTOrder::Default),
+        )
+            .map(|inner| Transform { inner })
+    }
+
+    pub fn set_transform(&self, transform: &TransformEuler) -> Result<()> {
+        crate::ffi::set_object_transform(&self.session, self.handle, &transform.inner)
+    }
+
     pub fn connect_input<H: Into<NodeHandle>>(
         &self,
         input_num: i32,
@@ -330,19 +357,44 @@ impl<'session> HoudiniNode {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::session::tests::with_session;
-
 
     #[test]
     fn node_flags() {
         with_session(|session| {
             let sop = session.create_node("Object/geo", None, None).unwrap();
-            let sphere = session.create_node("sphere", None, Some(sop.handle)).unwrap();
+            let sphere = session
+                .create_node("sphere", None, Some(sop.handle))
+                .unwrap();
             let _box = session.create_node("box", None, Some(sop.handle)).unwrap();
             _box.set_display_flag(true).unwrap();
             assert!(!sphere.geometry().unwrap().unwrap().info.is_display_geo());
             sphere.set_display_flag(true).unwrap();
             assert!(!_box.geometry().unwrap().unwrap().info.is_display_geo());
+        });
+    }
+
+    #[test]
+    fn node_transform() {
+        with_session(|session| {
+            let obj = session
+                .create_node_blocking("Object/null", None, None)
+                .unwrap();
+            let t = obj.get_transform(None, None).unwrap();
+            assert_eq!(t.position(), [0.0, 0.0, 0.0]);
+            assert_eq!(t.scale(), [1.0, 1.0, 1.0]);
+            assert_eq!(t.rst_order(), RSTOrder::Default);
+            obj.set_transform(
+                &TransformEuler::default()
+                    .with_position([0.0, 1.0, 0.0])
+                    .with_rotation([45.0, 0.0, 0.0]),
+            )
+               .unwrap();
+            obj.cook(None).unwrap();
+            assert!(obj.get_object_info().unwrap().has_transform_changed());
+            let t = obj.get_transform(None, None).unwrap();
+            assert_eq!(t.position(), [0.0, 1.0, 0.0]);
         });
     }
 }
