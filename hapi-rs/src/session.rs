@@ -10,7 +10,7 @@ pub use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::raw::{HapiResult, State, StatusType, StatusVerbosity},
-    ffi::{CookOptions, TimelineOptions, Viewport},
+    ffi::{CookOptions, SessionSyncInfo, TimelineOptions, Viewport},
     node::{HoudiniNode, NodeHandle},
     stringhandle::StringsArray,
 };
@@ -271,8 +271,15 @@ impl Session {
         crate::ffi::set_viewport(self, viewport)
     }
 
-    pub fn set_session_sync(&self, enable: bool) -> Result<()> {
+    pub fn set_sync(&self, enable: bool) -> Result<()> {
         crate::ffi::set_session_sync(self, enable)
+    }
+    pub fn get_sync_info(&self) -> Result<SessionSyncInfo> {
+        crate::ffi::get_session_sync_info(self).map(|inner| SessionSyncInfo { inner })
+    }
+
+    pub fn set_sync_info(&self, info: &SessionSyncInfo) -> Result<()> {
+        crate::ffi::set_session_sync_info(self, &info.inner)
     }
 }
 
@@ -603,6 +610,20 @@ pub(crate) mod tests {
             assert_eq!(vp.position(), vp2.position());
             assert_eq!(vp.rotation(), vp2.rotation());
             assert_eq!(vp.offset(), vp2.offset());
+        });
+    }
+
+    #[test]
+    fn sync_session() {
+        with_session(|session| {
+            let info = SessionSyncInfo::default()
+                .with_sync_viewport(true)
+                .with_cook_using_houdini_time(true);
+            session.set_sync_info(&info).unwrap();
+            session.cook().unwrap();
+            let info = session.get_sync_info().unwrap();
+            assert!(info.sync_viewport());
+            assert!(info.cook_using_houdini_time());
         });
     }
 }

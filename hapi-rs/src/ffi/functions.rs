@@ -1643,3 +1643,17 @@ pub fn set_object_transform(
             .check_err(Some(&session))
     }
 }
+
+pub fn set_session_sync_info(session: &Session, info: &raw::HAPI_SessionSyncInfo) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetSessionSyncInfo(session.ptr(), info as *const _).check_err(Some(&session))
+    }
+}
+
+pub fn get_session_sync_info(session: &Session) -> Result<raw::HAPI_SessionSyncInfo> {
+    let mut info = uninit!();
+    unsafe {
+        raw::HAPI_GetSessionSyncInfo(session.ptr(), info.as_mut_ptr()).check_err(Some(&session))?;
+        Ok(info.assume_init())
+    }
+}

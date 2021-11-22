@@ -431,3 +431,14 @@ wrap!(
     [get|set] roation_order->rotationOrder->[XYZOrder];
     [get|set] rst_order->rstOrder->[RSTOrder];
 );
+
+#[derive(Debug, Clone)]
+pub struct SessionSyncInfo {
+    pub(crate) inner: HAPI_SessionSyncInfo,
+}
+
+wrap!(
+    Default SessionSyncInfo [HAPI_SessionSyncInfo_Create => HAPI_SessionSyncInfo];
+    [get|set] cook_using_houdini_time->cookUsingHoudiniTime->[bool];
+    [get|set] sync_viewport->syncViewport->[bool];
+);
