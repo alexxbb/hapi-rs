@@ -33,7 +33,7 @@ static void printPartInfo(HAPI_Session &session, HAPI_NodeId nodeId,
 
 int
 main(int argc, char **argv) {
-    const char *hdaFile = argc == 2 ? argv[1] : "otls/PackedPrimitive.hda";
+    const char *hdaFile = argc == 2 ? argv[1] : "otls/sesi/PackedPrimitive.hda";
 
     HAPI_CookOptions cookOptions = HAPI_CookOptions_Create();
 

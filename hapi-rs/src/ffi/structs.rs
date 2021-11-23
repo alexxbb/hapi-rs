@@ -64,16 +64,43 @@ macro_rules! get {
         get!($method->$field->[$($tp)*]);
     };
 }
+// Impl Default trait for struct
+// Default StructName [HapiFunction => HapiType];
+// Example: Default CurveInfo [HAPI_CurveInfo_Create => HAPI_CurveInfo];
+//
+// Generate getters, setters and with ("builder") methods
+// [get|set|with] struct_field->ffiStructField->[ReturnType];
+//  get:
+//      fn get_struct_field(&self) -> ReturnType { self.ffiStructField }
+//  set:
+//      fn set_struct_field(&self, val: ReturnType)  { self.ffiStructField = val; }
+//  with:
+//      fn with_struct_field(self, val: ReturnType) -> Self  { self.ffiStructField = val; self }
+//
+// Special case for string handles:
+// [get+session] name->name->[ReturnType]
+// fn get_name(&self, session: &Session) -> Result<String> { session.get_string(self.inner.name) }
+//
 
 macro_rules! wrap {
-    (_set_ $method:ident->$field:ident->bool) => {
+    (_with_ $method:ident->$field:ident->bool) => {
         paste!{
             pub fn [<with_ $method>](mut self, val: bool) -> Self {self.inner.$field = val as i8; self}
         }
     };
-    (_set_ $method:ident->$field:ident->$tp:ty) => {
+    (_with_ $method:ident->$field:ident->$tp:ty) => {
         paste!{
             pub fn [<with_ $method>](mut self, val: $tp) -> Self {self.inner.$field = val; self}
+        }
+    };
+    (_set_ $method:ident->$field:ident->bool) => {
+        paste!{
+            pub fn [<set_ $method>](&mut self, val: bool)  {self.inner.$field = val as i8}
+        }
+    };
+    (_set_ $method:ident->$field:ident->$tp:ty) => {
+        paste!{
+            pub fn [<set_ $method>](&mut self, val: $tp)  {self.inner.$field = val}
         }
     };
 
@@ -90,9 +117,18 @@ macro_rules! wrap {
         $(wrap!{_set_ $method->$field->$tp})*
     };
 
+    ([with] $object:ident $method:ident->$field:ident->$($tp:tt)*) => {
+        $(wrap!{_with_ $method->$field->$tp})*
+    };
+
     ([get|set] $object:ident $method:ident->$field:ident->$($tp:tt)*) => {
         get!($method->$field->$($tp)*);
         $(wrap!{_set_ $method->$field->$tp})*
+    };
+    ([get|set|with] $object:ident $method:ident->$field:ident->$($tp:tt)*) => {
+        get!($method->$field->$($tp)*);
+        $(wrap!{_set_ $method->$field->$tp})*
+        $(wrap!{_with_ $method->$field->$tp})*
     };
 
     (New $object:ident [$create_func:path=>$ffi_tp:ty]; $($rest:tt)*) => {
@@ -242,20 +278,19 @@ pub struct CookOptions {
 
 wrap!(
     Default CookOptions [HAPI_CookOptions_Create => HAPI_CookOptions];
-    [set] split_geo_by_group->splitGeosByGroup->[bool];
-    [set] split_geos_by_attribute->splitGeosByAttribute->[bool];
-    [set] max_vertices_per_primitive->maxVerticesPerPrimitive->[i32];
-    [set] refine_curve_to_linear->refineCurveToLinear->[bool];
-    [set] curve_refine_lod->curveRefineLOD->[f32];
-    [set] clear_errors_and_warnings->clearErrorsAndWarnings->[bool];
-    [set] cook_templated_geos->cookTemplatedGeos->[bool];
-    [set] split_points_by_vertex_attributes->splitPointsByVertexAttributes->[bool];
-    [set] handle_box_part_types->handleBoxPartTypes->[bool];
-    [set] handle_sphere_part_types->handleSpherePartTypes->[bool];
-    [set] check_part_changes->checkPartChanges->[bool];
-    [set] packed_prim_instancing_mode->packedPrimInstancingMode->[PackedPrimInstancingMode];
+    [get|set|with] split_geo_by_group->splitGeosByGroup->[bool];
+    [get|set|with] split_geos_by_attribute->splitGeosByAttribute->[bool];
+    [get|set|with] max_vertices_per_primitive->maxVerticesPerPrimitive->[i32];
+    [get|set|with] refine_curve_to_linear->refineCurveToLinear->[bool];
+    [get|set|with] curve_refine_lod->curveRefineLOD->[f32];
+    [get|set|with] clear_errors_and_warnings->clearErrorsAndWarnings->[bool];
+    [get|set|with] cook_templated_geos->cookTemplatedGeos->[bool];
+    [get|set|with] split_points_by_vertex_attributes->splitPointsByVertexAttributes->[bool];
+    [get|set|with] handle_box_part_types->handleBoxPartTypes->[bool];
+    [get|set|with] handle_sphere_part_types->handleSpherePartTypes->[bool];
+    [get|set|with] check_part_changes->checkPartChanges->[bool];
+    [get|set|with] packed_prim_instancing_mode->packedPrimInstancingMode->[PackedPrimInstancingMode];
     [get+session] split_attr->splitAttrSH->[Result<String>];
-    [set] extra_flags->extraFlags->[i32];
 );
 
 #[derive(Debug)]
@@ -268,11 +303,11 @@ wrap!(
     [get] exists->exists->[bool];
     [get] original_owner->originalOwner->[AttributeOwner];
     [get] total_array_elements->totalArrayElements->[i64];
-    [get|set] owner->owner->[AttributeOwner];
-    [get|set] storage->storage->[StorageType];
-    [get|set] tuple_size->tupleSize->[i32];
-    [get|set] type_info->typeInfo->[AttributeTypeInfo];
-    [get|set] count->count->[i32];
+    [get|set|with] owner->owner->[AttributeOwner];
+    [get|set|with] storage->storage->[StorageType];
+    [get|set|with] tuple_size->tupleSize->[i32];
+    [get|set|with] type_info->typeInfo->[AttributeTypeInfo];
+    [get|set|with] count->count->[i32];
 );
 
 #[derive(Debug)]
@@ -323,6 +358,7 @@ impl<'s> ObjectInfo<'s> {
     }
 }
 
+// TODO: consider owned session once again
 #[derive(Debug)]
 pub struct GeoInfo<'session> {
     pub(crate) inner: HAPI_GeoInfo,
@@ -341,6 +377,16 @@ impl<'s> GeoInfo<'s> {
     get!(point_group_count->pointGroupCount->i32);
     get!(primitive_group_count->primitiveGroupCount->i32);
     get!(part_count->partCount->i32);
+
+    pub fn from_node(node: &'s HoudiniNode) -> Result<Self> {
+        GeoInfo::from_handle(node.handle, &node.session)
+    }
+    pub fn from_handle(handle: NodeHandle, session: &'s Session) -> Result<GeoInfo<'s>> {
+        crate::ffi::get_geo_info(session, handle).map(|inner| GeoInfo {
+            inner,
+            session: &session,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -354,12 +400,12 @@ wrap!(
     [get] has_changed->hasChanged->[bool];
     [get] is_instanced->isInstanced->[bool];
     [get+session] name->nameSH->[Result<String>];
-    [get|set] part_type->type_->[PartType];
-    [get|set] face_count->faceCount->[i32];
-    [get|set] point_count->pointCount->[i32];
-    [get|set] vertex_count->vertexCount->[i32];
-    [get|set] instance_count->instanceCount->[i32];
-    [get|set] instance_part_count->instancedPartCount->[i32];
+    [get|set|with] part_type->type_->[PartType];
+    [get|set|with] face_count->faceCount->[i32];
+    [get|set|with] point_count->pointCount->[i32];
+    [get|set|with] vertex_count->vertexCount->[i32];
+    [get|set|with] instance_count->instanceCount->[i32];
+    [get|set|with] instance_part_count->instancedPartCount->[i32];
 );
 
 #[derive(Debug, Clone)]
@@ -369,9 +415,9 @@ pub struct TimelineOptions {
 
 wrap!(
     Default TimelineOptions [HAPI_TimelineOptions_Create => HAPI_TimelineOptions];
-    [get|set] fps->fps->[f32];
-    [get|set] start_time->startTime->[f32];
-    [get|set] end_time->endTime->[f32];
+    [get|set|with] fps->fps->[f32];
+    [get|set|with] start_time->startTime->[f32];
+    [get|set|with] end_time->endTime->[f32];
 );
 
 #[derive(Debug, Clone)]
@@ -381,14 +427,14 @@ pub struct CurveInfo {
 
 wrap!(
     Default CurveInfo [HAPI_CurveInfo_Create => HAPI_CurveInfo];
-    [get|set] curve_type->curveType->[CurveType];
-    [get|set] curve_count->curveCount->[i32];
-    [get|set] vertex_count->vertexCount->[i32];
-    [get|set] knot_count->knotCount->[i32];
-    [get|set] periodic->isPeriodic->[bool];
-    [get|set] rational->isRational->[bool];
-    [get|set] has_knots->hasKnots->[bool];
-    [get|set] order->order->[i32];
+    [get|set|with] curve_type->curveType->[CurveType];
+    [get|set|with] curve_count->curveCount->[i32];
+    [get|set|with] vertex_count->vertexCount->[i32];
+    [get|set|with] knot_count->knotCount->[i32];
+    [get|set|with] periodic->isPeriodic->[bool];
+    [get|set|with] rational->isRational->[bool];
+    [get|set|with] has_knots->hasKnots->[bool];
+    [get|set|with] order->order->[i32];
 );
 
 #[derive(Debug, Clone)]
@@ -398,9 +444,9 @@ pub struct Viewport {
 
 wrap!(
     Default Viewport [HAPI_Viewport_Create => HAPI_Viewport];
-    [get|set] position->position->[[f32; 3]];
-    [get|set] rotation->rotationQuaternion->[[f32; 4]];
-    [get|set] offset->offset->[f32];
+    [get|set|with] position->position->[[f32; 3]];
+    [get|set|with] rotation->rotationQuaternion->[[f32; 4]];
+    [get|set|with] offset->offset->[f32];
 );
 
 #[derive(Debug, Clone)]
@@ -410,11 +456,11 @@ pub struct Transform {
 
 wrap!(
     Default Transform [HAPI_Transform_Create => HAPI_Transform];
-    [get|set] position->position->[[f32;3]];
-    [get|set] rotation->rotationQuaternion->[[f32;4]];
-    [get|set] scale->scale->[[f32;3]];
-    [get|set] shear->shear->[[f32;3]];
-    [get|set] rst_order->rstOrder->[RSTOrder];
+    [get|set|with] position->position->[[f32;3]];
+    [get|set|with] rotation->rotationQuaternion->[[f32;4]];
+    [get|set|with] scale->scale->[[f32;3]];
+    [get|set|with] shear->shear->[[f32;3]];
+    [get|set|with] rst_order->rstOrder->[RSTOrder];
 );
 
 #[derive(Debug, Clone)]
@@ -424,12 +470,12 @@ pub struct TransformEuler {
 
 wrap!(
     Default TransformEuler [HAPI_TransformEuler_Create => HAPI_TransformEuler];
-    [get|set] position->position->[[f32;3]];
-    [get|set] rotation->rotationEuler->[[f32;3]];
-    [get|set] scale->scale->[[f32;3]];
-    [get|set] shear->shear->[[f32;3]];
-    [get|set] roation_order->rotationOrder->[XYZOrder];
-    [get|set] rst_order->rstOrder->[RSTOrder];
+    [get|set|with] position->position->[[f32;3]];
+    [get|set|with] rotation->rotationEuler->[[f32;3]];
+    [get|set|with] scale->scale->[[f32;3]];
+    [get|set|with] shear->shear->[[f32;3]];
+    [get|set|with] roation_order->rotationOrder->[XYZOrder];
+    [get|set|with] rst_order->rstOrder->[RSTOrder];
 );
 
 #[derive(Debug, Clone)]
@@ -439,6 +485,6 @@ pub struct SessionSyncInfo {
 
 wrap!(
     Default SessionSyncInfo [HAPI_SessionSyncInfo_Create => HAPI_SessionSyncInfo];
-    [get|set] cook_using_houdini_time->cookUsingHoudiniTime->[bool];
-    [get|set] sync_viewport->syncViewport->[bool];
+    [get|set|with] cook_using_houdini_time->cookUsingHoudiniTime->[bool];
+    [get|set|with] sync_viewport->syncViewport->[bool];
 );

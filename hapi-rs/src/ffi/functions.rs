@@ -1079,11 +1079,11 @@ pub fn get_geo_display_info(node: &HoudiniNode) -> Result<raw::HAPI_GeoInfo> {
     }
 }
 
-pub fn get_geo_info(node: &HoudiniNode) -> Result<raw::HAPI_GeoInfo> {
+pub fn get_geo_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_GeoInfo> {
     unsafe {
         let mut info = uninit!();
-        raw::HAPI_GetGeoInfo(node.session.ptr(), node.handle.0, info.as_mut_ptr())
-            .check_err(Some(&node.session))?;
+        raw::HAPI_GetGeoInfo(session.ptr(), node.0, info.as_mut_ptr())
+            .check_err(Some(&session))?;
         Ok(info.assume_init())
     }
 }

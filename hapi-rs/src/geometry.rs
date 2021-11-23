@@ -3,22 +3,27 @@ use std::borrow::Cow;
 pub use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
-    raw::{AttributeOwner, CurveOrders, CurveType, GroupType, PartType},
+    raw::{AttributeOwner, CurveOrders, CurveType, GroupType, PartType, PackedPrimInstancingMode},
     AttributeInfo, CurveInfo, GeoInfo, PartInfo,
 };
-use crate::node::HoudiniNode;
+use crate::node::{HoudiniNode};
+use crate::session::{Session};
 use crate::stringhandle::StringsArray;
 use std::ffi::CString;
 
 #[derive(Debug)]
-pub struct Geometry<'session> {
-    pub node: Cow<'session, HoudiniNode>,
+/* My reasoning for borrowed struct vs owned node && session
+    * Relatively expensive cloning of HoudiniNode?
+    * Geometry is tightly coupled with HoudiniNode, lifetime sorta gives us such coupling
+*/
+pub struct Geometry<'node> {
+    pub node: Cow<'node, HoudiniNode>,
     // TODO: Maybe revisit. GeoInfo may change and should be a get method
-    pub info: GeoInfo<'session>,
+    pub info: GeoInfo<'node>,
 }
 
-impl<'session> Geometry<'session> {
-    pub fn part_info(&'session self, id: i32) -> Result<PartInfo> {
+impl<'node> Geometry<'node> {
+    pub fn part_info(&'node self, id: i32) -> Result<PartInfo> {
         crate::ffi::get_part_info(&self.node, id).map(|inner| PartInfo { inner })
     }
 
@@ -47,11 +52,8 @@ impl<'session> Geometry<'session> {
         crate::ffi::set_geo_face_counts(&self.node, part_id, list.as_ref())
     }
 
-    pub fn geo_info(&'session self) -> Result<GeoInfo<'session>> {
-        crate::ffi::get_geo_info(&self.node).map(|inner| GeoInfo {
-            inner,
-            session: &self.node.session,
-        })
+    pub fn geo_info(&'node self) -> Result<GeoInfo<'node>> {
+        GeoInfo::from_node(&self.node)
     }
     pub fn curve_info(&self, part_id: i32) -> Result<CurveInfo> {
         crate::ffi::get_curve_info(&self.node, part_id).map(|inner| CurveInfo { inner })
@@ -90,7 +92,7 @@ impl<'session> Geometry<'session> {
         if self.node.info.total_cook_count() == 0 {
             log::warn!("Node {} not cooked", self.node.path(None)?);
         }
-        (0..self.info.part_count() + 1)
+        (0..self.info.part_count())
             .map(|i| self.part_info(i))
             .collect()
     }

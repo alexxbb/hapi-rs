@@ -63,7 +63,7 @@ impl NodeHandle {
 pub struct HoudiniNode {
     pub handle: NodeHandle,
     pub session: Session,
-    pub info: NodeInfo, // TODO: Rc Maybe?
+    pub info: NodeInfo, // TODO: Arc Maybe?
 }
 
 impl std::fmt::Debug for HoudiniNode {
@@ -296,10 +296,7 @@ impl<'session> HoudiniNode {
         use std::borrow::Cow;
         match self.info.node_type() {
             NodeType::Sop => {
-                let info = crate::ffi::get_geo_info(self).map(|inner| GeoInfo {
-                    inner,
-                    session: &self.session,
-                })?;
+                let info = GeoInfo::from_node(self)?;
                 Ok(Some(Geometry {
                     node: Cow::Borrowed(self),
                     info,
