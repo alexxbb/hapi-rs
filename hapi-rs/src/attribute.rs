@@ -99,7 +99,6 @@ impl<'a> AttribDataType for &'a str {
         crate::ffi::get_attribute_string_buffer(node, part_id, name, &info.inner, 0, info.count())
     }
 
-    #[allow(unused_variables)]
     fn set(
         name: &CStr,
         node: &'_ HoudiniNode,
@@ -107,6 +106,18 @@ impl<'a> AttribDataType for &'a str {
         info: &AttributeInfo,
         values: &[Self::Type],
     ) -> Result<()> {
-        todo!()
+        let cstrings = values
+            .iter()
+            .map(|s| CString::new(*s).map_err(Into::into))
+            .collect::<Result<Vec<CString>>>()?;
+        let cstrings = cstrings.iter().map(CString::as_ref).collect::<Vec<_>>();
+        crate::ffi::set_attribute_string_buffer(
+            &node.session,
+            node.handle,
+            part_id,
+            name,
+            &info.inner,
+            &cstrings,
+        )
     }
 }

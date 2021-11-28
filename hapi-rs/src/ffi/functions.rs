@@ -1358,11 +1358,7 @@ get_attrib_data!(f32, 0.0, get_attribute_float_data, HAPI_GetAttributeFloatData)
 set_attrib_data!(f32, set_attribute_float_data, HAPI_SetAttributeFloatData);
 #[rustfmt::skip]
 get_attrib_data!(f64, 0.0, get_attribute_float64_data, HAPI_GetAttributeFloat64Data);
-set_attrib_data!(
-    f64,
-    set_attribute_float64_data,
-    HAPI_SetAttributeFloat64Data
-);
+set_attrib_data!(f64,set_attribute_float64_data,HAPI_SetAttributeFloat64Data);
 #[rustfmt::skip]
 get_attrib_data!(i32, 0, get_attribute_int_data, HAPI_GetAttributeIntData);
 set_attrib_data!(i32, set_attribute_int_data, HAPI_SetAttributeIntData);
@@ -1396,6 +1392,35 @@ pub fn get_attribute_string_buffer(
         )
             .check_err(Some(&node.session))?;
         crate::stringhandle::get_strings_array(&handles, &node.session)
+    }
+}
+
+
+pub fn set_attribute_string_buffer(
+    session: &Session,
+    node: NodeHandle,
+    part_id: i32,
+    name: &CStr,
+    attr_info: &raw::HAPI_AttributeInfo,
+    array: &[&CStr],
+) -> Result<()> {
+    unsafe {
+        // SAFETY: Most likely an error in C API, it should not modify the info object,
+        // but for some reason it wants a mut pointer
+        // TODO: Is there a way to set Vec capacity with collect?
+        // let mut array =  Vec::with_capacity(array.len());
+        let mut array = Vec::from_iter(array.iter().map(|cs| cs.as_ptr()));
+        // let mut array = array.iter().map(|cs|cs.as_ptr()).collect::<Vec<_>>();
+        raw::HAPI_SetAttributeStringData(
+            session.ptr(),
+            node.0,
+            part_id,
+            name.as_ptr(),
+            attr_info,
+            array.as_mut_ptr(),
+            0,
+            array.len() as i32,
+        ).check_err(Some(&session))
     }
 }
 
