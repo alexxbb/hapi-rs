@@ -295,4 +295,22 @@ mod tests {
             input.delete().unwrap();
         });
     }
+
+    #[test]
+    fn array_attributes() {
+        use crate::session::tests::OTLS;
+        with_session(|session| {
+            let lib = session.load_asset_file(OTLS.get("geometry").unwrap()).expect("Could not load otl");
+            let node = lib.try_create_first().unwrap();
+            node.cook_blocking(None).unwrap();
+            let geo = node.geometry().unwrap().unwrap();
+
+            let attr = geo.get_attribute::<&str>(0, AttributeOwner::Point, "my_str_array").expect("array attribute").unwrap();
+
+            let str_arr = crate::ffi::get_attribute_string_array_data(session,
+                                                                      geo.node.handle,
+                                                                      &CString::new("my_str_array").unwrap(),
+                                                                      &attr.info.inner).unwrap();
+        });
+    }
 }

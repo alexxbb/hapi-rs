@@ -505,6 +505,7 @@ pub(crate) mod tests {
                 .unwrap()
                 .to_string_lossy()
         );
+        map.insert("geometry", format!("{}/hapi_geo.hda", root));
         map.insert("parameters", format!("{}/hapi_parms.hda", root));
         map.insert("spaceship", format!("{}/sesi/SideFX_spaceship.otl", root));
         map

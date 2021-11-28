@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use crate::errors::Result;
 pub use crate::ffi::raw::{AttributeOwner, StorageType};
 pub use crate::ffi::AttributeInfo;
@@ -16,6 +14,9 @@ pub trait AttribDataType: Sized {
         part_id: i32,
         info: &AttributeInfo,
     ) -> Result<Self::Return>;
+    // fn read_array(
+    //
+    // ) -> Result<Vec<Self::Return>>;
     fn set(
         name: &CStr,
         node: &'_ HoudiniNode,
@@ -28,9 +29,10 @@ pub trait AttribDataType: Sized {
 #[derive(Debug)]
 pub struct Attribute<'s, T: AttribDataType> {
     pub info: AttributeInfo,
-    pub(crate) node: &'s HoudiniNode,
+    // TODO: Would be nice to have access to the attribute name
     pub(crate) name: CString,
-    _marker: PhantomData<T>,
+    pub(crate) node: &'s HoudiniNode,
+    _marker: std::marker::PhantomData<T>,
 }
 
 impl<'s, T> Attribute<'s, T>
@@ -48,6 +50,10 @@ where
     pub fn read(&self, part_id: i32) -> Result<T::Return> {
         T::read(&self.name, self.node, part_id, &self.info)
     }
+    //
+    // pub fn read_array(&self, part_id: i32) -> Result<T::Return> {
+    //     T::read_array()
+    // }
 
     pub fn set(&self, part_id: i32, values: impl AsRef<[T::Type]>) -> Result<()> {
         T::set(&self.name, self.node, part_id, &self.info, values.as_ref())
