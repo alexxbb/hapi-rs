@@ -8,6 +8,7 @@ use crate::ffi::{CurveInfo, PartInfo, Viewport};
 use crate::{
     errors::Result,
     geometry::GeoInfo,
+    attribute::DataArray,
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
     session::{CookOptions, Session, SessionOptions},
@@ -1323,6 +1324,34 @@ macro_rules! get_attrib_data {
             }
         }
     };
+    (DataArray<$tp:ty>, $func:ident, $ffi:ident) => {
+        pub fn $func(
+            node: &HoudiniNode,
+            part_id: i32,
+            name: &CStr,
+            attr_info: &raw::HAPI_AttributeInfo,
+        ) -> Result<DataArray<$tp>> {
+        let mut data_array = vec![<$tp>::default(); attr_info.totalArrayElements as usize];
+        let mut sizes_array = vec![0; attr_info.count as usize];
+        unsafe {
+            raw::$ffi(
+                node.session.ptr(),
+                node.handle.0,
+                part_id,
+                name.as_ptr(),
+                attr_info as *const _ as *mut _,
+                data_array.as_mut_ptr(),
+                attr_info.totalArrayElements as i32,
+                sizes_array.as_mut_ptr(),
+                0,
+                attr_info.count as i32,
+            ).check_err(Some(&node.session))?;
+        }
+
+        Ok(DataArray{inner: data_array})
+    }
+
+    }
 }
 
 macro_rules! set_attrib_data {
@@ -1356,15 +1385,20 @@ macro_rules! set_attrib_data {
 #[rustfmt::skip]
 get_attrib_data!(f32, 0.0, get_attribute_float_data, HAPI_GetAttributeFloatData);
 set_attrib_data!(f32, set_attribute_float_data, HAPI_SetAttributeFloatData);
+get_attrib_data!(DataArray<f32>, get_attribute_float_array_data, HAPI_GetAttributeFloatArrayData);
+
 #[rustfmt::skip]
 get_attrib_data!(f64, 0.0, get_attribute_float64_data, HAPI_GetAttributeFloat64Data);
 set_attrib_data!(f64,set_attribute_float64_data,HAPI_SetAttributeFloat64Data);
+get_attrib_data!(DataArray<f64>, get_attribute_float64_array_data, HAPI_GetAttributeFloat64ArrayData);
 #[rustfmt::skip]
 get_attrib_data!(i32, 0, get_attribute_int_data, HAPI_GetAttributeIntData);
 set_attrib_data!(i32, set_attribute_int_data, HAPI_SetAttributeIntData);
+get_attrib_data!(DataArray<i32>, get_attribute_int_array_data, HAPI_GetAttributeIntArrayData);
 #[rustfmt::skip]
 get_attrib_data!(i64, 0, get_attribute_int64_data, HAPI_GetAttributeInt64Data);
 set_attrib_data!(i64, set_attribute_int64_data, HAPI_SetAttributeInt64Data);
+get_attrib_data!(DataArray<i64>, get_attribute_int64_array_data, HAPI_GetAttributeInt64ArrayData);
 
 pub fn get_attribute_string_buffer(
     node: &HoudiniNode,

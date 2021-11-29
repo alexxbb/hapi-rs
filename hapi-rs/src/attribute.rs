@@ -7,6 +7,10 @@ use crate::node::HoudiniNode;
 use crate::stringhandle::StringsArray;
 use std::ffi::{CStr, CString};
 
+pub struct DataArray<T> {
+    pub(crate) inner: Vec<T>,
+}
+
 pub trait AttribDataType: Sized {
     type Type;
     type Return;
@@ -16,6 +20,12 @@ pub trait AttribDataType: Sized {
         part_id: i32,
         info: &AttributeInfo,
     ) -> Result<Self::Return>;
+    fn read_array(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo,
+    ) -> Result<DataArray<Self::Type>>;
     fn set(
         name: &CStr,
         node: &'_ HoudiniNode,
@@ -49,13 +59,17 @@ where
         T::read(&self.name, self.node, part_id, &self.info)
     }
 
+    pub fn read_array(&self, part_id: i32) -> Result<DataArray<T::Type>> {
+        T::read_array(&self.name, self.node, part_id, &self.info)
+    }
+
     pub fn set(&self, part_id: i32, values: impl AsRef<[T::Type]>) -> Result<()> {
         T::set(&self.name, self.node, part_id, &self.info, values.as_ref())
     }
 }
 
 macro_rules! impl_attrib_type {
-    ($ty:ty, $get_func:ident, $set_func:ident) => {
+    ($ty:ty, $get_func:ident, $get_array_func:ident, $set_func:ident) => {
         impl AttribDataType for $ty {
             type Type = $ty;
             type Return = Vec<Self::Type>;
@@ -66,6 +80,10 @@ macro_rules! impl_attrib_type {
                 info: &AttributeInfo,
             ) -> Result<Vec<Self>> {
                 crate::ffi::$get_func(node, part_id, name, &info.inner, -1, 0, info.count())
+            }
+
+            fn read_array(name: &CStr, node: &HoudiniNode, part_id: i32, info: &AttributeInfo) -> Result<DataArray<Self::Type>> {
+                crate::ffi::$get_array_func(node, part_id, name, &info.inner)
             }
 
             fn set(
@@ -81,10 +99,10 @@ macro_rules! impl_attrib_type {
     };
 }
 
-impl_attrib_type!(f32, get_attribute_float_data, set_attribute_float_data);
-impl_attrib_type!(f64, get_attribute_float64_data, set_attribute_float64_data);
-impl_attrib_type!(i32, get_attribute_int_data, set_attribute_int_data);
-impl_attrib_type!(i64, get_attribute_int64_data, set_attribute_int64_data);
+impl_attrib_type!(f32, get_attribute_float_data, get_attribute_float_array_data, set_attribute_float_data);
+impl_attrib_type!(f64, get_attribute_float64_data, get_attribute_float64_array_data, set_attribute_float64_data);
+impl_attrib_type!(i32, get_attribute_int_data, get_attribute_int_array_data, set_attribute_int_data);
+impl_attrib_type!(i64, get_attribute_int64_data, get_attribute_int64_array_data, set_attribute_int64_data);
 
 impl<'a> AttribDataType for &'a str {
     type Type = &'a str;
@@ -119,5 +137,14 @@ impl<'a> AttribDataType for &'a str {
             &info.inner,
             &cstrings,
         )
+    }
+
+    fn read_array(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo,
+    ) -> Result<DataArray<Self::Type>> {
+        todo!()
     }
 }
