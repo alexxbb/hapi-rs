@@ -305,12 +305,15 @@ mod tests {
             node.cook_blocking(None).unwrap();
             let geo = node.geometry().unwrap().unwrap();
 
-            let attr = geo.get_attribute::<&str>(0, AttributeOwner::Point, "my_str_array").expect("array attribute").unwrap();
+            // let attr = geo.get_attribute::<&str>(0, AttributeOwner::Point, "my_str_array").expect("array attribute").unwrap();
+            // let array = attr.read_array(0).unwrap();
 
-            let str_arr = crate::ffi::get_attribute_string_array_data(session,
-                                                                      geo.node.handle,
-                                                                      &CString::new("my_str_array").unwrap(),
-                                                                      &attr.info.inner).unwrap();
+            let attr = geo.get_attribute::<i32>(0, AttributeOwner::Point, "my_int_array").expect("attribute").unwrap();
+            let i_array = attr.read_array(0).unwrap();
+
+            assert_eq!(i_array.iter().count(), attr.info.count() as usize);
+            assert_eq!(i_array.iter().nth(0).unwrap(), &[0, 0, 0]);
+            assert_eq!(i_array.iter().last().unwrap(), &[7, 14, 21]);
         });
     }
 }

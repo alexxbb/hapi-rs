@@ -1331,8 +1331,8 @@ macro_rules! get_attrib_data {
             name: &CStr,
             attr_info: &raw::HAPI_AttributeInfo,
         ) -> Result<DataArray<$tp>> {
-        let mut data_array = vec![<$tp>::default(); attr_info.totalArrayElements as usize];
-        let mut sizes_array = vec![0; attr_info.count as usize];
+        let mut data = vec![<$tp>::default(); attr_info.totalArrayElements as usize];
+        let mut sizes = vec![0; attr_info.count as usize];
         unsafe {
             raw::$ffi(
                 node.session.ptr(),
@@ -1340,15 +1340,15 @@ macro_rules! get_attrib_data {
                 part_id,
                 name.as_ptr(),
                 attr_info as *const _ as *mut _,
-                data_array.as_mut_ptr(),
+                data.as_mut_ptr(),
                 attr_info.totalArrayElements as i32,
-                sizes_array.as_mut_ptr(),
+                sizes.as_mut_ptr(),
                 0,
                 attr_info.count as i32,
             ).check_err(Some(&node.session))?;
         }
 
-        Ok(DataArray{inner: data_array})
+        Ok(DataArray{data, sizes})
     }
 
     }
@@ -1717,7 +1717,8 @@ pub fn get_session_sync_info(session: &Session) -> Result<raw::HAPI_SessionSyncI
     }
 }
 
-pub fn get_attribute_string_array_data(session: &Session, node: NodeHandle, name: &CStr, info: &raw::HAPI_AttributeInfo) -> Result<()> {
+pub fn get_attribute_string_array_data(session: &Session, node: NodeHandle, name: &CStr, info: &raw::HAPI_AttributeInfo)
+                                       -> Result<(Vec<i32>, Vec<i32>)> {
     unsafe {
         let mut data_array = vec!(0; info.totalArrayElements as usize);
         let mut sizes_fixed_array = vec!(0; info.count as usize);
@@ -1734,21 +1735,6 @@ pub fn get_attribute_string_array_data(session: &Session, node: NodeHandle, name
             info.count,
         ).check_err(Some(&session))?;
 
-        dbg!(&data_array);
-        dbg!(&sizes_fixed_array);
-
-        Ok(())
+        Ok((data_array, sizes_fixed_array))
     }
 }
-
-// trait AttribArrayT {
-//     fn get<T>() -> Vec<T>;
-// }
-//
-// impl AttribArrayT for  {
-//
-// }
-//
-// pub fn get_attribute_array_data<T>(session: &Session, node: NodeHandle, name: &CStr, info: &raw::HAPI_AttributeInfo) -> Result<Vec<T>> {
-//
-// }

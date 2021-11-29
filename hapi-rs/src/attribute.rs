@@ -6,7 +6,39 @@ use crate::stringhandle::StringsArray;
 use std::ffi::{CStr, CString};
 
 pub struct DataArray<T> {
-    pub(crate) inner: Vec<T>,
+    pub(crate) data: Vec<T>,
+    pub(crate) sizes: Vec<i32>,
+}
+
+impl<T> DataArray<T> {
+    pub fn iter(&self) -> ArrayIter<'_, T> {
+        ArrayIter {
+            data: self.data.iter(),
+            sizes: self.sizes.iter().enumerate(),
+        }
+    }
+}
+
+pub struct ArrayIter<'a, T> {
+    data: std::slice::Iter<'a, T>,
+    sizes: std::iter::Enumerate<std::slice::Iter<'a, i32>>,
+}
+
+impl<'a, T> Iterator for ArrayIter<'a, T> {
+    type Item = &'a [T];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.sizes.next() {
+            None => None,
+            Some((pt, size)) => {
+                let start = pt * (*size as usize);
+                let end = start + (*size as usize);
+                // dbg!(start);
+                // dbg!(end);
+                Some(&self.data.as_slice()[start..end])
+            }
+        }
+    }
 }
 
 pub trait AttribDataType: Sized {
@@ -81,7 +113,12 @@ macro_rules! impl_attrib_type {
                 crate::ffi::$get_func(node, part_id, name, &info.inner, -1, 0, info.count())
             }
 
-            fn read_array(name: &CStr, node: &HoudiniNode, part_id: i32, info: &AttributeInfo) -> Result<DataArray<Self::Type>> {
+            fn read_array(
+                name: &CStr,
+                node: &HoudiniNode,
+                part_id: i32,
+                info: &AttributeInfo,
+            ) -> Result<DataArray<Self::Type>> {
                 crate::ffi::$get_array_func(node, part_id, name, &info.inner)
             }
 
@@ -98,10 +135,30 @@ macro_rules! impl_attrib_type {
     };
 }
 
-impl_attrib_type!(f32, get_attribute_float_data, get_attribute_float_array_data, set_attribute_float_data);
-impl_attrib_type!(f64, get_attribute_float64_data, get_attribute_float64_array_data, set_attribute_float64_data);
-impl_attrib_type!(i32, get_attribute_int_data, get_attribute_int_array_data, set_attribute_int_data);
-impl_attrib_type!(i64, get_attribute_int64_data, get_attribute_int64_array_data, set_attribute_int64_data);
+impl_attrib_type!(
+    f32,
+    get_attribute_float_data,
+    get_attribute_float_array_data,
+    set_attribute_float_data
+);
+impl_attrib_type!(
+    f64,
+    get_attribute_float64_data,
+    get_attribute_float64_array_data,
+    set_attribute_float64_data
+);
+impl_attrib_type!(
+    i32,
+    get_attribute_int_data,
+    get_attribute_int_array_data,
+    set_attribute_int_data
+);
+impl_attrib_type!(
+    i64,
+    get_attribute_int64_data,
+    get_attribute_int64_array_data,
+    set_attribute_int64_data
+);
 
 impl<'a> AttribDataType for &'a str {
     type Type = &'a str;
@@ -145,5 +202,12 @@ impl<'a> AttribDataType for &'a str {
         info: &AttributeInfo,
     ) -> Result<DataArray<Self::Type>> {
         todo!()
+        // let (data, sizes) = crate::ffi::get_attribute_string_array_data(
+        //     &node.session,
+        //     node.handle,
+        //     name,
+        //     &info.inner,
+        // )?;
+        // Ok(DataArray { data, sizes })
     }
 }
