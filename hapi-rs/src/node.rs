@@ -387,7 +387,7 @@ mod tests {
                     .with_position([0.0, 1.0, 0.0])
                     .with_rotation([45.0, 0.0, 0.0]),
             )
-               .unwrap();
+                .unwrap();
             obj.cook(None).unwrap();
             assert!(obj.get_object_info().unwrap().has_transform_changed());
             let t = obj.get_transform(None, None).unwrap();

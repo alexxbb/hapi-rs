@@ -6,9 +6,9 @@ use std::ptr::{null, null_mut};
 
 use crate::ffi::{CurveInfo, PartInfo, Viewport};
 use crate::{
+    attribute::DataArray,
     errors::Result,
     geometry::GeoInfo,
-    attribute::DataArray,
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
     session::{CookOptions, Session, SessionOptions},
@@ -1083,8 +1083,7 @@ pub fn get_geo_display_info(node: &HoudiniNode) -> Result<raw::HAPI_GeoInfo> {
 pub fn get_geo_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_GeoInfo> {
     unsafe {
         let mut info = uninit!();
-        raw::HAPI_GetGeoInfo(session.ptr(), node.0, info.as_mut_ptr())
-            .check_err(Some(&session))?;
+        raw::HAPI_GetGeoInfo(session.ptr(), node.0, info.as_mut_ptr()).check_err(Some(&session))?;
         Ok(info.assume_init())
     }
 }
@@ -1331,27 +1330,27 @@ macro_rules! get_attrib_data {
             name: &CStr,
             attr_info: &raw::HAPI_AttributeInfo,
         ) -> Result<DataArray<$tp>> {
-        let mut data = vec![<$tp>::default(); attr_info.totalArrayElements as usize];
-        let mut sizes = vec![0; attr_info.count as usize];
-        unsafe {
-            raw::$ffi(
-                node.session.ptr(),
-                node.handle.0,
-                part_id,
-                name.as_ptr(),
-                attr_info as *const _ as *mut _,
-                data.as_mut_ptr(),
-                attr_info.totalArrayElements as i32,
-                sizes.as_mut_ptr(),
-                0,
-                attr_info.count as i32,
-            ).check_err(Some(&node.session))?;
+            let mut data = vec![<$tp>::default(); attr_info.totalArrayElements as usize];
+            let mut sizes = vec![0; attr_info.count as usize];
+            unsafe {
+                raw::$ffi(
+                    node.session.ptr(),
+                    node.handle.0,
+                    part_id,
+                    name.as_ptr(),
+                    attr_info as *const _ as *mut _,
+                    data.as_mut_ptr(),
+                    attr_info.totalArrayElements as i32,
+                    sizes.as_mut_ptr(),
+                    0,
+                    attr_info.count as i32,
+                )
+                .check_err(Some(&node.session))?;
+            }
+
+            Ok(DataArray { data, sizes })
         }
-
-        Ok(DataArray{data, sizes})
-    }
-
-    }
+    };
 }
 
 macro_rules! set_attrib_data {
@@ -1385,20 +1384,40 @@ macro_rules! set_attrib_data {
 #[rustfmt::skip]
 get_attrib_data!(f32, 0.0, get_attribute_float_data, HAPI_GetAttributeFloatData);
 set_attrib_data!(f32, set_attribute_float_data, HAPI_SetAttributeFloatData);
-get_attrib_data!(DataArray<f32>, get_attribute_float_array_data, HAPI_GetAttributeFloatArrayData);
+get_attrib_data!(
+    DataArray<f32>,
+    get_attribute_float_array_data,
+    HAPI_GetAttributeFloatArrayData
+);
 
 #[rustfmt::skip]
 get_attrib_data!(f64, 0.0, get_attribute_float64_data, HAPI_GetAttributeFloat64Data);
-set_attrib_data!(f64,set_attribute_float64_data,HAPI_SetAttributeFloat64Data);
-get_attrib_data!(DataArray<f64>, get_attribute_float64_array_data, HAPI_GetAttributeFloat64ArrayData);
+set_attrib_data!(
+    f64,
+    set_attribute_float64_data,
+    HAPI_SetAttributeFloat64Data
+);
+get_attrib_data!(
+    DataArray<f64>,
+    get_attribute_float64_array_data,
+    HAPI_GetAttributeFloat64ArrayData
+);
 #[rustfmt::skip]
 get_attrib_data!(i32, 0, get_attribute_int_data, HAPI_GetAttributeIntData);
 set_attrib_data!(i32, set_attribute_int_data, HAPI_SetAttributeIntData);
-get_attrib_data!(DataArray<i32>, get_attribute_int_array_data, HAPI_GetAttributeIntArrayData);
+get_attrib_data!(
+    DataArray<i32>,
+    get_attribute_int_array_data,
+    HAPI_GetAttributeIntArrayData
+);
 #[rustfmt::skip]
 get_attrib_data!(i64, 0, get_attribute_int64_data, HAPI_GetAttributeInt64Data);
 set_attrib_data!(i64, set_attribute_int64_data, HAPI_SetAttributeInt64Data);
-get_attrib_data!(DataArray<i64>, get_attribute_int64_array_data, HAPI_GetAttributeInt64ArrayData);
+get_attrib_data!(
+    DataArray<i64>,
+    get_attribute_int64_array_data,
+    HAPI_GetAttributeInt64ArrayData
+);
 
 pub fn get_attribute_string_buffer(
     node: &HoudiniNode,
@@ -1429,7 +1448,6 @@ pub fn get_attribute_string_buffer(
     }
 }
 
-
 pub fn set_attribute_string_buffer(
     session: &Session,
     node: NodeHandle,
@@ -1454,7 +1472,8 @@ pub fn set_attribute_string_buffer(
             array.as_mut_ptr(),
             0,
             array.len() as i32,
-        ).check_err(Some(&session))
+        )
+            .check_err(Some(&session))
     }
 }
 
@@ -1717,11 +1736,15 @@ pub fn get_session_sync_info(session: &Session) -> Result<raw::HAPI_SessionSyncI
     }
 }
 
-pub fn get_attribute_string_array_data(session: &Session, node: NodeHandle, name: &CStr, info: &raw::HAPI_AttributeInfo)
-                                       -> Result<(Vec<i32>, Vec<i32>)> {
+pub fn get_attribute_string_array_data(
+    session: &Session,
+    node: NodeHandle,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+) -> Result<(Vec<i32>, Vec<i32>)> {
     unsafe {
-        let mut data_array = vec!(0; info.totalArrayElements as usize);
-        let mut sizes_fixed_array = vec!(0; info.count as usize);
+        let mut data_array = vec![0; info.totalArrayElements as usize];
+        let mut sizes_fixed_array = vec![0; info.count as usize];
         raw::HAPI_GetAttributeStringArrayData(
             session.ptr(),
             node.0,
@@ -1733,7 +1756,8 @@ pub fn get_attribute_string_array_data(session: &Session, node: NodeHandle, name
             sizes_fixed_array.as_mut_ptr(),
             0,
             info.count,
-        ).check_err(Some(&session))?;
+        )
+            .check_err(Some(&session))?;
 
         Ok((data_array, sizes_fixed_array))
     }

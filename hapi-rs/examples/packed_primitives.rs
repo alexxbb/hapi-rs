@@ -14,12 +14,15 @@ fn main() -> Result<()> {
     let asset = lib.try_create_first()?;
     let mut co = CookOptions::default();
     for mode in [IM::Disabled, IM::Hierarchy, IM::Flat] {
-        println!("Using PackedPrimInstancingMode::{}", match mode {
-            PackedPrimInstancingMode::Disabled => "Disabled",
-            PackedPrimInstancingMode::Hierarchy => "Hierarchy",
-            PackedPrimInstancingMode::Flat => "Flat",
-            _ => unreachable!()
-        });
+        println!(
+            "Using PackedPrimInstancingMode::{}",
+            match mode {
+                PackedPrimInstancingMode::Disabled => "Disabled",
+                PackedPrimInstancingMode::Hierarchy => "Hierarchy",
+                PackedPrimInstancingMode::Flat => "Flat",
+                _ => unreachable!(),
+            }
+        );
         co.set_packed_prim_instancing_mode(mode);
         asset.cook_blocking(Some(&co))?;
 
@@ -28,7 +31,11 @@ fn main() -> Result<()> {
             let node = handle.to_node(&session)?;
             node.cook_blocking(Some(&co))?;
             let geo = node.geometry()?.expect("geometry");
-            println!("Part count for geo {}: {}", geo.node.handle.0, geo.info.part_count());
+            println!(
+                "Part count for geo {}: {}",
+                geo.node.handle.0,
+                geo.info.part_count()
+            );
             for part in geo.partitions()? {
                 println!(
                     "Part {}\n   Point Count = {}\n{}",

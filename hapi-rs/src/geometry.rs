@@ -3,17 +3,17 @@ use std::borrow::Cow;
 pub use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
-    raw::{AttributeOwner, CurveOrders, CurveType, GroupType, PartType, PackedPrimInstancingMode},
+    raw::{AttributeOwner, CurveOrders, CurveType, GroupType, PackedPrimInstancingMode, PartType},
     AttributeInfo, CurveInfo, GeoInfo, PartInfo,
 };
-use crate::node::{HoudiniNode};
+use crate::node::HoudiniNode;
 use crate::stringhandle::StringsArray;
 use std::ffi::CString;
 
 #[derive(Debug)]
 /* My reasoning for borrowed struct vs owned node && session
-    * Relatively expensive cloning of HoudiniNode?
-    * Geometry is tightly coupled with HoudiniNode, lifetime sorta gives us such coupling
+ * Relatively expensive cloning of HoudiniNode?
+ * Geometry is tightly coupled with HoudiniNode, lifetime sorta gives us such coupling
 */
 pub struct Geometry<'node> {
     pub node: Cow<'node, HoudiniNode>,
@@ -138,8 +138,13 @@ impl<'node> Geometry<'node> {
         owner: AttributeOwner,
         name: &str,
     ) -> Result<Option<Attribute<T>>> {
+        let _n = name;
         let name = std::ffi::CString::new(name)?;
         let inner = crate::ffi::get_attribute_info(&self.node, part_id, owner, &name)?;
+
+        if inner.storage != T::storage() {
+            return Ok(None);
+        }
         if inner.exists < 1 {
             return Ok(None);
         }
@@ -276,7 +281,10 @@ mod tests {
         with_session(|session| {
             let input = session.create_input_node("test").unwrap();
             let geo = triangle(&input);
-            let attr_p = geo.get_attribute::<f32>(0, AttributeOwner::Point, "P").unwrap().unwrap();
+            let attr_p = geo
+                .get_attribute::<f32>(0, AttributeOwner::Point, "P")
+                .unwrap()
+                .unwrap();
             let val: Vec<_> = attr_p.read(0).expect("read_attribute");
             assert_eq!(val.len(), 9);
 
@@ -300,20 +308,37 @@ mod tests {
     fn array_attributes() {
         use crate::session::tests::OTLS;
         with_session(|session| {
-            let lib = session.load_asset_file(OTLS.get("geometry").unwrap()).expect("Could not load otl");
+            let lib = session
+                .load_asset_file(OTLS.get("geometry").unwrap())
+                .expect("Could not load otl");
             let node = lib.try_create_first().unwrap();
             node.cook_blocking(None).unwrap();
             let geo = node.geometry().unwrap().unwrap();
 
-            // let attr = geo.get_attribute::<&str>(0, AttributeOwner::Point, "my_str_array").expect("array attribute").unwrap();
-            // let array = attr.read_array(0).unwrap();
+            let not_exists = geo
+                .get_attribute::<i64>(0, AttributeOwner::Prim, "foo_bar")
+                .expect("attribute");
+            assert!(not_exists.is_none());
 
-            let attr = geo.get_attribute::<i32>(0, AttributeOwner::Point, "my_int_array").expect("attribute").unwrap();
+            let attr = geo
+                .get_attribute::<i32>(0, AttributeOwner::Point, "my_int_array")
+                .expect("attribute")
+                .unwrap();
             let i_array = attr.read_array(0).unwrap();
 
             assert_eq!(i_array.iter().count(), attr.info.count() as usize);
             assert_eq!(i_array.iter().nth(0).unwrap(), &[0, 0, 0]);
             assert_eq!(i_array.iter().last().unwrap(), &[7, 14, 21]);
+
+            let attr = geo
+                .get_attribute::<f32>(0, AttributeOwner::Point, "my_float_array")
+                .expect("attribute")
+                .unwrap();
+            let i_array = attr.read_array(0).unwrap();
+
+            assert_eq!(i_array.iter().count(), attr.info.count() as usize);
+            assert_eq!(i_array.iter().nth(0).unwrap(), &[0.0, 0.0, 0.0]);
+            assert_eq!(i_array.iter().last().unwrap(), &[7.0, 14.0, 21.0]);
         });
     }
 }

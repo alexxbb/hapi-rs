@@ -6,8 +6,8 @@ use crate::stringhandle::StringsArray;
 use std::ffi::{CStr, CString};
 
 pub struct DataArray<T> {
-    pub(crate) data: Vec<T>,
-    pub(crate) sizes: Vec<i32>,
+    pub data: Vec<T>,
+    pub sizes: Vec<i32>,
 }
 
 impl<T> DataArray<T> {
@@ -33,8 +33,7 @@ impl<'a, T> Iterator for ArrayIter<'a, T> {
             Some((pt, size)) => {
                 let start = pt * (*size as usize);
                 let end = start + (*size as usize);
-                // dbg!(start);
-                // dbg!(end);
+                /// TODO: We know the data size, it can be rewritten to use unsafe unchecked
                 Some(&self.data.as_slice()[start..end])
             }
         }
@@ -63,6 +62,7 @@ pub trait AttribDataType: Sized {
         info: &AttributeInfo,
         values: &[Self::Type],
     ) -> Result<()>;
+    fn storage() -> StorageType;
 }
 
 #[derive(Debug)]
@@ -100,10 +100,14 @@ where
 }
 
 macro_rules! impl_attrib_type {
-    ($ty:ty, $get_func:ident, $get_array_func:ident, $set_func:ident) => {
+    ($ty:ty, $get_func:ident, $get_array_func:ident, $set_func:ident, $storage:expr) => {
         impl AttribDataType for $ty {
             type Type = $ty;
             type Return = Vec<Self::Type>;
+
+            fn storage() -> StorageType {
+                $storage
+            }
             fn read<'session>(
                 name: &CStr,
                 node: &HoudiniNode,
@@ -139,25 +143,29 @@ impl_attrib_type!(
     f32,
     get_attribute_float_data,
     get_attribute_float_array_data,
-    set_attribute_float_data
+    set_attribute_float_data,
+    StorageType::Float
 );
 impl_attrib_type!(
     f64,
     get_attribute_float64_data,
     get_attribute_float64_array_data,
-    set_attribute_float64_data
+    set_attribute_float64_data,
+    StorageType::Float64
 );
 impl_attrib_type!(
     i32,
     get_attribute_int_data,
     get_attribute_int_array_data,
-    set_attribute_int_data
+    set_attribute_int_data,
+    StorageType::Int
 );
 impl_attrib_type!(
     i64,
     get_attribute_int64_data,
     get_attribute_int64_array_data,
-    set_attribute_int64_data
+    set_attribute_int64_data,
+    StorageType::Int64
 );
 
 impl<'a> AttribDataType for &'a str {
@@ -171,6 +179,22 @@ impl<'a> AttribDataType for &'a str {
         info: &AttributeInfo,
     ) -> Result<Self::Return> {
         crate::ffi::get_attribute_string_buffer(node, part_id, name, &info.inner, 0, info.count())
+    }
+
+    fn read_array(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo,
+    ) -> Result<DataArray<Self::Type>> {
+        todo!()
+        // let (data, sizes) = crate::ffi::get_attribute_string_array_data(
+        //     &node.session,
+        //     node.handle,
+        //     name,
+        //     &info.inner,
+        // )?;
+        // Ok(DataArray { data, sizes })
     }
 
     fn set(
@@ -195,19 +219,7 @@ impl<'a> AttribDataType for &'a str {
         )
     }
 
-    fn read_array(
-        name: &CStr,
-        node: &'_ HoudiniNode,
-        part_id: i32,
-        info: &AttributeInfo,
-    ) -> Result<DataArray<Self::Type>> {
-        todo!()
-        // let (data, sizes) = crate::ffi::get_attribute_string_array_data(
-        //     &node.session,
-        //     node.handle,
-        //     name,
-        //     &info.inner,
-        // )?;
-        // Ok(DataArray { data, sizes })
+    fn storage() -> StorageType {
+        StorageType::String
     }
 }
