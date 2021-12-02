@@ -6,7 +6,7 @@ use crate::session::Session;
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
 
 #[derive(Debug)]
-pub struct StringsArray {
+pub struct StringArray {
     bytes: Vec<u8>,
 }
 
@@ -44,7 +44,7 @@ pub struct CStringIter<'a> {
     inner: &'a [u8],
 }
 
-impl<'a> StringsArray {
+impl<'a> StringArray {
     pub fn iter_str(&'a self) -> StringIter<'a> {
         StringIter { inner: &self.bytes }
     }
@@ -89,7 +89,7 @@ impl<'a> std::iter::Iterator for CStringIter<'a> {
     }
 }
 
-impl std::iter::IntoIterator for StringsArray {
+impl std::iter::IntoIterator for StringArray {
     type Item = String;
     type IntoIter = OwnedStringIter;
 
@@ -120,14 +120,14 @@ pub fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>> {
     Ok(buffer)
 }
 
-pub fn get_strings_array(handles: &[i32], session: &Session) -> Result<StringsArray> {
+pub fn get_string_array(handles: &[i32], session: &Session) -> Result<StringArray> {
     let length = crate::ffi::get_string_batch_size(handles, session)?;
     let bytes = if length > 0 {
         crate::ffi::get_string_batch(length, session)?
     } else {
         vec![]
     };
-    Ok(StringsArray { bytes })
+    Ok(StringArray { bytes })
 }
 
 #[cfg(test)]
@@ -154,7 +154,7 @@ mod tests {
             .expect("could not set var");
         let var_count = ffi::get_server_env_var_count(&session).unwrap();
         let handles = ffi::get_server_env_var_list(&session, var_count).unwrap();
-        let array = super::get_strings_array(&handles, &session).unwrap();
+        let array = super::get_string_array(&handles, &session).unwrap();
         assert_eq!(array.iter_str().count(), var_count as usize);
         assert_eq!(array.iter_cstr().count(), var_count as usize);
         assert!(array.iter_str().any(|s| s == "TEST=177"));

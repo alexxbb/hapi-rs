@@ -12,7 +12,7 @@ use crate::{
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
     session::{CookOptions, Session, SessionOptions},
-    stringhandle::StringsArray,
+    stringhandle::StringArray,
 };
 
 use super::raw;
@@ -56,7 +56,7 @@ pub fn get_parm_string_values(
     session: &Session,
     start: i32,
     length: i32,
-) -> Result<StringsArray> {
+) -> Result<StringArray> {
     let mut handles = vec![0; length as usize];
     unsafe {
         raw::HAPI_GetParmStringValues(
@@ -69,7 +69,7 @@ pub fn get_parm_string_values(
         )
             .check_err(Some(&session))?
     }
-    crate::stringhandle::get_strings_array(&handles, session)
+    crate::stringhandle::get_string_array(&handles, session)
 }
 
 pub fn get_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result<f32> {
@@ -428,14 +428,14 @@ pub fn get_asset_names(
     library_id: i32,
     num_assets: i32,
     session: &Session,
-) -> Result<StringsArray> {
+) -> Result<StringArray> {
     let handles = unsafe {
         let mut names = vec![0; num_assets as usize];
         raw::HAPI_GetAvailableAssets(session.ptr(), library_id, names.as_mut_ptr(), num_assets)
             .check_err(Some(&session))?;
         names
     };
-    crate::stringhandle::get_strings_array(&handles, session)
+    crate::stringhandle::get_string_array(&handles, session)
 }
 
 #[derive(Default, Debug)]
@@ -528,7 +528,7 @@ pub fn get_asset_def_parm_values(
             .check_err(Some(&session))?;
     }
 
-    let string_array = crate::stringhandle::get_strings_array(&string_handles, session)?;
+    let string_array = crate::stringhandle::get_string_array(&string_handles, session)?;
     let string_values = string_array.into_iter().collect();
     Ok((int_values, float_values, string_values, choice_values))
 }
@@ -1233,7 +1233,7 @@ pub fn get_attribute_names(
     part_id: i32,
     count: i32,
     owner: raw::AttributeOwner,
-) -> Result<StringsArray> {
+) -> Result<StringArray> {
     let mut handles = vec![0; count as usize];
     unsafe {
         raw::HAPI_GetAttributeNames(
@@ -1246,7 +1246,7 @@ pub fn get_attribute_names(
         )
             .check_err(Some(&node.session))?;
     }
-    crate::stringhandle::get_strings_array(&handles, &node.session)
+    crate::stringhandle::get_string_array(&handles, &node.session)
 }
 
 pub fn get_attribute_info(
@@ -1426,7 +1426,7 @@ pub fn get_attribute_string_buffer(
     attr_info: &raw::HAPI_AttributeInfo,
     start: i32,
     length: i32,
-) -> Result<StringsArray> {
+) -> Result<StringArray> {
     unsafe {
         let mut handles = Vec::new();
         handles.resize((length * attr_info.tupleSize) as usize, 0);
@@ -1444,7 +1444,7 @@ pub fn get_attribute_string_buffer(
             length,
         )
             .check_err(Some(&node.session))?;
-        crate::stringhandle::get_strings_array(&handles, &node.session)
+        crate::stringhandle::get_string_array(&handles, &node.session)
     }
 }
 
@@ -1578,7 +1578,7 @@ pub fn get_group_names(
     node: &HoudiniNode,
     group_type: raw::GroupType,
     count: i32,
-) -> Result<StringsArray> {
+) -> Result<StringArray> {
     let mut handles = vec![0; count as usize];
     unsafe {
         raw::HAPI_GetGroupNames(
@@ -1590,7 +1590,7 @@ pub fn get_group_names(
         )
             .check_err(Some(&node.session))?;
     }
-    crate::stringhandle::get_strings_array(&handles, &node.session)
+    crate::stringhandle::get_string_array(&handles, &node.session)
 }
 
 pub fn commit_geo(node: &HoudiniNode) -> Result<()> {

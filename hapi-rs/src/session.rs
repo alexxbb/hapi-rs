@@ -12,7 +12,7 @@ pub use crate::{
     ffi::raw::{HapiResult, State, StatusType, StatusVerbosity},
     ffi::{CookOptions, SessionSyncInfo, TimelineOptions, Viewport},
     node::{HoudiniNode, NodeHandle},
-    stringhandle::StringsArray,
+    stringhandle::StringArray,
 };
 
 pub trait EnvVariable {
@@ -90,10 +90,10 @@ impl Session {
         T::get_value(self, key)
     }
 
-    pub fn get_server_variables(&self) -> Result<StringsArray> {
+    pub fn get_server_variables(&self) -> Result<StringArray> {
         let count = crate::ffi::get_server_env_var_count(self)?;
         let handles = crate::ffi::get_server_env_var_list(self, count)?;
-        crate::stringhandle::get_strings_array(&handles, self)
+        crate::stringhandle::get_string_array(&handles, self)
     }
 
     pub fn initialize(&mut self, opts: &SessionOptions) -> Result<()> {

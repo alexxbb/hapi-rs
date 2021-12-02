@@ -2,7 +2,7 @@ use crate::errors::Result;
 pub use crate::ffi::raw::{AttributeOwner, StorageType};
 pub use crate::ffi::AttributeInfo;
 use crate::node::HoudiniNode;
-use crate::stringhandle::StringsArray;
+use crate::stringhandle::StringArray;
 use std::ffi::{CStr, CString};
 
 pub struct DataArray<T> {
@@ -170,7 +170,7 @@ impl_attrib_type!(
 
 impl<'a> AttribDataType for &'a str {
     type Type = &'a str;
-    type Return = StringsArray;
+    type Return = StringArray;
 
     fn read(
         name: &CStr,

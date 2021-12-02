@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use fltk::{
     app::{App, Scheme},
     button, dialog, enums, frame, group, input,

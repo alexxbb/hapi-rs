@@ -7,7 +7,7 @@ pub use crate::ffi::{
     AttributeInfo, CurveInfo, GeoInfo, PartInfo,
 };
 use crate::node::HoudiniNode;
-use crate::stringhandle::StringsArray;
+use crate::stringhandle::StringArray;
 use std::ffi::CString;
 
 #[derive(Debug)]
@@ -106,7 +106,7 @@ impl<'node> Geometry<'node> {
         )
     }
 
-    pub fn get_group_names(&self, group_type: GroupType) -> Result<StringsArray> {
+    pub fn get_group_names(&self, group_type: GroupType) -> Result<StringArray> {
         let count = match group_type {
             GroupType::Point => self.info.point_group_count(),
             GroupType::Prim => self.info.primitive_group_count(),
@@ -119,7 +119,7 @@ impl<'node> Geometry<'node> {
         &self,
         owner: AttributeOwner,
         part: &PartInfo,
-    ) -> Result<StringsArray> {
+    ) -> Result<StringArray> {
         let counts = part.attribute_counts();
         let count = match owner {
             AttributeOwner::Invalid => panic!("Invalid AttributeOwner"),
