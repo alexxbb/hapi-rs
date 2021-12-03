@@ -10,18 +10,33 @@ pub struct DataArray<T> {
     pub sizes: Vec<i32>,
 }
 
+pub struct StringMultiArray {
+    pub handles: Vec<i32>,
+    pub sizes: Vec<i32>,
+    session: crate::session::Session,
+}
+
 impl<T> DataArray<T> {
     pub fn iter(&self) -> ArrayIter<'_, T> {
         ArrayIter {
             data: self.data.iter(),
-            sizes: self.sizes.iter().enumerate(),
+            sizes: self.sizes.iter(),
+            cursor: 0,
         }
     }
 }
 
 pub struct ArrayIter<'a, T> {
     data: std::slice::Iter<'a, T>,
-    sizes: std::iter::Enumerate<std::slice::Iter<'a, i32>>,
+    sizes: std::slice::Iter<'a, i32>,
+    cursor: usize,
+}
+
+pub struct MultiArrayIter<'a> {
+    handles: std::slice::Iter<'a, i32>,
+    sizes: std::slice::Iter<'a, i32>,
+    session: &'a crate::session::Session,
+    cursor: usize,
 }
 
 impl<'a, T> Iterator for ArrayIter<'a, T> {
@@ -30,11 +45,40 @@ impl<'a, T> Iterator for ArrayIter<'a, T> {
     fn next(&mut self) -> Option<Self::Item> {
         match self.sizes.next() {
             None => None,
-            Some((pt, size)) => {
-                let start = pt * (*size as usize);
-                let end = start + (*size as usize);
+            Some(size) => {
+                let start = self.cursor;
+                let end = self.cursor + (*size as usize);
+                self.cursor = end;
                 /// TODO: We know the data size, it can be rewritten to use unsafe unchecked
                 Some(&self.data.as_slice()[start..end])
+            }
+        }
+    }
+}
+
+impl StringMultiArray {
+    pub fn iter(&self) -> MultiArrayIter<'_> {
+        MultiArrayIter {
+            handles: self.handles.iter(),
+            sizes: self.sizes.iter(),
+            session: &self.session,
+            cursor: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for MultiArrayIter<'a> {
+    type Item = Result<StringArray>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.sizes.next() {
+            None => None,
+            Some(size) => {
+                let start = self.cursor;
+                let end = self.cursor + (*size as usize);
+                self.cursor = end;
+                let handles = &self.handles.as_slice()[start..end];
+                Some(crate::stringhandle::get_string_array(handles, self.session))
             }
         }
     }
@@ -43,6 +87,7 @@ impl<'a, T> Iterator for ArrayIter<'a, T> {
 pub trait AttribDataType: Sized {
     type Type;
     type Return;
+    type ArrayType;
     fn read(
         name: &CStr,
         node: &'_ HoudiniNode,
@@ -54,7 +99,7 @@ pub trait AttribDataType: Sized {
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-    ) -> Result<DataArray<Self::Type>>;
+    ) -> Result<Self::ArrayType>;
     fn set(
         name: &CStr,
         node: &'_ HoudiniNode,
@@ -90,7 +135,7 @@ where
         T::read(&self.name, self.node, part_id, &self.info)
     }
 
-    pub fn read_array(&self, part_id: i32) -> Result<DataArray<T::Type>> {
+    pub fn read_array(&self, part_id: i32) -> Result<T::ArrayType> {
         T::read_array(&self.name, self.node, part_id, &self.info)
     }
 
@@ -104,6 +149,7 @@ macro_rules! impl_attrib_type {
         impl AttribDataType for $ty {
             type Type = $ty;
             type Return = Vec<Self::Type>;
+            type ArrayType = DataArray<$ty>;
 
             fn storage() -> StorageType {
                 $storage
@@ -122,7 +168,7 @@ macro_rules! impl_attrib_type {
                 node: &HoudiniNode,
                 part_id: i32,
                 info: &AttributeInfo,
-            ) -> Result<DataArray<Self::Type>> {
+            ) -> Result<Self::ArrayType> {
                 crate::ffi::$get_array_func(node, part_id, name, &info.inner)
             }
 
@@ -171,6 +217,7 @@ impl_attrib_type!(
 impl<'a> AttribDataType for &'a str {
     type Type = &'a str;
     type Return = StringArray;
+    type ArrayType = StringMultiArray;
 
     fn read(
         name: &CStr,
@@ -186,15 +233,14 @@ impl<'a> AttribDataType for &'a str {
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-    ) -> Result<DataArray<Self::Type>> {
-        todo!()
-        // let (data, sizes) = crate::ffi::get_attribute_string_array_data(
-        //     &node.session,
-        //     node.handle,
-        //     name,
-        //     &info.inner,
-        // )?;
-        // Ok(DataArray { data, sizes })
+    ) -> Result<Self::ArrayType> {
+        let (handles, sizes) = crate::ffi::get_attribute_string_array_data(
+            &node.session,
+            node.handle,
+            name,
+            &info.inner,
+        )?;
+        Ok(StringMultiArray { handles, sizes, session: node.session.clone() })
     }
 
     fn set(
