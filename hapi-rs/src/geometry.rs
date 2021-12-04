@@ -244,9 +244,10 @@ impl PartInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::session::Session;
     use crate::session::tests::with_session;
 
-    fn triangle(node: &HoudiniNode) -> Geometry {
+    fn _triangle(node: &HoudiniNode) -> Geometry {
         let geo = node.geometry().expect("geometry").unwrap();
 
         let part = PartInfo::default()
@@ -276,11 +277,21 @@ mod tests {
         geo
     }
 
+    fn _load_test_otl(session: &Session) -> HoudiniNode {
+        use crate::session::tests::OTLS;
+        let lib = session
+            .load_asset_file(OTLS.get("geometry").unwrap())
+            .expect("Could not load otl");
+        let node = lib.try_create_first().unwrap();
+        node.cook(None).unwrap();
+        node
+    }
+
     #[test]
     fn geometry_attributes() {
         with_session(|session| {
             let input = session.create_input_node("test").unwrap();
-            let geo = triangle(&input);
+            let geo = _triangle(&input);
             let attr_p = geo
                 .get_attribute::<f32>(0, AttributeOwner::Point, "P")
                 .unwrap()
@@ -339,7 +350,14 @@ mod tests {
             assert_eq!(i_array.iter().count(), attr.info.count() as usize);
             assert_eq!(i_array.iter().nth(0).unwrap(), &[0.0, 0.0, 0.0]);
             assert_eq!(i_array.iter().last().unwrap(), &[7.0, 14.0, 21.0]);
+        });
+    }
 
+    #[test]
+    fn string_array_attribute() {
+        with_session(|session| {
+            let node = _load_test_otl(session);
+            let geo = node.geometry().unwrap().unwrap();
             let attr = geo
                 .get_attribute::<&str>(0, AttributeOwner::Point, "my_str_array")
                 .expect("attribute")

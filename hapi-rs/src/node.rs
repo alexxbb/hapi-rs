@@ -1,4 +1,5 @@
 use std::{ffi::CString, fmt::Formatter};
+use std::sync::Arc;
 
 use log::{debug, warn};
 
@@ -63,7 +64,7 @@ impl NodeHandle {
 pub struct HoudiniNode {
     pub handle: NodeHandle,
     pub session: Session,
-    pub info: NodeInfo, // TODO: Arc Maybe?
+    pub info: Arc<NodeInfo>,
 }
 
 impl std::fmt::Debug for HoudiniNode {
@@ -93,10 +94,11 @@ impl<'session> HoudiniNode {
         handle: NodeHandle,
         info: Option<NodeInfo>,
     ) -> Result<Self> {
-        let info = match info {
-            None => NodeInfo::new(&session, handle)?,
-            Some(i) => i,
-        };
+        let info = Arc::new(
+            match info {
+                None => NodeInfo::new(&session, handle)?,
+                Some(i) => i,
+            });
         Ok(HoudiniNode {
             handle,
             session,
