@@ -533,7 +533,8 @@ pub(crate) mod tests {
             let opt2 = session.get_timeline_options().expect("timeline_options");
             assert!(opt.end_time().eq(&opt2.end_time()));
             session.set_time(4.12).expect("set_time");
-            assert!(session.get_time().expect("get_time").eq(&4.12));
+            session.cook().unwrap();
+            assert_eq!(session.get_time().expect("get_time"), 4.12);
         });
     }
 

@@ -34,7 +34,7 @@ fn main() -> Result<()> {
             println!(
                 "Part count for geo {}: {}",
                 geo.node.handle.0,
-                geo.info.part_count()
+                geo.geo_info()?.part_count()
             );
             for part in geo.partitions()? {
                 println!(

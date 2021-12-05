@@ -34,7 +34,7 @@ fn print_curve_info(geo: &Geometry, obj: &ObjectInfo, part: &PartInfo) -> Result
     println!(
         "Object Node: {}, Geometry: {}, Part ID: {}",
         obj.node_id().0,
-        geo.info.node_id().0,
+        geo.geo_info()?.node_id().0,
         part_id
     );
 

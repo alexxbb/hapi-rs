@@ -358,16 +358,14 @@ impl<'s> ObjectInfo<'s> {
     }
 }
 
-// TODO: consider owned session once again
 #[derive(Debug)]
-pub struct GeoInfo<'session> {
+pub struct GeoInfo {
     pub(crate) inner: HAPI_GeoInfo,
-    pub session: &'session Session,
 }
 
-impl<'s> GeoInfo<'s> {
+impl<'s> GeoInfo {
     get!(geo_type->type_->GeoType);
-    get!(name->nameSH->Result<String>);
+    get!(with_session name->nameSH->Result<String>);
     get!(node_id->nodeId->[handle: NodeHandle]);
     get!(is_editable->isEditable->bool);
     get!(is_templated->isTemplated->bool);
@@ -381,10 +379,9 @@ impl<'s> GeoInfo<'s> {
     pub fn from_node(node: &'s HoudiniNode) -> Result<Self> {
         GeoInfo::from_handle(node.handle, &node.session)
     }
-    pub fn from_handle(handle: NodeHandle, session: &'s Session) -> Result<GeoInfo<'s>> {
+    pub fn from_handle(handle: NodeHandle, session: &'s Session) -> Result<GeoInfo> {
         crate::ffi::get_geo_info(session, handle).map(|inner| GeoInfo {
             inner,
-            session: &session,
         })
     }
 }

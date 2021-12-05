@@ -210,6 +210,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn get_asset_names() {
         with_session(|session| {
             let lib = _load_asset("parameters", session);

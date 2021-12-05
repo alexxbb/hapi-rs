@@ -11,18 +11,13 @@ use crate::stringhandle::StringArray;
 use std::ffi::CString;
 
 #[derive(Debug)]
-/* My reasoning for borrowed struct vs owned node && session
- * Relatively expensive cloning of HoudiniNode?
- * Geometry is tightly coupled with HoudiniNode, lifetime sorta gives us such coupling
-*/
-pub struct Geometry<'node> {
-    pub node: Cow<'node, HoudiniNode>,
-    // TODO: Maybe revisit. GeoInfo may change and should be a get method
-    pub info: GeoInfo<'node>,
+pub struct Geometry {
+    pub node: HoudiniNode,
+    pub(crate) info: GeoInfo,
 }
 
-impl<'node> Geometry<'node> {
-    pub fn part_info(&'node self, id: i32) -> Result<PartInfo> {
+impl Geometry {
+    pub fn part_info(&self, id: i32) -> Result<PartInfo> {
         crate::ffi::get_part_info(&self.node, id).map(|inner| PartInfo { inner })
     }
 
@@ -51,9 +46,15 @@ impl<'node> Geometry<'node> {
         crate::ffi::set_geo_face_counts(&self.node, part_id, list.as_ref())
     }
 
-    pub fn geo_info(&'node self) -> Result<GeoInfo<'node>> {
+    pub fn geo_info(&self) -> Result<GeoInfo> {
         GeoInfo::from_node(&self.node)
     }
+
+    pub fn update(&mut self) -> Result<()> {
+        self.info = self.geo_info()?;
+        Ok(())
+    }
+
     pub fn curve_info(&self, part_id: i32) -> Result<CurveInfo> {
         crate::ffi::get_curve_info(&self.node, part_id).map(|inner| CurveInfo { inner })
     }
@@ -247,7 +248,7 @@ mod tests {
     use crate::session::Session;
     use crate::session::tests::with_session;
 
-    fn _triangle(node: &HoudiniNode) -> Geometry {
+    fn _create_triangle(node: &HoudiniNode) -> Geometry {
         let geo = node.geometry().expect("geometry").unwrap();
 
         let part = PartInfo::default()
@@ -277,21 +278,21 @@ mod tests {
         geo
     }
 
-    fn _load_test_otl(session: &Session) -> HoudiniNode {
+    fn _load_test_otl(session: &Session) -> super::Result<Geometry> {
         use crate::session::tests::OTLS;
         let lib = session
             .load_asset_file(OTLS.get("geometry").unwrap())
             .expect("Could not load otl");
-        let node = lib.try_create_first().unwrap();
+        let node = lib.try_create_first()?;
         node.cook(None).unwrap();
-        node
+        node.geometry().map(|some| some.expect("must have geometry"))
     }
 
     #[test]
-    fn geometry_attributes() {
+    fn numeric_attributes() {
         with_session(|session| {
             let input = session.create_input_node("test").unwrap();
-            let geo = _triangle(&input);
+            let geo = _create_triangle(&input);
             let attr_p = geo
                 .get_attribute::<f32>(0, AttributeOwner::Point, "P")
                 .unwrap()
@@ -311,7 +312,6 @@ mod tests {
             attr_name.set(0, ["pt0", "pt1", "pt2"]).unwrap();
             geo.commit().unwrap();
             geo.save_to_file("c:/Temp/test.geo").unwrap();
-            input.delete().unwrap();
         });
     }
 
@@ -319,13 +319,7 @@ mod tests {
     fn array_attributes() {
         use crate::session::tests::OTLS;
         with_session(|session| {
-            let lib = session
-                .load_asset_file(OTLS.get("geometry").unwrap())
-                .expect("Could not load otl");
-            let node = lib.try_create_first().unwrap();
-            node.cook_blocking(None).unwrap();
-            let geo = node.geometry().unwrap().unwrap();
-
+            let geo = _load_test_otl(session).expect("geometry");
             let not_exists = geo
                 .get_attribute::<i64>(0, AttributeOwner::Prim, "foo_bar")
                 .expect("attribute");
@@ -356,8 +350,7 @@ mod tests {
     #[test]
     fn string_array_attribute() {
         with_session(|session| {
-            let node = _load_test_otl(session);
-            let geo = node.geometry().unwrap().unwrap();
+            let geo = _load_test_otl(session).expect("geometry");
             let attr = geo
                 .get_attribute::<&str>(0, AttributeOwner::Point, "my_str_array")
                 .expect("attribute")

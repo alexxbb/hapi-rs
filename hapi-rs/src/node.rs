@@ -1,5 +1,5 @@
-use std::{ffi::CString, fmt::Formatter};
 use std::sync::Arc;
+use std::{ffi::CString, fmt::Formatter};
 
 use log::{debug, warn};
 
@@ -94,11 +94,10 @@ impl<'session> HoudiniNode {
         handle: NodeHandle,
         info: Option<NodeInfo>,
     ) -> Result<Self> {
-        let info = Arc::new(
-            match info {
-                None => NodeInfo::new(&session, handle)?,
-                Some(i) => i,
-            });
+        let info = Arc::new(match info {
+            None => NodeInfo::new(&session, handle)?,
+            Some(i) => i,
+        });
         Ok(HoudiniNode {
             handle,
             session,
@@ -294,24 +293,21 @@ impl<'session> HoudiniNode {
             }
         })
     }
-    pub fn geometry(&'session self) -> Result<Option<Geometry<'session>>> {
+    pub fn geometry(&self) -> Result<Option<Geometry>> {
         use std::borrow::Cow;
         match self.info.node_type() {
-            NodeType::Sop => {
-                let info = GeoInfo::from_node(self)?;
-                Ok(Some(Geometry {
-                    node: Cow::Borrowed(self),
-                    info,
-                }))
-            }
-            NodeType::Obj => {
-                let info = crate::ffi::get_geo_display_info(self).map(|inner| GeoInfo {
-                    inner,
-                    session: &self.session,
-                })?;
-                let node = Cow::Owned(info.node_id().to_node(&self.session)?);
-                Ok(Some(Geometry { node, info }))
-            }
+            NodeType::Sop => Ok(Some(Geometry {
+                node: self.clone(),
+                info: GeoInfo::from_node(self)?,
+            })),
+            NodeType::Obj =>
+                {
+                    let info = crate::ffi::get_geo_display_info(self).map(|inner| GeoInfo { inner })?;
+                    Ok(Some(Geometry {
+                        node: info.node_id().to_node(&self.session)?,
+                        info,
+                    }))
+                },
             NodeType(_) => Ok(None),
         }
     }
@@ -356,8 +352,9 @@ impl<'session> HoudiniNode {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::session::tests::with_session;
+
+    use super::*;
 
     #[test]
     fn node_flags() {
@@ -389,7 +386,7 @@ mod tests {
                     .with_position([0.0, 1.0, 0.0])
                     .with_rotation([45.0, 0.0, 0.0]),
             )
-                .unwrap();
+               .unwrap();
             obj.cook(None).unwrap();
             assert!(obj.get_object_info().unwrap().has_transform_changed());
             let t = obj.get_transform(None, None).unwrap();
