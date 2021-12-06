@@ -55,17 +55,11 @@ fn create_cube(session: &Session) -> Result<HoudiniNode> {
     geometry.set_vertex_list(0, &vertices)?;
     geometry.set_face_counts(0, &[4, 4, 4, 4, 4, 4])?;
 
-    geometry.add_group(0, "pointGroup", GroupType::Point)?;
     let num_elem = part_info.element_count_by_group(GroupType::Point);
     let membership: Vec<_> = (0..num_elem)
         .map(|v| if (v % 2) > 0 { 1 } else { 0 })
         .collect();
-    geometry.set_group_membership(
-        part_info.part_id(),
-        GroupType::Point,
-        "pointGroup",
-        &membership,
-    )?;
+    geometry.add_group(0, GroupType::Point, "pointGroup", Some(&membership))?;
     geometry.commit()?;
     Ok(cube_node)
 }

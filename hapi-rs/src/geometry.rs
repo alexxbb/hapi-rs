@@ -168,7 +168,13 @@ impl Geometry {
         ))
     }
 
-    pub fn add_group(&self, part_id: i32, group_name: &str, group_type: GroupType) -> Result<()> {
+    pub fn add_group(
+        &self,
+        part_id: i32,
+        group_type: GroupType,
+        group_name: &str,
+        membership: Option<&[i32]>,
+    ) -> Result<()> {
         let group_name = CString::new(group_name)?;
         crate::ffi::add_group(
             &self.node.session,
@@ -176,7 +182,18 @@ impl Geometry {
             part_id,
             group_type,
             &group_name,
-        )
+        )?;
+        match membership {
+            None => Ok(()),
+            Some(array) => crate::ffi::set_group_membership(
+                &self.node.session,
+                self.node.handle,
+                part_id,
+                group_type,
+                &group_name,
+                array,
+            ),
+        }
     }
 
     pub fn set_group_membership(
@@ -245,8 +262,8 @@ impl PartInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::Session;
     use crate::session::tests::with_session;
+    use crate::session::Session;
 
     fn _create_triangle(node: &HoudiniNode) -> Geometry {
         let geo = node.geometry().expect("geometry").unwrap();
@@ -278,14 +295,30 @@ mod tests {
         geo
     }
 
-    fn _load_test_otl(session: &Session) -> super::Result<Geometry> {
+    fn _load_test_geometry(session: &Session) -> super::Result<Geometry> {
         use crate::session::tests::OTLS;
         let lib = session
             .load_asset_file(OTLS.get("geometry").unwrap())
             .expect("Could not load otl");
         let node = lib.try_create_first()?;
         node.cook(None).unwrap();
-        node.geometry().map(|some| some.expect("must have geometry"))
+        node.geometry()
+            .map(|some| some.expect("must have geometry"))
+    }
+
+    #[test]
+    fn incorrect_attributes() {
+        with_session(|session| {
+            let geo = _load_test_geometry(session).unwrap();
+            let foo_bar = geo
+                .get_attribute::<i64>(0, AttributeOwner::Prim, "foo_bar")
+                .expect("attribute");
+            assert!(foo_bar.is_none());
+            let pscale = geo
+                .get_attribute::<i64>(0, AttributeOwner::Point, "pscale")
+                .expect("attribute");
+            assert!(pscale.is_none(), "pscale type is f32");
+        });
     }
 
     #[test]
@@ -299,8 +332,14 @@ mod tests {
                 .unwrap();
             let val: Vec<_> = attr_p.read(0).expect("read_attribute");
             assert_eq!(val.len(), 9);
+        });
+    }
 
-            // String
+    #[test]
+    fn create_string_attrib() {
+        with_session(|session| {
+            let input = session.create_input_node("test").unwrap();
+            let geo = _create_triangle(&input);
             let part = geo.part_info(0).unwrap();
             let info = AttributeInfo::default()
                 .with_owner(AttributeOwner::Point)
@@ -311,7 +350,6 @@ mod tests {
             let attr_name = geo.add_attribute::<&str>("name", 0, &info).unwrap();
             attr_name.set(0, ["pt0", "pt1", "pt2"]).unwrap();
             geo.commit().unwrap();
-            geo.save_to_file("c:/Temp/test.geo").unwrap();
         });
     }
 
@@ -319,11 +357,7 @@ mod tests {
     fn array_attributes() {
         use crate::session::tests::OTLS;
         with_session(|session| {
-            let geo = _load_test_otl(session).expect("geometry");
-            let not_exists = geo
-                .get_attribute::<i64>(0, AttributeOwner::Prim, "foo_bar")
-                .expect("attribute");
-            assert!(not_exists.is_none());
+            let geo = _load_test_geometry(session).expect("geometry");
 
             let attr = geo
                 .get_attribute::<i32>(0, AttributeOwner::Point, "my_int_array")
@@ -350,7 +384,7 @@ mod tests {
     #[test]
     fn string_array_attribute() {
         with_session(|session| {
-            let geo = _load_test_otl(session).expect("geometry");
+            let geo = _load_test_geometry(session).expect("geometry");
             let attr = geo
                 .get_attribute::<&str>(0, AttributeOwner::Point, "my_str_array")
                 .expect("attribute")
