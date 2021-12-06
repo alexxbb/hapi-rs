@@ -121,6 +121,7 @@ pub fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>> {
 }
 
 pub fn get_string_array(handles: &[i32], session: &Session) -> Result<StringArray> {
+    let _lock = session.handle.1.lock();
     let length = crate::ffi::get_string_batch_size(handles, session)?;
     let bytes = if length > 0 {
         crate::ffi::get_string_batch(length, session)?

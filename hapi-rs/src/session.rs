@@ -9,16 +9,18 @@ pub use crate::ffi::PartInfo;
 pub use crate::{
     asset::AssetLibrary,
     errors::*,
-    ffi::raw::{HapiResult, State, StatusType, StatusVerbosity},
+    ffi::raw::{HapiResult, State, StatusType, StatusVerbosity, HAPI_Session},
     ffi::{CookOptions, SessionSyncInfo, TimelineOptions, Viewport},
     node::{HoudiniNode, NodeHandle},
     stringhandle::StringArray,
 };
 
+use std::sync::Mutex;
+
 pub trait EnvVariable {
     type Type: ?Sized + ToOwned;
     fn get_value(session: &Session, key: impl AsRef<str>)
-        -> Result<<Self::Type as ToOwned>::Owned>;
+                 -> Result<<Self::Type as ToOwned>::Owned>;
     fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()>;
 }
 
@@ -58,21 +60,21 @@ pub enum CookResult {
     Errored(String),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Session {
-    handle: Arc<crate::ffi::raw::HAPI_Session>,
+    pub(crate) handle: Arc<(HAPI_Session, Mutex<()>)>,
     cleanup: bool,
     pub threaded: bool,
 }
 
 impl Session {
     #[inline]
-    pub(crate) fn ptr(&self) -> *const crate::ffi::raw::HAPI_Session {
-        self.handle.as_ref() as *const _
+    pub(crate) fn ptr(&self) -> *const HAPI_Session {
+        &(self.handle.0) as *const _
     }
     #[inline]
     pub fn uid(&self) -> i64 {
-        self.handle.id
+        self.handle.0.id
     }
 
     pub fn set_server_var<T: EnvVariable + ?Sized>(
@@ -307,7 +309,7 @@ pub fn connect_to_pipe(pipe: &str) -> Result<Session> {
     let path = CString::new(pipe)?;
     let session = crate::ffi::new_thrift_piped_session(&path)?;
     Ok(Session {
-        handle: Arc::new(session),
+        handle: Arc::new((session, Mutex::new(()))),
         threaded: false,
         cleanup: false,
     })
@@ -318,17 +320,18 @@ pub fn connect_to_socket(addr: std::net::SocketAddrV4) -> Result<Session> {
     let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
     let session = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
     Ok(Session {
-        handle: Arc::new(session),
+        handle: Arc::new((session, Mutex::new(()))),
         threaded: false,
+        // lock: Arc::new(std::sync::Mutex::new(())),
         cleanup: false,
     })
 }
 
 pub fn new_in_process() -> Result<Session> {
     debug!("Creating new in-process session");
-    let ses = crate::ffi::create_inprocess_session()?;
+    let session = crate::ffi::create_inprocess_session()?;
     Ok(Session {
-        handle: Arc::new(ses),
+        handle: Arc::new((session, Mutex::new(()))),
         threaded: false,
         cleanup: false,
     })

@@ -6,11 +6,16 @@ use std::fmt::Formatter;
 
 pub type Result<T> = std::result::Result<T, HapiError>;
 
-#[derive(PartialEq)]
 pub struct HapiError {
     pub kind: Kind,
     pub message: Option<Cow<'static, str>>,
     pub(crate) session: Option<Session>,
+}
+
+impl PartialEq for HapiError {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind.eq(&other.kind)
+    }
 }
 
 #[derive(Debug, PartialEq)]
