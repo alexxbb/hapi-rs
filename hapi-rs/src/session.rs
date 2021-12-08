@@ -491,7 +491,7 @@ pub(crate) mod tests {
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         env_logger::init();
-        let mut ses = connect_to_pipe("/tmp/hapi.pipe").expect("Could not connect");
+        let mut ses = connect_to_pipe("c:/Temp/hapi.pipe").expect("Could not connect");
         ses.initialize(&SessionOptions::default()).unwrap();
         ses
         // simple_session(None).expect("Could not create test session")

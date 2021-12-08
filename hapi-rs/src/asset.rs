@@ -36,6 +36,17 @@ impl<'a> IntoIterator for &'a AssetParameters {
     }
 }
 
+impl AssetParameters {
+    pub fn find_parameter(&self, name: &str) -> Option<AssetParm<'_>> {
+        match self.infos.iter().find(|p| p.name().unwrap() == name) {
+            None => None,
+            Some(info) => Some(
+                AssetParm { info, values: &self.values }
+            )
+        }
+    }
+}
+
 pub struct AssetParmIter<'a> {
     iter: std::slice::Iter<'a, ParmInfo>,
     values: &'a AssetParmValues,
@@ -197,6 +208,7 @@ impl<'node> AssetInfo<'node> {
 
 #[cfg(test)]
 mod tests {
+    use crate::asset::AssetParmIter;
     use crate::session::tests::{with_session, OTLS};
 
     fn _load_asset(name: &str, ses: &super::Session) -> super::AssetLibrary {
@@ -235,15 +247,39 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
     fn asset_parameters() {
+        use super::{AssetParm, ParmValue, AssetParmIter};
         with_session(|session| {
-            let otl = OTLS.get("parameters").unwrap();
-            let lib = session
-                .load_asset_file(otl)
-                .expect(&format!("Could not load {}", otl));
-            let parms = lib.get_asset_parms("Object/hapi_parms");
-            assert!(parms.is_ok());
+            let lib = _load_asset("parameters", session);
+            let parms = lib.get_asset_parms("Object/hapi_parms").unwrap();
+
+            let parm = parms.find_parameter("single_string").expect("parm");
+            if let ParmValue::String([val]) = parm.default_value() {
+                assert_eq!(val, "hello");
+            } else {
+                panic!("parm is not a string");
+            }
+            let parm = parms.find_parameter("float3").expect("parm");
+            if let ParmValue::Float(val) = parm.default_value() {
+                assert_eq!(val, &[0.1, 0.2, 0.3]);
+            } else {
+                panic!("parm is not a float3");
+            }
+        });
+    }
+
+    #[test]
+    fn asset_menu_parameters() {
+        use super::{AssetParm, ParmValue, AssetParmIter};
+        with_session(|session| {
+            let lib = _load_asset("parameters", session);
+            let parms = lib.get_asset_parms("Object/hapi_parms").unwrap();
+
+            let parm = parms.find_parameter("string_menu").expect("parm");
+            let menu_values: Vec<_> = parm.menu_items().expect("Menu items")
+                .iter()
+                .map(|p| p.value().unwrap()).collect();
+            assert_eq!(menu_values, &["item_1", "item_2", "item_3"]);
         });
     }
 }
