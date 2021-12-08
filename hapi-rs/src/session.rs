@@ -15,7 +15,8 @@ pub use crate::{
     stringhandle::StringArray,
 };
 
-use std::sync::Mutex;
+use parking_lot::ReentrantMutex;
+
 
 pub trait EnvVariable {
     type Type: ?Sized + ToOwned;
@@ -62,7 +63,7 @@ pub enum CookResult {
 
 #[derive(Debug, Clone)]
 pub struct Session {
-    pub(crate) handle: Arc<(HAPI_Session, Mutex<()>)>,
+    pub(crate) handle: Arc<(HAPI_Session, ReentrantMutex<()>)>,
     cleanup: bool,
     pub threaded: bool,
 }
@@ -309,7 +310,7 @@ pub fn connect_to_pipe(pipe: &str) -> Result<Session> {
     let path = CString::new(pipe)?;
     let session = crate::ffi::new_thrift_piped_session(&path)?;
     Ok(Session {
-        handle: Arc::new((session, Mutex::new(()))),
+        handle: Arc::new((session, ReentrantMutex::new(()))),
         threaded: false,
         cleanup: false,
     })
@@ -320,9 +321,8 @@ pub fn connect_to_socket(addr: std::net::SocketAddrV4) -> Result<Session> {
     let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
     let session = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
     Ok(Session {
-        handle: Arc::new((session, Mutex::new(()))),
+        handle: Arc::new((session, ReentrantMutex::new(()))),
         threaded: false,
-        // lock: Arc::new(std::sync::Mutex::new(())),
         cleanup: false,
     })
 }
@@ -331,7 +331,7 @@ pub fn new_in_process() -> Result<Session> {
     debug!("Creating new in-process session");
     let session = crate::ffi::create_inprocess_session()?;
     Ok(Session {
-        handle: Arc::new((session, Mutex::new(()))),
+        handle: Arc::new((session, ReentrantMutex::new(()))),
         threaded: false,
         cleanup: false,
     })
@@ -491,7 +491,10 @@ pub(crate) mod tests {
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         env_logger::init();
-        simple_session(None).expect("Could not create test session")
+        let mut ses = connect_to_pipe("/tmp/hapi.pipe").expect("Could not connect");
+        ses.initialize(&SessionOptions::default()).unwrap();
+        ses
+        // simple_session(None).expect("Could not create test session")
     });
 
     pub(crate) fn with_session(func: impl FnOnce(&Lazy<Session>)) {

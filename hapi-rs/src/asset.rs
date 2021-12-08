@@ -150,8 +150,11 @@ impl AssetLibrary {
         self.session.create_node_blocking(&name, None, None)
     }
 
-    pub fn get_asset_parms(&self, asset: impl Into<Vec<u8>>) -> Result<AssetParameters> {
-        let asset_name = CString::new(asset.into())?;
+    pub fn get_asset_parms(&self, asset: impl AsRef<str>) -> Result<AssetParameters> {
+        let _lock = self.session.handle.1.lock();
+        let asset_name = String::from(asset.as_ref());
+        log::debug!("Reading asset parameter list of {}", asset_name);
+        let asset_name = CString::new(asset_name)?;
         let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &asset_name, &self.session)?;
         let infos = crate::ffi::get_asset_def_parm_info(
             self.lib_id,
@@ -159,10 +162,10 @@ impl AssetLibrary {
             count.parm_count,
             &self.session,
         )?
-        .into_iter()
-        .map(|info| ParmInfo {
-            inner: info,
-            session: self.session.clone(),
+            .into_iter()
+            .map(|info| ParmInfo {
+                inner: info,
+                session: self.session.clone(),
         });
         let values =
             crate::ffi::get_asset_def_parm_values(self.lib_id, &asset_name, &self.session, &count)?;
@@ -232,16 +235,15 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn asset_parameters() {
-        // TODO: This is crashing the server
         with_session(|session| {
             let otl = OTLS.get("parameters").unwrap();
             let lib = session
                 .load_asset_file(otl)
                 .expect(&format!("Could not load {}", otl));
             let parms = lib.get_asset_parms("Object/hapi_parms");
-            // assert!(parms.is_ok());
+            assert!(parms.is_ok());
         });
     }
 }

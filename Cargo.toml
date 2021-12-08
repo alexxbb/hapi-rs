@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "hapi-rs",
-#    "hapi-server",
-#    "hapi-viewport",
-    #    "dev",
+    #    "hapi-server",
+    #    "hapi-viewport",
+    "dev",
 ]
