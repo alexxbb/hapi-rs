@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use crate::errors::Result;
 pub use crate::ffi::raw::{AttributeOwner, StorageType};
 pub use crate::ffi::AttributeInfo;
@@ -113,7 +114,6 @@ pub trait AttribDataType: Sized {
 #[derive(Debug)]
 pub struct Attribute<'s, T: AttribDataType> {
     pub info: AttributeInfo,
-    // TODO: Would be nice to have access to the attribute name
     pub(crate) name: CString,
     pub(crate) node: &'s HoudiniNode,
     _marker: std::marker::PhantomData<T>,
@@ -130,6 +130,10 @@ where
             name,
             _marker: Default::default(),
         }
+    }
+
+    pub fn name(&self) -> Cow<str> {
+        self.name.to_string_lossy()
     }
     pub fn read(&self, part_id: i32) -> Result<T::Return> {
         T::read(&self.name, self.node, part_id, &self.info)
