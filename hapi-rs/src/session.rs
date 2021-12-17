@@ -18,6 +18,12 @@ pub use crate::{
 use parking_lot::ReentrantMutex;
 
 
+impl std::cmp::PartialEq for crate::ffi::raw::HAPI_Session {
+    fn eq(&self, other: &Self) -> bool {
+        self.type_ == other.type_ && self.id == other.id
+    }
+}
+
 pub trait EnvVariable {
     type Type: ?Sized + ToOwned;
     fn get_value(session: &Session, key: impl AsRef<str>)
@@ -491,9 +497,6 @@ pub(crate) mod tests {
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         env_logger::init();
-        // let mut ses = connect_to_pipe("c:/Temp/hapi.pipe").expect("Could not connect");
-        // ses.initialize(&SessionOptions::default()).unwrap();
-        // ses
         simple_session(None).expect("Could not create test session")
     });
 

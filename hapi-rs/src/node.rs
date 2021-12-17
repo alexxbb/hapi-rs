@@ -155,7 +155,7 @@ impl<'session> HoudiniNode {
         debug!("Creating node: {}", name);
         if parent.is_none() && !name.contains('/') {
             warn!("Node name must be fully qualified if parent is not specified");
-        } else if parent.is_some() && name.contains("/") {
+        } else if parent.is_some() && name.contains('/') {
             warn!("Cannot use fully qualified node name with parent");
         }
         let name = CString::new(name)?;

@@ -34,10 +34,10 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn print_child_node(session: &Session, ids: &Vec<NodeHandle>) -> Result<()> {
+fn print_child_node(session: &Session, ids: &[NodeHandle]) -> Result<()> {
     println!("Child Node Ids");
     for handle in ids {
-        let info = handle.info(&session)?;
+        let info = handle.info(session)?;
         #[rustfmt::skip]
         println!("\t{} - {}", handle.0, info.created_post_asset_load().then(|| "NEW").unwrap_or("EXISTING"));
     }

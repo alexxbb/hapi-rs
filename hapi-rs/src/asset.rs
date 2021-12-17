@@ -38,12 +38,7 @@ impl<'a> IntoIterator for &'a AssetParameters {
 
 impl AssetParameters {
     pub fn find_parameter(&self, name: &str) -> Option<AssetParm<'_>> {
-        match self.infos.iter().find(|p| p.name().unwrap() == name) {
-            None => None,
-            Some(info) => Some(
-                AssetParm { info, values: &self.values }
-            )
-        }
+        self.infos.iter().find(|p| p.name().unwrap() == name).map(|info| AssetParm { info, values: &self.values })
     }
 }
 

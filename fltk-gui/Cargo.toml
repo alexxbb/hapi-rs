@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 fltk = {version = "~1.2.16", features = ["fltk-bundled"]}
+hapi-rs = {path = "../hapi-rs"}

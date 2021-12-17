@@ -366,7 +366,7 @@ mod tests {
             let i_array = attr.read_array(0).unwrap();
 
             assert_eq!(i_array.iter().count(), attr.info.count() as usize);
-            assert_eq!(i_array.iter().nth(0).unwrap(), &[0, 0, 0, -1]);
+            assert_eq!(i_array.iter().next().unwrap(), &[0, 0, 0, -1]);
             assert_eq!(i_array.iter().last().unwrap(), &[7, 14, 21, -1]);
 
             let attr = geo
@@ -376,7 +376,7 @@ mod tests {
             let i_array = attr.read_array(0).unwrap();
 
             assert_eq!(i_array.iter().count(), attr.info.count() as usize);
-            assert_eq!(i_array.iter().nth(0).unwrap(), &[0.0, 0.0, 0.0]);
+            assert_eq!(i_array.iter().next().unwrap(), &[0.0, 0.0, 0.0]);
             assert_eq!(i_array.iter().last().unwrap(), &[7.0, 14.0, 21.0]);
         });
     }
@@ -392,7 +392,7 @@ mod tests {
             let i_array = attr.read_array(0).unwrap();
             assert_eq!(i_array.iter().count(), attr.info.count() as usize);
 
-            let it = i_array.iter().nth(0).unwrap().unwrap();
+            let it = i_array.iter().next().unwrap().unwrap();
             let pt_0: Vec<&str> = it.iter_str().collect();
             assert_eq!(pt_0, ["pt_0_0", "pt_0_1", "pt_0_2", "start"]);
 

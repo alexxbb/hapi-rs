@@ -88,14 +88,12 @@ fn build_ui(parms: Vec<Parameter>) -> Result<group::Group> {
                         valuator::HorValueSlider::new(x, y, width, HEIGHT, None).with_label(&label);
                     _slider.set_bounds(0.0, 1.0);
                     _slider.set_range(0.0, 1.0);
+                } else if info.parm_type() == ParmType::Color {
+                    let _ = ColorWidget::new(x, y, width, HEIGHT);
                 } else {
-                    if info.parm_type() == ParmType::Color {
-                        let _ = ColorWidget::new(x, y, width, HEIGHT);
-                    } else {
-                        let w = width / info.size();
-                        for i in 0..info.size() {
-                            input::FloatInput::new(x + w * i, y, w, HEIGHT, "");
-                        }
+                    let w = width / info.size();
+                    for i in 0..info.size() {
+                        input::FloatInput::new(x + w * i, y, w, HEIGHT, "");
                     }
                 }
             }
