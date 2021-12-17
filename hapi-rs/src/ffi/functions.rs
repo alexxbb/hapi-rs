@@ -660,7 +660,7 @@ pub fn get_server_env_int(session: &Session, key: &CStr) -> Result<i32> {
 pub fn start_thrift_pipe_server(
     file: &CStr,
     options: &raw::HAPI_ThriftServerOptions,
-) -> Result<i32> {
+) -> Result<u32> {
     let mut pid = uninit!();
     unsafe {
         raw::HAPI_StartThriftNamedPipeServer(options as *const _, file.as_ptr(), pid.as_mut_ptr())
@@ -672,7 +672,7 @@ pub fn start_thrift_pipe_server(
 pub fn start_thrift_socket_server(
     port: i32,
     options: &raw::HAPI_ThriftServerOptions,
-) -> Result<i32> {
+) -> Result<u32> {
     let mut pid = uninit!();
     unsafe {
         raw::HAPI_StartThriftSocketServer(options as *const _, port, pid.as_mut_ptr())
@@ -1002,7 +1002,7 @@ pub fn check_for_specific_errors(
             code.as_mut_ptr(),
         )
             .check_err(Some(&node.session))?;
-        Ok(raw::ErrorCode(code.assume_init() as u32))
+        Ok(raw::ErrorCode(code.assume_init()))
     }
 }
 
@@ -1402,6 +1402,18 @@ get_attrib_data!(
     HAPI_GetAttributeFloat64ArrayData
 );
 #[rustfmt::skip]
+get_attrib_data!(i8, 0, get_attribute_i8_data, HAPI_GetAttributeInt8Data);
+set_attrib_data!(i8, set_attribute_i8_data, HAPI_SetAttributeInt8Data);
+get_attrib_data!(DataArray<i8>, get_attribute_i8_array_data, HAPI_GetAttributeInt8ArrayData);
+
+get_attrib_data!(u8, 0, get_attribute_u8_data, HAPI_GetAttributeUInt8Data);
+set_attrib_data!(u8, set_attribute_u8_data, HAPI_SetAttributeUInt8Data);
+get_attrib_data!(DataArray<u8>, get_attribute_u8_array_data, HAPI_GetAttributeUInt8ArrayData);
+
+get_attrib_data!(i16, 0, get_attribute_i16_data, HAPI_GetAttributeInt16Data);
+set_attrib_data!(i16, set_attribute_i16_data, HAPI_SetAttributeInt16Data);
+get_attrib_data!(DataArray<i16>, get_attribute_i16_array_data, HAPI_GetAttributeInt16ArrayData);
+
 get_attrib_data!(i32, 0, get_attribute_int_data, HAPI_GetAttributeIntData);
 set_attrib_data!(i32, set_attribute_int_data, HAPI_SetAttributeIntData);
 get_attrib_data!(

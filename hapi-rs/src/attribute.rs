@@ -190,6 +190,30 @@ macro_rules! impl_attrib_type {
 }
 
 impl_attrib_type!(
+    u8,
+    get_attribute_u8_data,
+    get_attribute_u8_array_data,
+    set_attribute_u8_data,
+    StorageType::Uint8
+);
+
+impl_attrib_type!(
+    i8,
+    get_attribute_i8_data,
+    get_attribute_i8_array_data,
+    set_attribute_i8_data,
+    StorageType::Int8
+);
+
+impl_attrib_type!(
+    i16,
+    get_attribute_i16_data,
+    get_attribute_i16_array_data,
+    set_attribute_i16_data,
+    StorageType::Int16
+);
+
+impl_attrib_type!(
     f32,
     get_attribute_float_data,
     get_attribute_float_array_data,

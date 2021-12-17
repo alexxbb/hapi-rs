@@ -450,7 +450,7 @@ impl From<i32> for State {
     }
 }
 
-pub fn start_engine_pipe_server(path: &str, auto_close: bool, timeout: f32) -> Result<i32> {
+pub fn start_engine_pipe_server(path: &str, auto_close: bool, timeout: f32) -> Result<u32> {
     debug!("Starting named pipe server: {}", path);
     let path = CString::new(path)?;
     let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
@@ -459,7 +459,7 @@ pub fn start_engine_pipe_server(path: &str, auto_close: bool, timeout: f32) -> R
     };
     crate::ffi::start_thrift_pipe_server(&path, &opts)
 }
-pub fn start_engine_socket_server(port: u16, auto_close: bool, timeout: i32) -> Result<i32> {
+pub fn start_engine_socket_server(port: u16, auto_close: bool, timeout: i32) -> Result<u32> {
     debug!("Starting socket server on port: {}", port);
     let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
         autoClose: auto_close as i8,
@@ -491,10 +491,10 @@ pub(crate) mod tests {
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         env_logger::init();
-        let mut ses = connect_to_pipe("c:/Temp/hapi.pipe").expect("Could not connect");
-        ses.initialize(&SessionOptions::default()).unwrap();
-        ses
-        // simple_session(None).expect("Could not create test session")
+        // let mut ses = connect_to_pipe("c:/Temp/hapi.pipe").expect("Could not connect");
+        // ses.initialize(&SessionOptions::default()).unwrap();
+        // ses
+        simple_session(None).expect("Could not create test session")
     });
 
     pub(crate) fn with_session(func: impl FnOnce(&Lazy<Session>)) {

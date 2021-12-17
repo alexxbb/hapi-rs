@@ -5,4 +5,4 @@ rustflags = ["-C",
     "link-arg=-Wl,-rpath,/Applications/Houdini/Current/Frameworks/Houdini.framework/Versions/Current/Libraries",
 ]
 [target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "link-arg=-Wl,-rpath,C:/Houdini/18.5.563/custom/houdini/dsolib"]
+rustflags = ["-C", "link-arg=-Wl,-rpath,C:/Houdini/18.5.759/custom/houdini/dsolib"]
