@@ -13,7 +13,7 @@ use crate::{
 };
 pub use crate::{
     ffi::raw::{
-        ErrorCode, NodeFlags, NodeType, ParmType, RSTOrder, State, StatusType, StatusVerbosity,
+        ErrorCode, NodeFlags, NodeType, ParmType, RSTOrder, State, StatusType, StatusVerbosity, TransformComponent
     },
     ffi::{CookOptions, Transform, TransformEuler},
 };
@@ -367,6 +367,12 @@ impl<'session> HoudiniNode {
         crate::ffi::set_object_transform(&self.session, self.handle, &transform.inner)
     }
 
+    pub fn set_transform_anim_curve(&self, component: TransformComponent, keys: &[KeyFrame]) -> Result<()> {
+        let keys =
+            unsafe { std::mem::transmute::<&[KeyFrame], &[crate::ffi::raw::HAPI_Keyframe]>(keys) };
+        crate::ffi::set_transform_anim_curve(&self.session, self.handle, component, keys)
+    }
+
     pub fn connect_input<H: Into<NodeHandle>>(
         &self,
         input_num: i32,
@@ -454,6 +460,31 @@ mod tests {
             assert_eq!(node.number_of_geo_outputs(), Ok(1));
             let infos = node.geometry_outputs().unwrap();
             assert_eq!(infos.len(), 1);
+        });
+    }
+
+    #[test]
+    fn set_transform_anim() {
+        with_session(|session| {
+            let null = session.create_node_blocking("Object/bone", None, None).unwrap();
+            let ty = [KeyFrame {
+                time: 0.0,
+                value: 0.0,
+                in_tangent: 0.0,
+                out_tangent: 0.0,
+            },
+                KeyFrame {
+                    time: 1.0,
+                    value: 5.0,
+                    in_tangent: 0.0,
+                    out_tangent: 0.0,
+                }
+            ];
+            null.set_transform_anim_curve(TransformComponent::Ty, &ty).unwrap();
+            session.set_time(1.0);
+            if let Parameter::Float(p) =null.parameter("ty").unwrap() {
+                assert_eq!(p.get_value().unwrap(), vec![0.0, 5.0, 0.0]);
+            }
         });
     }
 }

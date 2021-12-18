@@ -527,4 +527,11 @@ wrap!(
 );
 
 
-
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct KeyFrame {
+    pub time: f32,
+    pub value: f32,
+    pub in_tangent: f32,
+    pub out_tangent: f32,
+}

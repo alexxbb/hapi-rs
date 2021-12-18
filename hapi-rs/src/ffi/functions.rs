@@ -1083,10 +1083,10 @@ pub fn get_geo_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_Geo
 }
 
 pub fn get_output_geo_count(node: &HoudiniNode) -> Result<i32> {
-
-    let mut count= uninit!();
+    let mut count = uninit!();
     unsafe {
-        raw::HAPI_GetOutputGeoCount(node.session.ptr(), node.handle.0, count.as_mut_ptr()).check_err(Some(&node.session))?;
+        raw::HAPI_GetOutputGeoCount(node.session.ptr(), node.handle.0, count.as_mut_ptr())
+            .check_err(Some(&node.session))?;
         Ok(count.assume_init())
     }
 }
@@ -1095,10 +1095,15 @@ pub fn get_output_geos(node: &HoudiniNode) -> Result<Vec<raw::HAPI_GeoInfo>> {
     let count = get_output_geo_count(node)?;
     unsafe {
         let mut obj_infos = vec![raw::HAPI_GeoInfo_Create(); count as usize];
-        raw::HAPI_GetOutputGeoInfos(node.session.ptr(), node.handle.0, obj_infos.as_mut_ptr(), count).check_err(Some(&node.session))?;
+        raw::HAPI_GetOutputGeoInfos(
+            node.session.ptr(),
+            node.handle.0,
+            obj_infos.as_mut_ptr(),
+            count,
+        )
+        .check_err(Some(&node.session))?;
         Ok(obj_infos)
     }
-
 }
 
 pub fn get_group_count_by_type(geo_info: &GeoInfo, group_type: raw::GroupType) -> i32 {
@@ -1859,5 +1864,43 @@ pub fn get_attribute_string_array_data(
         .check_err(Some(session))?;
 
         Ok((data_array, sizes_fixed_array))
+    }
+}
+
+pub fn set_parm_anim_curve(
+    session: &Session,
+    node: NodeHandle,
+    parm: ParmHandle,
+    index: i32,
+    keys: &[raw::HAPI_Keyframe],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetAnimCurve(
+            session.ptr(),
+            node.0,
+            parm.0,
+            index,
+            keys.as_ptr(),
+            keys.len() as i32,
+        )
+        .check_err(Some(session))
+    }
+}
+
+pub fn set_transform_anim_curve(
+    session: &Session,
+    node: NodeHandle,
+    comp: raw::TransformComponent,
+    keys: &[raw::HAPI_Keyframe],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetTransformAnimCurve(
+            session.ptr(),
+            node.0,
+            comp,
+            keys.as_ptr(),
+            keys.len() as i32,
+        )
+            .check_err(Some(session))
     }
 }

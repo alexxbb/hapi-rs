@@ -8,7 +8,7 @@ pub use crate::{
         ChoiceListType, HAPI_ParmId, NodeFlags, NodeType, ParmType, Permissions, PrmScriptType,
         RampType,
     },
-    ffi::{NodeInfo, ParmChoiceInfo, ParmInfo},
+    ffi::{KeyFrame, NodeInfo, ParmChoiceInfo, ParmInfo},
     node::{HoudiniNode, NodeHandle},
     session::Session,
 };
@@ -73,6 +73,13 @@ pub trait ParmBaseTrait {
     fn set_value<T>(&self, val: T) -> Result<()>
     where
         T: AsRef<[Self::ValueType]>;
+
+    fn set_anim_curve(&self, index: i32, keys: &[KeyFrame]) -> Result<()> {
+        let wrap = self.wrap();
+        let keys =
+            unsafe { std::mem::transmute::<&[KeyFrame], &[crate::ffi::raw::HAPI_Keyframe]>(keys) };
+        crate::ffi::set_parm_anim_curve(&wrap.info.session, wrap.node, wrap.info.id(), index, keys)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -363,6 +370,34 @@ mod tests {
                     ip.press_button().unwrap();
                     assert_eq!(sp.get_value().unwrap()[0], "set from callback");
                 }
+            }
+        });
+    }
+
+    #[test]
+    fn set_anim_curve() {
+        use crate::ffi::KeyFrame;
+
+        with_session(|session| {
+            let node = session.create_node("Object/null", None, None).unwrap();
+
+            if let Ok(Parameter::Float(p)) = node.parameter("scale") {
+                let keys = vec![
+                    KeyFrame {
+                        time: 0.0,
+                        value: 0.0,
+                        in_tangent: 0.0,
+                        out_tangent: 0.0,
+                    },
+                    KeyFrame {
+                        time: 1.0,
+                        value: 1.0,
+                        in_tangent: 0.0,
+                        out_tangent: 0.0,
+                    },
+                ];
+
+                p.set_anim_curve(0, &keys).expect("set_anim_curve")
             }
         });
     }
