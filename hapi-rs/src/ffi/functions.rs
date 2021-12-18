@@ -1227,6 +1227,31 @@ pub fn set_curve_knots(node: &HoudiniNode, part_id: i32, knots: &[f32]) -> Resul
     }
 }
 
+pub fn get_box_info(node: NodeHandle, session: &Session, part_id: i32) -> Result<raw::HAPI_BoxInfo> {
+    let mut info = raw::HAPI_BoxInfo{
+        center: Default::default(),
+        size: Default::default(),
+        rotation: Default::default()
+    };
+    unsafe{
+        let box_info = &info as *const _ as *mut raw::HAPI_BoxInfo;
+        raw::HAPI_GetBoxInfo(session.ptr(), node.0, part_id, box_info).check_err(Some(session))?;
+    }
+    Ok(info)
+}
+
+pub fn get_sphere_info(node: NodeHandle, session: &Session, part_id: i32) -> Result<raw::HAPI_SphereInfo> {
+    let mut info = raw::HAPI_SphereInfo{
+        center: Default::default(),
+        radius: 0.0
+    };
+    unsafe{
+        let sphere_info = &info as *const _ as *mut raw::HAPI_SphereInfo;
+        raw::HAPI_GetSphereInfo(session.ptr(), node.0, part_id, sphere_info).check_err(Some(session))?;
+    }
+    Ok(info)
+}
+
 pub fn get_attribute_names(
     node: &HoudiniNode,
     part_id: i32,

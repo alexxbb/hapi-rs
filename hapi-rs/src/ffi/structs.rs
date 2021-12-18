@@ -485,3 +485,45 @@ wrap!(
     [get|set|with] cook_using_houdini_time->cookUsingHoudiniTime->[bool];
     [get|set|with] sync_viewport->syncViewport->[bool];
 );
+
+
+#[derive(Debug, Clone)]
+pub struct BoxInfo {
+    pub(crate) inner: HAPI_BoxInfo,
+}
+
+fn _create_box_info() -> HAPI_BoxInfo {
+    HAPI_BoxInfo {
+        center: Default::default(),
+        size: Default::default(),
+        rotation: Default::default()
+    }
+}
+
+wrap!(
+    Default BoxInfo [_create_box_info => HAPI_BoxInfo];
+    [get|set|with] center->center->[[f32;3]];
+    [get|set|with] rotation->size->[[f32;3]];
+    [get|set|with] size->size->[[f32;3]];
+);
+
+#[derive(Debug, Clone)]
+pub struct SphereInfo {
+    pub(crate) inner: HAPI_SphereInfo,
+}
+
+fn _create_sphere_info() -> HAPI_SphereInfo {
+    HAPI_SphereInfo {
+        center: Default::default(),
+        radius: 0.0
+    }
+}
+
+wrap!(
+    Default SphereInfo [_create_sphere_info => HAPI_SphereInfo];
+    [get|set|with] center->center->[[f32;3]];
+    [get|set|with] radius->radius->[f32];
+);
+
+
+

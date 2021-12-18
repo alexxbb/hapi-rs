@@ -4,7 +4,7 @@ pub use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
     raw::{AttributeOwner, CurveOrders, CurveType, GroupType, PackedPrimInstancingMode, PartType},
-    AttributeInfo, CurveInfo, GeoInfo, PartInfo,
+    AttributeInfo, CurveInfo, GeoInfo, PartInfo, BoxInfo
 };
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringArray;
@@ -24,6 +24,14 @@ impl Geometry {
     pub fn set_part_info(&self, info: &PartInfo) -> Result<()> {
         // TODO: Should part_id be provided by user or by PartInfo?
         crate::ffi::set_part_info(&self.node, info)
+    }
+
+    pub fn box_info(&self, part_id: i32) -> Result<BoxInfo> {
+        crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id).map(|inner| BoxInfo {inner})
+    }
+
+    pub fn sphere_info(&self, part_id: i32) -> Result<BoxInfo> {
+        crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id).map(|inner| BoxInfo {inner})
     }
 
     pub fn set_curve_info(&self, info: &CurveInfo, part_id: i32) -> Result<()> {
@@ -248,6 +256,11 @@ impl Geometry {
         crate::ffi::save_geo_to_file(&self.node, &path)
     }
 
+    pub fn load_from_file(&self, filepath: &str) -> Result<()> {
+        let path = CString::new(filepath)?;
+        crate::ffi::load_geo_from_file(&self.node, &path)
+    }
+
     pub fn commit(&self) -> Result<()> {
         crate::ffi::commit_geo(&self.node)
     }
@@ -403,6 +416,21 @@ mod tests {
             let it = i_array.iter().last().unwrap().unwrap();
             let pt_n: Vec<&str> = it.iter_str().collect();
             assert_eq!(pt_n, ["pt_7_0", "pt_7_1", "pt_7_2", "end"]);
+        });
+    }
+
+    #[test]
+    fn save_and_load() {
+        with_session(|session|{
+            let input = session.create_input_node("triangle").unwrap();
+            let geo = _create_triangle(&input);
+            let tmp_file = std::env::temp_dir().join("triangle.geo");
+            geo.save_to_file(&tmp_file.to_string_lossy()).expect("save_to_file");
+            let input = session.create_input_node("dummy").unwrap();
+            let geo = input.geometry().unwrap().unwrap();
+            geo.load_from_file(&tmp_file.to_string_lossy()).expect("load_from_file");
+            geo.node.cook(None).unwrap();
+            assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
         });
     }
 }
