@@ -67,7 +67,7 @@ pub fn get_parm_string_values(
             start,
             length,
         )
-            .check_err(Some(session))?
+        .check_err(Some(session))?
     }
     crate::stringhandle::get_string_array(&handles, session)
 }
@@ -83,7 +83,7 @@ pub fn get_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32) -> Resu
             index,
             value.as_mut_ptr(),
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         Ok(value.assume_init())
     }
 }
@@ -99,7 +99,7 @@ pub fn get_parm_int_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result
             index,
             value.as_mut_ptr(),
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         Ok(value.assume_init())
     }
 }
@@ -115,7 +115,7 @@ pub fn get_parm_string_value(node: &HoudiniNode, name: &CStr, index: i32) -> Res
             1,
             handle.as_mut_ptr(),
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         handle.assume_init()
     };
     node.session.get_string(handle)
@@ -130,7 +130,7 @@ pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<Nod
             name.as_ptr(),
             id.as_mut_ptr(),
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         let id = id.assume_init();
         Ok(if id == -1 {
             None
@@ -149,7 +149,7 @@ pub fn set_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32, value: 
             index,
             value,
         )
-            .check_err(Some(&node.session))
+        .check_err(Some(&node.session))
     }
 }
 
@@ -253,7 +253,7 @@ pub fn get_parm_expression(
             index,
             handle.as_mut_ptr(),
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         handle.assume_init()
     };
     crate::stringhandle::get_string(handle, session)
@@ -274,7 +274,7 @@ pub fn parm_has_expression(
             index,
             ret.as_mut_ptr(),
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         ret.assume_init()
     };
     Ok(ret > 0)
@@ -319,7 +319,7 @@ pub fn get_parm_info_from_name(
             name.as_ptr(),
             info.as_mut_ptr(),
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         Ok(info.assume_init())
     }
 }
@@ -333,7 +333,7 @@ pub fn get_parm_id_from_name(name: &CStr, node: NodeHandle, session: &Session) -
             name.as_ptr(),
             id.as_mut_ptr(),
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         Ok(id.assume_init())
     }
 }
@@ -356,7 +356,7 @@ pub fn is_node_valid(info: &super::NodeInfo) -> Result<bool> {
             info.inner.uniqueHoudiniNodeId,
             answer.as_mut_ptr(),
         )
-            .check_err(Some(&info.session))?;
+        .check_err(Some(&info.session))?;
         Ok(answer.assume_init() == 1)
     }
 }
@@ -380,7 +380,7 @@ pub fn get_node_path(
             relative_to.map(|n| n.0).unwrap_or(-1),
             sh.as_mut_ptr(),
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         crate::stringhandle::get_string(sh.assume_init(), session)
     }
 }
@@ -401,7 +401,7 @@ pub fn load_library_from_file(path: &CStr, session: &Session, _override: bool) -
             _override as i8,
             lib_id.as_mut_ptr(),
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         Ok(lib_id.assume_init())
     }
 }
@@ -424,11 +424,7 @@ pub fn get_asset_count(library_id: i32, session: &Session) -> Result<i32> {
     }
 }
 
-pub fn get_asset_names(
-    library_id: i32,
-    num_assets: i32,
-    session: &Session,
-) -> Result<StringArray> {
+pub fn get_asset_names(library_id: i32, num_assets: i32, session: &Session) -> Result<StringArray> {
     let handles = unsafe {
         let mut names = vec![0; num_assets as usize];
         raw::HAPI_GetAvailableAssets(session.ptr(), library_id, names.as_mut_ptr(), num_assets)
@@ -464,7 +460,7 @@ pub fn get_asset_def_parm_count(
             &mut parms.string_count as *mut _,
             &mut parms.choice_count as *mut _,
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
     }
     Ok(parms)
 }
@@ -485,7 +481,7 @@ pub fn get_asset_def_parm_info(
             0,
             count,
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         Ok(parms)
     }
 }
@@ -525,7 +521,7 @@ pub fn get_asset_def_parm_values(
             0,
             count.choice_count,
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
     }
 
     let string_array = crate::stringhandle::get_string_array(&string_handles, session)?;
@@ -542,7 +538,7 @@ pub fn get_string_batch_size(handles: &[i32], session: &Session) -> Result<i32> 
             handles.len() as i32,
             length.as_mut_ptr(),
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         Ok(length.assume_init())
     }
 }
@@ -624,8 +620,7 @@ pub fn set_server_env_int(session: &Session, key: &CStr, value: i32) -> Result<(
 pub fn get_server_env_var_count(session: &Session) -> Result<i32> {
     unsafe {
         let mut val = uninit!();
-        raw::HAPI_GetServerEnvVarCount(session.ptr(), val.as_mut_ptr())
-            .check_err(Some(session))?;
+        raw::HAPI_GetServerEnvVarCount(session.ptr(), val.as_mut_ptr()).check_err(Some(session))?;
         Ok(val.assume_init())
     }
 }
@@ -854,7 +849,7 @@ pub fn get_total_cook_count(
             recursive as i8,
             count.as_mut_ptr(),
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         Ok(count.assume_init())
     }
 }
@@ -876,7 +871,7 @@ pub fn create_node(
             cook as i8,
             id.as_mut_ptr(),
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         Ok(id.assume_init())
     }
 }
@@ -915,7 +910,7 @@ pub fn get_compose_child_node_list(
             recursive as i8,
             count.as_mut_ptr(),
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
 
         let count = count.assume_init();
         let mut obj_infos = vec![0i32; count as usize];
@@ -925,7 +920,7 @@ pub fn get_compose_child_node_list(
             obj_infos.as_mut_ptr(),
             count,
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         Ok(obj_infos)
     }
 }
@@ -956,7 +951,7 @@ pub fn get_parameters(node: &HoudiniNode) -> Result<Vec<raw::HAPI_ParmInfo>> {
             0,
             node.info.parm_count(),
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         Ok(parms)
     }
 }
@@ -976,7 +971,7 @@ pub fn connect_node_input(
             node_id_to_connect.0,
             output_index,
         )
-            .check_err(Some(session))
+        .check_err(Some(session))
     }
 }
 
@@ -1001,7 +996,7 @@ pub fn check_for_specific_errors(
             error_bits.0 as i32,
             code.as_mut_ptr(),
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         Ok(raw::ErrorCode(code.assume_init()))
     }
 }
@@ -1017,7 +1012,7 @@ pub unsafe fn get_composed_cook_result(
         verbosity,
         len.as_mut_ptr(),
     )
-        .check_err(Some(&node.session))?;
+    .check_err(Some(&node.session))?;
     let len = len.assume_init();
     let mut buf = vec![0u8; len as usize];
     raw::HAPI_GetComposedNodeCookResult(node.session.ptr(), buf.as_mut_ptr() as *mut i8, len)
@@ -1111,7 +1106,7 @@ pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {
             info.part_id(),
             &info.inner,
         )
-            .check_err(Some(&node.session))
+        .check_err(Some(&node.session))
     }
 }
 
@@ -1131,7 +1126,7 @@ pub fn get_curve_info(node: &HoudiniNode, part_id: i32) -> Result<raw::HAPI_Curv
             part_id,
             info.as_mut_ptr(),
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         Ok(info.assume_init())
     }
 }
@@ -1152,7 +1147,7 @@ pub fn get_curve_counts(
             start,
             length,
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         Ok(array)
     }
 }
@@ -1173,7 +1168,7 @@ pub fn get_curve_orders(
             start,
             length,
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         Ok(array)
     }
 }
@@ -1194,7 +1189,7 @@ pub fn get_curve_knots(
             start,
             length,
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         Ok(array)
     }
 }
@@ -1209,7 +1204,7 @@ pub fn set_curve_counts(node: &HoudiniNode, part_id: i32, count: &[i32]) -> Resu
             0,
             count.len() as i32,
         )
-            .check_err(Some(&node.session))
+        .check_err(Some(&node.session))
     }
 }
 
@@ -1223,31 +1218,40 @@ pub fn set_curve_knots(node: &HoudiniNode, part_id: i32, knots: &[f32]) -> Resul
             0,
             knots.len() as i32,
         )
-            .check_err(Some(&node.session))
+        .check_err(Some(&node.session))
     }
 }
 
-pub fn get_box_info(node: NodeHandle, session: &Session, part_id: i32) -> Result<raw::HAPI_BoxInfo> {
-    let mut info = raw::HAPI_BoxInfo{
+pub fn get_box_info(
+    node: NodeHandle,
+    session: &Session,
+    part_id: i32,
+) -> Result<raw::HAPI_BoxInfo> {
+    let mut info = raw::HAPI_BoxInfo {
         center: Default::default(),
         size: Default::default(),
-        rotation: Default::default()
+        rotation: Default::default(),
     };
-    unsafe{
+    unsafe {
         let box_info = &info as *const _ as *mut raw::HAPI_BoxInfo;
         raw::HAPI_GetBoxInfo(session.ptr(), node.0, part_id, box_info).check_err(Some(session))?;
     }
     Ok(info)
 }
 
-pub fn get_sphere_info(node: NodeHandle, session: &Session, part_id: i32) -> Result<raw::HAPI_SphereInfo> {
-    let mut info = raw::HAPI_SphereInfo{
+pub fn get_sphere_info(
+    node: NodeHandle,
+    session: &Session,
+    part_id: i32,
+) -> Result<raw::HAPI_SphereInfo> {
+    let mut info = raw::HAPI_SphereInfo {
         center: Default::default(),
-        radius: 0.0
+        radius: 0.0,
     };
-    unsafe{
+    unsafe {
         let sphere_info = &info as *const _ as *mut raw::HAPI_SphereInfo;
-        raw::HAPI_GetSphereInfo(session.ptr(), node.0, part_id, sphere_info).check_err(Some(session))?;
+        raw::HAPI_GetSphereInfo(session.ptr(), node.0, part_id, sphere_info)
+            .check_err(Some(session))?;
     }
     Ok(info)
 }
@@ -1268,7 +1272,7 @@ pub fn get_attribute_names(
             handles.as_mut_ptr(),
             count,
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
     }
     crate::stringhandle::get_string_array(&handles, &node.session)
 }
@@ -1289,7 +1293,7 @@ pub fn get_attribute_info(
             owner,
             info.as_mut_ptr(),
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
 
         Ok(info.assume_init())
     }
@@ -1309,7 +1313,7 @@ pub fn add_attribute(
             name.as_ptr(),
             attr_info,
         )
-            .check_err(Some(&node.session))
+        .check_err(Some(&node.session))
     }
 }
 
@@ -1429,15 +1433,27 @@ get_attrib_data!(
 #[rustfmt::skip]
 get_attrib_data!(i8, 0, get_attribute_i8_data, HAPI_GetAttributeInt8Data);
 set_attrib_data!(i8, set_attribute_i8_data, HAPI_SetAttributeInt8Data);
-get_attrib_data!(DataArray<i8>, get_attribute_i8_array_data, HAPI_GetAttributeInt8ArrayData);
+get_attrib_data!(
+    DataArray<i8>,
+    get_attribute_i8_array_data,
+    HAPI_GetAttributeInt8ArrayData
+);
 
 get_attrib_data!(u8, 0, get_attribute_u8_data, HAPI_GetAttributeUInt8Data);
 set_attrib_data!(u8, set_attribute_u8_data, HAPI_SetAttributeUInt8Data);
-get_attrib_data!(DataArray<u8>, get_attribute_u8_array_data, HAPI_GetAttributeUInt8ArrayData);
+get_attrib_data!(
+    DataArray<u8>,
+    get_attribute_u8_array_data,
+    HAPI_GetAttributeUInt8ArrayData
+);
 
 get_attrib_data!(i16, 0, get_attribute_i16_data, HAPI_GetAttributeInt16Data);
 set_attrib_data!(i16, set_attribute_i16_data, HAPI_SetAttributeInt16Data);
-get_attrib_data!(DataArray<i16>, get_attribute_i16_array_data, HAPI_GetAttributeInt16ArrayData);
+get_attrib_data!(
+    DataArray<i16>,
+    get_attribute_i16_array_data,
+    HAPI_GetAttributeInt16ArrayData
+);
 
 get_attrib_data!(i32, 0, get_attribute_int_data, HAPI_GetAttributeIntData);
 set_attrib_data!(i32, set_attribute_int_data, HAPI_SetAttributeIntData);
@@ -1479,7 +1495,7 @@ pub fn get_attribute_string_buffer(
             start,
             length,
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         crate::stringhandle::get_string_array(&handles, &node.session)
     }
 }
@@ -1509,7 +1525,7 @@ pub fn set_attribute_string_buffer(
             0,
             array.len() as i32,
         )
-            .check_err(Some(session))
+        .check_err(Some(session))
     }
 }
 
@@ -1530,7 +1546,7 @@ pub fn get_face_counts(
             start,
             length,
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
     }
     Ok(array)
 }
@@ -1557,7 +1573,7 @@ pub fn add_group(
             group_type,
             group_name.as_ptr(),
         )
-            .check_err(Some(session))
+        .check_err(Some(session))
     }
 }
 
@@ -1580,7 +1596,7 @@ pub fn set_group_membership(
             0,
             array.len() as i32,
         )
-            .check_err(Some(session))
+        .check_err(Some(session))
     }
 }
 
@@ -1605,7 +1621,7 @@ pub fn get_group_membership(
             0,
             length,
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         Ok(array)
     }
 }
@@ -1624,7 +1640,7 @@ pub fn get_group_names(
             handles.as_mut_ptr(),
             count,
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
     }
     crate::stringhandle::get_string_array(&handles, &node.session)
 }
@@ -1647,6 +1663,34 @@ pub fn load_geo_from_file(node: &HoudiniNode, filename: &CStr) -> Result<()> {
     }
 }
 
+pub fn save_node_to_file(node: NodeHandle, session: &Session, filename: &CStr) -> Result<()> {
+    unsafe {
+        raw::HAPI_SaveNodeToFile(session.ptr(), node.0, filename.as_ptr()).check_err(Some(session))
+    }
+}
+
+pub fn load_node_from_file(
+    parent_node: Option<NodeHandle>,
+    session: &Session,
+    label: &CStr,
+    filename: &CStr,
+    cook: bool,
+) -> Result<raw::HAPI_NodeId> {
+    unsafe {
+        let mut handle = uninit!();
+        raw::HAPI_LoadNodeFromFile(
+            session.ptr(),
+            filename.as_ptr(),
+            parent_node.map(|n| n.0).unwrap_or(-1),
+            label.as_ptr(),
+            cook as i8,
+            handle.as_mut_ptr(),
+        )
+        .check_err(Some(session))?;
+        Ok(handle.assume_init())
+    }
+}
+
 pub fn set_geo_vertex_list(node: &HoudiniNode, part_id: i32, list: &[i32]) -> Result<()> {
     unsafe {
         raw::HAPI_SetVertexList(
@@ -1657,7 +1701,7 @@ pub fn set_geo_vertex_list(node: &HoudiniNode, part_id: i32, list: &[i32]) -> Re
             0,
             list.len() as i32,
         )
-            .check_err(Some(&node.session))
+        .check_err(Some(&node.session))
     }
 }
 
@@ -1678,7 +1722,7 @@ pub fn get_geo_vertex_list(
             start,
             length,
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         Ok(array)
     }
 }
@@ -1693,7 +1737,7 @@ pub fn set_geo_face_counts(node: &HoudiniNode, part_id: i32, list: &[i32]) -> Re
             0,
             list.len() as i32,
         )
-            .check_err(Some(&node.session))
+        .check_err(Some(&node.session))
     }
 }
 
@@ -1742,7 +1786,7 @@ pub fn get_object_transform(
             rst,
             t.as_mut_ptr(),
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         Ok(t.assume_init())
     }
 }
@@ -1793,7 +1837,7 @@ pub fn get_attribute_string_array_data(
             0,
             info.count,
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
 
         Ok((data_array, sizes_fixed_array))
     }

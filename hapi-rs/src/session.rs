@@ -142,13 +142,13 @@ impl Session {
         let id = crate::ffi::create_input_node(self, &name)?;
         HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)
     }
-    pub fn create_node(
+    pub fn create_node<'a>(
         &self,
         name: &str,
-        label: Option<&str>,
+        label: impl Into<Option<&'a str>>,
         parent: Option<NodeHandle>,
     ) -> Result<HoudiniNode> {
-        HoudiniNode::create(name, label, parent, self.clone(), false)
+        HoudiniNode::create(name, label.into(), parent, self.clone(), false)
     }
 
     pub fn create_node_blocking(

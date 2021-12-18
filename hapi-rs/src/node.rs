@@ -184,9 +184,9 @@ impl<'session> HoudiniNode {
         node
     }
 
-    pub fn get_manager_node(session: Session, node_type: NodeType) -> Result<HoudiniNode> {
-        let id = crate::ffi::get_manager_node(&session, node_type)?;
-        HoudiniNode::new(session, NodeHandle(id, ()), None)
+    pub fn get_manager_node(session: &Session, node_type: NodeType) -> Result<HoudiniNode> {
+        let id = crate::ffi::get_manager_node(session, node_type)?;
+        HoudiniNode::new(session.clone(), NodeHandle(id, ()), None)
     }
 
     pub fn get_object_info(&self) -> Result<ObjectInfo<'_>> {
@@ -293,6 +293,25 @@ impl<'session> HoudiniNode {
             }
         })
     }
+
+    pub fn save_to_file(&self, file: impl AsRef<std::path::Path>) -> Result<()> {
+        let filename = CString::new(file.as_ref().to_string_lossy().to_string())?;
+        crate::ffi::save_node_to_file(self.handle, &self.session, &filename)
+    }
+
+    pub fn load_from_file (
+        session: &Session,
+        parent: Option<NodeHandle>,
+        label: &str,
+        cook: bool,
+        file: impl AsRef<std::path::Path>,
+    ) -> Result<HoudiniNode> {
+        let filename = CString::new(file.as_ref().to_string_lossy().to_string())?;
+        let label = CString::new(label)?;
+        let id = crate::ffi::load_node_from_file(parent, session, &label, &filename, cook)?;
+        NodeHandle(id, ()).to_node(session)
+    }
+
     pub fn geometry(&self) -> Result<Option<Geometry>> {
         use std::borrow::Cow;
         match self.info.node_type() {
@@ -300,14 +319,13 @@ impl<'session> HoudiniNode {
                 node: self.clone(),
                 info: GeoInfo::from_node(self)?,
             })),
-            NodeType::Obj =>
-                {
-                    let info = crate::ffi::get_geo_display_info(self).map(|inner| GeoInfo { inner })?;
-                    Ok(Some(Geometry {
-                        node: info.node_id().to_node(&self.session)?,
-                        info,
-                    }))
-                },
+            NodeType::Obj => {
+                let info = crate::ffi::get_geo_display_info(self).map(|inner| GeoInfo { inner })?;
+                Ok(Some(Geometry {
+                    node: info.node_id().to_node(&self.session)?,
+                    info,
+                }))
+            }
             NodeType(_) => Ok(None),
         }
     }
@@ -323,7 +341,7 @@ impl<'session> HoudiniNode {
             relative_to,
             rst_order.unwrap_or(RSTOrder::Default),
         )
-            .map(|inner| Transform { inner })
+        .map(|inner| Transform { inner })
     }
 
     pub fn set_transform(&self, transform: &TransformEuler) -> Result<()> {
@@ -386,11 +404,24 @@ mod tests {
                     .with_position([0.0, 1.0, 0.0])
                     .with_rotation([45.0, 0.0, 0.0]),
             )
-               .unwrap();
+            .unwrap();
             obj.cook(None).unwrap();
             assert!(obj.get_object_info().unwrap().has_transform_changed());
             let t = obj.get_transform(None, None).unwrap();
             assert_eq!(t.position(), [0.0, 1.0, 0.0]);
+        });
+    }
+
+    #[test]
+    fn save_and_load() {
+        with_session(|session|{
+            let cam = session.create_node("Object/cam", "ToSave", None).unwrap();
+            let tmp = std::env::temp_dir().join("node");
+            cam.save_to_file(&tmp).expect("save_to_file");
+            let new = HoudiniNode::load_from_file(session, None, "loaded_cam", true, &tmp).expect("load_from_file");
+            std::fs::remove_file(&tmp).unwrap();
+            cam.delete().unwrap();
+            new.delete().unwrap();
         });
     }
 }
