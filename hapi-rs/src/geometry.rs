@@ -8,17 +8,30 @@ pub use crate::ffi::{
 };
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringArray;
+use crate::session::Session;
 use std::ffi::CString;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Geometry {
     pub node: HoudiniNode,
     pub(crate) info: GeoInfo,
 }
 
 impl Geometry {
+    pub fn from_info(info: GeoInfo, session: &Session) -> Result<Self> {
+        Ok(
+            Self {
+                node: info.node_id().to_node(session)?,
+                info
+        })
+    }
+
     pub fn part_info(&self, id: i32) -> Result<PartInfo> {
         crate::ffi::get_part_info(&self.node, id).map(|inner| PartInfo { inner })
+    }
+
+    pub fn geo_info(&self) -> Result<GeoInfo> {
+        GeoInfo::from_node(&self.node)
     }
 
     pub fn set_part_info(&self, info: &PartInfo) -> Result<()> {
@@ -52,10 +65,6 @@ impl Geometry {
 
     pub fn set_face_counts(&self, part_id: i32, list: impl AsRef<[i32]>) -> Result<()> {
         crate::ffi::set_geo_face_counts(&self.node, part_id, list.as_ref())
-    }
-
-    pub fn geo_info(&self) -> Result<GeoInfo> {
-        GeoInfo::from_node(&self.node)
     }
 
     pub fn update(&mut self) -> Result<()> {
@@ -432,5 +441,12 @@ mod tests {
             geo.node.cook(None).unwrap();
             assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
         });
+    }
+
+    #[test]
+    fn info_to_geo() {
+        with_session(|session|{
+        });
+
     }
 }

@@ -228,6 +228,7 @@ impl ParmInfo {
 }
 
 #[derive(Clone)]
+// TODO: Get rid of session here?
 pub struct NodeInfo {
     pub(crate) inner: HAPI_NodeInfo,
     pub(crate) session: Session,
@@ -358,7 +359,7 @@ impl<'s> ObjectInfo<'s> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GeoInfo {
     pub(crate) inner: HAPI_GeoInfo,
 }

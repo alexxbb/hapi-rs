@@ -1082,6 +1082,25 @@ pub fn get_geo_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_Geo
     }
 }
 
+pub fn get_output_geo_count(node: &HoudiniNode) -> Result<i32> {
+
+    let mut count= uninit!();
+    unsafe {
+        raw::HAPI_GetOutputGeoCount(node.session.ptr(), node.handle.0, count.as_mut_ptr()).check_err(Some(&node.session))?;
+        Ok(count.assume_init())
+    }
+}
+
+pub fn get_output_geos(node: &HoudiniNode) -> Result<Vec<raw::HAPI_GeoInfo>> {
+    let count = get_output_geo_count(node)?;
+    unsafe {
+        let mut obj_infos = vec![raw::HAPI_GeoInfo_Create(); count as usize];
+        raw::HAPI_GetOutputGeoInfos(node.session.ptr(), node.handle.0, obj_infos.as_mut_ptr(), count).check_err(Some(&node.session))?;
+        Ok(obj_infos)
+    }
+
+}
+
 pub fn get_group_count_by_type(geo_info: &GeoInfo, group_type: raw::GroupType) -> i32 {
     // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
     // actually shouldn't?

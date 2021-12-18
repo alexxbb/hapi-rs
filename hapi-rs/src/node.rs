@@ -299,7 +299,7 @@ impl<'session> HoudiniNode {
         crate::ffi::save_node_to_file(self.handle, &self.session, &filename)
     }
 
-    pub fn load_from_file (
+    pub fn load_from_file(
         session: &Session,
         parent: Option<NodeHandle>,
         label: &str,
@@ -328,6 +328,25 @@ impl<'session> HoudiniNode {
             }
             NodeType(_) => Ok(None),
         }
+    }
+
+    #[inline]
+    pub fn number_of_geo_outputs(&self) -> Result<i32> {
+        crate::ffi::get_output_geo_count(self)
+    }
+
+    pub fn geometry_outputs(&self) -> Result<Vec<Geometry>> {
+        crate::ffi::get_output_geos(self)
+            .map(|vec|
+                vec.into_iter().map(|inner|
+                    NodeHandle(inner.nodeId, ()).to_node(&self.session).map(|node|
+                        Geometry {
+                            node,
+                            info: GeoInfo { inner },
+                        }
+                    )
+                ).collect::<Result<Vec<_>>>()
+            )?
     }
 
     pub fn get_transform(
@@ -414,14 +433,27 @@ mod tests {
 
     #[test]
     fn save_and_load() {
-        with_session(|session|{
+        with_session(|session| {
             let cam = session.create_node("Object/cam", "ToSave", None).unwrap();
             let tmp = std::env::temp_dir().join("node");
             cam.save_to_file(&tmp).expect("save_to_file");
-            let new = HoudiniNode::load_from_file(session, None, "loaded_cam", true, &tmp).expect("load_from_file");
+            let new = HoudiniNode::load_from_file(session, None, "loaded_cam", true, &tmp)
+                .expect("load_from_file");
             std::fs::remove_file(&tmp).unwrap();
             cam.delete().unwrap();
             new.delete().unwrap();
+        });
+    }
+
+    #[test]
+    fn number_of_geo_outputs() {
+        with_session(|session| {
+            let otl = crate::session::tests::OTLS.get("geometry").unwrap();
+            let lib = session.load_asset_file(otl).unwrap();
+            let node = lib.try_create_first().unwrap();
+            assert_eq!(node.number_of_geo_outputs(), Ok(1));
+            let infos = node.geometry_outputs().unwrap();
+            assert_eq!(infos.len(), 1);
         });
     }
 }
