@@ -92,7 +92,7 @@ impl std::fmt::Display for HapiError {
             Kind::Hapi(_) => {
                 if let Some(ref session) = self.session {
                     let err_msg = session
-                        .get_status_string(StatusType::CallResult, StatusVerbosity::Errors)
+                        .get_status_string(StatusType::CallResult, StatusVerbosity::All)
                         .unwrap_or_else(|_| String::from("could not retrieve error message"));
                     write!(f, "[{}]: ", self.kind.description())?;
                     write!(f, "[Engine Message]: {} ", err_msg)?;

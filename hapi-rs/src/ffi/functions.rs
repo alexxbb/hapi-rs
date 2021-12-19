@@ -579,6 +579,7 @@ pub fn get_status_string(
     verbosity: raw::StatusVerbosity,
 ) -> Result<String> {
     let mut length = uninit!();
+    let _lock = session.handle.1.lock();
     unsafe {
         raw::HAPI_GetStatusStringBufLength(session.ptr(), status, verbosity, length.as_mut_ptr())
             .error_message("GetStatusStringBufLength failed")?;
@@ -1683,9 +1684,6 @@ pub fn get_group_names(
     crate::stringhandle::get_string_array(&handles, &node.session)
 }
 
-pub fn commit_geo(node: &HoudiniNode) -> Result<()> {
-    unsafe { raw::HAPI_CommitGeo(node.session.ptr(), node.handle.0).check_err(Some(&node.session)) }
-}
 
 pub fn save_geo_to_file(node: &HoudiniNode, filename: &CStr) -> Result<()> {
     unsafe {
@@ -1935,5 +1933,15 @@ pub fn save_geo_to_memory(session: &Session, node: NodeHandle, format: &CStr) ->
 pub fn load_geo_from_memory(session: &Session, node: NodeHandle, data: &[i8], format: &CStr) -> Result<()> {
     unsafe {
         raw::HAPI_LoadGeoFromMemory(session.ptr(), node.0, format.as_ptr(), data.as_ptr(), data.len() as i32).check_err(Some(session))
+    }
+}
+
+pub fn commit_geo(node: &HoudiniNode) -> Result<()> {
+    unsafe { raw::HAPI_CommitGeo(node.session.ptr(), node.handle.0).check_err(Some(&node.session)) }
+}
+
+pub fn revert_geo(node: &HoudiniNode) -> Result<()> {
+    unsafe {
+        raw::HAPI_RevertGeo(node.session.ptr(), node.handle.0).check_err(Some(&node.session))
     }
 }

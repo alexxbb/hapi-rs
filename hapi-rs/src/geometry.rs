@@ -291,6 +291,10 @@ impl Geometry {
         crate::ffi::commit_geo(&self.node)
     }
 
+    pub fn revert(&self) -> Result<()>{
+        crate::ffi::revert_geo(&self.node)
+    }
+
     pub fn save_to_memory(&self, format: GeoFormat) -> Result<Vec<i8>> {
         let format = unsafe { CStr::from_bytes_with_nul_unchecked( format.as_c_literal())};
         crate::ffi::save_geo_to_memory(&self.node.session, self.node.handle, format)
@@ -381,6 +385,7 @@ mod tests {
                 .unwrap();
             let val: Vec<_> = attr_p.read(0).expect("read_attribute");
             assert_eq!(val.len(), 9);
+            input.delete().unwrap();
         });
     }
 
@@ -399,6 +404,7 @@ mod tests {
             let attr_name = geo.add_attribute::<&str>("name", 0, &info).unwrap();
             attr_name.set(0, ["pt0", "pt1", "pt2"]).unwrap();
             geo.commit().unwrap();
+            input.delete().unwrap();
         });
     }
 
@@ -467,6 +473,7 @@ mod tests {
             geo.load_from_file(&tmp_file.to_string_lossy()).expect("load_from_file");
             geo.node.cook(None).unwrap();
             assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
+            input.delete().unwrap();
         });
     }
 
@@ -484,5 +491,20 @@ mod tests {
             node.delete().unwrap();
         });
 
+    }
+
+    #[test]
+    fn commit_and_revert() {
+        with_session(|session|{
+            let input = session.create_input_node("input").unwrap();
+            let geo = _create_triangle(&input);
+            geo.commit().unwrap();
+            input.cook_blocking(None).unwrap();
+            assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
+            geo.revert().unwrap();
+            input.cook_blocking(None).unwrap();
+            assert_eq!(geo.part_info(0).unwrap().point_count(), 0);
+            input.delete().unwrap();
+        });
     }
 }
