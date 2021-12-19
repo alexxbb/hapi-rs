@@ -230,6 +230,21 @@ impl Geometry {
         }
     }
 
+    pub fn delete_group(
+        &self,
+        part_id: i32,
+        group_type: GroupType,
+        group_name: &str,
+    ) -> Result<()> {
+        let group_name = CString::new(group_name)?;
+        crate::ffi::delete_group(
+            &self.node.session,
+            self.node.handle,
+            part_id,
+            group_type,
+            &group_name)
+    }
+
     pub fn set_group_membership(
         &self,
         part_id: i32,
@@ -273,8 +288,16 @@ impl Geometry {
         )
     }
 
-    pub fn group_count_by_type(&self, group_type: GroupType) -> i32 {
-        crate::ffi::get_group_count_by_type(&self.info, group_type)
+    pub fn group_count_by_type(&self, group_type: GroupType, info: Option<&GeoInfo>) -> Result<i32> {
+        let mut _tmp;
+        let info = match info {
+            Some(info) => info,
+            None => {
+                _tmp = self.geo_info()?;
+                &_tmp
+            }
+        };
+        Ok(crate::ffi::get_group_count_by_type(info, group_type))
     }
 
     pub fn save_to_file(&self, filepath: &str) -> Result<()> {
@@ -504,6 +527,24 @@ mod tests {
             geo.revert().unwrap();
             input.cook_blocking(None).unwrap();
             assert_eq!(geo.part_info(0).unwrap().point_count(), 0);
+            input.delete().unwrap();
+        });
+    }
+
+    #[test]
+    fn add_and_delete_group() {
+        with_session(|session|{
+            let input = session.create_input_node("input").unwrap();
+            let geo = _create_triangle(&input);
+            geo.add_group(0, GroupType::Point, "test", Some(&[1, 1, 1])).unwrap();
+            geo.commit().unwrap();
+            geo.node.cook_blocking(None).unwrap();
+            assert_eq!(geo.group_count_by_type(GroupType::Point, geo.geo_info().as_ref().ok()), Ok(1));
+
+            geo.delete_group(0, GroupType::Point, "test").unwrap();
+            geo.commit().unwrap();
+            geo.node.cook_blocking(None).unwrap();
+            assert_eq!(geo.group_count_by_type(GroupType::Point, None), Ok(0));
             input.delete().unwrap();
         });
     }

@@ -1616,6 +1616,25 @@ pub fn add_group(
     }
 }
 
+pub fn delete_group(
+    session: &Session,
+    node: NodeHandle,
+    part_id: i32,
+    group_type: raw::GroupType,
+    group_name: &CStr,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_DeleteGroup(
+            session.ptr(),
+            node.0,
+            part_id,
+            group_type,
+            group_name.as_ptr(),
+        )
+            .check_err(Some(session))
+    }
+}
+
 pub fn set_group_membership(
     session: &Session,
     node: NodeHandle,
