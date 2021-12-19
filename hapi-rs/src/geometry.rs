@@ -9,12 +9,29 @@ pub use crate::ffi::{
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringArray;
 use crate::session::Session;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 
 #[derive(Debug, Clone)]
 pub struct Geometry {
     pub node: HoudiniNode,
     pub(crate) info: GeoInfo,
+}
+
+#[derive(Debug)]
+pub enum GeoFormat {
+    Geo,
+    Bgeo,
+    Obj
+}
+
+impl GeoFormat {
+    fn as_c_literal(&self) -> &'static [u8] {
+        match *self {
+            GeoFormat::Geo => b".geo\0",
+            GeoFormat::Bgeo => b".bgeo\0",
+            GeoFormat::Obj => b".obj\0",
+        }
+    }
 }
 
 impl Geometry {
@@ -273,6 +290,16 @@ impl Geometry {
     pub fn commit(&self) -> Result<()> {
         crate::ffi::commit_geo(&self.node)
     }
+
+    pub fn save_to_memory(&self, format: GeoFormat) -> Result<Vec<i8>> {
+        let format = unsafe { CStr::from_bytes_with_nul_unchecked( format.as_c_literal())};
+        crate::ffi::save_geo_to_memory(&self.node.session, self.node.handle, format)
+    }
+
+    pub fn load_from_memory(&self, data: &[i8], format: GeoFormat) -> Result<()> {
+        let format = unsafe { CStr::from_bytes_with_nul_unchecked( format.as_c_literal())};
+        crate::ffi::load_geo_from_memory(&self.node.session, self.node.handle, data, format)
+    }
 }
 
 impl PartInfo {
@@ -429,7 +456,7 @@ mod tests {
     }
 
     #[test]
-    fn save_and_load() {
+    fn save_and_load_to_file() {
         with_session(|session|{
             let input = session.create_input_node("triangle").unwrap();
             let geo = _create_triangle(&input);
@@ -444,8 +471,17 @@ mod tests {
     }
 
     #[test]
-    fn info_to_geo() {
+    fn geometry_in_memory() {
         with_session(|session|{
+            let node = session.create_input_node("source").unwrap();
+            let source = _create_triangle(&node);
+            let blob = source.save_to_memory(GeoFormat::Geo).expect("save_geo_to_memory");
+            node.delete().unwrap();
+
+            let node = session.create_input_node("dest").unwrap();
+            let dest = _create_triangle(&node);
+            dest.load_from_memory(&blob, GeoFormat::Geo).expect("load_from_memory");
+            node.delete().unwrap();
         });
 
     }

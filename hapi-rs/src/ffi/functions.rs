@@ -1246,6 +1246,20 @@ pub fn set_curve_knots(node: &HoudiniNode, part_id: i32, knots: &[f32]) -> Resul
     }
 }
 
+pub fn set_curve_orders(node: &HoudiniNode, part_id: i32, knots: &[i32]) -> Result<()> {
+    unsafe {
+        super::raw::HAPI_SetCurveOrders(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            knots.as_ptr(),
+            0,
+            knots.len() as i32,
+        )
+            .check_err(Some(&node.session))
+    }
+}
+
 pub fn get_box_info(
     node: NodeHandle,
     session: &Session,
@@ -1902,5 +1916,24 @@ pub fn set_transform_anim_curve(
             keys.len() as i32,
         )
             .check_err(Some(session))
+    }
+}
+
+
+pub fn save_geo_to_memory(session: &Session, node: NodeHandle, format: &CStr) -> Result<Vec<i8>> {
+    unsafe {
+        let mut size = uninit!();
+        raw::HAPI_GetGeoSize(session.ptr(), node.0, format.as_ptr(), size.as_mut_ptr()).check_err(Some(session))?;
+        let size = size.assume_init();
+        let mut buffer = Vec::new();
+        buffer.resize(size as usize, 0);
+        raw::HAPI_SaveGeoToMemory(session.ptr(), node.0, buffer.as_mut_ptr(), size).check_err(Some(session))?;
+        Ok(buffer)
+    }
+}
+
+pub fn load_geo_from_memory(session: &Session, node: NodeHandle, data: &[i8], format: &CStr) -> Result<()> {
+    unsafe {
+        raw::HAPI_LoadGeoFromMemory(session.ptr(), node.0, format.as_ptr(), data.as_ptr(), data.len() as i32).check_err(Some(session))
     }
 }
