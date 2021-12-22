@@ -1964,3 +1964,29 @@ pub fn revert_geo(node: &HoudiniNode) -> Result<()> {
         raw::HAPI_RevertGeo(node.session.ptr(), node.handle.0).check_err(Some(&node.session))
     }
 }
+
+pub fn session_get_license_type(session: &Session) -> Result<raw::License> {
+    unsafe {
+        let mut ret = uninit!();
+        raw::HAPI_GetSessionEnvInt(session.ptr(), raw::SessionEnvIntType::License, ret.as_mut_ptr()).check_err(Some(session))?;
+        /// SAFETY: License enum is repr i32
+        Ok(std::mem::transmute(ret.assume_init()))
+    }
+
+}
+
+pub fn get_environment_int(_type: raw::EnvIntType) -> Result<i32> {
+    unsafe {
+        let mut ret = uninit!();
+        raw::HAPI_GetEnvInt(_type, ret.as_mut_ptr()).error_message("get_environment_int")?;
+        Ok(ret.assume_init())
+    }
+}
+
+pub fn get_material_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_MaterialInfo> {
+    unsafe {
+        let mut mat = uninit!();
+        raw::HAPI_GetMaterialInfo(session.ptr(), node.0, mat.as_mut_ptr()).check_err(Some(session))?;
+        Ok(mat.assume_init())
+    }
+}

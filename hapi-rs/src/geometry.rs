@@ -141,6 +141,16 @@ impl Geometry {
         )
     }
 
+    pub fn get_material_info(&self) -> Result<MaterialInfo> {
+        todo!();
+        crate::ffi::get_material_info(&self.session, self.handle)
+            // SAFETY HAPI_MaterialInfo and MaterialInfo are similar and both are repr(C)
+            .map(|info|unsafe {
+                std::mem::transmute(info)
+            })
+    }
+
+
     pub fn get_group_names(&self, group_type: GroupType) -> Result<StringArray> {
         let count = match group_type {
             GroupType::Point => self.info.point_group_count(),

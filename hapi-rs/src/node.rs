@@ -6,7 +6,7 @@ use log::{debug, warn};
 use crate::{
     errors::Result,
     ffi,
-    ffi::{AssetInfo, GeoInfo, NodeInfo, ObjectInfo, ParmInfo},
+    ffi::{AssetInfo, GeoInfo, NodeInfo, ObjectInfo, ParmInfo, MaterialInfo},
     geometry::Geometry,
     parameter::*,
     session::{CookResult, Session},
@@ -42,6 +42,7 @@ impl ffi::NodeInfo {
     }
 }
 
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct NodeHandle(pub ffi::raw::HAPI_NodeId, pub(crate) ());
 

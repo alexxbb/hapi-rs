@@ -9,7 +9,7 @@ pub use crate::ffi::PartInfo;
 pub use crate::{
     asset::AssetLibrary,
     errors::*,
-    ffi::raw::{HapiResult, State, StatusType, StatusVerbosity, HAPI_Session},
+    ffi::raw::{HapiResult, State, StatusType, StatusVerbosity, HAPI_Session, License, EnvIntType},
     ffi::{CookOptions, SessionSyncInfo, TimelineOptions, Viewport},
     node::{HoudiniNode, NodeHandle},
     stringhandle::StringArray,
@@ -290,6 +290,10 @@ impl Session {
     pub fn set_sync_info(&self, info: &SessionSyncInfo) -> Result<()> {
         crate::ffi::set_session_sync_info(self, &info.inner)
     }
+
+    pub fn get_license_type(&self) -> Result<License> {
+        crate::ffi::session_get_license_type(self)
+    }
 }
 
 impl Drop for Session {
@@ -309,6 +313,10 @@ impl Drop for Session {
             }
         }
     }
+}
+
+pub fn get_server_info(int: EnvIntType) -> Result<i32> {
+    crate::ffi::get_environment_int(int)
 }
 
 pub fn connect_to_pipe(pipe: &str) -> Result<Session> {
@@ -622,6 +630,15 @@ pub(crate) mod tests {
             assert_eq!(vp.rotation(), vp2.rotation());
             assert_eq!(vp.offset(), vp2.offset());
         });
+    }
+
+    #[test]
+    fn license_type() {
+        with_session(|session| {
+            // Loading asset triggers license acquisition
+            session.load_asset_file(OTLS.get("geometry").unwrap()).unwrap();
+            assert_eq!(session.get_license_type(), Ok(License::HoudiniEngine));
+        })
     }
 
     #[test]

@@ -527,6 +527,15 @@ wrap!(
 );
 
 
+
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct MaterialInfo {
+    pub node_id: NodeHandle,
+    pub exists: bool,
+    pub has_changed: bool
+}
+
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct KeyFrame {
