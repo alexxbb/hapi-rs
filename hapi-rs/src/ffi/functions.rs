@@ -7,7 +7,7 @@ use std::ptr::{null, null_mut};
 use crate::ffi::{CurveInfo, PartInfo, Viewport};
 use crate::{
     attribute::DataArray,
-    errors::Result,
+    errors::{HapiError, Kind, Result},
     geometry::GeoInfo,
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
@@ -599,9 +599,14 @@ pub fn get_status_string(
 pub fn create_inprocess_session() -> Result<raw::HAPI_Session> {
     let mut ses = uninit!();
     unsafe {
-        raw::HAPI_CreateInProcessSession(ses.as_mut_ptr())
-            .error_message("Session::new_in_process failed")?;
-        Ok(ses.assume_init())
+        match raw::HAPI_CreateInProcessSession(ses.as_mut_ptr()) {
+            err @ raw::HapiResult::Failure => Err(HapiError::new(
+                Kind::Hapi(err),
+                None,
+                Some(get_connection_error(true)?.into()),
+            )),
+            _ => Ok(ses.assume_init()),
+        }
     }
 }
 
@@ -1257,7 +1262,7 @@ pub fn set_curve_orders(node: &HoudiniNode, part_id: i32, knots: &[i32]) -> Resu
             0,
             knots.len() as i32,
         )
-            .check_err(Some(&node.session))
+        .check_err(Some(&node.session))
     }
 }
 
@@ -1631,7 +1636,7 @@ pub fn delete_group(
             group_type,
             group_name.as_ptr(),
         )
-            .check_err(Some(session))
+        .check_err(Some(session))
     }
 }
 
@@ -1702,7 +1707,6 @@ pub fn get_group_names(
     }
     crate::stringhandle::get_string_array(&handles, &node.session)
 }
-
 
 pub fn save_geo_to_file(node: &HoudiniNode, filename: &CStr) -> Result<()> {
     unsafe {
@@ -1932,26 +1936,39 @@ pub fn set_transform_anim_curve(
             keys.as_ptr(),
             keys.len() as i32,
         )
-            .check_err(Some(session))
+        .check_err(Some(session))
     }
 }
-
 
 pub fn save_geo_to_memory(session: &Session, node: NodeHandle, format: &CStr) -> Result<Vec<i8>> {
     unsafe {
         let mut size = uninit!();
-        raw::HAPI_GetGeoSize(session.ptr(), node.0, format.as_ptr(), size.as_mut_ptr()).check_err(Some(session))?;
+        raw::HAPI_GetGeoSize(session.ptr(), node.0, format.as_ptr(), size.as_mut_ptr())
+            .check_err(Some(session))?;
         let size = size.assume_init();
         let mut buffer = Vec::new();
         buffer.resize(size as usize, 0);
-        raw::HAPI_SaveGeoToMemory(session.ptr(), node.0, buffer.as_mut_ptr(), size).check_err(Some(session))?;
+        raw::HAPI_SaveGeoToMemory(session.ptr(), node.0, buffer.as_mut_ptr(), size)
+            .check_err(Some(session))?;
         Ok(buffer)
     }
 }
 
-pub fn load_geo_from_memory(session: &Session, node: NodeHandle, data: &[i8], format: &CStr) -> Result<()> {
+pub fn load_geo_from_memory(
+    session: &Session,
+    node: NodeHandle,
+    data: &[i8],
+    format: &CStr,
+) -> Result<()> {
     unsafe {
-        raw::HAPI_LoadGeoFromMemory(session.ptr(), node.0, format.as_ptr(), data.as_ptr(), data.len() as i32).check_err(Some(session))
+        raw::HAPI_LoadGeoFromMemory(
+            session.ptr(),
+            node.0,
+            format.as_ptr(),
+            data.as_ptr(),
+            data.len() as i32,
+        )
+        .check_err(Some(session))
     }
 }
 
@@ -1960,19 +1977,21 @@ pub fn commit_geo(node: &HoudiniNode) -> Result<()> {
 }
 
 pub fn revert_geo(node: &HoudiniNode) -> Result<()> {
-    unsafe {
-        raw::HAPI_RevertGeo(node.session.ptr(), node.handle.0).check_err(Some(&node.session))
-    }
+    unsafe { raw::HAPI_RevertGeo(node.session.ptr(), node.handle.0).check_err(Some(&node.session)) }
 }
 
 pub fn session_get_license_type(session: &Session) -> Result<raw::License> {
     unsafe {
         let mut ret = uninit!();
-        raw::HAPI_GetSessionEnvInt(session.ptr(), raw::SessionEnvIntType::License, ret.as_mut_ptr()).check_err(Some(session))?;
+        raw::HAPI_GetSessionEnvInt(
+            session.ptr(),
+            raw::SessionEnvIntType::License,
+            ret.as_mut_ptr(),
+        )
+        .check_err(Some(session))?;
         /// SAFETY: License enum is repr i32
         Ok(std::mem::transmute(ret.assume_init()))
     }
-
 }
 
 pub fn get_environment_int(_type: raw::EnvIntType) -> Result<i32> {
@@ -1983,10 +2002,60 @@ pub fn get_environment_int(_type: raw::EnvIntType) -> Result<i32> {
     }
 }
 
+pub fn get_preset(
+    session: &Session,
+    node: NodeHandle,
+    name: &CStr,
+    _type: raw::PresetType,
+) -> Result<Vec<i8>> {
+    unsafe {
+        let mut length = uninit!();
+        raw::HAPI_GetPresetBufLength(
+            session.ptr(),
+            node.0,
+            _type,
+            name.as_ptr(),
+            length.as_mut_ptr(),
+        )
+        .check_err(Some(session))?;
+        let mut buffer = Vec::new();
+        buffer.resize(length.assume_init() as usize, 0);
+        raw::HAPI_GetPreset(
+            session.ptr(),
+            node.0,
+            buffer.as_mut_ptr(),
+            buffer.len() as i32,
+        )
+        .check_err(Some(session))?;
+        Ok(buffer)
+    }
+}
+
+pub fn set_preset(
+    session: &Session,
+    node: NodeHandle,
+    name: &CStr,
+    _type: raw::PresetType,
+    data: &[i8],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetPreset(
+            session.ptr(),
+            node.0,
+            _type,
+            name.as_ptr(),
+            data.as_ptr(),
+            data.len() as i32,
+        )
+        .check_err(Some(session))
+    }
+}
+
 pub fn get_material_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_MaterialInfo> {
     unsafe {
         let mut mat = uninit!();
-        raw::HAPI_GetMaterialInfo(session.ptr(), node.0, mat.as_mut_ptr()).check_err(Some(session))?;
+        raw::HAPI_GetMaterialInfo(session.ptr(), node.0, mat.as_mut_ptr())
+            .check_err(Some(session))?;
         Ok(mat.assume_init())
     }
 }

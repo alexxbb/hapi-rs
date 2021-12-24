@@ -13,7 +13,8 @@ use crate::{
 };
 pub use crate::{
     ffi::raw::{
-        ErrorCode, NodeFlags, NodeType, ParmType, RSTOrder, State, StatusType, StatusVerbosity, TransformComponent
+        ErrorCode, NodeFlags, NodeType, ParmType, RSTOrder, State, StatusType, StatusVerbosity, TransformComponent,
+        PresetType
     },
     ffi::{CookOptions, Transform, TransformEuler},
 };
@@ -313,6 +314,16 @@ impl<'session> HoudiniNode {
         NodeHandle(id, ()).to_node(session)
     }
 
+    pub fn get_preset(&self, name: &str, preset_type: PresetType) -> Result<Vec<i8>> {
+        let name = CString::new(name)?;
+        crate::ffi::get_preset(&self.session, self.handle, &name, preset_type)
+    }
+
+    pub fn set_preset(&self, name: &str, preset_type: PresetType, data: &[i8]) -> Result<()> {
+        let name = CString::new(name)?;
+        crate::ffi::set_preset(&self.session, self.handle, &name, preset_type, data)
+    }
+
     pub fn geometry(&self) -> Result<Option<Geometry>> {
         use std::borrow::Cow;
         match self.info.node_type() {
@@ -467,7 +478,7 @@ mod tests {
     #[test]
     fn set_transform_anim() {
         with_session(|session| {
-            let null = session.create_node_blocking("Object/bone", None, None).unwrap();
+            let bone = session.create_node_blocking("Object/bone", None, None).unwrap();
             let ty = [KeyFrame {
                 time: 0.0,
                 value: 0.0,
@@ -481,10 +492,24 @@ mod tests {
                     out_tangent: 0.0,
                 }
             ];
-            null.set_transform_anim_curve(TransformComponent::Ty, &ty).unwrap();
+            bone.set_transform_anim_curve(TransformComponent::Ty, &ty).unwrap();
             session.set_time(1.0);
-            if let Parameter::Float(p) =null.parameter("ty").unwrap() {
+            if let Parameter::Float(p) = bone.parameter("ty").unwrap() {
                 assert_eq!(p.get_value().unwrap(), vec![0.0, 5.0, 0.0]);
+            }
+        });
+    }
+
+    #[test]
+    fn get_set_preset() {
+        with_session(|session|{
+            let node = session.create_node_blocking("Object/null", None, None).unwrap();
+            if let Parameter::Float(p) = node.parameter("scale").unwrap() {
+                assert_eq!(p.get_value().unwrap(),  &[1.0]);
+                let save = node.get_preset("test", PresetType::Binary).unwrap();
+                p.set_value(&[2.0]);
+                node.set_preset("test", PresetType::Binary, &save).unwrap();
+                assert_eq!(p.get_value().unwrap(),  &[1.0]);
             }
         });
     }
