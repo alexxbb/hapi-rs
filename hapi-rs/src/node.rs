@@ -430,7 +430,7 @@ mod tests {
     fn node_transform() {
         with_session(|session| {
             let obj = session
-                .create_node_blocking("Object/null", None, None)
+                .create_node_blocking("Object/null", "node_transform", None)
                 .unwrap();
             let t = obj.get_transform(None, None).unwrap();
             assert_eq!(t.position(), [0.0, 0.0, 0.0]);
@@ -477,33 +477,32 @@ mod tests {
 
     #[test]
     fn set_transform_anim() {
-        with_session(|session| {
-            let bone = session.create_node_blocking("Object/bone", None, None).unwrap();
-            let ty = [KeyFrame {
-                time: 0.0,
-                value: 0.0,
+        let session = crate::session::simple_session(None).unwrap();
+        let bone = session.create_node_blocking("Object/bone", None, None).unwrap();
+        let ty = [KeyFrame {
+            time: 0.0,
+            value: 0.0,
+            in_tangent: 0.0,
+            out_tangent: 0.0,
+        },
+            KeyFrame {
+                time: 1.0,
+                value: 5.0,
                 in_tangent: 0.0,
                 out_tangent: 0.0,
-            },
-                KeyFrame {
-                    time: 1.0,
-                    value: 5.0,
-                    in_tangent: 0.0,
-                    out_tangent: 0.0,
-                }
-            ];
-            bone.set_transform_anim_curve(TransformComponent::Ty, &ty).unwrap();
-            session.set_time(1.0);
-            if let Parameter::Float(p) = bone.parameter("ty").unwrap() {
-                assert_eq!(p.get_value().unwrap(), vec![0.0, 5.0, 0.0]);
             }
-        });
+        ];
+        bone.set_transform_anim_curve(TransformComponent::Ty, &ty).unwrap();
+        session.set_time(1.0).unwrap();
+        if let Parameter::Float(p) = bone.parameter("ty").unwrap() {
+            assert_eq!(p.get_value().unwrap(), &[0.0, 5.0, 0.0]);
+        }
     }
 
     #[test]
     fn get_set_preset() {
         with_session(|session|{
-            let node = session.create_node_blocking("Object/null", None, None).unwrap();
+            let node = session.create_node_blocking("Object/null", "get_set_parent", None).unwrap();
             if let Parameter::Float(p) = node.parameter("scale").unwrap() {
                 assert_eq!(p.get_value().unwrap(),  &[1.0]);
                 let save = node.get_preset("test", PresetType::Binary).unwrap();

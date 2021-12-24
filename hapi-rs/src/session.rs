@@ -151,13 +151,13 @@ impl Session {
         HoudiniNode::create(name, label.into(), parent, self.clone(), false)
     }
 
-    pub fn create_node_blocking(
+    pub fn create_node_blocking<'a>(
         &self,
         name: &str,
-        label: Option<&str>,
+        label: impl Into<Option<&'a str>>,
         parent: Option<NodeHandle>,
     ) -> Result<HoudiniNode> {
-        HoudiniNode::create_blocking(name, label, parent, self.clone(), false)
+        HoudiniNode::create_blocking(name, label.into(), parent, self.clone(), false)
     }
 
     pub fn save_hip(&self, name: &str, lock_nodes: bool) -> Result<()> {
@@ -258,6 +258,10 @@ impl Session {
 
     pub fn set_time(&self, time: f32) -> Result<()> {
         crate::ffi::set_time(self, time)
+    }
+
+    pub fn lock(&self) -> parking_lot::ReentrantMutexGuard<()> {
+        self.handle.1.lock()
     }
 
     pub fn set_timeline_options(&self, options: TimelineOptions) -> Result<()> {
@@ -550,7 +554,7 @@ pub(crate) mod tests {
             let opt2 = session.get_timeline_options().expect("timeline_options");
             assert!(opt.end_time().eq(&opt2.end_time()));
             session.set_time(4.12).expect("set_time");
-            session.cook().unwrap();
+            assert!(matches!(session.cook(), Ok(CookResult::Succeeded)));
             assert_eq!(session.get_time().expect("get_time"), 4.12);
         });
     }
