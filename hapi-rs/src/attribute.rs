@@ -1,3 +1,4 @@
+use duplicate::duplicate;
 use std::borrow::Cow;
 use crate::errors::Result;
 pub use crate::ffi::raw::{AttributeOwner, StorageType};
@@ -148,99 +149,38 @@ where
     }
 }
 
-macro_rules! impl_attrib_type {
-    ($ty:ty, $get_func:ident, $get_array_func:ident, $set_func:ident, $storage:expr) => {
-        impl AttribDataType for $ty {
-            type Type = $ty;
-            type Return = Vec<Self::Type>;
-            type ArrayType = DataArray<$ty>;
+#[duplicate(
+    _data_type  _storage           _get                      _set                      _array;
+    [u8]    [StorageType::Uint8] [get_attribute_u8_data] [set_attribute_u8_data] [get_attribute_u8_array_data];
+    [i8]    [StorageType::Int8] [get_attribute_i8_data] [set_attribute_i8_data] [get_attribute_i8_array_data];
+    [i16]    [StorageType::Int16] [get_attribute_i16_data] [set_attribute_i16_data] [get_attribute_i16_array_data];
+    [i32]    [StorageType::Int] [get_attribute_int_data] [set_attribute_int_data] [get_attribute_int_array_data];
+    [i64]    [StorageType::Int64] [get_attribute_int64_data] [set_attribute_int64_data] [get_attribute_int64_array_data];
+    [f32]    [StorageType::Float] [get_attribute_float_data] [set_attribute_float_data] [get_attribute_float_array_data];
+    [f64]    [StorageType::Float64] [get_attribute_float64_data] [set_attribute_float64_data] [get_attribute_float64_array_data];
+)]
+impl AttribDataType for _data_type {
+    type Type = _data_type;
+    type Return = Vec<Self::Type>;
+    type ArrayType = DataArray<_data_type>;
 
-            fn storage() -> StorageType {
-                $storage
-            }
-            fn read<'session>(
-                name: &CStr,
-                node: &HoudiniNode,
-                part_id: i32,
-                info: &AttributeInfo,
-            ) -> Result<Vec<Self>> {
-                crate::ffi::$get_func(node, part_id, name, &info.inner, -1, 0, info.count())
-            }
+    fn read(name: &CStr, node: &'_ HoudiniNode, part_id: i32, info: &AttributeInfo) -> Result<Self::Return> {
+        crate::ffi::_get(node, part_id, name, &info.inner, -1, 0, info.count())
+    }
 
-            fn read_array(
-                name: &CStr,
-                node: &HoudiniNode,
-                part_id: i32,
-                info: &AttributeInfo,
-            ) -> Result<Self::ArrayType> {
-                crate::ffi::$get_array_func(node, part_id, name, &info.inner)
-            }
+    fn set(name: &CStr, node: &'_ HoudiniNode, part_id: i32, info: &AttributeInfo, values: &[Self::Type]) -> Result<()> {
+        crate::ffi::_set(node, part_id, name, &info.inner, values, 0, info.count())
+    }
 
-            fn set(
-                name: &CStr,
-                node: &HoudiniNode,
-                part_id: i32,
-                info: &AttributeInfo,
-                values: &[Self::Type],
-            ) -> Result<()> {
-                crate::ffi::$set_func(node, part_id, name, &info.inner, values, 0, info.count())
-            }
-        }
-    };
+    fn read_array(name: &CStr, node: &'_ HoudiniNode, part_id: i32, info: &AttributeInfo) -> Result<Self::ArrayType> {
+        crate::ffi::_array(node, part_id, name, &info.inner)
+    }
+
+    fn storage() -> StorageType {
+        _storage
+    }
+
 }
-
-impl_attrib_type!(
-    u8,
-    get_attribute_u8_data,
-    get_attribute_u8_array_data,
-    set_attribute_u8_data,
-    StorageType::Uint8
-);
-
-impl_attrib_type!(
-    i8,
-    get_attribute_i8_data,
-    get_attribute_i8_array_data,
-    set_attribute_i8_data,
-    StorageType::Int8
-);
-
-impl_attrib_type!(
-    i16,
-    get_attribute_i16_data,
-    get_attribute_i16_array_data,
-    set_attribute_i16_data,
-    StorageType::Int16
-);
-
-impl_attrib_type!(
-    f32,
-    get_attribute_float_data,
-    get_attribute_float_array_data,
-    set_attribute_float_data,
-    StorageType::Float
-);
-impl_attrib_type!(
-    f64,
-    get_attribute_float64_data,
-    get_attribute_float64_array_data,
-    set_attribute_float64_data,
-    StorageType::Float64
-);
-impl_attrib_type!(
-    i32,
-    get_attribute_int_data,
-    get_attribute_int_array_data,
-    set_attribute_int_data,
-    StorageType::Int
-);
-impl_attrib_type!(
-    i64,
-    get_attribute_int64_data,
-    get_attribute_int64_array_data,
-    set_attribute_int64_data,
-    StorageType::Int64
-);
 
 impl<'a> AttribDataType for &'a str {
     type Type = &'a str;

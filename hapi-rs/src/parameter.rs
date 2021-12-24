@@ -379,7 +379,7 @@ mod tests {
         use crate::ffi::KeyFrame;
 
         with_session(|session| {
-            let node = session.create_node("Object/null", None, None).unwrap();
+            let node = session.create_node("Object/null", "set_anim_curve", None).unwrap();
 
             if let Ok(Parameter::Float(p)) = node.parameter("scale") {
                 let keys = vec![
