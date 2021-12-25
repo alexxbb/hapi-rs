@@ -5,5 +5,4 @@ use hapi_rs::Result;
 fn main() -> Result<()> {
     new_in_process()?;
     Ok(())
-
 }

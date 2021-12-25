@@ -6,15 +6,15 @@ use log::{debug, warn};
 use crate::{
     errors::Result,
     ffi,
-    ffi::{AssetInfo, GeoInfo, NodeInfo, ObjectInfo, ParmInfo, MaterialInfo},
+    ffi::{AssetInfo, GeoInfo, MaterialInfo, NodeInfo, ObjectInfo, ParmInfo},
     geometry::Geometry,
     parameter::*,
     session::{CookResult, Session},
 };
 pub use crate::{
     ffi::raw::{
-        ErrorCode, NodeFlags, NodeType, ParmType, RSTOrder, State, StatusType, StatusVerbosity, TransformComponent,
-        PresetType
+        ErrorCode, NodeFlags, NodeType, ParmType, PresetType, RSTOrder, State, StatusType,
+        StatusVerbosity, TransformComponent,
     },
     ffi::{CookOptions, Transform, TransformEuler},
 };
@@ -348,17 +348,18 @@ impl<'session> HoudiniNode {
     }
 
     pub fn geometry_outputs(&self) -> Result<Vec<Geometry>> {
-        crate::ffi::get_output_geos(self)
-            .map(|vec|
-                vec.into_iter().map(|inner|
-                    NodeHandle(inner.nodeId, ()).to_node(&self.session).map(|node|
-                        Geometry {
+        crate::ffi::get_output_geos(self).map(|vec| {
+            vec.into_iter()
+                .map(|inner| {
+                    NodeHandle(inner.nodeId, ())
+                        .to_node(&self.session)
+                        .map(|node| Geometry {
                             node,
                             info: GeoInfo { inner },
-                        }
-                    )
-                ).collect::<Result<Vec<_>>>()
-            )?
+                        })
+                })
+                .collect::<Result<Vec<_>>>()
+        })?
     }
 
     pub fn get_transform(
@@ -379,7 +380,11 @@ impl<'session> HoudiniNode {
         crate::ffi::set_object_transform(&self.session, self.handle, &transform.inner)
     }
 
-    pub fn set_transform_anim_curve(&self, component: TransformComponent, keys: &[KeyFrame]) -> Result<()> {
+    pub fn set_transform_anim_curve(
+        &self,
+        component: TransformComponent,
+        keys: &[KeyFrame],
+    ) -> Result<()> {
         let keys =
             unsafe { std::mem::transmute::<&[KeyFrame], &[crate::ffi::raw::HAPI_Keyframe]>(keys) };
         crate::ffi::set_transform_anim_curve(&self.session, self.handle, component, keys)
@@ -478,21 +483,25 @@ mod tests {
     #[test]
     fn set_transform_anim() {
         let session = crate::session::simple_session(None).unwrap();
-        let bone = session.create_node_blocking("Object/bone", None, None).unwrap();
-        let ty = [KeyFrame {
-            time: 0.0,
-            value: 0.0,
-            in_tangent: 0.0,
-            out_tangent: 0.0,
-        },
+        let bone = session
+            .create_node_blocking("Object/bone", None, None)
+            .unwrap();
+        let ty = [
+            KeyFrame {
+                time: 0.0,
+                value: 0.0,
+                in_tangent: 0.0,
+                out_tangent: 0.0,
+            },
             KeyFrame {
                 time: 1.0,
                 value: 5.0,
                 in_tangent: 0.0,
                 out_tangent: 0.0,
-            }
+            },
         ];
-        bone.set_transform_anim_curve(TransformComponent::Ty, &ty).unwrap();
+        bone.set_transform_anim_curve(TransformComponent::Ty, &ty)
+            .unwrap();
         session.set_time(1.0).unwrap();
         if let Parameter::Float(p) = bone.parameter("ty").unwrap() {
             assert_eq!(p.get_value().unwrap(), &[0.0, 5.0, 0.0]);
@@ -501,14 +510,16 @@ mod tests {
 
     #[test]
     fn get_set_preset() {
-        with_session(|session|{
-            let node = session.create_node_blocking("Object/null", "get_set_parent", None).unwrap();
+        with_session(|session| {
+            let node = session
+                .create_node_blocking("Object/null", "get_set_parent", None)
+                .unwrap();
             if let Parameter::Float(p) = node.parameter("scale").unwrap() {
-                assert_eq!(p.get_value().unwrap(),  &[1.0]);
+                assert_eq!(p.get_value().unwrap(), &[1.0]);
                 let save = node.get_preset("test", PresetType::Binary).unwrap();
                 p.set_value(&[2.0]);
                 node.set_preset("test", PresetType::Binary, &save).unwrap();
-                assert_eq!(p.get_value().unwrap(),  &[1.0]);
+                assert_eq!(p.get_value().unwrap(), &[1.0]);
             }
         });
     }

@@ -381,9 +381,7 @@ impl<'s> GeoInfo {
         GeoInfo::from_handle(node.handle, &node.session)
     }
     pub fn from_handle(handle: NodeHandle, session: &'s Session) -> Result<GeoInfo> {
-        crate::ffi::get_geo_info(session, handle).map(|inner| GeoInfo {
-            inner,
-        })
+        crate::ffi::get_geo_info(session, handle).map(|inner| GeoInfo { inner })
     }
 }
 
@@ -487,7 +485,6 @@ wrap!(
     [get|set|with] sync_viewport->syncViewport->[bool];
 );
 
-
 #[derive(Debug, Clone)]
 pub struct BoxInfo {
     pub(crate) inner: HAPI_BoxInfo,
@@ -497,7 +494,7 @@ fn _create_box_info() -> HAPI_BoxInfo {
     HAPI_BoxInfo {
         center: Default::default(),
         size: Default::default(),
-        rotation: Default::default()
+        rotation: Default::default(),
     }
 }
 
@@ -516,7 +513,7 @@ pub struct SphereInfo {
 fn _create_sphere_info() -> HAPI_SphereInfo {
     HAPI_SphereInfo {
         center: Default::default(),
-        radius: 0.0
+        radius: 0.0,
     }
 }
 
@@ -526,14 +523,12 @@ wrap!(
     [get|set|with] radius->radius->[f32];
 );
 
-
-
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct MaterialInfo {
     pub node_id: NodeHandle,
     pub exists: bool,
-    pub has_changed: bool
+    pub has_changed: bool,
 }
 
 #[repr(C)]

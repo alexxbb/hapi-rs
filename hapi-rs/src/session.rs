@@ -9,14 +9,13 @@ pub use crate::ffi::PartInfo;
 pub use crate::{
     asset::AssetLibrary,
     errors::*,
-    ffi::raw::{HapiResult, State, StatusType, StatusVerbosity, HAPI_Session, License, EnvIntType},
+    ffi::raw::{EnvIntType, HAPI_Session, HapiResult, License, State, StatusType, StatusVerbosity},
     ffi::{CookOptions, SessionSyncInfo, TimelineOptions, Viewport},
     node::{HoudiniNode, NodeHandle},
     stringhandle::StringArray,
 };
 
 use parking_lot::ReentrantMutex;
-
 
 impl std::cmp::PartialEq for crate::ffi::raw::HAPI_Session {
     fn eq(&self, other: &Self) -> bool {
@@ -27,7 +26,7 @@ impl std::cmp::PartialEq for crate::ffi::raw::HAPI_Session {
 pub trait EnvVariable {
     type Type: ?Sized + ToOwned;
     fn get_value(session: &Session, key: impl AsRef<str>)
-                 -> Result<<Self::Type as ToOwned>::Owned>;
+        -> Result<<Self::Type as ToOwned>::Owned>;
     fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()>;
 }
 
@@ -640,7 +639,9 @@ pub(crate) mod tests {
     fn license_type() {
         with_session(|session| {
             // Loading asset triggers license acquisition
-            session.load_asset_file(OTLS.get("geometry").unwrap()).unwrap();
+            session
+                .load_asset_file(OTLS.get("geometry").unwrap())
+                .unwrap();
             assert_eq!(session.get_license_type(), Ok(License::HoudiniEngine));
         })
     }

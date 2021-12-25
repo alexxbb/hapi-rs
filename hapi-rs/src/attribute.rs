@@ -1,10 +1,10 @@
-use duplicate::duplicate;
-use std::borrow::Cow;
 use crate::errors::Result;
 pub use crate::ffi::raw::{AttributeOwner, StorageType};
 pub use crate::ffi::AttributeInfo;
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringArray;
+use duplicate::duplicate;
+use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 
 pub struct DataArray<T> {
@@ -164,22 +164,37 @@ impl AttribDataType for _data_type {
     type Return = Vec<Self::Type>;
     type ArrayType = DataArray<_data_type>;
 
-    fn read(name: &CStr, node: &'_ HoudiniNode, part_id: i32, info: &AttributeInfo) -> Result<Self::Return> {
+    fn read(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo,
+    ) -> Result<Self::Return> {
         crate::ffi::_get(node, part_id, name, &info.inner, -1, 0, info.count())
     }
 
-    fn set(name: &CStr, node: &'_ HoudiniNode, part_id: i32, info: &AttributeInfo, values: &[Self::Type]) -> Result<()> {
+    fn set(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo,
+        values: &[Self::Type],
+    ) -> Result<()> {
         crate::ffi::_set(node, part_id, name, &info.inner, values, 0, info.count())
     }
 
-    fn read_array(name: &CStr, node: &'_ HoudiniNode, part_id: i32, info: &AttributeInfo) -> Result<Self::ArrayType> {
+    fn read_array(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo,
+    ) -> Result<Self::ArrayType> {
         crate::ffi::_array(node, part_id, name, &info.inner)
     }
 
     fn storage() -> StorageType {
         _storage
     }
-
 }
 
 impl<'a> AttribDataType for &'a str {
@@ -208,7 +223,11 @@ impl<'a> AttribDataType for &'a str {
             name,
             &info.inner,
         )?;
-        Ok(StringMultiArray { handles, sizes, session: node.session.clone() })
+        Ok(StringMultiArray {
+            handles,
+            sizes,
+            session: node.session.clone(),
+        })
     }
 
     fn set(

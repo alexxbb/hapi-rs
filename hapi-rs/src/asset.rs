@@ -38,7 +38,13 @@ impl<'a> IntoIterator for &'a AssetParameters {
 
 impl AssetParameters {
     pub fn find_parameter(&self, name: &str) -> Option<AssetParm<'_>> {
-        self.infos.iter().find(|p| p.name().unwrap() == name).map(|info| AssetParm { info, values: &self.values })
+        self.infos
+            .iter()
+            .find(|p| p.name().unwrap() == name)
+            .map(|info| AssetParm {
+                info,
+                values: &self.values,
+            })
     }
 }
 
@@ -168,10 +174,10 @@ impl AssetLibrary {
             count.parm_count,
             &self.session,
         )?
-            .into_iter()
-            .map(|info| ParmInfo {
-                inner: info,
-                session: self.session.clone(),
+        .into_iter()
+        .map(|info| ParmInfo {
+            inner: info,
+            session: self.session.clone(),
         });
         let values =
             crate::ffi::get_asset_def_parm_values(self.lib_id, &asset_name, &self.session, &count)?;
@@ -243,7 +249,7 @@ mod tests {
 
     #[test]
     fn asset_parameters() {
-        use super::{AssetParm, ParmValue, AssetParmIter};
+        use super::{AssetParm, AssetParmIter, ParmValue};
         with_session(|session| {
             let lib = _load_asset("parameters", session);
             let parms = lib.get_asset_parms("Object/hapi_parms").unwrap();
@@ -265,15 +271,18 @@ mod tests {
 
     #[test]
     fn asset_menu_parameters() {
-        use super::{AssetParm, ParmValue, AssetParmIter};
+        use super::{AssetParm, AssetParmIter, ParmValue};
         with_session(|session| {
             let lib = _load_asset("parameters", session);
             let parms = lib.get_asset_parms("Object/hapi_parms").unwrap();
 
             let parm = parms.find_parameter("string_menu").expect("parm");
-            let menu_values: Vec<_> = parm.menu_items().expect("Menu items")
+            let menu_values: Vec<_> = parm
+                .menu_items()
+                .expect("Menu items")
                 .iter()
-                .map(|p| p.value().unwrap()).collect();
+                .map(|p| p.value().unwrap())
+                .collect();
             assert_eq!(menu_values, &["item_1", "item_2", "item_3"]);
         });
     }

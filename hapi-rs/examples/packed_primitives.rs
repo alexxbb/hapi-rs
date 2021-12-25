@@ -43,7 +43,7 @@ fn main() -> Result<()> {
                     part.point_count(),
                     match part.part_type() {
                         PartType::Mesh => "Mesh",
-                        PartType::Curve =>  "Curve",
+                        PartType::Curve => "Curve",
                         PartType::Instancer => "Instancer",
                         p => "oops",
                     }

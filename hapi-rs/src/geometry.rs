@@ -4,11 +4,11 @@ pub use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
     raw::{AttributeOwner, CurveOrders, CurveType, GroupType, PackedPrimInstancingMode, PartType},
-    AttributeInfo, CurveInfo, GeoInfo, PartInfo, BoxInfo
+    AttributeInfo, BoxInfo, CurveInfo, GeoInfo, PartInfo,
 };
 use crate::node::HoudiniNode;
-use crate::stringhandle::StringArray;
 use crate::session::Session;
+use crate::stringhandle::StringArray;
 use std::ffi::{CStr, CString};
 
 #[derive(Debug, Clone)]
@@ -21,7 +21,7 @@ pub struct Geometry {
 pub enum GeoFormat {
     Geo,
     Bgeo,
-    Obj
+    Obj,
 }
 
 impl GeoFormat {
@@ -36,10 +36,9 @@ impl GeoFormat {
 
 impl Geometry {
     pub fn from_info(info: GeoInfo, session: &Session) -> Result<Self> {
-        Ok(
-            Self {
-                node: info.node_id().to_node(session)?,
-                info
+        Ok(Self {
+            node: info.node_id().to_node(session)?,
+            info,
         })
     }
 
@@ -57,11 +56,13 @@ impl Geometry {
     }
 
     pub fn box_info(&self, part_id: i32) -> Result<BoxInfo> {
-        crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id).map(|inner| BoxInfo {inner})
+        crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id)
+            .map(|inner| BoxInfo { inner })
     }
 
     pub fn sphere_info(&self, part_id: i32) -> Result<BoxInfo> {
-        crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id).map(|inner| BoxInfo {inner})
+        crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id)
+            .map(|inner| BoxInfo { inner })
     }
 
     pub fn set_curve_info(&self, info: &CurveInfo, part_id: i32) -> Result<()> {
@@ -149,7 +150,6 @@ impl Geometry {
     //             std::mem::transmute(info)
     //         })
     // }
-
 
     pub fn get_group_names(&self, group_type: GroupType) -> Result<StringArray> {
         let count = match group_type {
@@ -252,7 +252,8 @@ impl Geometry {
             self.node.handle,
             part_id,
             group_type,
-            &group_name)
+            &group_name,
+        )
     }
 
     pub fn set_group_membership(
@@ -298,7 +299,11 @@ impl Geometry {
         )
     }
 
-    pub fn group_count_by_type(&self, group_type: GroupType, info: Option<&GeoInfo>) -> Result<i32> {
+    pub fn group_count_by_type(
+        &self,
+        group_type: GroupType,
+        info: Option<&GeoInfo>,
+    ) -> Result<i32> {
         let mut _tmp;
         let info = match info {
             Some(info) => info,
@@ -324,17 +329,17 @@ impl Geometry {
         crate::ffi::commit_geo(&self.node)
     }
 
-    pub fn revert(&self) -> Result<()>{
+    pub fn revert(&self) -> Result<()> {
         crate::ffi::revert_geo(&self.node)
     }
 
     pub fn save_to_memory(&self, format: GeoFormat) -> Result<Vec<i8>> {
-        let format = unsafe { CStr::from_bytes_with_nul_unchecked( format.as_c_literal())};
+        let format = unsafe { CStr::from_bytes_with_nul_unchecked(format.as_c_literal()) };
         crate::ffi::save_geo_to_memory(&self.node.session, self.node.handle, format)
     }
 
     pub fn load_from_memory(&self, data: &[i8], format: GeoFormat) -> Result<()> {
-        let format = unsafe { CStr::from_bytes_with_nul_unchecked( format.as_c_literal())};
+        let format = unsafe { CStr::from_bytes_with_nul_unchecked(format.as_c_literal()) };
         crate::ffi::load_geo_from_memory(&self.node.session, self.node.handle, data, format)
     }
 }
@@ -496,14 +501,16 @@ mod tests {
 
     #[test]
     fn save_and_load_to_file() {
-        with_session(|session|{
+        with_session(|session| {
             let input = session.create_input_node("triangle").unwrap();
             let geo = _create_triangle(&input);
             let tmp_file = std::env::temp_dir().join("triangle.geo");
-            geo.save_to_file(&tmp_file.to_string_lossy()).expect("save_to_file");
+            geo.save_to_file(&tmp_file.to_string_lossy())
+                .expect("save_to_file");
             let input = session.create_input_node("dummy").unwrap();
             let geo = input.geometry().unwrap().unwrap();
-            geo.load_from_file(&tmp_file.to_string_lossy()).expect("load_from_file");
+            geo.load_from_file(&tmp_file.to_string_lossy())
+                .expect("load_from_file");
             geo.node.cook(None).unwrap();
             assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
             input.delete().unwrap();
@@ -512,23 +519,25 @@ mod tests {
 
     #[test]
     fn geometry_in_memory() {
-        with_session(|session|{
+        with_session(|session| {
             let node = session.create_input_node("source").unwrap();
             let source = _create_triangle(&node);
-            let blob = source.save_to_memory(GeoFormat::Geo).expect("save_geo_to_memory");
+            let blob = source
+                .save_to_memory(GeoFormat::Geo)
+                .expect("save_geo_to_memory");
             node.delete().unwrap();
 
             let node = session.create_input_node("dest").unwrap();
             let dest = _create_triangle(&node);
-            dest.load_from_memory(&blob, GeoFormat::Geo).expect("load_from_memory");
+            dest.load_from_memory(&blob, GeoFormat::Geo)
+                .expect("load_from_memory");
             node.delete().unwrap();
         });
-
     }
 
     #[test]
     fn commit_and_revert() {
-        with_session(|session|{
+        with_session(|session| {
             let input = session.create_input_node("input").unwrap();
             let geo = _create_triangle(&input);
             geo.commit().unwrap();
@@ -543,13 +552,17 @@ mod tests {
 
     #[test]
     fn add_and_delete_group() {
-        with_session(|session|{
+        with_session(|session| {
             let input = session.create_input_node("input").unwrap();
             let geo = _create_triangle(&input);
-            geo.add_group(0, GroupType::Point, "test", Some(&[1, 1, 1])).unwrap();
+            geo.add_group(0, GroupType::Point, "test", Some(&[1, 1, 1]))
+                .unwrap();
             geo.commit().unwrap();
             geo.node.cook_blocking(None).unwrap();
-            assert_eq!(geo.group_count_by_type(GroupType::Point, geo.geo_info().as_ref().ok()), Ok(1));
+            assert_eq!(
+                geo.group_count_by_type(GroupType::Point, geo.geo_info().as_ref().ok()),
+                Ok(1)
+            );
 
             geo.delete_group(0, GroupType::Point, "test").unwrap();
             geo.commit().unwrap();
