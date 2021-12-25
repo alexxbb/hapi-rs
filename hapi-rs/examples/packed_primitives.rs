@@ -32,8 +32,8 @@ fn main() -> Result<()> {
             node.cook_blocking(Some(&co))?;
             let geo = node.geometry()?.expect("geometry");
             println!(
-                "Part count for geo {}: {}",
-                geo.node.handle.0,
+                "Part count for node {:?}: {}",
+                geo.node,
                 geo.geo_info()?.part_count()
             );
             for part in geo.partitions()? {

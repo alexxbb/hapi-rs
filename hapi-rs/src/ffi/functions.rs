@@ -2020,3 +2020,57 @@ pub fn get_material_info(session: &Session, node: NodeHandle) -> Result<raw::HAP
         Ok(mat.assume_init())
     }
 }
+
+pub fn get_instanced_part_ids(
+    session: &Session,
+    node: NodeHandle,
+    part_id: i32,
+    count: i32,
+) -> Result<Vec<i32>> {
+    unsafe {
+        let mut parts = vec![0; count as usize];
+        raw::HAPI_GetInstancedPartIds(session.ptr(), node.0, part_id, parts.as_mut_ptr(), 0, count)
+            .check_err(Some(session))
+    }
+}
+
+pub fn get_group_count_on_instance_part(
+    session: &Session,
+    node: NodeHandle,
+    part_id: i32,
+) -> Result<(i32, i32)> {
+    unsafe {
+        let (mut point, mut prim) = (uninit!(), uninit!());
+        raw::HAPI_GetGroupCountOnPackedInstancePart(
+            session.ptr(),
+            node.0,
+            part_id,
+            point.as_mut_ptr(),
+            prim.as_mut_ptr(),
+        )
+        .check_err(Some(session))?;
+        Ok((point.assume_init(), prim.assume_init()))
+    }
+}
+pub fn get_instanced_part_transforms(
+    session: &Session,
+    node: NodeHandle,
+    part_id: i32,
+    order: raw::RSTOrder,
+    count: i32,
+) -> Result<Vec<raw::HAPI_Transform>> {
+    unsafe {
+        let mut transforms = vec![raw::HAPI_Transform_Create(); count as usize];
+        raw::HAPI_GetInstancerPartTransforms(
+            session.ptr(),
+            node.0,
+            part_id,
+            order,
+            transforms.as_mut_ptr(),
+            0,
+            count,
+        )
+        .check_err(Some(session))?;
+        Ok(transforms)
+    }
+}

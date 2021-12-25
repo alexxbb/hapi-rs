@@ -23,7 +23,7 @@ fn main() -> Result<()> {
                     part_info.part_id()
                 );
                 let attrib_names =
-                    geometry.get_attribute_names(AttributeOwner::Point, &part_info)?;
+                    geometry.get_attribute_names(AttributeOwner::Point, Some(&part_info))?;
                 println!(
                     "{}",
                     &attrib_names.iter_str().collect::<Vec<&str>>().join("\n")
@@ -40,14 +40,14 @@ fn main() -> Result<()> {
                 }
 
                 println!("Number of Faces: {}", part_info.face_count());
-                let faces = geometry.get_face_counts(&part_info)?;
+                let faces = geometry.get_face_counts(Some(&part_info))?;
                 if part_info.part_type() != PartType::Curve {
                     for face in faces.iter() {
                         print!("{}, ", face);
                     }
                     println!();
                 }
-                let vertices = geometry.vertex_list(&part_info)?;
+                let vertices = geometry.vertex_list(Some(&part_info))?;
                 println!("Vertex Indices Into Points Array");
                 let mut curr_idx = 0;
                 assert!(curr_idx < vertices.len());

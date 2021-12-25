@@ -3,13 +3,28 @@ use std::borrow::Cow;
 pub use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
-    raw::{AttributeOwner, CurveOrders, CurveType, GroupType, PackedPrimInstancingMode, PartType},
-    AttributeInfo, BoxInfo, CurveInfo, GeoInfo, PartInfo,
+    raw::{
+        AttributeOwner, CurveOrders, CurveType, GroupType, PackedPrimInstancingMode, PartType,
+        RSTOrder,
+    },
+    AttributeInfo, BoxInfo, CurveInfo, GeoInfo, PartInfo, Transform,
 };
 use crate::node::HoudiniNode;
 use crate::session::Session;
 use crate::stringhandle::StringArray;
 use std::ffi::{CStr, CString};
+
+macro_rules! unwrap_or_create {
+    ($out:ident, $opt:expr, $default:expr) => {
+        match $opt {
+            None => {
+                $out = $default;
+                &$out
+            }
+            Some(v) => v,
+        }
+    };
+}
 
 #[derive(Debug, Clone)]
 pub struct Geometry {
@@ -112,7 +127,9 @@ impl Geometry {
     /// Get array containing the vertex-point associations where the
     /// ith element in the array is the point index the ith vertex
     /// associates with.
-    pub fn vertex_list(&self, part: &PartInfo) -> Result<Vec<i32>> {
+    pub fn vertex_list(&self, part: Option<&PartInfo>) -> Result<Vec<i32>> {
+        let tmp;
+        let part = unwrap_or_create!(tmp, part, self.part_info(0)?);
         crate::ffi::get_geo_vertex_list(
             &self.node.session,
             self.node.handle,
@@ -132,7 +149,9 @@ impl Geometry {
             .collect()
     }
 
-    pub fn get_face_counts(&self, part: &PartInfo) -> Result<Vec<i32>> {
+    pub fn get_face_counts(&self, part: Option<&PartInfo>) -> Result<Vec<i32>> {
+        let tmp;
+        let part = unwrap_or_create!(tmp, part, self.part_info(0)?);
         crate::ffi::get_face_counts(
             &self.node.session,
             self.node.handle,
@@ -163,8 +182,10 @@ impl Geometry {
     pub fn get_attribute_names(
         &self,
         owner: AttributeOwner,
-        part: &PartInfo,
+        part: Option<&PartInfo>,
     ) -> Result<StringArray> {
+        let tmp;
+        let part = unwrap_or_create!(tmp, part, self.part_info(0)?);
         let counts = part.attribute_counts();
         let count = match owner {
             AttributeOwner::Invalid => panic!("Invalid AttributeOwner"),
@@ -280,15 +301,9 @@ impl Geometry {
         group_type: GroupType,
         group_name: &str,
     ) -> Result<Vec<i32>> {
-        let group_name = CString::new(group_name)?;
         let tmp;
-        let part = match part_info {
-            None => {
-                tmp = self.part_info(0)?;
-                &tmp
-            }
-            Some(part) => part,
-        };
+        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?);
+        let group_name = CString::new(group_name)?;
         crate::ffi::get_group_membership(
             &self.node.session,
             self.node.handle,
@@ -304,15 +319,50 @@ impl Geometry {
         group_type: GroupType,
         info: Option<&GeoInfo>,
     ) -> Result<i32> {
-        let mut _tmp;
-        let info = match info {
-            Some(info) => info,
-            None => {
-                _tmp = self.geo_info()?;
-                &_tmp
-            }
-        };
+        let tmp;
+        let info = unwrap_or_create!(tmp, info, self.geo_info()?);
         Ok(crate::ffi::get_group_count_by_type(info, group_type))
+    }
+
+    pub fn get_instance_part_ids(&self, part_info: Option<&PartInfo>) -> Result<Vec<i32>> {
+        let tmp;
+        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?);
+        crate::ffi::get_instanced_part_ids(
+            &self.node.session,
+            self.node.handle,
+            part.part_id(),
+            part.instance_part_count(),
+        )
+    }
+
+    pub fn get_group_count_on_packed_instance(
+        &self,
+        part_info: Option<&PartInfo>,
+    ) -> Result<(i32, i32)> {
+        let tmp;
+        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?);
+        crate::ffi::get_group_count_on_instance_part(
+            &self.node.session,
+            self.node.handle,
+            part.part_id(),
+        )
+    }
+
+    pub fn get_instance_part_transforms(
+        &self,
+        part_info: Option<&PartInfo>,
+        order: RSTOrder,
+    ) -> Result<Vec<Transform>> {
+        let tmp;
+        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?);
+        crate::ffi::get_instanced_part_transforms(
+            &self.node.session,
+            self.node.handle,
+            part.part_id(),
+            order,
+            part.instance_count(),
+        )
+        .map(|vec| vec.into_iter().map(|inner| Transform { inner }).collect())
     }
 
     pub fn save_to_file(&self, filepath: &str) -> Result<()> {
