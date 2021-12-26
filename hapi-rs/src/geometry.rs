@@ -7,7 +7,7 @@ pub use crate::ffi::{
         AttributeOwner, CurveOrders, CurveType, GroupType, PackedPrimInstancingMode, PartType,
         RSTOrder,
     },
-    AttributeInfo, BoxInfo, CurveInfo, GeoInfo, PartInfo, Transform, CookOptions
+    AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, PartInfo, Transform,
 };
 use crate::node::HoudiniNode;
 use crate::session::Session;
@@ -348,8 +348,17 @@ impl Geometry {
         )
     }
 
-    pub fn get_instance_part_groups_names(&self, group: GroupType, part_id: i32) -> Result<StringArray> {
-        crate::ffi::get_group_names_on_instance_part(&self.node.session, self.node.handle, part_id, group)
+    pub fn get_instance_part_groups_names(
+        &self,
+        group: GroupType,
+        part_id: i32,
+    ) -> Result<StringArray> {
+        crate::ffi::get_group_names_on_instance_part(
+            &self.node.session,
+            self.node.handle,
+            part_id,
+            group,
+        )
     }
 
     pub fn get_instance_part_transforms(
@@ -628,24 +637,32 @@ mod tests {
 
     #[test]
     fn basic_instancing() {
-        with_session(|session|{
+        with_session(|session| {
             use crate::session::tests::OTLS;
             let lib = session
                 .load_asset_file(OTLS.get("geometry").unwrap())
                 .expect("Could not load otl");
             let node = lib.try_create_first().unwrap();
-            let opt = super::CookOptions::default().with_packed_prim_instancing_mode(PackedPrimInstancingMode::Flat);
+            let opt = super::CookOptions::default()
+                .with_packed_prim_instancing_mode(PackedPrimInstancingMode::Flat);
             node.cook_blocking(Some(&opt)).unwrap();
             let outputs = node.geometry_outputs().unwrap();
             let instancer = outputs.get(1).unwrap();
             let ids = instancer.get_instanced_part_ids(None).unwrap();
             assert_eq!(ids.len(), 1);
-            let names = instancer.get_instance_part_groups_names(GroupType::Prim, ids[0]).unwrap();
-            let names:Vec<String> = names.into_iter().collect();
+            let names = instancer
+                .get_instance_part_groups_names(GroupType::Prim, ids[0])
+                .unwrap();
+            let names: Vec<String> = names.into_iter().collect();
             assert_eq!(names.first().unwrap(), "group_1");
             assert_eq!(names.last().unwrap(), "group_6");
-            let tranforms = instancer.get_instance_part_transforms(None, RSTOrder::Srt).unwrap();
-            assert_eq!(tranforms.len() as i32, instancer.part_info(0).unwrap().instance_count());
+            let tranforms = instancer
+                .get_instance_part_transforms(None, RSTOrder::Srt)
+                .unwrap();
+            assert_eq!(
+                tranforms.len() as i32,
+                instancer.part_info(0).unwrap().instance_count()
+            );
         });
     }
 }

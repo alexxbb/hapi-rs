@@ -12,10 +12,9 @@ pub struct StringArray {
 
 impl std::fmt::Debug for StringArray {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let count = self.bytes.iter().filter(|v|**v == b'\0').count();
+        let count = self.bytes.iter().filter(|v| **v == b'\0').count();
         write!(f, "StringArray[num_strings = {}]", count)
     }
-    
 }
 
 pub struct StringIter<'a> {

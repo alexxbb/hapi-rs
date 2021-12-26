@@ -5,5 +5,6 @@ build
 backup
 otls/backup
 cmake-build-*
+*/target
 _build
 *.hip*

@@ -2103,3 +2103,93 @@ pub fn get_instanced_part_transforms(
         Ok(transforms)
     }
 }
+
+pub fn convert_transform(
+    session: &Session,
+    tr_in: &raw::HAPI_TransformEuler,
+    rst_order: raw::RSTOrder,
+    rot_order: raw::XYZOrder,
+) -> Result<raw::HAPI_TransformEuler> {
+    unsafe {
+        let mut out = raw::HAPI_TransformEuler_Create();
+        raw::HAPI_ConvertTransform(
+            session.ptr(),
+            tr_in,
+            rst_order,
+            rot_order,
+            &out as *const _ as *mut _,
+        )
+        .check_err(Some(session))?;
+        Ok(out)
+    }
+}
+
+pub fn convert_matrix_to_euler(
+    session: &Session,
+    matrix: &[f32; 16],
+    rst_order: raw::RSTOrder,
+    rot_order: raw::XYZOrder,
+) -> Result<raw::HAPI_TransformEuler> {
+    unsafe {
+        let mut out = raw::HAPI_TransformEuler_Create();
+        raw::HAPI_ConvertMatrixToEuler(
+            session.ptr(),
+            matrix.as_ptr(),
+            rst_order,
+            rot_order,
+            &out as *const _ as *mut _,
+        )
+        .check_err(Some(session))?;
+        Ok(out)
+    }
+}
+
+pub fn convert_matrix_to_quat(
+    session: &Session,
+    matrix: &[f32; 16],
+    rst_order: raw::RSTOrder,
+) -> Result<raw::HAPI_Transform> {
+    unsafe {
+        let mut out = raw::HAPI_Transform_Create();
+        raw::HAPI_ConvertMatrixToQuat(
+            session.ptr(),
+            matrix.as_ptr(),
+            rst_order,
+            &out as *const _ as *mut _,
+        )
+        .check_err(Some(session))?;
+        Ok(out)
+    }
+}
+
+pub fn convert_transform_euler_to_matrix(
+    session: &Session,
+    tr: &raw::HAPI_TransformEuler,
+) -> Result<[f32; 16]> {
+    unsafe {
+        let mut out = [0.0; 16];
+        raw::HAPI_ConvertTransformEulerToMatrix(
+            session.ptr(),
+            tr as *const _,
+            &out as *const _ as *mut _,
+        )
+        .check_err(Some(session))?;
+        Ok(out)
+    }
+}
+
+pub fn convert_transform_quat_to_matrix(
+    session: &Session,
+    tr: &raw::HAPI_Transform,
+) -> Result<[f32; 16]> {
+    unsafe {
+        let mut out = [0.0; 16];
+        raw::HAPI_ConvertTransformQuatToMatrix(
+            session.ptr(),
+            tr as *const _,
+            &out as *const _ as *mut _,
+        )
+        .check_err(Some(session))?;
+        Ok(out)
+    }
+}

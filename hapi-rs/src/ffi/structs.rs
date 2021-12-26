@@ -459,6 +459,17 @@ wrap!(
     [get|set|with] rst_order->rstOrder->[RSTOrder];
 );
 
+impl Transform {
+    pub fn from_matrix(session: &Session, matrix: &[f32; 16], rst_order: RSTOrder) -> Result<Self> {
+        crate::ffi::convert_matrix_to_quat(session, matrix, rst_order)
+            .map(|inner| Transform { inner })
+    }
+
+    pub fn convert_to_matrix(&self, session: &Session) -> Result<[f32; 16]> {
+        crate::ffi::convert_transform_quat_to_matrix(session, &self.inner)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TransformEuler {
     pub(crate) inner: HAPI_TransformEuler,
@@ -473,6 +484,32 @@ wrap!(
     [get|set|with] roation_order->rotationOrder->[XYZOrder];
     [get|set|with] rst_order->rstOrder->[RSTOrder];
 );
+
+impl TransformEuler {
+    pub fn convert_transform(
+        &self,
+        session: &Session,
+        rst_order: RSTOrder,
+        rot_order: XYZOrder,
+    ) -> Result<Self> {
+        crate::ffi::convert_transform(session, &self.inner, rst_order, rot_order)
+            .map(|inner| TransformEuler { inner })
+    }
+
+    pub fn from_matrix(
+        session: &Session,
+        matrix: &[f32; 16],
+        rst_order: RSTOrder,
+        rot_order: XYZOrder,
+    ) -> Result<Self> {
+        crate::ffi::convert_matrix_to_euler(session, matrix, rst_order, rot_order)
+            .map(|inner| TransformEuler { inner })
+    }
+
+    pub fn convert_to_matrix(&self, session: &Session) -> Result<[f32; 16]> {
+        crate::ffi::convert_transform_euler_to_matrix(session, &self.inner)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct SessionSyncInfo {
