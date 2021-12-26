@@ -2030,7 +2030,8 @@ pub fn get_instanced_part_ids(
     unsafe {
         let mut parts = vec![0; count as usize];
         raw::HAPI_GetInstancedPartIds(session.ptr(), node.0, part_id, parts.as_mut_ptr(), 0, count)
-            .check_err(Some(session))
+            .check_err(Some(session))?;
+        Ok(parts)
     }
 }
 
@@ -2052,6 +2053,34 @@ pub fn get_group_count_on_instance_part(
         Ok((point.assume_init(), prim.assume_init()))
     }
 }
+
+pub fn get_group_names_on_instance_part(
+    session: &Session,
+    node: NodeHandle,
+    part_id: i32,
+    group: raw::GroupType,
+) -> Result<StringArray> {
+    unsafe {
+        let count = get_group_count_on_instance_part(session, node, part_id)?;
+        let count = match group {
+            raw::GroupType::Point => count.0,
+            raw::GroupType::Prim => count.1,
+            _ => unreachable!("Unsupported GroupType"),
+        };
+        let mut handles = vec![0; count as usize];
+        raw::HAPI_GetGroupNamesOnPackedInstancePart(
+            session.ptr(),
+            node.0,
+            part_id,
+            group,
+            handles.as_mut_ptr(),
+            count,
+        )
+        .check_err(Some(session))?;
+        crate::stringhandle::get_string_array(&handles, session)
+    }
+}
+
 pub fn get_instanced_part_transforms(
     session: &Session,
     node: NodeHandle,

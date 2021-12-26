@@ -1,13 +1,21 @@
 use std::ffi::{CStr, CString};
+use std::fmt::Formatter;
 
 use crate::errors::Result;
 use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
 
-#[derive(Debug)]
 pub struct StringArray {
     bytes: Vec<u8>,
+}
+
+impl std::fmt::Debug for StringArray {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let count = self.bytes.iter().filter(|v|**v == b'\0').count();
+        write!(f, "StringArray[num_strings = {}]", count)
+    }
+    
 }
 
 pub struct StringIter<'a> {

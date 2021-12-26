@@ -401,7 +401,7 @@ wrap!(
     [get|set|with] point_count->pointCount->[i32];
     [get|set|with] vertex_count->vertexCount->[i32];
     [get|set|with] instance_count->instanceCount->[i32];
-    [get|set|with] instance_part_count->instancedPartCount->[i32];
+    [get|set|with] instanced_part_count->instancedPartCount->[i32];
 );
 
 #[derive(Debug, Clone)]

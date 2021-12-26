@@ -474,9 +474,9 @@ mod tests {
             let otl = crate::session::tests::OTLS.get("geometry").unwrap();
             let lib = session.load_asset_file(otl).unwrap();
             let node = lib.try_create_first().unwrap();
-            assert_eq!(node.number_of_geo_outputs(), Ok(1));
+            assert_eq!(node.number_of_geo_outputs(), Ok(2));
             let infos = node.geometry_outputs().unwrap();
-            assert_eq!(infos.len(), 1);
+            assert_eq!(infos.len(), 2);
         });
     }
 
