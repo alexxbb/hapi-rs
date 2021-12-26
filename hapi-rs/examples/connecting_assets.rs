@@ -1,4 +1,5 @@
 // connecting_assets.cpp
+use hapi_rs::Result;
 use hapi_rs::{attribute::*, geometry::*, session::*};
 
 fn main() -> Result<()> {

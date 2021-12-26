@@ -5,14 +5,13 @@ use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
 
-use crate::ffi::{CurveInfo, PartInfo, Viewport};
+use crate::ffi::{CurveInfo, PartInfo, Viewport, GeoInfo, CookOptions};
 use crate::{
     attribute::DataArray,
     errors::{HapiError, Kind, Result},
-    geometry::GeoInfo,
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
-    session::{CookOptions, Session, SessionOptions},
+    session::{Session, SessionOptions},
     stringhandle::StringArray,
 };
 
@@ -487,6 +486,7 @@ pub fn get_asset_def_parm_info(
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub fn get_asset_def_parm_values(
     library_id: i32,
     asset: &CStr,
@@ -1278,7 +1278,7 @@ pub fn get_box_info(
         rotation: Default::default(),
     };
     unsafe {
-        let box_info = &info as *const _ as *mut raw::HAPI_BoxInfo;
+        let box_info = &mut info as *mut _;
         raw::HAPI_GetBoxInfo(session.ptr(), node.0, part_id, box_info).check_err(Some(session))?;
     }
     Ok(info)
@@ -1294,7 +1294,7 @@ pub fn get_sphere_info(
         radius: 0.0,
     };
     unsafe {
-        let sphere_info = &info as *const _ as *mut raw::HAPI_SphereInfo;
+        let sphere_info = &mut info as *mut _;
         raw::HAPI_GetSphereInfo(session.ptr(), node.0, part_id, sphere_info)
             .check_err(Some(session))?;
     }
@@ -1950,7 +1950,7 @@ pub fn session_get_license_type(session: &Session) -> Result<raw::License> {
             ret.as_mut_ptr(),
         )
         .check_err(Some(session))?;
-        /// SAFETY: License enum is repr i32
+        // SAFETY: License enum is repr i32
         Ok(std::mem::transmute(ret.assume_init()))
     }
 }
@@ -2117,7 +2117,7 @@ pub fn convert_transform(
             tr_in,
             rst_order,
             rot_order,
-            &out as *const _ as *mut _,
+            &mut out as *mut _,
         )
         .check_err(Some(session))?;
         Ok(out)
@@ -2137,7 +2137,7 @@ pub fn convert_matrix_to_euler(
             matrix.as_ptr(),
             rst_order,
             rot_order,
-            &out as *const _ as *mut _,
+            &mut out as *mut _,
         )
         .check_err(Some(session))?;
         Ok(out)
@@ -2155,7 +2155,7 @@ pub fn convert_matrix_to_quat(
             session.ptr(),
             matrix.as_ptr(),
             rst_order,
-            &out as *const _ as *mut _,
+            &mut out as *mut _,
         )
         .check_err(Some(session))?;
         Ok(out)
@@ -2171,7 +2171,7 @@ pub fn convert_transform_euler_to_matrix(
         raw::HAPI_ConvertTransformEulerToMatrix(
             session.ptr(),
             tr as *const _,
-            &out as *const _ as *mut _,
+            &mut out as *mut _,
         )
         .check_err(Some(session))?;
         Ok(out)
@@ -2187,7 +2187,7 @@ pub fn convert_transform_quat_to_matrix(
         raw::HAPI_ConvertTransformQuatToMatrix(
             session.ptr(),
             tr as *const _,
-            &out as *const _ as *mut _,
+            &mut out as  *mut _,
         )
         .check_err(Some(session))?;
         Ok(out)

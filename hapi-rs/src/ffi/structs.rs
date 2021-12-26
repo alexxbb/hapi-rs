@@ -134,7 +134,7 @@ macro_rules! wrap {
     (New $object:ident [$create_func:path=>$ffi_tp:ty]; $($rest:tt)*) => {
         impl $object {
             pub fn new(session: Session) -> Self {
-                Self{inner: unsafe { $create_func() }, session}
+                Self{inner:  $create_func() , session}
             }
         }
         wrap!{_impl_methods_ $object $ffi_tp $($rest)*}
@@ -143,6 +143,7 @@ macro_rules! wrap {
     (Default $object:ident [$create_func:path=>$ffi_tp:ty]; $($rest:tt)*) => {
         impl Default for $object {
             fn default() -> Self {
+                #[allow(unused_unsafe)]
                 Self{inner: unsafe { $create_func() }}
             }
         }

@@ -4,12 +4,12 @@ use std::{
     sync::Arc,
 };
 use log::{debug, error, warn};
+pub use crate::ffi::enums::*;
 
-pub use crate::ffi::PartInfo;
-pub use crate::{
+use crate::{
     asset::AssetLibrary,
     errors::*,
-    ffi::raw::{EnvIntType, HAPI_Session, HapiResult, License, State, StatusType, StatusVerbosity},
+    ffi::raw,
     ffi::{CookOptions, SessionSyncInfo, TimelineOptions, Viewport},
     node::{HoudiniNode, NodeHandle},
     stringhandle::StringArray,
@@ -17,7 +17,7 @@ pub use crate::{
 
 use parking_lot::ReentrantMutex;
 
-impl std::cmp::PartialEq for crate::ffi::raw::HAPI_Session {
+impl std::cmp::PartialEq for raw::HAPI_Session {
     fn eq(&self, other: &Self) -> bool {
         self.type_ == other.type_ && self.id == other.id
     }
@@ -68,14 +68,14 @@ pub enum CookResult {
 
 #[derive(Debug, Clone)]
 pub struct Session {
-    pub(crate) handle: Arc<(HAPI_Session, ReentrantMutex<()>)>,
+    pub(crate) handle: Arc<(raw::HAPI_Session, ReentrantMutex<()>)>,
     cleanup: bool,
     pub threaded: bool,
 }
 
 impl Session {
     #[inline]
-    pub(crate) fn ptr(&self) -> *const HAPI_Session {
+    pub(crate) fn ptr(&self) -> *const raw::HAPI_Session {
         &(self.handle.0) as *const _
     }
     #[inline]
@@ -548,7 +548,7 @@ pub(crate) mod tests {
     #[test]
     fn session_time() {
         with_session(|session| {
-            let opt = crate::TimelineOptions::default().with_end_time(5.5);
+            let opt = TimelineOptions::default().with_end_time(5.5);
             assert!(session.set_timeline_options(opt.clone()).is_ok());
             let opt2 = session.get_timeline_options().expect("timeline_options");
             assert!(opt.end_time().eq(&opt2.end_time()));

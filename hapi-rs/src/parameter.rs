@@ -3,14 +3,14 @@ use std::ffi::CString;
 use log::warn;
 
 pub use crate::{
+    ffi::enums::{ ParmType, ChoiceListType},
+    ffi::{ParmInfo}
+};
+
+use crate::{
     errors::Result,
-    ffi::raw::{
-        ChoiceListType, HAPI_ParmId, NodeFlags, NodeType, ParmType, Permissions, PrmScriptType,
-        RampType,
-    },
-    ffi::{KeyFrame, NodeInfo, ParmChoiceInfo, ParmInfo},
+    ffi::{KeyFrame, ParmChoiceInfo},
     node::{HoudiniNode, NodeHandle},
-    session::Session,
 };
 
 pub trait ParmBaseTrait {
@@ -83,7 +83,7 @@ pub trait ParmBaseTrait {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ParmHandle(pub HAPI_ParmId, pub(crate) ());
+pub struct ParmHandle(pub crate::ffi::raw::HAPI_ParmId, pub(crate) ());
 
 impl ParmHandle {
     pub fn from_name(name: &str, node: &HoudiniNode) -> Result<Self> {

@@ -3,17 +3,16 @@ use std::{ffi::CString, fmt::Formatter};
 
 use log::{debug, warn};
 
-use crate::{
+pub use crate::{
     errors::Result,
-    ffi,
-    ffi::{AssetInfo, GeoInfo, MaterialInfo, NodeInfo, ObjectInfo, ParmInfo},
+    ffi::{AssetInfo, GeoInfo, MaterialInfo, NodeInfo, ObjectInfo, ParmInfo, KeyFrame},
     geometry::Geometry,
     parameter::*,
     session::{CookResult, Session},
 };
 pub use crate::{
     ffi::raw::{
-        ErrorCode, NodeFlags, NodeType, ParmType, PresetType, RSTOrder, State, StatusType,
+        ErrorCode, NodeFlags, NodeType, PresetType, RSTOrder, State, StatusType,
         StatusVerbosity, TransformComponent,
     },
     ffi::{CookOptions, Transform, TransformEuler},
@@ -33,10 +32,10 @@ pub const fn node_type_name(tp: NodeType) -> &'static str {
     }
 }
 
-impl ffi::NodeInfo {
+impl crate::ffi::NodeInfo {
     pub fn new(session: &Session, node: NodeHandle) -> Result<Self> {
         let info = crate::ffi::get_node_info(node, session)?;
-        Ok(ffi::NodeInfo {
+        Ok(crate::ffi::NodeInfo {
             inner: info,
             session: session.clone(),
         })
@@ -45,7 +44,7 @@ impl ffi::NodeInfo {
 
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct NodeHandle(pub ffi::raw::HAPI_NodeId, pub(crate) ());
+pub struct NodeHandle(pub crate::ffi::raw::HAPI_NodeId, pub(crate) ());
 
 impl NodeHandle {
     pub fn info(&self, session: &Session) -> Result<NodeInfo> {
@@ -280,7 +279,7 @@ impl<'session> HoudiniNode {
     }
 
     pub fn cook_result(&self, verbosity: StatusVerbosity) -> Result<String> {
-        unsafe { ffi::get_composed_cook_result(self, verbosity) }
+        unsafe { crate::ffi::get_composed_cook_result(self, verbosity) }
     }
     pub fn reset_simulation(&self) -> Result<()> {
         crate::ffi::reset_simulation(self)
@@ -325,7 +324,6 @@ impl<'session> HoudiniNode {
     }
 
     pub fn geometry(&self) -> Result<Option<Geometry>> {
-        use std::borrow::Cow;
         match self.info.node_type() {
             NodeType::Sop => Ok(Some(Geometry {
                 node: self.clone(),
@@ -517,7 +515,7 @@ mod tests {
             if let Parameter::Float(p) = node.parameter("scale").unwrap() {
                 assert_eq!(p.get_value().unwrap(), &[1.0]);
                 let save = node.get_preset("test", PresetType::Binary).unwrap();
-                p.set_value(&[2.0]);
+                p.set_value(&[2.0]).unwrap();
                 node.set_preset("test", PresetType::Binary, &save).unwrap();
                 assert_eq!(p.get_value().unwrap(), &[1.0]);
             }

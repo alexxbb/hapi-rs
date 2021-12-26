@@ -4,7 +4,7 @@
 use hapi_rs::geometry::{PackedPrimInstancingMode as IM, *};
 use hapi_rs::node::*;
 use hapi_rs::session::*;
-use hapi_rs::{PartType, Result};
+use hapi_rs::Result;
 
 fn main() -> Result<()> {
     let mut session = new_in_process()?;

@@ -1,14 +1,12 @@
 use std::ffi::CString;
-
 use log::debug;
-
 use crate::ffi::raw as ffi;
 use crate::ffi::raw::{ChoiceListType, ParmType};
 use crate::{
     errors::Result,
     ffi::{AssetInfo, ParmInfo},
     node::HoudiniNode,
-    parameter::ParmChoiceInfo,
+    ffi::ParmChoiceInfo,
     session::Session,
 };
 
@@ -209,7 +207,6 @@ impl<'node> AssetInfo<'node> {
 
 #[cfg(test)]
 mod tests {
-    use crate::asset::AssetParmIter;
     use crate::session::tests::{with_session, OTLS};
 
     fn _load_asset(name: &str, ses: &super::Session) -> super::AssetLibrary {
@@ -249,7 +246,7 @@ mod tests {
 
     #[test]
     fn asset_parameters() {
-        use super::{AssetParm, AssetParmIter, ParmValue};
+        use super::ParmValue;
         with_session(|session| {
             let lib = _load_asset("parameters", session);
             let parms = lib.get_asset_parms("Object/hapi_parms").unwrap();
@@ -271,7 +268,7 @@ mod tests {
 
     #[test]
     fn asset_menu_parameters() {
-        use super::{AssetParm, AssetParmIter, ParmValue};
+        use super::{AssetParmIter};
         with_session(|session| {
             let lib = _load_asset("parameters", session);
             let parms = lib.get_asset_parms("Object/hapi_parms").unwrap();

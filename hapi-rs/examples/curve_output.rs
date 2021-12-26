@@ -1,7 +1,7 @@
-use hapi_rs::ffi::{ObjectInfo, PartInfo};
-use hapi_rs::geometry::{AttributeOwner, CurveOrders, CurveType, Geometry};
+use hapi_rs::node::{ObjectInfo, NodeType, NodeFlags};
+use hapi_rs::geometry::{AttributeOwner, CurveOrders, CurveType, Geometry, PartInfo, PartType};
 use hapi_rs::session::{new_in_process, SessionOptions};
-use hapi_rs::{NodeFlags, NodeType, PartType, Result};
+use hapi_rs::Result;
 
 fn main() -> Result<()> {
     let mut session = new_in_process()?;

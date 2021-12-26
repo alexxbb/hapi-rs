@@ -1,12 +1,8 @@
-use std::borrow::Cow;
-
-pub use crate::attribute::*;
+use crate::attribute::*;
 use crate::errors::Result;
+pub use crate::ffi::enums::*;
+
 pub use crate::ffi::{
-    raw::{
-        AttributeOwner, CurveOrders, CurveType, GroupType, PackedPrimInstancingMode, PartType,
-        RSTOrder,
-    },
     AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, PartInfo, Transform,
 };
 use crate::node::HoudiniNode;
@@ -416,6 +412,9 @@ impl PartInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::attribute::Attribute;
+    use crate::node::HoudiniNode;
+    use crate::geometry::Geometry;
     use crate::session::tests::with_session;
     use crate::session::Session;
 
@@ -511,7 +510,6 @@ mod tests {
 
     #[test]
     fn array_attributes() {
-        use crate::session::tests::OTLS;
         with_session(|session| {
             let geo = _load_test_geometry(session).expect("geometry");
 
@@ -586,13 +584,13 @@ mod tests {
             let node = session.create_input_node("source").unwrap();
             let source = _create_triangle(&node);
             let blob = source
-                .save_to_memory(GeoFormat::Geo)
+                .save_to_memory(super::GeoFormat::Geo)
                 .expect("save_geo_to_memory");
             node.delete().unwrap();
 
             let node = session.create_input_node("dest").unwrap();
             let dest = _create_triangle(&node);
-            dest.load_from_memory(&blob, GeoFormat::Geo)
+            dest.load_from_memory(&blob, super::GeoFormat::Geo)
                 .expect("load_from_memory");
             node.delete().unwrap();
         });
@@ -643,7 +641,7 @@ mod tests {
                 .load_asset_file(OTLS.get("geometry").unwrap())
                 .expect("Could not load otl");
             let node = lib.try_create_first().unwrap();
-            let opt = super::CookOptions::default()
+            let opt = CookOptions::default()
                 .with_packed_prim_instancing_mode(PackedPrimInstancingMode::Flat);
             node.cook_blocking(Some(&opt)).unwrap();
             let outputs = node.geometry_outputs().unwrap();

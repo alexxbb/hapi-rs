@@ -1,5 +1,5 @@
 use crate::errors::Result;
-pub use crate::ffi::raw::{AttributeOwner, StorageType};
+pub use crate::ffi::raw::{StorageType};
 pub use crate::ffi::AttributeInfo;
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringArray;
@@ -51,7 +51,7 @@ impl<'a, T> Iterator for ArrayIter<'a, T> {
                 let start = self.cursor;
                 let end = self.cursor + (*size as usize);
                 self.cursor = end;
-                /// TODO: We know the data size, it can be rewritten to use unsafe unchecked
+                // TODO: We know the data size, it can be rewritten to use unsafe unchecked
                 Some(&self.data.as_slice()[start..end])
             }
         }
@@ -214,7 +214,7 @@ impl<'a> AttribDataType for &'a str {
     fn read_array(
         name: &CStr,
         node: &'_ HoudiniNode,
-        part_id: i32,
+        _part_id: i32,
         info: &AttributeInfo,
     ) -> Result<Self::ArrayType> {
         let (handles, sizes) = crate::ffi::get_attribute_string_array_data(
