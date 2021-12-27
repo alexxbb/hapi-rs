@@ -137,7 +137,7 @@ fn build_ui(parms: Vec<Parameter>) -> Result<group::Group> {
 }
 
 fn run() -> Result<()> {
-    let session = hapi_rs::session::simple_session(None)?;
+    let session = hapi_rs::session::quick_session(None)?;
     let lib = session.load_asset_file("otls/hapi_parms.hda")?;
     let node = lib.try_create_first()?;
 

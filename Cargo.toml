@@ -1,5 +1,5 @@
 [workspace]
 members = [
     "hapi-rs",
-    "dev"
+#    "dev"
 ]
