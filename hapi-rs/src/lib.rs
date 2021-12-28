@@ -39,19 +39,35 @@
 //! # Design Overview
 //! This crates tries hard to be nice and easy to use, hiding the ugly C API as much as possible
 //! while also trying to keep function names clear and close to original.
-//! Also I'm very allergic to camelCase and this crate has zero of them
 //! To archive this, the crate wraps every single bindgen-generated C struct in a new struct and provide getters/setters for its fields.
+//! All structs and enums have `HAPI_` prefixed removed.
+//!
+//! In addition all enum variants are shortened. This is done by custom post-processing in [hapi-sys](https://crates.io/crates/hapi-sys)
 //! For example:
 //! ```
+//! // Original struct:
 //! struct HAPI_NodeInfo {
 //!    pub parmCount: ::std::os::raw::c_int,
 //!    ...
 //! }
-//! ```
-//! Becomes:
-//! ```
-//! let info: NodeInfo;
+//! // This crate's struct:
+//! let info: crate::node::NodeInfo;
 //! let count: i32 = info.parm_count();
+//!
+//! // Original enum (C)
+//!  enum HAPI_InputType {
+//!       HAPI_INPUT_INVALID = -1,
+//!       HAPI_INPUT_TRANSFORM,
+//!       HAPI_INPUT_GEOMETRY,
+//!       HAPI_INPUT_MAX
+//! };
+//! // This crate's enum
+//! enum InputType {
+//!     Invalid = -1,
+//!     Transform = 0,
+//!     Geometry = 1,
+//!     Max = 2
+//! }
 //! ```
 //! Also many structs, don't provide setters because while it's possible to create them in C (and in Rust)
 //! it doesn't make sense from a usability point of view, i.e you never need to modify a [`node::NodeInfo`] struct.
@@ -62,12 +78,28 @@
 //!    .with_face_count(6);
 //! ```
 //!
+//! # Session
+//! Engine [promises](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html#HAPI_Sessions_Multithreading)
+//! to be thread-safe when accessing a single `Session` from multiple threads.
+//! `hapi-rs` relies on this promise and the [session::Session] struct holds only an `Arc` pointer to the session,
+//! so it's `Send` and `Sync` in Rust, and a few occasions it internally uses a [parking_lot::ReentrantMutex] for
+//! making sure a series of API calls from the same thread are sequential.
+//!
+//! When the last instance of the `Session` is about to drop, it'll be cleaned
+//! (if [session::SessionOptions::cleanup] was set) and automatically closed.
+//!
+//! The Engine process (pipe or socket) may be terminated as well if told so when starting the server:
+//! See [session:start_engine_pipe_server] and [session::start_engine_socket_server]
+//!
+//! [session::quick_session] terminates the server by default. This is useful for quick one-off jobs.
+//!
+//!
+//! # Error type
+//! All API calls return [`HapiError`] ([HAPI_Result](https://www.sidefx.com/docs/hengine/_h_a_p_i___common_8h.html#ac52e921ba2c7fc21a0f245678f76c836))
+//! Moreover, in case of error, the HapiError struct keeps a pointer to [session::Session] and in its `Display` and `Debug` implementations
+//! and retrieves the error message from the engine for easy error reporting.
+//!
 //! # Thread Safety
-//! Engine C API promises to be thread-safe when accessing a single `Session` from multiple threads.
-//! Rust relies on this promise and the [Session] struct holds only an `Arc` pointer inside,
-//! so it's `Send` and `Sync` in Rust, however in very few cases it uses a parking_lot::ReentrantMutex for
-//! making sure a series of API calls from a thread are sequential
-//! See [`session::Session`] for more information.
 mod errors;
 mod ffi;
 mod stringhandle;
@@ -78,7 +110,7 @@ pub mod node;
 pub mod parameter;
 pub mod session;
 
-pub use errors::Result;
+pub use errors::{Result, HapiError, Kind};
 pub use ffi::enums;
 
 #[derive(Debug)]
