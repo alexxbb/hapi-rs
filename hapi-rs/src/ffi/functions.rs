@@ -5,7 +5,7 @@ use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
 
-use crate::ffi::{CurveInfo, PartInfo, Viewport, GeoInfo, CookOptions};
+use crate::ffi::{CookOptions, CurveInfo, GeoInfo, PartInfo, Viewport};
 use crate::{
     attribute::DataArray,
     errors::{HapiError, Kind, Result},
@@ -2021,6 +2021,29 @@ pub fn get_material_info(session: &Session, node: NodeHandle) -> Result<raw::HAP
     }
 }
 
+pub fn get_material_node_ids_on_faces(
+    session: &Session,
+    node: NodeHandle,
+    face_count: i32,
+    part_id: i32,
+) -> Result<(bool, Vec<i32>)> {
+    unsafe {
+        let mut are_all_the_same = uninit!();
+        let mut ids = vec![0; face_count as usize];
+        raw::HAPI_GetMaterialNodeIdsOnFaces(
+            session.ptr(),
+            node.0,
+            part_id,
+            are_all_the_same.as_mut_ptr(),
+            ids.as_mut_ptr(),
+            0,
+            face_count,
+        )
+        .check_err(Some(session))?;
+        Ok((are_all_the_same.assume_init() > 0, ids))
+    }
+}
+
 pub fn get_instanced_part_ids(
     session: &Session,
     node: NodeHandle,
@@ -2168,12 +2191,8 @@ pub fn convert_transform_euler_to_matrix(
 ) -> Result<[f32; 16]> {
     unsafe {
         let mut out = [0.0; 16];
-        raw::HAPI_ConvertTransformEulerToMatrix(
-            session.ptr(),
-            tr as *const _,
-            &mut out as *mut _,
-        )
-        .check_err(Some(session))?;
+        raw::HAPI_ConvertTransformEulerToMatrix(session.ptr(), tr as *const _, &mut out as *mut _)
+            .check_err(Some(session))?;
         Ok(out)
     }
 }
@@ -2184,12 +2203,8 @@ pub fn convert_transform_quat_to_matrix(
 ) -> Result<[f32; 16]> {
     unsafe {
         let mut out = [0.0; 16];
-        raw::HAPI_ConvertTransformQuatToMatrix(
-            session.ptr(),
-            tr as *const _,
-            &mut out as  *mut _,
-        )
-        .check_err(Some(session))?;
+        raw::HAPI_ConvertTransformQuatToMatrix(session.ptr(), tr as *const _, &mut out as *mut _)
+            .check_err(Some(session))?;
         Ok(out)
     }
 }

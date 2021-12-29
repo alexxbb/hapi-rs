@@ -1,14 +1,14 @@
+use std::ffi::{CStr, CString};
+
 use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::enums::*;
-
 pub use crate::ffi::{
-    AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, PartInfo, Transform,
+    AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, MaterialInfo, PartInfo, Transform,
 };
-use crate::node::HoudiniNode;
+use crate::node::{HoudiniNode, NodeHandle};
 use crate::session::Session;
 use crate::stringhandle::StringArray;
-use std::ffi::{CStr, CString};
 
 macro_rules! unwrap_or_create {
     ($out:ident, $opt:expr, $default:expr) => {
@@ -33,6 +33,14 @@ pub enum GeoFormat {
     Geo,
     Bgeo,
     Obj,
+}
+
+#[derive(Debug)]
+/// Single - when material is assigned at object level
+/// Multiple - when assigned per-face
+pub enum Materials {
+    Single(MaterialInfo),
+    Multiple(Vec<MaterialInfo>),
 }
 
 impl GeoFormat {
@@ -157,14 +165,35 @@ impl Geometry {
         )
     }
 
-    // pub fn get_material_info(&self) -> Result<MaterialInfo> {
-    //     todo!();
-    //     crate::ffi::get_material_info(&self.session, self.handle)
-    //         // SAFETY HAPI_MaterialInfo and MaterialInfo are similar and both are repr(C)
-    //         .map(|info|unsafe {
-    //             std::mem::transmute(info)
-    //         })
-    // }
+    pub fn get_materials(&self, part: Option<&PartInfo>) -> Result<Option<Materials>> {
+        let tmp;
+        let part = unwrap_or_create!(tmp, part, self.part_info(0)?);
+        let (all_the_same, mats) = crate::ffi::get_material_node_ids_on_faces(
+            &self.node.session,
+            self.node.handle,
+            part.face_count(),
+            part.part_id(),
+        )?;
+        if all_the_same {
+            if mats[0] == -1 {
+                Ok(None)
+            } else {
+                let mat_node = NodeHandle(mats[0], ());
+                let mat = crate::ffi::get_material_info(&self.node.session, mat_node)
+                    .map(|info| unsafe { std::mem::transmute(info) })?;
+                Ok(Some(Materials::Single(mat)))
+            }
+        } else {
+            let mats = mats
+                .into_iter()
+                .map(|id| {
+                    crate::ffi::get_material_info(&self.node.session, NodeHandle(id, ()))
+                        .map(|info| unsafe { std::mem::transmute(info) })
+                })
+                .collect::<Result<Vec<_>>>();
+            mats.map(|vec|Some(Materials::Multiple(vec)))
+        }
+    }
 
     pub fn get_group_names(&self, group_type: GroupType) -> Result<StringArray> {
         let count = match group_type {
@@ -411,12 +440,12 @@ impl PartInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::attribute::Attribute;
-    use crate::node::HoudiniNode;
     use crate::geometry::Geometry;
+    use crate::node::HoudiniNode;
     use crate::session::tests::with_session;
     use crate::session::Session;
+
+    use super::*;
 
     fn _create_triangle(node: &HoudiniNode) -> Geometry {
         let geo = node.geometry().expect("geometry").unwrap();
@@ -661,6 +690,30 @@ mod tests {
                 tranforms.len() as i32,
                 instancer.part_info(0).unwrap().instance_count()
             );
+        });
+    }
+
+    #[test]
+    fn get_face_materials() {
+        with_session(|session| {
+            use crate::parameter::{Parameter, ParmBaseTrait};
+            use crate::session::tests::OTLS;
+            let lib = session
+                .load_asset_file(OTLS.get("geometry").unwrap())
+                .expect("Could not load otl");
+            let node = lib.try_create_first().unwrap();
+            node.cook(None).unwrap();
+            let geo = node.geometry().expect("geometry").unwrap();
+            let mats = geo.get_materials(None).expect("materials");
+            assert!(matches!(mats, Some(Materials::Multiple(_))));
+            if let Parameter::Int(toggle) = node.parameter("add_materials").unwrap() {
+                toggle.set_value(&[0]).unwrap();
+                node.cook(None).unwrap();
+            } else {
+                unreachable!();
+            }
+            let mats = geo.get_materials(None).expect("materials");
+            assert!(matches!(mats, None));
         });
     }
 }

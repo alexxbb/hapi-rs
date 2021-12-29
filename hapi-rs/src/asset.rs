@@ -268,7 +268,6 @@ mod tests {
 
     #[test]
     fn asset_menu_parameters() {
-        use super::{AssetParmIter};
         with_session(|session| {
             let lib = _load_asset("parameters", session);
             let parms = lib.get_asset_parms("Object/hapi_parms").unwrap();
