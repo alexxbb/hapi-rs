@@ -12,7 +12,7 @@
 //! Thanks to Rust's powerful type system using the engine from Rust is very simple
 //!
 //! # Example
-//! ```
+//! ```ignore
 //! use hapi_rs::Result;
 //! use hapi_rs::session::quick_session;
 //! use hapi_rs::parameter::*;
@@ -44,7 +44,7 @@
 //!
 //! In addition all enum variants are shortened. This is done by custom post-processing in [hapi-sys](https://crates.io/crates/hapi-sys)
 //! For example:
-//! ```
+//! ```ignore
 //! // Original struct:
 //! struct HAPI_NodeInfo {
 //!    pub parmCount: ::std::os::raw::c_int,
@@ -72,7 +72,7 @@
 //! Also many structs, don't provide setters because while it's possible to create them in C (and in Rust)
 //! it doesn't make sense from a usability point of view, i.e you never need to modify a [`node::NodeInfo`] struct.
 //! Structs that you do need ability to create, implement [Default] and have `with_` methods:
-//! ```
+//! ```ignore
 //! let part_info = PartInfo::default()
 //!    .with_part_type(PartType::Mesh)
 //!    .with_face_count(6);
@@ -109,6 +109,7 @@ pub mod geometry;
 pub mod node;
 pub mod parameter;
 pub mod session;
+pub mod material;
 
 pub use errors::{Result, HapiError, Kind};
 pub use ffi::enums;

@@ -1,10 +1,11 @@
 use std::ffi::{CStr, CString};
 
 use crate::attribute::*;
+use crate::material::Material;
 use crate::errors::Result;
-pub use crate::ffi::enums::*;
 pub use crate::ffi::{
-    AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, MaterialInfo, PartInfo, Transform,
+    enums::*,
+    AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, PartInfo, Transform,
 };
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::session::Session;
@@ -39,8 +40,8 @@ pub enum GeoFormat {
 /// Single - when material is assigned at object level
 /// Multiple - when assigned per-face
 pub enum Materials {
-    Single(MaterialInfo),
-    Multiple(Vec<MaterialInfo>),
+    Single(Material),
+    Multiple(Vec<Material>),
 }
 
 impl GeoFormat {
@@ -179,16 +180,16 @@ impl Geometry {
                 Ok(None)
             } else {
                 let mat_node = NodeHandle(mats[0], ());
-                let mat = crate::ffi::get_material_info(&self.node.session, mat_node)
-                    .map(|info| unsafe { std::mem::transmute(info) })?;
-                Ok(Some(Materials::Single(mat)))
+                let info = crate::ffi::get_material_info(&self.node.session, mat_node)?;
+                Ok(Some(Materials::Single(Material{session: self.node.session.clone(), info})))
             }
         } else {
+            let session = self.node.session.clone();
             let mats = mats
                 .into_iter()
                 .map(|id| {
-                    crate::ffi::get_material_info(&self.node.session, NodeHandle(id, ()))
-                        .map(|info| unsafe { std::mem::transmute(info) })
+                    crate::ffi::get_material_info(&session, NodeHandle(id, ()))
+                        .map(|info| Material{session: session.clone(), info})
                 })
                 .collect::<Result<Vec<_>>>();
             mats.map(|vec|Some(Materials::Multiple(vec)))
@@ -705,6 +706,12 @@ mod tests {
             node.cook(None).unwrap();
             let geo = node.geometry().expect("geometry").unwrap();
             let mats = geo.get_materials(None).expect("materials");
+            match mats.as_ref().unwrap() {
+                Materials::Single(_) => {}
+                Materials::Multiple(v) => {
+                    dbg!(v[0].node().to_node(session).unwrap().path(None).unwrap());
+                }
+            }
             assert!(matches!(mats, Some(Materials::Multiple(_))));
             if let Parameter::Int(toggle) = node.parameter("add_materials").unwrap() {
                 toggle.set_value(&[0]).unwrap();

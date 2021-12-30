@@ -1,11 +1,11 @@
 #![allow(clippy::missing_safety_doc)]
 
-use duplicate::duplicate;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
 
-use crate::ffi::{CookOptions, CurveInfo, GeoInfo, PartInfo, Viewport};
+use duplicate::duplicate;
+
 use crate::{
     attribute::DataArray,
     errors::{HapiError, Kind, Result},
@@ -14,6 +14,7 @@ use crate::{
     session::{Session, SessionOptions},
     stringhandle::StringArray,
 };
+use crate::ffi::{CookOptions, CurveInfo, GeoInfo, PartInfo, Viewport, ImageInfo};
 
 use super::raw;
 
@@ -2208,3 +2209,36 @@ pub fn convert_transform_quat_to_matrix(
         Ok(out)
     }
 }
+
+pub fn get_supported_image_file_formats(session: &Session) -> Result<Vec<raw::HAPI_ImageFileFormat>> {
+    unsafe {
+        let mut count = uninit!( );
+        raw::HAPI_GetSupportedImageFileFormatCount(session.ptr(), count.as_mut_ptr()).check_err(Some(session))?;
+        let count = count.assume_init();
+        let mut array = vec![raw::HAPI_ImageFileFormat_Create(); count as usize];
+        raw::HAPI_GetSupportedImageFileFormats(session.ptr(), array.as_mut_ptr(), count).check_err(Some(session))?;
+        Ok(array)
+
+    }
+}
+
+pub fn render_texture_to_image(session: &Session, node: NodeHandle, parm: ParmHandle) -> Result<()> {
+    unsafe {
+        raw::HAPI_RenderTextureToImage(session.ptr(), node.0, parm.0).check_err(Some(session))
+    }
+}
+
+pub fn set_image_info(session: &Session, node: NodeHandle, info: &ImageInfo) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetImageInfo(session.ptr(), node.0, info.ptr()).check_err(Some(session))
+    }
+}
+
+pub fn get_image_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_ImageInfo> {
+    unsafe {
+        let mut info = uninit!();
+        raw::HAPI_GetImageInfo(session.ptr(), node.0, info.as_mut_ptr()).check_err(Some(session))?;
+        Ok(info.assume_init())
+    }
+}
+

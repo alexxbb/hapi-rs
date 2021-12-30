@@ -150,6 +150,10 @@ macro_rules! wrap {
         wrap!{_impl_methods_ $object $ffi_tp $($rest)*}
     };
 
+    (impl $object:ident=>$ffi_tp:ty; $($rest:tt)*) => {
+        wrap!{_impl_methods_ $object $ffi_tp $($rest)*}
+    };
+
 
     (_impl_methods_ $object:ident $ffi_tp:ty
         $([$($access:tt)*] $method:ident->$field:ident->[$($tp:tt)*]);* $(;)?
@@ -563,11 +567,20 @@ wrap!(
 
 #[repr(C)]
 #[derive(Debug, Clone)]
-pub struct MaterialInfo {
-    pub node_id: NodeHandle,
-    pub exists: bool,
-    pub has_changed: bool,
+pub struct ImageInfo {
+    pub(crate) inner: HAPI_ImageInfo
 }
+
+wrap!(
+    impl ImageInfo => HAPI_ImageInfo;
+    [get|set|with] x_res->xRes->[i32];
+    [get|set|with] y_res->yRes->[i32];
+    [get|set|with] gamma->gamma->[f64];
+    [get|set|with] data_format->dataFormat->[ImageDataFormat];
+    [get|set|with] interleaved->interleaved->[bool];
+    [get|set|with] packing->packing->[ImagePacking];
+    [get+session] image_format->imageFileFormatNameSH->[Result<String>];
+);
 
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -576,4 +589,16 @@ pub struct KeyFrame {
     pub value: f32,
     pub in_tangent: f32,
     pub out_tangent: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImageFileFormat<'a> {
+    pub(crate) inner: HAPI_ImageFileFormat,
+    pub(crate) session: &'a Session
+}
+
+impl<'a> ImageFileFormat<'a> {
+    get!(name->nameSH->Result<String>);
+    get!(description->descriptionSH->Result<String>);
+    get!(extension->defaultExtensionSH->Result<String>);
 }

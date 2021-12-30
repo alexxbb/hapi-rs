@@ -5,7 +5,7 @@ use log::{debug, warn};
 
 pub use crate::{
     errors::Result,
-    ffi::{AssetInfo, GeoInfo, MaterialInfo, NodeInfo, ObjectInfo, ParmInfo, KeyFrame},
+    ffi::{AssetInfo, GeoInfo, NodeInfo, ObjectInfo, ParmInfo, KeyFrame},
     geometry::Geometry,
     parameter::*,
     session::{CookResult, Session},
