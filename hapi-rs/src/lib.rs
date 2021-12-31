@@ -3,9 +3,10 @@
 //!
 //! [SideFx Houdini](https://www.sidefx.com/) is a world leading software for creating stunning visual effects for movies and games.
 //! Apart from the main graphical interface written in C++ and Python, Houdini also provides a C interface called [Houdini Engine](https://www.sidefx.com/products/houdini-engine/) or HAPI for short.
-//! Its goal is to provide the power of Houdini to other DCCs (Digital Content Creation) software and game engines.
+//! Its goal is to bring the power of Houdini to other DCCs (Digital Content Creation) software and game engines.
 //!
-//! This crate aims to provide idiomatic Rust interface to HAPI and is built on top of [hapi-sys](https://crates.io/crates/hapi-sys)
+//! This crate aims to provide idiomatic Rust interface to HAPI and is built on top of [hapi-sys](https://crates.io/crates/hapi-sys),
+//! but **it doesn't depend on it**, i.e. the generated bindings file from `hapi-sys` is included in this crate.
 //!
 //! **⚠ A valid **commercial** Houdini Engine license is required to use this crate ⚠**
 //!
@@ -36,11 +37,16 @@
 //! }
 //! ```
 //!
+//! # Building
+//!
+//! **HFS** environment variable must be set for build script to link to Houdini libraries.
+//! Also runtime libraries are searched in `$PATH` on windows, `$LD_LIBRARY_PATH` on Linux and `$DYLD_LIBRARY_PATH` on MacOS
+//!
 //! # Design Overview
 //! This crates tries hard to be nice and easy to use, hiding the inconvenient C API as much as possible
 //! while also trying to keep function names clear and close to original.
 //! To archive this, the crate wraps every single bindgen-generated C struct in a new struct and provide getters/setters for its fields.
-//! All structs and enums have `HAPI_` prefixed removed.
+//! All structs and enums have their `HAPI_` prefix removed.
 //!
 //! In addition all enum variants are shortened. This is done by custom post-processing in [hapi-sys](https://crates.io/crates/hapi-sys)
 //! For example:
@@ -69,9 +75,9 @@
 //!     Max = 2
 //! }
 //! ```
-//! Also many structs, don't provide setters because while it's possible to create them in C (and in Rust)
-//! it doesn't make sense from a usability point of view, i.e you never need to modify a [`node::NodeInfo`] struct.
-//! Structs that you do need ability to create, implement [Default] and have `with_` methods:
+//! Also some structs, don't provide a direct way of creating them as well as missing setters because while it's possible to create them in C (and in Rust)
+//! it doesn't make sense from a usability point of view, i.e you never need to create and modify a [`node::NodeInfo`] struct.
+//! Structs that you do need ability to create, implement [Default] and have `with_` and `set_` methods:
 //! ```ignore
 //! let part_info = PartInfo::default()
 //!    .with_part_type(PartType::Mesh)
@@ -88,7 +94,7 @@
 //! When the last instance of the `Session` is about to drop, it'll be cleaned
 //! (if [session::SessionOptions::cleanup] was set) and automatically closed.
 //!
-//! The Engine process (pipe or socket) may be terminated as well if told so when starting the server:
+//! The Engine process (pipe or socket) can be auto-terminated as well if told so when starting the server:
 //! See [session:start_engine_pipe_server] and [session::start_engine_socket_server]
 //!
 //! [session::quick_session] terminates the server by default. This is useful for quick one-off jobs.
@@ -96,10 +102,8 @@
 //!
 //! # Error type
 //! All API calls return [`HapiError`] ([HAPI_Result](https://www.sidefx.com/docs/hengine/_h_a_p_i___common_8h.html#ac52e921ba2c7fc21a0f245678f76c836))
-//! Moreover, in case of error, the HapiError struct keeps a pointer to [session::Session] and in its `Display` and `Debug` implementations
-//! and retrieves the error message from the engine for easy error reporting.
+//! Moreover, in case of error, the HapiError struct keeps a pointer to [session::Session] to retrieves the error message from the engine ad hoc.
 //!
-//! # Thread Safety
 mod errors;
 mod ffi;
 mod stringhandle;
