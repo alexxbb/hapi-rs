@@ -697,30 +697,11 @@ mod tests {
     #[test]
     fn get_face_materials() {
         with_session(|session| {
-            use crate::parameter::{Parameter, ParmBaseTrait};
-            use crate::session::tests::OTLS;
-            let lib = session
-                .load_asset_file(OTLS.get("geometry").unwrap())
-                .expect("Could not load otl");
-            let node = lib.try_create_first().unwrap();
+            let node = session.create_node("Object/spaceship", None, None).unwrap();
             node.cook(None).unwrap();
             let geo = node.geometry().expect("geometry").unwrap();
             let mats = geo.get_materials(None).expect("materials");
-            match mats.as_ref().unwrap() {
-                Materials::Single(_) => {}
-                Materials::Multiple(v) => {
-                    dbg!(v[0].node().to_node(session).unwrap().path(None).unwrap());
-                }
-            }
-            assert!(matches!(mats, Some(Materials::Multiple(_))));
-            if let Parameter::Int(toggle) = node.parameter("add_materials").unwrap() {
-                toggle.set_value(&[0]).unwrap();
-                node.cook(None).unwrap();
-            } else {
-                unreachable!();
-            }
-            let mats = geo.get_materials(None).expect("materials");
-            assert!(matches!(mats, None));
+            assert!(matches!(mats, Some(Materials::Single(_))));
         });
     }
 }

@@ -6,6 +6,7 @@ use std::ptr::{null, null_mut};
 
 use duplicate::duplicate;
 
+use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, PartInfo, Viewport};
 use crate::{
     attribute::DataArray,
     errors::{HapiError, Kind, Result},
@@ -14,7 +15,6 @@ use crate::{
     session::{Session, SessionOptions},
     stringhandle::StringArray,
 };
-use crate::ffi::{CookOptions, CurveInfo, GeoInfo, PartInfo, Viewport, ImageInfo};
 
 use super::raw;
 
@@ -2210,35 +2210,109 @@ pub fn convert_transform_quat_to_matrix(
     }
 }
 
-pub fn get_supported_image_file_formats(session: &Session) -> Result<Vec<raw::HAPI_ImageFileFormat>> {
+pub fn get_supported_image_file_formats(
+    session: &Session,
+) -> Result<Vec<raw::HAPI_ImageFileFormat>> {
     unsafe {
-        let mut count = uninit!( );
-        raw::HAPI_GetSupportedImageFileFormatCount(session.ptr(), count.as_mut_ptr()).check_err(Some(session))?;
+        let mut count = uninit!();
+        raw::HAPI_GetSupportedImageFileFormatCount(session.ptr(), count.as_mut_ptr())
+            .check_err(Some(session))?;
         let count = count.assume_init();
         let mut array = vec![raw::HAPI_ImageFileFormat_Create(); count as usize];
-        raw::HAPI_GetSupportedImageFileFormats(session.ptr(), array.as_mut_ptr(), count).check_err(Some(session))?;
+        raw::HAPI_GetSupportedImageFileFormats(session.ptr(), array.as_mut_ptr(), count)
+            .check_err(Some(session))?;
         Ok(array)
-
     }
 }
 
-pub fn render_texture_to_image(session: &Session, node: NodeHandle, parm: ParmHandle) -> Result<()> {
+pub fn render_texture_to_image(
+    session: &Session,
+    material: NodeHandle,
+    parm: ParmHandle,
+) -> Result<()> {
     unsafe {
-        raw::HAPI_RenderTextureToImage(session.ptr(), node.0, parm.0).check_err(Some(session))
+        raw::HAPI_RenderTextureToImage(session.ptr(), material.0, parm.0).check_err(Some(session))
     }
 }
 
-pub fn set_image_info(session: &Session, node: NodeHandle, info: &ImageInfo) -> Result<()> {
+pub fn set_image_info(session: &Session, material: NodeHandle, info: &ImageInfo) -> Result<()> {
     unsafe {
-        raw::HAPI_SetImageInfo(session.ptr(), node.0, info.ptr()).check_err(Some(session))
+        raw::HAPI_SetImageInfo(session.ptr(), material.0, info.ptr()).check_err(Some(session))
     }
 }
 
-pub fn get_image_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_ImageInfo> {
+pub fn get_image_info(session: &Session, material: NodeHandle) -> Result<raw::HAPI_ImageInfo> {
     unsafe {
         let mut info = uninit!();
-        raw::HAPI_GetImageInfo(session.ptr(), node.0, info.as_mut_ptr()).check_err(Some(session))?;
+        raw::HAPI_GetImageInfo(session.ptr(), material.0, info.as_mut_ptr())
+            .check_err(Some(session))?;
         Ok(info.assume_init())
     }
 }
 
+pub fn extract_image_to_file(
+    session: &Session,
+    material: NodeHandle,
+    file_format: &CStr,
+    image_planes: &CStr,
+    dest_folder: &CStr,
+    dest_file: &CStr,
+) -> Result<String> {
+    let mut handle = uninit!();
+    unsafe {
+        raw::HAPI_ExtractImageToFile(
+            session.ptr(),
+            material.0,
+            file_format.as_ptr(),
+            image_planes.as_ptr(),
+            dest_folder.as_ptr(),
+            dest_file.as_ptr(),
+            handle.as_mut_ptr(),
+        )
+        .check_err(Some(session))?;
+        crate::stringhandle::get_string(handle.assume_init(), session)
+    }
+}
+
+pub fn extract_image_to_memory(
+    session: &Session,
+    material: NodeHandle,
+    file_format: &CStr,
+    image_planes: &CStr,
+) -> Result<Vec<i8>> {
+    unsafe {
+        let mut size = uninit!();
+        raw::HAPI_ExtractImageToMemory(
+            session.ptr(),
+            material.0,
+            file_format.as_ptr(),
+            image_planes.as_ptr(),
+            size.as_mut_ptr(),
+        )
+        .check_err(Some(session))?;
+        let size = size.assume_init() as usize;
+        let mut buffer = Vec::with_capacity(size);
+        buffer.resize(size, 0);
+        raw::HAPI_GetImageMemoryBuffer(
+            session.ptr(),
+            material.0,
+            buffer.as_mut_ptr(),
+            buffer.len() as i32,
+        )
+        .check_err(Some(session))?;
+        Ok(buffer)
+    }
+}
+
+pub fn get_image_planes(session: &Session, material: NodeHandle) -> Result<StringArray> {
+    unsafe {
+        let mut count = uninit!();
+        raw::HAPI_GetImagePlaneCount(session.ptr(), material.0, count.as_mut_ptr())
+            .check_err(Some(session))?;
+        let count = count.assume_init();
+        let mut handles = vec![0; count as usize];
+        raw::HAPI_GetImagePlanes(session.ptr(), material.0, handles.as_mut_ptr(), count)
+            .check_err(Some(session))?;
+        crate::stringhandle::get_string_array(&handles, session)
+    }
+}

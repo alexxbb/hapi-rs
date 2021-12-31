@@ -512,6 +512,7 @@ pub(crate) mod tests {
     });
 
     pub(crate) fn with_session(func: impl FnOnce(&Lazy<Session>)) {
+        SESSION.load_asset_file(OTLS.get("spaceship").unwrap()).unwrap();
         func(&SESSION);
     }
 
@@ -526,6 +527,7 @@ pub(crate) mod tests {
                 .to_string_lossy()
         );
         map.insert("geometry", format!("{}/hapi_geo.hda", root));
+        map.insert("materials", format!("{}/hapi_materials.hdanc", root));
         map.insert("parameters", format!("{}/hapi_parms.hda", root));
         map.insert("spaceship", format!("{}/sesi/SideFX_spaceship.otl", root));
         map

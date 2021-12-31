@@ -37,7 +37,7 @@
 //! ```
 //!
 //! # Design Overview
-//! This crates tries hard to be nice and easy to use, hiding the ugly C API as much as possible
+//! This crates tries hard to be nice and easy to use, hiding the inconvenient C API as much as possible
 //! while also trying to keep function names clear and close to original.
 //! To archive this, the crate wraps every single bindgen-generated C struct in a new struct and provide getters/setters for its fields.
 //! All structs and enums have `HAPI_` prefixed removed.
