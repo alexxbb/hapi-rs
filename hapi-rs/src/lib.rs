@@ -42,6 +42,11 @@
 //! **HFS** environment variable must be set for build script to link to Houdini libraries.
 //! Also runtime libraries are searched in `$PATH` on windows, `$LD_LIBRARY_PATH` on Linux and `$DYLD_LIBRARY_PATH` on MacOS
 //!
+//! # Running examples
+//! Make sure the environment variables are set as said above.
+//! `cargo run --examples ...`
+//!
+//!
 //! # Design Overview
 //! This crates tries hard to be nice and easy to use, hiding the inconvenient C API as much as possible
 //! while also trying to keep function names clear and close to original.

@@ -8,7 +8,7 @@ fn main() -> Result<()> {
     let mut opt = SessionOptions::default();
     opt.threaded = true;
     session.initialize(&opt)?;
-    let lib = session.load_asset_file("otls/nurbs_curve.hda")?;
+    let lib = session.load_asset_file("otls/sesi/nurbs_curve.hda")?;
     let node = lib.try_create_first()?;
     node.cook_blocking(None)?;
 

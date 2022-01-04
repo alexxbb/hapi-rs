@@ -92,7 +92,7 @@ main(int argc, char **argv) {
     ENSURE_SUCCESS(HAPI_GetParameters(&session, curveNode, &parm, coordsParmIndex, 1));
     ENSURE_SUCCESS(HAPI_SetParmStringValue(&session, curveNode, "-4,0,4 -4,0,-4 4,0,-4 4,0,4", parm.id, 0));
 
-    HAPI_SaveHIPFile(&session, "otls/nurbs_curve.hip", true);
+    HAPI_SaveHIPFile(&session, "otls/sesi/nurbs_curve.hip", true);
 
     HAPI_Cleanup(&session);
 

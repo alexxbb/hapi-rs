@@ -29,7 +29,7 @@ static void printCurveInfo(HAPI_ObjectInfo &objInfo, HAPI_GeoInfo &geoInfo, HAPI
 
 int
 main(int argc, char **argv) {
-    const char *hdaFile = argc == 2 ? argv[1] : "otls/nurbs_curve.hda";
+    const char *hdaFile = argc == 2 ? argv[1] : "otls/sesi/nurbs_curve.hda";
 
     HAPI_CookOptions cookOptions = HAPI_CookOptions_Create();
 
