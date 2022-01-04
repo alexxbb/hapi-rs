@@ -1,14 +1,14 @@
-use std::ffi::CString;
-use log::debug;
 use crate::ffi::raw as ffi;
 use crate::ffi::raw::{ChoiceListType, ParmType};
 use crate::{
     errors::Result,
+    ffi::ParmChoiceInfo,
     ffi::{AssetInfo, ParmInfo},
     node::HoudiniNode,
-    ffi::ParmChoiceInfo,
     session::Session,
 };
+use log::debug;
+use std::ffi::CString;
 
 struct AssetParmValues {
     int: Vec<i32>,
@@ -207,17 +207,23 @@ impl<'node> AssetInfo<'node> {
 
 #[cfg(test)]
 mod tests {
-    use crate::session::tests::{with_session, OTLS};
+    use super::AssetLibrary;
+    use crate::session::tests::with_session;
+    use once_cell::sync::OnceCell;
 
-    fn _load_asset(name: &str, ses: &super::Session) -> super::AssetLibrary {
-        let otl = OTLS.get(name).expect("otl not found");
-        ses.load_asset_file(otl).expect("load_asset_file")
+    fn _parms_asset(session: &super::Session) -> &'static AssetLibrary {
+        static _LIB: OnceCell<AssetLibrary> = OnceCell::new();
+        _LIB.get_or_init(|| {
+            session
+                .load_asset_file("../otls/hapi_parms.hda")
+                .expect("load_asset_file")
+        })
     }
 
     #[test]
     fn get_asset_count() {
         with_session(|session| {
-            let lib = _load_asset("parameters", session);
+            let lib = _parms_asset(session);
             assert_eq!(lib.get_asset_count().expect("get_asset_count"), 1);
         });
     }
@@ -225,7 +231,7 @@ mod tests {
     #[test]
     fn get_asset_names() {
         with_session(|session| {
-            let lib = _load_asset("parameters", session);
+            let lib = _parms_asset(session);
             assert!(lib
                 .get_asset_names()
                 .expect("get_asset_name")
@@ -236,7 +242,7 @@ mod tests {
     #[test]
     fn get_first_name() {
         with_session(|session| {
-            let lib = _load_asset("parameters", session);
+            let lib = _parms_asset(session);
             assert_eq!(
                 lib.get_first_name(),
                 Ok(Some(String::from("Object/hapi_parms")))
@@ -248,7 +254,7 @@ mod tests {
     fn asset_parameters() {
         use super::ParmValue;
         with_session(|session| {
-            let lib = _load_asset("parameters", session);
+            let lib = _parms_asset(session);
             let parms = lib.get_asset_parms("Object/hapi_parms").unwrap();
 
             let parm = parms.find_parameter("single_string").expect("parm");
@@ -269,7 +275,7 @@ mod tests {
     #[test]
     fn asset_menu_parameters() {
         with_session(|session| {
-            let lib = _load_asset("parameters", session);
+            let lib = _parms_asset(session);
             let parms = lib.get_asset_parms("Object/hapi_parms").unwrap();
 
             let parm = parms.find_parameter("string_menu").expect("parm");

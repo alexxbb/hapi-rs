@@ -1,12 +1,11 @@
 use std::ffi::{CStr, CString};
 
 use crate::attribute::*;
-use crate::material::Material;
 use crate::errors::Result;
 pub use crate::ffi::{
-    enums::*,
-    AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, PartInfo, Transform,
+    enums::*, AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, PartInfo, Transform,
 };
+use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::session::Session;
 use crate::stringhandle::StringArray;
@@ -181,18 +180,25 @@ impl Geometry {
             } else {
                 let mat_node = NodeHandle(mats[0], ());
                 let info = crate::ffi::get_material_info(&self.node.session, mat_node)?;
-                Ok(Some(Materials::Single(Material{session: self.node.session.clone(), info})))
+                Ok(Some(Materials::Single(Material {
+                    session: self.node.session.clone(),
+                    info,
+                })))
             }
         } else {
             let session = self.node.session.clone();
             let mats = mats
                 .into_iter()
                 .map(|id| {
-                    crate::ffi::get_material_info(&session, NodeHandle(id, ()))
-                        .map(|info| Material{session: session.clone(), info})
+                    crate::ffi::get_material_info(&session, NodeHandle(id, ())).map(|info| {
+                        Material {
+                            session: session.clone(),
+                            info,
+                        }
+                    })
                 })
                 .collect::<Result<Vec<_>>>();
-            mats.map(|vec|Some(Materials::Multiple(vec)))
+            mats.map(|vec| Some(Materials::Multiple(vec)))
         }
     }
 
@@ -479,11 +485,7 @@ mod tests {
     }
 
     fn _load_test_geometry(session: &Session) -> super::Result<Geometry> {
-        use crate::session::tests::OTLS;
-        let lib = session
-            .load_asset_file(OTLS.get("geometry").unwrap())
-            .expect("Could not load otl");
-        let node = lib.try_create_first()?;
+        let node = session.create_node("Object/hapi_geo", None, None)?;
         node.cook(None).unwrap();
         node.geometry()
             .map(|some| some.expect("must have geometry"))

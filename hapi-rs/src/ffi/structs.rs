@@ -568,7 +568,7 @@ wrap!(
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct ImageInfo {
-    pub(crate) inner: HAPI_ImageInfo
+    pub(crate) inner: HAPI_ImageInfo,
 }
 
 wrap!(
@@ -594,7 +594,7 @@ pub struct KeyFrame {
 #[derive(Debug, Clone)]
 pub struct ImageFileFormat<'a> {
     pub(crate) inner: HAPI_ImageFileFormat,
-    pub(crate) session: &'a Session
+    pub(crate) session: &'a Session,
 }
 
 impl<'a> ImageFileFormat<'a> {

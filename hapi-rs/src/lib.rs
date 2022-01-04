@@ -109,18 +109,18 @@
 //! All API calls return [`HapiError`] ([HAPI_Result](https://www.sidefx.com/docs/hengine/_h_a_p_i___common_8h.html#ac52e921ba2c7fc21a0f245678f76c836))
 //! Moreover, in case of error, the HapiError struct keeps a pointer to [session::Session] to retrieves the error message from the engine ad hoc.
 //!
-mod errors;
-mod ffi;
-mod stringhandle;
 pub mod asset;
 pub mod attribute;
+mod errors;
+mod ffi;
 pub mod geometry;
+pub mod material;
 pub mod node;
 pub mod parameter;
 pub mod session;
-pub mod material;
+mod stringhandle;
 
-pub use errors::{Result, HapiError, Kind};
+pub use errors::{HapiError, Kind, Result};
 pub use ffi::enums;
 
 #[derive(Debug)]

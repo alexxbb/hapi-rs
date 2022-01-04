@@ -1,5 +1,5 @@
-use hapi_rs::node::{ObjectInfo, NodeType, NodeFlags};
 use hapi_rs::geometry::{AttributeOwner, CurveOrders, CurveType, Geometry, PartInfo, PartType};
+use hapi_rs::node::{NodeFlags, NodeType, ObjectInfo};
 use hapi_rs::session::{new_in_process, SessionOptions};
 use hapi_rs::Result;
 

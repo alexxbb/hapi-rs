@@ -3,8 +3,8 @@ use std::{
     ffi::CString,
     sync::Arc,
 };
-use log::{debug, error, warn};
 pub use crate::ffi::enums::*;
+use log::{debug, error, warn};
 
 use crate::{
     asset::AssetLibrary,
@@ -508,11 +508,20 @@ pub(crate) mod tests {
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         env_logger::init();
-        quick_session(None).expect("Could not create test session")
+        let session = quick_session(None).expect("Could not create test session");
+        session
+            .load_asset_file("../otls/hapi_geo.hda")
+            .expect("load asset");
+        session
+            .load_asset_file("../otls/hapi_parms.hda")
+            .expect("load asset");
+        session
+            .load_asset_file("../otls/sesi/SideFX_spaceship.otl")
+            .expect("load asset");
+        session
     });
 
     pub(crate) fn with_session(func: impl FnOnce(&Lazy<Session>)) {
-        SESSION.load_asset_file(OTLS.get("spaceship").unwrap()).unwrap();
         func(&SESSION);
     }
 

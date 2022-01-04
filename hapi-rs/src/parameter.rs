@@ -3,8 +3,8 @@ use std::ffi::CString;
 use log::warn;
 
 pub use crate::{
-    ffi::enums::{ ParmType, ChoiceListType},
-    ffi::{ParmInfo}
+    ffi::enums::{ChoiceListType, ParmType},
+    ffi::ParmInfo,
 };
 
 use crate::{
@@ -315,13 +315,11 @@ impl ParmBaseTrait for StringParameter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::tests::{with_session, OTLS};
+    use crate::session::tests::with_session;
 
     #[test]
     fn node_parameters() {
         with_session(|session| {
-            let otl = OTLS.get("parameters").unwrap();
-            let _lib = session.load_asset_file(otl).unwrap();
             let node = session
                 .create_node_blocking("Object/hapi_parms", None, None)
                 .expect("create_node");
