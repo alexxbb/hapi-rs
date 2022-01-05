@@ -653,7 +653,7 @@ pub(crate) mod tests {
             session
                 .load_asset_file(OTLS.get("geometry").unwrap())
                 .unwrap();
-            assert_eq!(session.get_license_type(), Ok(License::HoudiniEngine));
+            assert_eq!(session.get_license_type(), Ok(License::HoudiniFx));
         })
     }
 
