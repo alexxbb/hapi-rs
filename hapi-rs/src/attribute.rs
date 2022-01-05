@@ -86,7 +86,36 @@ impl<'a> Iterator for MultiArrayIter<'a> {
     }
 }
 
-pub trait AttribDataType: Sized {
+macro_rules! impl_foo {
+    ($tp:ty, $st:expr) => {
+        impl AttribType for $tp {
+            fn storage() -> StorageType {
+                $st
+            }
+        }
+    };
+}
+
+pub trait AttribType {
+    fn storage() -> StorageType;
+}
+
+impl_foo!(i8, StorageType::Int8);
+impl_foo!(u8, StorageType::Uint8);
+impl_foo!(i16, StorageType::Int16);
+impl_foo!(i32, StorageType::Int);
+impl_foo!(i64, StorageType::Int64);
+impl_foo!(f32, StorageType::Float);
+impl_foo!(f64, StorageType::Float64);
+impl_foo!(&[i8], StorageType::Int8Array);
+impl_foo!(&[u8], StorageType::Uint8Array);
+impl_foo!(&[i16], StorageType::Int16Array);
+impl_foo!(&[i32], StorageType::Array);
+impl_foo!(&[f32], StorageType::FloatArray);
+impl_foo!(&[f64], StorageType::Float64Array);
+impl_foo!(&str, StorageType::String);
+
+pub trait AttributeAccess: AttribType + Sized {
     type Type;
     type Return;
     type ArrayType;
@@ -116,11 +145,10 @@ pub trait AttribDataType: Sized {
         info: &AttributeInfo,
         data: &Self::ArrayType,
     ) -> Result<()>;
-    fn storage() -> StorageType;
 }
 
 #[derive(Debug)]
-pub struct Attribute<'s, T: AttribDataType> {
+pub struct Attribute<'s, T: AttributeAccess> {
     pub info: AttributeInfo,
     pub(crate) name: CString,
     pub(crate) node: &'s HoudiniNode,
@@ -129,7 +157,7 @@ pub struct Attribute<'s, T: AttribDataType> {
 
 impl<'s, T> Attribute<'s, T>
 where
-    T: AttribDataType,
+    T: AttributeAccess,
 {
     pub(crate) fn new(name: CString, info: AttributeInfo, node: &'s HoudiniNode) -> Self {
         Attribute::<T> {
@@ -160,16 +188,16 @@ where
 }
 
 #[duplicate(
-    _data_type  _storage         _storage_array         _get                      _set                      _get_array           _set_array;
-    [u8]    [StorageType::Uint8] [StorageType::Uint8Array] [get_attribute_u8_data] [set_attribute_u8_data] [get_attribute_u8_array_data] [set_attribute_u8_array_data];
-    [i8]    [StorageType::Int8] [StorageType::Int8Array] [get_attribute_i8_data] [set_attribute_i8_data] [get_attribute_i8_array_data] [set_attribute_i8_array_data];
-    [i16]    [StorageType::Int16] [StorageType::Int16Array] [get_attribute_i16_data] [set_attribute_i16_data] [get_attribute_i16_array_data] [set_attribute_i16_array_data];
-    [i32]    [StorageType::Int] [StorageType::Array] [get_attribute_int_data] [set_attribute_int_data] [get_attribute_int_array_data] [set_attribute_i32_array_data];
-    [i64]    [StorageType::Int64] [StorageType::Int64Array] [get_attribute_int64_data] [set_attribute_int64_data] [get_attribute_int64_array_data] [set_attribute_i64_array_data];
-    [f32]    [StorageType::Float] [StorageType::FloatArray] [get_attribute_float_data] [set_attribute_float_data] [get_attribute_float_array_data] [set_attribute_f32_array_data];
-    [f64]    [StorageType::Float64] [StorageType::Float64Array] [get_attribute_float64_data] [set_attribute_float64_data] [get_attribute_float64_array_data] [set_attribute_f64_array_data];
+    _data_type  _get                      _set                      _get_array           _set_array;
+    [u8]    [get_attribute_u8_data] [set_attribute_u8_data] [get_attribute_u8_array_data] [set_attribute_u8_array_data];
+    [i8]    [get_attribute_i8_data] [set_attribute_i8_data] [get_attribute_i8_array_data] [set_attribute_i8_array_data];
+    [i16]    [get_attribute_i16_data] [set_attribute_i16_data] [get_attribute_i16_array_data] [set_attribute_i16_array_data];
+    [i32]    [get_attribute_int_data] [set_attribute_int_data] [get_attribute_int_array_data] [set_attribute_i32_array_data];
+    [i64]    [get_attribute_int64_data] [set_attribute_int64_data] [get_attribute_int64_array_data] [set_attribute_i64_array_data];
+    [f32]    [get_attribute_float_data] [set_attribute_float_data] [get_attribute_float_array_data] [set_attribute_f32_array_data];
+    [f64]    [get_attribute_float64_data] [set_attribute_float64_data] [get_attribute_float64_array_data] [set_attribute_f64_array_data];
 )]
-impl AttribDataType for _data_type {
+impl AttributeAccess for _data_type {
     type Type = _data_type;
     type Return = Vec<Self::Type>;
     type ArrayType = DataArray<_data_type>;
@@ -211,13 +239,9 @@ impl AttribDataType for _data_type {
     ) -> Result<()> {
         crate::ffi::_set_array(node, part_id, name, &info.inner, &data.data, &data.sizes)
     }
-
-    fn storage() -> StorageType {
-        _storage
-    }
 }
 
-impl<'a> AttribDataType for &'a str {
+impl<'a> AttributeAccess for &'a str {
     type Type = &'a str;
     type Return = StringArray;
     type ArrayType = StringMultiArray;
@@ -279,9 +303,5 @@ impl<'a> AttribDataType for &'a str {
         data: &Self::ArrayType,
     ) -> Result<()> {
         todo!()
-    }
-
-    fn storage() -> StorageType {
-        StorageType::String
     }
 }

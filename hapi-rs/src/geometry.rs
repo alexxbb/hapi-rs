@@ -230,7 +230,7 @@ impl Geometry {
         crate::ffi::get_attribute_names(&self.node, part.part_id(), count, owner)
     }
 
-    pub fn get_attribute<T: AttribDataType>(
+    pub fn get_attribute<T: AttributeAccess>(
         &self,
         part_id: i32,
         owner: AttributeOwner,
@@ -241,7 +241,7 @@ impl Geometry {
         let inner = crate::ffi::get_attribute_info(&self.node, part_id, owner, &name)?;
         dbg!(&inner);
 
-        if inner.storage != T::storage() {
+        if inner.storage != <T as AttribType>::storage() {
             return Ok(None);
         }
         if inner.exists < 1 {
@@ -251,7 +251,7 @@ impl Geometry {
         Ok(Some(attrib))
     }
 
-    pub fn add_attribute<T: AttribDataType>(
+    pub fn add_attribute<T: AttributeAccess>(
         &self,
         name: &str,
         part_id: i32,
