@@ -1477,6 +1477,43 @@ pub fn _func_name(
     Ok(DataArray { data, sizes })
 }
 
+#[duplicate(
+    _data_type _func_name _ffi_name;
+    [u8] [set_attribute_u8_array_data] [HAPI_SetAttributeUInt8ArrayData];
+    [i8] [set_attribute_i8_array_data] [HAPI_SetAttributeInt8ArrayData];
+    [i16] [set_attribute_i16_array_data] [HAPI_SetAttributeInt16ArrayData];
+    [i32] [set_attribute_i32_array_data] [HAPI_SetAttributeIntArrayData];
+    [i64] [set_attribute_i64_array_data] [HAPI_SetAttributeInt64ArrayData];
+    [f32] [set_attribute_f32_array_data] [HAPI_SetAttributeFloatArrayData];
+    [f64] [set_attribute_f64_array_data] [HAPI_SetAttributeFloat64ArrayData];
+)]
+pub fn _func_name(
+    node: &HoudiniNode,
+    part_id: i32,
+    name: &CStr,
+    attr_info: &raw::HAPI_AttributeInfo,
+    data: &[_data_type],
+    sizes: &[i32],
+) -> Result<()> {
+    unsafe {
+        raw::_ffi_name(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            attr_info as *const _,
+            data.as_ptr(),
+            attr_info.totalArrayElements as i32,
+            sizes.as_ptr(),
+            0,
+            attr_info.count as i32,
+        )
+        .check_err(Some(&node.session))?;
+    }
+
+    Ok(())
+}
+
 pub fn get_attribute_string_buffer(
     node: &HoudiniNode,
     part_id: i32,

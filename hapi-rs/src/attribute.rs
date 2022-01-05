@@ -96,18 +96,25 @@ pub trait AttribDataType: Sized {
         part_id: i32,
         info: &AttributeInfo,
     ) -> Result<Self::Return>;
-    fn read_array(
-        name: &CStr,
-        node: &'_ HoudiniNode,
-        part_id: i32,
-        info: &AttributeInfo,
-    ) -> Result<Self::ArrayType>;
     fn set(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
         values: &[Self::Type],
+    ) -> Result<()>;
+    fn read_array(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo,
+    ) -> Result<Self::ArrayType>;
+    fn set_array(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo,
+        data: &Self::ArrayType,
     ) -> Result<()>;
     fn storage() -> StorageType;
 }
@@ -143,6 +150,9 @@ where
     pub fn read_array(&self, part_id: i32) -> Result<T::ArrayType> {
         T::read_array(&self.name, self.node, part_id, &self.info)
     }
+    pub fn set_array(&self, part_id: i32, data: &T::ArrayType) -> Result<()> {
+        T::set_array(&self.name, self.node, part_id, &self.info, data)
+    }
 
     pub fn set(&self, part_id: i32, values: impl AsRef<[T::Type]>) -> Result<()> {
         T::set(&self.name, self.node, part_id, &self.info, values.as_ref())
@@ -150,14 +160,14 @@ where
 }
 
 #[duplicate(
-    _data_type  _storage           _get                      _set                      _array;
-    [u8]    [StorageType::Uint8] [get_attribute_u8_data] [set_attribute_u8_data] [get_attribute_u8_array_data];
-    [i8]    [StorageType::Int8] [get_attribute_i8_data] [set_attribute_i8_data] [get_attribute_i8_array_data];
-    [i16]    [StorageType::Int16] [get_attribute_i16_data] [set_attribute_i16_data] [get_attribute_i16_array_data];
-    [i32]    [StorageType::Int] [get_attribute_int_data] [set_attribute_int_data] [get_attribute_int_array_data];
-    [i64]    [StorageType::Int64] [get_attribute_int64_data] [set_attribute_int64_data] [get_attribute_int64_array_data];
-    [f32]    [StorageType::Float] [get_attribute_float_data] [set_attribute_float_data] [get_attribute_float_array_data];
-    [f64]    [StorageType::Float64] [get_attribute_float64_data] [set_attribute_float64_data] [get_attribute_float64_array_data];
+    _data_type  _storage         _storage_array         _get                      _set                      _get_array           _set_array;
+    [u8]    [StorageType::Uint8] [StorageType::Uint8Array] [get_attribute_u8_data] [set_attribute_u8_data] [get_attribute_u8_array_data] [set_attribute_u8_array_data];
+    [i8]    [StorageType::Int8] [StorageType::Int8Array] [get_attribute_i8_data] [set_attribute_i8_data] [get_attribute_i8_array_data] [set_attribute_i8_array_data];
+    [i16]    [StorageType::Int16] [StorageType::Int16Array] [get_attribute_i16_data] [set_attribute_i16_data] [get_attribute_i16_array_data] [set_attribute_i16_array_data];
+    [i32]    [StorageType::Int] [StorageType::Array] [get_attribute_int_data] [set_attribute_int_data] [get_attribute_int_array_data] [set_attribute_i32_array_data];
+    [i64]    [StorageType::Int64] [StorageType::Int64Array] [get_attribute_int64_data] [set_attribute_int64_data] [get_attribute_int64_array_data] [set_attribute_i64_array_data];
+    [f32]    [StorageType::Float] [StorageType::FloatArray] [get_attribute_float_data] [set_attribute_float_data] [get_attribute_float_array_data] [set_attribute_f32_array_data];
+    [f64]    [StorageType::Float64] [StorageType::Float64Array] [get_attribute_float64_data] [set_attribute_float64_data] [get_attribute_float64_array_data] [set_attribute_f64_array_data];
 )]
 impl AttribDataType for _data_type {
     type Type = _data_type;
@@ -189,7 +199,17 @@ impl AttribDataType for _data_type {
         part_id: i32,
         info: &AttributeInfo,
     ) -> Result<Self::ArrayType> {
-        crate::ffi::_array(node, part_id, name, &info.inner)
+        crate::ffi::_get_array(node, part_id, name, &info.inner)
+    }
+
+    fn set_array(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo,
+        data: &Self::ArrayType,
+    ) -> Result<()> {
+        crate::ffi::_set_array(node, part_id, name, &info.inner, &data.data, &data.sizes)
     }
 
     fn storage() -> StorageType {
@@ -209,25 +229,6 @@ impl<'a> AttribDataType for &'a str {
         info: &AttributeInfo,
     ) -> Result<Self::Return> {
         crate::ffi::get_attribute_string_buffer(node, part_id, name, &info.inner, 0, info.count())
-    }
-
-    fn read_array(
-        name: &CStr,
-        node: &'_ HoudiniNode,
-        _part_id: i32,
-        info: &AttributeInfo,
-    ) -> Result<Self::ArrayType> {
-        let (handles, sizes) = crate::ffi::get_attribute_string_array_data(
-            &node.session,
-            node.handle,
-            name,
-            &info.inner,
-        )?;
-        Ok(StringMultiArray {
-            handles,
-            sizes,
-            session: node.session.clone(),
-        })
     }
 
     fn set(
@@ -250,6 +251,34 @@ impl<'a> AttribDataType for &'a str {
             &info.inner,
             &cstrings,
         )
+    }
+    fn read_array(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        _part_id: i32,
+        info: &AttributeInfo,
+    ) -> Result<Self::ArrayType> {
+        let (handles, sizes) = crate::ffi::get_attribute_string_array_data(
+            &node.session,
+            node.handle,
+            name,
+            &info.inner,
+        )?;
+        Ok(StringMultiArray {
+            handles,
+            sizes,
+            session: node.session.clone(),
+        })
+    }
+
+    fn set_array(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo,
+        data: &Self::ArrayType,
+    ) -> Result<()> {
+        todo!()
     }
 
     fn storage() -> StorageType {

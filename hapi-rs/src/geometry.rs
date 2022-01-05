@@ -239,6 +239,7 @@ impl Geometry {
         let _n = name;
         let name = std::ffi::CString::new(name)?;
         let inner = crate::ffi::get_attribute_info(&self.node, part_id, owner, &name)?;
+        dbg!(&inner);
 
         if inner.storage != T::storage() {
             return Ok(None);
