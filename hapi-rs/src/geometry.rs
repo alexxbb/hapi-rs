@@ -230,7 +230,7 @@ impl Geometry {
         crate::ffi::get_attribute_names(&self.node, part.part_id(), count, owner)
     }
 
-    pub fn get_attribute<T: AttributeAccess>(
+    pub fn get_attribute<T: AttribType>(
         &self,
         part_id: i32,
         owner: AttributeOwner,
@@ -251,7 +251,7 @@ impl Geometry {
         Ok(Some(attrib))
     }
 
-    pub fn add_attribute<T: AttributeAccess>(
+    pub fn add_attribute<T: AttribType>(
         &self,
         name: &str,
         part_id: i32,
@@ -547,7 +547,7 @@ mod tests {
             let geo = _load_test_geometry(session).expect("geometry");
 
             let attr = geo
-                .get_attribute::<i32>(0, AttributeOwner::Point, "my_int_array")
+                .get_attribute::<&[i32]>(0, AttributeOwner::Point, "my_int_array")
                 .expect("attribute")
                 .unwrap();
             let i_array = attr.read_array(0).unwrap();

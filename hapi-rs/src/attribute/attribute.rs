@@ -1,3 +1,4 @@
+use super::array::{DataArray, StringMultiArray};
 use crate::errors::Result;
 pub use crate::ffi::enums::StorageType;
 pub use crate::ffi::AttributeInfo;
@@ -7,83 +8,8 @@ use duplicate::duplicate;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 
-pub struct DataArray<T> {
-    pub data: Vec<T>,
-    pub sizes: Vec<i32>,
-}
-
-pub struct StringMultiArray {
-    pub handles: Vec<i32>,
-    pub sizes: Vec<i32>,
-    session: crate::session::Session,
-}
-
-impl<T> DataArray<T> {
-    pub fn iter(&self) -> ArrayIter<'_, T> {
-        ArrayIter {
-            data: self.data.iter(),
-            sizes: self.sizes.iter(),
-            cursor: 0,
-        }
-    }
-}
-
-pub struct ArrayIter<'a, T> {
-    data: std::slice::Iter<'a, T>,
-    sizes: std::slice::Iter<'a, i32>,
-    cursor: usize,
-}
-
-pub struct MultiArrayIter<'a> {
-    handles: std::slice::Iter<'a, i32>,
-    sizes: std::slice::Iter<'a, i32>,
-    session: &'a crate::session::Session,
-    cursor: usize,
-}
-
-impl<'a, T> Iterator for ArrayIter<'a, T> {
-    type Item = &'a [T];
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.sizes.next() {
-            None => None,
-            Some(size) => {
-                let start = self.cursor;
-                let end = self.cursor + (*size as usize);
-                self.cursor = end;
-                // TODO: We know the data size, it can be rewritten to use unsafe unchecked
-                Some(&self.data.as_slice()[start..end])
-            }
-        }
-    }
-}
-
-impl StringMultiArray {
-    pub fn iter(&self) -> MultiArrayIter<'_> {
-        MultiArrayIter {
-            handles: self.handles.iter(),
-            sizes: self.sizes.iter(),
-            session: &self.session,
-            cursor: 0,
-        }
-    }
-}
-
-impl<'a> Iterator for MultiArrayIter<'a> {
-    type Item = Result<StringArray>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.sizes.next() {
-            None => None,
-            Some(size) => {
-                let start = self.cursor;
-                let end = self.cursor + (*size as usize);
-                self.cursor = end;
-                let handles = &self.handles.as_slice()[start..end];
-                Some(crate::stringhandle::get_string_array(handles, self.session))
-            }
-        }
-    }
+pub trait AttribType: AttributeAccess {
+    fn storage() -> StorageType;
 }
 
 macro_rules! impl_foo {
@@ -96,10 +22,6 @@ macro_rules! impl_foo {
     };
 }
 
-pub trait AttribType {
-    fn storage() -> StorageType;
-}
-
 impl_foo!(i8, StorageType::Int8);
 impl_foo!(u8, StorageType::Uint8);
 impl_foo!(i16, StorageType::Int16);
@@ -108,14 +30,14 @@ impl_foo!(i64, StorageType::Int64);
 impl_foo!(f32, StorageType::Float);
 impl_foo!(f64, StorageType::Float64);
 impl_foo!(&[i8], StorageType::Int8Array);
-impl_foo!(&[u8], StorageType::Uint8Array);
-impl_foo!(&[i16], StorageType::Int16Array);
-impl_foo!(&[i32], StorageType::Array);
-impl_foo!(&[f32], StorageType::FloatArray);
-impl_foo!(&[f64], StorageType::Float64Array);
+// impl_foo!(&[u8], StorageType::Uint8Array);
+// impl_foo!(&[i16], StorageType::Int16Array);
+// impl_foo!(&[i32], StorageType::Array);
+// impl_foo!(&[f32], StorageType::FloatArray);
+// impl_foo!(&[f64], StorageType::Float64Array);
 impl_foo!(&str, StorageType::String);
 
-pub trait AttributeAccess: AttribType + Sized {
+pub trait AttributeAccess: Sized {
     type Type;
     type Return;
     type ArrayType;
@@ -148,7 +70,7 @@ pub trait AttributeAccess: AttribType + Sized {
 }
 
 #[derive(Debug)]
-pub struct Attribute<'s, T: AttributeAccess> {
+pub struct Attribute<'s, T: AttribType> {
     pub info: AttributeInfo,
     pub(crate) name: CString,
     pub(crate) node: &'s HoudiniNode,
@@ -157,7 +79,7 @@ pub struct Attribute<'s, T: AttributeAccess> {
 
 impl<'s, T> Attribute<'s, T>
 where
-    T: AttributeAccess,
+    T: AttribType,
 {
     pub(crate) fn new(name: CString, info: AttributeInfo, node: &'s HoudiniNode) -> Self {
         Attribute::<T> {
@@ -208,7 +130,7 @@ impl AttributeAccess for _data_type {
         part_id: i32,
         info: &AttributeInfo,
     ) -> Result<Self::Return> {
-        crate::ffi::_get(node, part_id, name, &info.inner, -1, 0, info.count())
+        super::bindings::_get(node, part_id, name, &info.inner, -1, 0, info.count())
     }
 
     fn set(
@@ -218,7 +140,7 @@ impl AttributeAccess for _data_type {
         info: &AttributeInfo,
         values: &[Self::Type],
     ) -> Result<()> {
-        crate::ffi::_set(node, part_id, name, &info.inner, values, 0, info.count())
+        super::bindings::_set(node, part_id, name, &info.inner, values, 0, info.count())
     }
 
     fn read_array(
@@ -227,7 +149,7 @@ impl AttributeAccess for _data_type {
         part_id: i32,
         info: &AttributeInfo,
     ) -> Result<Self::ArrayType> {
-        crate::ffi::_get_array(node, part_id, name, &info.inner)
+        super::bindings::_get_array(node, part_id, name, &info.inner)
     }
 
     fn set_array(
@@ -237,7 +159,7 @@ impl AttributeAccess for _data_type {
         info: &AttributeInfo,
         data: &Self::ArrayType,
     ) -> Result<()> {
-        crate::ffi::_set_array(node, part_id, name, &info.inner, &data.data, &data.sizes)
+        super::bindings::_set_array(node, part_id, name, &info.inner, &data.data, &data.sizes)
     }
 }
 
