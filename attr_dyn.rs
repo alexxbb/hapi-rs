@@ -15,6 +15,7 @@ struct NumericArrayAttr<T> {
     info: Info
 }
 
+#[derive(Debug)]
 enum StorageType {
     Int,
     Float,
@@ -67,16 +68,23 @@ impl Info {
 
 trait AsAttribute {
     fn info(&self) -> &Info;
+    fn storage(&self) -> StorageType;
 }
 
-impl<T> AsAttribute for NumericAttr<T>{
+impl<T: AttribStorage> AsAttribute for NumericAttr<T>{
     fn info(&self) -> &Info {
         &self.info
     }
+    fn storage(&self) -> StorageType {
+        T::storage()
+    }
 }
-impl<T> AsAttribute for NumericArrayAttr<T>{
+impl<T: AttribStorage> AsAttribute for NumericArrayAttr<T>{
     fn info(&self) -> &Info {
         &self.info
+    }
+    fn storage(&self) -> StorageType {
+        T::storage()
     }
 }
 
@@ -110,6 +118,9 @@ impl Attribute {
     fn name(&self) -> &str {
         self.0.info().name.as_str()
     }
+    fn storage(&self) -> StorageType {
+        self.0.storage()
+    }
 }
 
 fn get_attributes() -> Vec<Attribute> {
@@ -125,6 +136,7 @@ fn get_attributes() -> Vec<Attribute> {
 
 fn main() {
     for attr in &get_attributes() {
+        println!("Storage:{:?}", attr.storage());
         if let Some(a) = attr.downcast::<NumericAttr<i32>>() {
             a.get();
             a.set(&[1, 2, 3]);
