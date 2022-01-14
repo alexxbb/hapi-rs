@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::ffi::{CStr, CString};
 
 use crate::attribute::*;
@@ -230,40 +231,61 @@ impl Geometry {
         crate::ffi::get_attribute_names(&self.node, part.part_id(), count, owner)
     }
 
-    pub fn get_attribute<T: AttribType>(
+    pub fn get_attribute(
         &self,
         part_id: i32,
         owner: AttributeOwner,
         name: &str,
-    ) -> Result<Option<Attribute<T>>> {
+    ) -> Result<Option<Attribute>> {
         let _n = name;
         let name = std::ffi::CString::new(name)?;
         let inner = crate::ffi::get_attribute_info(&self.node, part_id, owner, &name)?;
-        dbg!(&inner);
-
-        if inner.storage != <T as AttribType>::storage() {
-            return Ok(None);
-        }
+        let storage = inner.storage;
         if inner.exists < 1 {
             return Ok(None);
         }
-        let attrib = Attribute::new(name, AttributeInfo { inner }, &self.node);
-        Ok(Some(attrib))
+        let info = AttributeInfo { inner };
+        let node = self.node.clone();
+        let attr_obj: Box<dyn AnyAttribWrapper> = match storage {
+            // StorageType::Invalid => {}
+            StorageType::Int => box_attr!(NumericAttr, i32, info, name, node),
+            StorageType::Int64 => box_attr!(NumericAttr, i64, info, name, node),
+            StorageType::Float => box_attr!(NumericAttr, f32, info, name, node),
+            StorageType::Float64 => box_attr!(NumericAttr, f64, info, name, node),
+            // StorageType::String => {}
+            StorageType::Uint8 => box_attr!(NumericAttr, u8, info, name, node),
+            StorageType::Int8 => box_attr!(NumericAttr, i8, info, name, node),
+            StorageType::Int16 => box_attr!(NumericAttr, i16, info, name, node),
+            // StorageType::Array => {}
+            // StorageType::Int64Array => {}
+            // StorageType::FloatArray => {}
+            // StorageType::Float64Array => {}
+            // StorageType::StringArray => {}
+            // StorageType::Uint8Array => {}
+            // StorageType::Int8Array => {}
+            // StorageType::Int16Array => {}
+            // StorageType::Max => {}
+            _ => {
+                todo!()
+            }
+        };
+        Ok(Some(Attribute::new(attr_obj)))
     }
 
-    pub fn add_attribute<T: AttribType>(
+    pub fn add_attribute(
         &self,
         name: &str,
         part_id: i32,
         info: &AttributeInfo,
-    ) -> Result<Attribute<T>> {
-        let name = CString::new(name)?;
-        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
-        Ok(Attribute::new(
-            name,
-            AttributeInfo { inner: info.inner },
-            &self.node,
-        ))
+    ) -> Result<Attribute> {
+        todo!()
+        // let name = CString::new(name)?;
+        // crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        // Ok(Attribute::new(
+        //     name,
+        //     AttributeInfo { inner: info.inner },
+        //     &self.node,
+        // ))
     }
 
     pub fn add_group(
@@ -469,15 +491,15 @@ mod tests {
             .with_tuple_size(3)
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::Float);
-        let attr_p = geo
-            .add_attribute::<f32>("P", part.part_id(), &info)
-            .unwrap();
-        attr_p
-            .set(
-                part.part_id(),
-                &[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
-            )
-            .unwrap();
+        // let attr_p = geo
+        //     .add_attribute::<f32>("P", part.part_id(), &info)
+        //     .unwrap();
+        // attr_p
+        //     .set(
+        //         part.part_id(),
+        //         &[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
+        //     )
+        //     .unwrap();
         geo.set_vertex_list(0, [0, 1, 2]).unwrap();
         geo.set_face_counts(0, [3]).unwrap();
         geo.commit().expect("commit");
@@ -497,11 +519,11 @@ mod tests {
         with_session(|session| {
             let geo = _load_test_geometry(session).unwrap();
             let foo_bar = geo
-                .get_attribute::<i64>(0, AttributeOwner::Prim, "foo_bar")
+                .get_attribute(0, AttributeOwner::Prim, "foo_bar")
                 .expect("attribute");
             assert!(foo_bar.is_none());
             let pscale = geo
-                .get_attribute::<i64>(0, AttributeOwner::Point, "pscale")
+                .get_attribute(0, AttributeOwner::Point, "pscale")
                 .expect("attribute");
             assert!(pscale.is_none(), "pscale type is f32");
         });
@@ -513,12 +535,13 @@ mod tests {
             let input = session.create_input_node("test").unwrap();
             let geo = _create_triangle(&input);
             let attr_p = geo
-                .get_attribute::<f32>(0, AttributeOwner::Point, "P")
+                .get_attribute(0, AttributeOwner::Point, "P")
                 .unwrap()
                 .unwrap();
-            let val: Vec<_> = attr_p.read(0).expect("read_attribute");
-            assert_eq!(val.len(), 9);
-            input.delete().unwrap();
+            todo!()
+            // let val: Vec<_> = attr_p.read(0).expect("read_attribute");
+            // assert_eq!(val.len(), 9);
+            // input.delete().unwrap();
         });
     }
 
@@ -534,10 +557,11 @@ mod tests {
                 .with_tuple_size(1)
                 .with_count(part.point_count());
 
-            let attr_name = geo.add_attribute::<&str>("name", 0, &info).unwrap();
-            attr_name.set(0, ["pt0", "pt1", "pt2"]).unwrap();
-            geo.commit().unwrap();
-            input.delete().unwrap();
+            let attr_name = geo.add_attribute("name", 0, &info).unwrap();
+            todo!()
+            // attr_name.set(0, ["pt0", "pt1", "pt2"]).unwrap();
+            // geo.commit().unwrap();
+            // input.delete().unwrap();
         });
     }
 
@@ -547,24 +571,26 @@ mod tests {
             let geo = _load_test_geometry(session).expect("geometry");
 
             let attr = geo
-                .get_attribute::<&[i32]>(0, AttributeOwner::Point, "my_int_array")
+                .get_attribute(0, AttributeOwner::Point, "my_int_array")
                 .expect("attribute")
                 .unwrap();
-            let i_array = attr.read_array(0).unwrap();
-
-            assert_eq!(i_array.iter().count(), attr.info.count() as usize);
-            assert_eq!(i_array.iter().next().unwrap(), &[0, 0, 0, -1]);
-            assert_eq!(i_array.iter().last().unwrap(), &[7, 14, 21, -1]);
-
-            let attr = geo
-                .get_attribute::<f32>(0, AttributeOwner::Point, "my_float_array")
-                .expect("attribute")
-                .unwrap();
-            let i_array = attr.read_array(0).unwrap();
-
-            assert_eq!(i_array.iter().count(), attr.info.count() as usize);
-            assert_eq!(i_array.iter().next().unwrap(), &[0.0, 0.0, 0.0]);
-            assert_eq!(i_array.iter().last().unwrap(), &[7.0, 14.0, 21.0]);
+            todo!()
+            // let i_array = attr.read_array(0).unwrap();
+            //
+            // assert_eq!(i_array.iter().count(), attr.info.count() as usize);
+            // assert_eq!(i_array.iter().next().unwrap(), &[0, 0, 0, -1]);
+            // assert_eq!(i_array.iter().last().unwrap(), &[7, 14, 21, -1]);
+            //
+            // let attr = geo
+            //     .get_attribute(0, AttributeOwner::Point, "my_float_array")
+            //     .expect("attribute")
+            //     .unwrap();
+            // let i_array = attr.downcast::<NumericArrayAttr<f32>>().unwrap();
+            // let i_array = attr.get(0).unwrap();
+            //
+            // assert_eq!(i_array.iter().count(), attr.info.count() as usize);
+            // assert_eq!(i_array.iter().next().unwrap(), &[0.0, 0.0, 0.0]);
+            // assert_eq!(i_array.iter().last().unwrap(), &[7.0, 14.0, 21.0]);
         });
     }
 
@@ -573,23 +599,24 @@ mod tests {
         with_session(|session| {
             let geo = _load_test_geometry(session).expect("geometry");
             let attr = geo
-                .get_attribute::<&str>(0, AttributeOwner::Point, "my_str_array")
+                .get_attribute(0, AttributeOwner::Point, "my_str_array")
                 .expect("attribute")
                 .unwrap();
-            let i_array = attr.read_array(0).unwrap();
-            assert_eq!(i_array.iter().count(), attr.info.count() as usize);
-
-            let it = i_array.iter().next().unwrap().unwrap();
-            let pt_0: Vec<&str> = it.iter_str().collect();
-            assert_eq!(pt_0, ["pt_0_0", "pt_0_1", "pt_0_2", "start"]);
-
-            let it = i_array.iter().nth(1).unwrap().unwrap();
-            let pt_1: Vec<&str> = it.iter_str().collect();
-            assert_eq!(pt_1, ["pt_1_0", "pt_1_1", "pt_1_2"]);
-
-            let it = i_array.iter().last().unwrap().unwrap();
-            let pt_n: Vec<&str> = it.iter_str().collect();
-            assert_eq!(pt_n, ["pt_7_0", "pt_7_1", "pt_7_2", "end"]);
+            todo!()
+            // let i_array = attr.read_array(0).unwrap();
+            // assert_eq!(i_array.iter().count(), attr.info.count() as usize);
+            //
+            // let it = i_array.iter().next().unwrap().unwrap();
+            // let pt_0: Vec<&str> = it.iter_str().collect();
+            // assert_eq!(pt_0, ["pt_0_0", "pt_0_1", "pt_0_2", "start"]);
+            //
+            // let it = i_array.iter().nth(1).unwrap().unwrap();
+            // let pt_1: Vec<&str> = it.iter_str().collect();
+            // assert_eq!(pt_1, ["pt_1_0", "pt_1_1", "pt_1_2"]);
+            //
+            // let it = i_array.iter().last().unwrap().unwrap();
+            // let pt_n: Vec<&str> = it.iter_str().collect();
+            // assert_eq!(pt_n, ["pt_7_0", "pt_7_1", "pt_7_2", "end"]);
         });
     }
 

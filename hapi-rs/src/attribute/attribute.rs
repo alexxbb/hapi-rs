@@ -1,3 +1,4 @@
+#![allow(unused)]
 use super::array::{DataArray, StringMultiArray};
 use crate::errors::Result;
 pub use crate::ffi::enums::StorageType;
@@ -8,222 +9,194 @@ use duplicate::duplicate;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 
-pub trait AttribType: AttributeAccess {
-    fn storage() -> StorageType;
+use std::any::Any;
+use std::marker::PhantomData;
+
+pub struct NumericAttr<T> {
+    pub(crate) info: AttributeInfo,
+    pub(crate) name: CString,
+    pub(crate) node: HoudiniNode,
+    pub(crate) _m: PhantomData<T>,
 }
 
-macro_rules! impl_foo {
+pub struct NumericArrayAttr<T> {
+    pub(crate) info: AttributeInfo,
+    pub(crate) name: CString,
+    pub(crate) node: HoudiniNode,
+    pub(crate) _m: PhantomData<T>,
+}
+
+macro_rules! box_attr {
+    ($st:ident, $tp:ty, $info:ident, $name:ident, $node:ident) => {
+        Box::new($st::<$tp> {
+            $info,
+            $name,
+            $node,
+            _m: std::marker::PhantomData,
+        })
+    };
+}
+
+pub trait AttribStorage {
+    fn storage() -> StorageType;
+}
+macro_rules! impl_storage {
     ($tp:ty, $st:expr) => {
-        impl AttribType for $tp {
+        impl AttribStorage for $tp {
             fn storage() -> StorageType {
                 $st
             }
         }
     };
 }
+pub(crate) use box_attr;
 
-impl_foo!(i8, StorageType::Int8);
-impl_foo!(u8, StorageType::Uint8);
-impl_foo!(i16, StorageType::Int16);
-impl_foo!(i32, StorageType::Int);
-impl_foo!(i64, StorageType::Int64);
-impl_foo!(f32, StorageType::Float);
-impl_foo!(f64, StorageType::Float64);
-impl_foo!(&[i8], StorageType::Int8Array);
-// impl_foo!(&[u8], StorageType::Uint8Array);
-// impl_foo!(&[i16], StorageType::Int16Array);
-// impl_foo!(&[i32], StorageType::Array);
-// impl_foo!(&[f32], StorageType::FloatArray);
-// impl_foo!(&[f64], StorageType::Float64Array);
-impl_foo!(&str, StorageType::String);
+impl_storage!(i8, StorageType::Int8);
+impl_storage!(u8, StorageType::Uint8);
+impl_storage!(i16, StorageType::Int16);
+impl_storage!(i32, StorageType::Int);
+impl_storage!(i64, StorageType::Int64);
+impl_storage!(f32, StorageType::Float);
+impl_storage!(f64, StorageType::Float64);
 
-pub trait AttributeAccess: Sized {
-    type Type;
-    type Return;
-    type ArrayType;
-    fn read(
+impl<T: AttribAccess> NumericArrayAttr<T> {
+    fn get(&self, part_id: i32) -> Result<DataArray<Vec<T>>> {
+        T::get_array(&self.name, &self.node, part_id, &self.info)
+    }
+    fn set(&self, part_id: i32, values: &DataArray<&[T]>) -> Result<()> {
+        T::set_array(&self.name, &self.node, part_id, &self.info, values)
+    }
+}
+
+impl<T: AttribAccess> NumericAttr<T> {
+    fn get(&self, part_id: i32) -> Result<Vec<T>> {
+        T::get(&self.name, &self.node, part_id, &self.info)
+    }
+    fn set(&self, part_id: i32, values: &[T]) -> Result<()> {
+        T::set(&self.name, &self.node, part_id, &self.info, values)
+    }
+}
+
+pub trait AttribAccess: Sized + AttribStorage {
+    fn get(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-    ) -> Result<Self::Return>;
+    ) -> Result<Vec<Self>>;
     fn set(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-        values: &[Self::Type],
+        values: &[Self],
     ) -> Result<()>;
-    fn read_array(
+    fn get_array(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-    ) -> Result<Self::ArrayType>;
+    ) -> Result<DataArray<Vec<Self>>>;
     fn set_array(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-        data: &Self::ArrayType,
+        data: &DataArray<&[Self]>,
     ) -> Result<()>;
 }
 
-#[derive(Debug)]
-pub struct Attribute<'s, T: AttribType> {
-    pub info: AttributeInfo,
-    pub(crate) name: CString,
-    pub(crate) node: &'s HoudiniNode,
-    _marker: std::marker::PhantomData<T>,
+pub trait AsAttribute {
+    fn info(&self) -> &AttributeInfo;
+    fn storage(&self) -> StorageType;
+    fn name(&self) -> Cow<str>;
 }
 
-impl<'s, T> Attribute<'s, T>
-where
-    T: AttribType,
-{
-    pub(crate) fn new(name: CString, info: AttributeInfo, node: &'s HoudiniNode) -> Self {
-        Attribute::<T> {
-            info,
-            node,
-            name,
-            _marker: Default::default(),
-        }
+impl<T: AttribStorage> AsAttribute for NumericAttr<T> {
+    fn info(&self) -> &AttributeInfo {
+        &self.info
+    }
+    fn storage(&self) -> StorageType {
+        T::storage()
     }
 
-    pub fn name(&self) -> Cow<str> {
+    fn name(&self) -> Cow<str> {
         self.name.to_string_lossy()
     }
-    pub fn read(&self, part_id: i32) -> Result<T::Return> {
-        T::read(&self.name, self.node, part_id, &self.info)
+}
+impl<T: AttribStorage> AsAttribute for NumericArrayAttr<T> {
+    fn info(&self) -> &AttributeInfo {
+        &self.info
     }
-
-    pub fn read_array(&self, part_id: i32) -> Result<T::ArrayType> {
-        T::read_array(&self.name, self.node, part_id, &self.info)
+    fn storage(&self) -> StorageType {
+        T::storage()
     }
-    pub fn set_array(&self, part_id: i32, data: &T::ArrayType) -> Result<()> {
-        T::set_array(&self.name, self.node, part_id, &self.info, data)
-    }
-
-    pub fn set(&self, part_id: i32, values: impl AsRef<[T::Type]>) -> Result<()> {
-        T::set(&self.name, self.node, part_id, &self.info, values.as_ref())
+    fn name(&self) -> Cow<str> {
+        self.name.to_string_lossy()
     }
 }
 
-#[duplicate(
-    _data_type  _get                      _set                      _get_array           _set_array;
-    [u8]    [get_attribute_u8_data] [set_attribute_u8_data] [get_attribute_u8_array_data] [set_attribute_u8_array_data];
-    [i8]    [get_attribute_i8_data] [set_attribute_i8_data] [get_attribute_i8_array_data] [set_attribute_i8_array_data];
-    [i16]    [get_attribute_i16_data] [set_attribute_i16_data] [get_attribute_i16_array_data] [set_attribute_i16_array_data];
-    [i32]    [get_attribute_int_data] [set_attribute_int_data] [get_attribute_int_array_data] [set_attribute_i32_array_data];
-    [i64]    [get_attribute_int64_data] [set_attribute_int64_data] [get_attribute_int64_array_data] [set_attribute_i64_array_data];
-    [f32]    [get_attribute_float_data] [set_attribute_float_data] [get_attribute_float_array_data] [set_attribute_f32_array_data];
-    [f64]    [get_attribute_float64_data] [set_attribute_float64_data] [get_attribute_float64_array_data] [set_attribute_f64_array_data];
-)]
-impl AttributeAccess for _data_type {
-    type Type = _data_type;
-    type Return = Vec<Self::Type>;
-    type ArrayType = DataArray<_data_type>;
-
-    fn read(
+impl<T: Sized + AttribStorage> AttribAccess for T {
+    fn get(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-    ) -> Result<Self::Return> {
-        super::bindings::_get(node, part_id, name, &info.inner, -1, 0, info.count())
+    ) -> Result<Vec<Self>> {
+        todo!()
     }
-
     fn set(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-        values: &[Self::Type],
-    ) -> Result<()> {
-        super::bindings::_set(node, part_id, name, &info.inner, values, 0, info.count())
-    }
-
-    fn read_array(
-        name: &CStr,
-        node: &'_ HoudiniNode,
-        part_id: i32,
-        info: &AttributeInfo,
-    ) -> Result<Self::ArrayType> {
-        super::bindings::_get_array(node, part_id, name, &info.inner)
-    }
-
-    fn set_array(
-        name: &CStr,
-        node: &'_ HoudiniNode,
-        part_id: i32,
-        info: &AttributeInfo,
-        data: &Self::ArrayType,
-    ) -> Result<()> {
-        super::bindings::_set_array(node, part_id, name, &info.inner, &data.data, &data.sizes)
-    }
-}
-
-impl<'a> AttributeAccess for &'a str {
-    type Type = &'a str;
-    type Return = StringArray;
-    type ArrayType = StringMultiArray;
-
-    fn read(
-        name: &CStr,
-        node: &HoudiniNode,
-        part_id: i32,
-        info: &AttributeInfo,
-    ) -> Result<Self::Return> {
-        crate::ffi::get_attribute_string_buffer(node, part_id, name, &info.inner, 0, info.count())
-    }
-
-    fn set(
-        name: &CStr,
-        node: &'_ HoudiniNode,
-        part_id: i32,
-        info: &AttributeInfo,
-        values: &[Self::Type],
-    ) -> Result<()> {
-        let cstrings = values
-            .iter()
-            .map(|s| CString::new(*s).map_err(Into::into))
-            .collect::<Result<Vec<CString>>>()?;
-        let cstrings = cstrings.iter().map(CString::as_ref).collect::<Vec<_>>();
-        crate::ffi::set_attribute_string_buffer(
-            &node.session,
-            node.handle,
-            part_id,
-            name,
-            &info.inner,
-            &cstrings,
-        )
-    }
-    fn read_array(
-        name: &CStr,
-        node: &'_ HoudiniNode,
-        _part_id: i32,
-        info: &AttributeInfo,
-    ) -> Result<Self::ArrayType> {
-        let (handles, sizes) = crate::ffi::get_attribute_string_array_data(
-            &node.session,
-            node.handle,
-            name,
-            &info.inner,
-        )?;
-        Ok(StringMultiArray {
-            handles,
-            sizes,
-            session: node.session.clone(),
-        })
-    }
-
-    fn set_array(
-        name: &CStr,
-        node: &'_ HoudiniNode,
-        part_id: i32,
-        info: &AttributeInfo,
-        data: &Self::ArrayType,
+        values: &[Self],
     ) -> Result<()> {
         todo!()
+    }
+    fn get_array(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo,
+    ) -> Result<DataArray<Vec<Self>>> {
+        todo!()
+    }
+    fn set_array(
+        name: &CStr,
+        node: &'_ HoudiniNode,
+        part_id: i32,
+        info: &AttributeInfo,
+        data: &DataArray<&[Self]>,
+    ) -> Result<()> {
+        todo!()
+    }
+}
+
+// object safe trait
+pub trait AnyAttribWrapper: Any + AsAttribute {
+    fn as_any(&self) -> &dyn Any;
+}
+
+impl<T: AsAttribute + 'static> AnyAttribWrapper for T {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+pub struct Attribute(Box<dyn AnyAttribWrapper>);
+
+impl Attribute {
+    pub(crate) fn new(attr_obj: Box<dyn AnyAttribWrapper>) -> Self {
+        Attribute(attr_obj)
+    }
+    pub fn downcast<T: AnyAttribWrapper>(&self) -> Option<&T> {
+        self.0.as_any().downcast_ref::<T>()
+    }
+    pub fn name(&self) -> Cow<str> {
+        self.0.name()
+    }
+    pub fn storage(&self) -> StorageType {
+        self.0.storage()
     }
 }
