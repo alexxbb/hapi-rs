@@ -201,3 +201,52 @@ fn main() {
         }
     }
 }
+
+/// DataArray
+
+struct ArrayIter<'a, T> {
+    sizes: std::slice::Iter<'a, i32>,
+    data: std::slice::Iter<'a, T>
+}
+
+impl<'a, T> Iterator for ArrayIter<'a ,T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.data.next()
+    }
+}
+
+struct DataArray<'a, T> where [T]: ToOwned<Owned = Vec<T>>
+{
+    data: Cow<'a, [T]>,
+    sizes: Cow<'a, [i32]>
+}
+impl<'a, T> DataArray<'a, T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    fn new(dat: &'a [T], sizes: &'a [i32]) -> DataArray<'a, T> {
+        DataArray { data: Cow::Borrowed(dat), sizes: Cow::Borrowed(sizes) }
+    }
+
+    pub(crate) fn new_owned(dat: Vec<T>, sizes: Vec<i32>) -> DataArray<'static, T> {
+        DataArray { data: Cow::Owned(dat), sizes: Cow::Owned(sizes) }
+    }
+
+    fn data(&self) -> &[T] {
+        self.data.as_ref()
+    }
+
+    fn data_mut(&mut self) -> &mut [T] {
+        self.data.to_mut().as_mut()
+    }
+    fn sizes(&self) -> &[i32] {
+        self.sizes.as_ref()
+    }
+
+    fn iter_values(&'a self) -> ArrayIter<'a, T> {
+        ArrayIter{sizes: self.sizes.iter(), data: self.data.iter()}
+    }
+}
+
