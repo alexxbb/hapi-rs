@@ -1,5 +1,6 @@
 use super::array::DataArray;
 use crate::ffi::raw;
+use crate::stringhandle::StringArray;
 use crate::{node::HoudiniNode, Result};
 use duplicate::duplicate;
 use std::ffi::CStr;
@@ -61,7 +62,7 @@ pub fn _func_name(
     part_id: i32,
     name: &CStr,
     attr_info: &raw::HAPI_AttributeInfo,
-) -> Result<DataArray<_data_type>> {
+) -> Result<DataArray<'static, _data_type>> {
     let mut data = vec![_data_type::default(); attr_info.totalArrayElements as usize];
     let mut sizes = vec![0; attr_info.count as usize];
     unsafe {
@@ -80,7 +81,7 @@ pub fn _func_name(
         .check_err(Some(&node.session))?;
     }
 
-    Ok(DataArray { data, sizes })
+    Ok(DataArray::new_owned(data, sizes))
 }
 
 #[duplicate(
@@ -152,4 +153,60 @@ pub fn _func_name(
     }
 
     Ok(())
+}
+
+pub fn get_attribute_string_data(
+    node: &HoudiniNode,
+    part_id: i32,
+    name: &CStr,
+    attr_info: &raw::HAPI_AttributeInfo,
+) -> Result<StringArray> {
+    unsafe {
+        let mut handles = Vec::new();
+        let count = attr_info.count;
+        handles.resize((count * attr_info.tupleSize) as usize, 0);
+        // SAFETY: Most likely an error in C API, it should not modify the info object,
+        // but for some reason it wants a mut pointer
+        let attr_info = attr_info as *const _ as *mut raw::HAPI_AttributeInfo;
+        raw::HAPI_GetAttributeStringData(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            attr_info,
+            handles.as_mut_ptr(),
+            0,
+            count,
+        )
+        .check_err(Some(&node.session))?;
+        crate::stringhandle::get_string_array(&handles, &node.session)
+    }
+}
+
+pub fn set_attribute_string_data(
+    node: &HoudiniNode,
+    part_id: i32,
+    name: &CStr,
+    attr_info: &raw::HAPI_AttributeInfo,
+    array: &[&CStr],
+) -> Result<()> {
+    unsafe {
+        // SAFETY: Most likely an error in C API, it should not modify the info object,
+        // but for some reason it wants a mut pointer
+        // TODO: Is there a way to set Vec capacity with collect?
+        // let mut array =  Vec::with_capacity(array.len());
+        let mut array = Vec::from_iter(array.iter().map(|cs| cs.as_ptr()));
+        // let mut array = array.iter().map(|cs|cs.as_ptr()).collect::<Vec<_>>();
+        raw::HAPI_SetAttributeStringData(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            attr_info,
+            array.as_mut_ptr(),
+            0,
+            array.len() as i32,
+        )
+        .check_err(Some(&node.session))
+    }
 }

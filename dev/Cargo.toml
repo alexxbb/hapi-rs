@@ -7,5 +7,4 @@ edition = "2021"
 
 [dependencies]
 
-hapi-rs = {path = "../hapi-rs"}
-log = "0.4.14"
+#hapi-rs = {path = "../hapi-rs"}

@@ -12,28 +12,40 @@ use std::ffi::{CStr, CString};
 use std::any::Any;
 use std::marker::PhantomData;
 
-pub struct NumericAttr<T> {
+pub(crate) struct _NumericAttrData<T> {
     pub(crate) info: AttributeInfo,
     pub(crate) name: CString,
     pub(crate) node: HoudiniNode,
     pub(crate) _m: PhantomData<T>,
 }
 
-pub struct NumericArrayAttr<T> {
+pub(crate) struct _StringAttrData {
     pub(crate) info: AttributeInfo,
     pub(crate) name: CString,
     pub(crate) node: HoudiniNode,
-    pub(crate) _m: PhantomData<T>,
 }
+
+pub struct NumericAttr<T>(pub(crate) _NumericAttrData<T>);
+pub struct NumericArrayAttr<T>(pub(crate) _NumericAttrData<T>);
+
+pub struct StringAttr(pub(crate) _StringAttrData);
+pub struct StringArrayAttr(pub(crate) _StringAttrData);
 
 macro_rules! box_attr {
     ($st:ident, $tp:ty, $info:ident, $name:ident, $node:ident) => {
-        Box::new($st::<$tp> {
+        Box::new($st::<$tp>(_NumericAttrData {
             $info,
             $name,
             $node,
             _m: std::marker::PhantomData,
-        })
+        }))
+    };
+    ($st:ident, $info:ident, $name:ident, $node:ident) => {
+        Box::new($st(_StringAttrData {
+            $info,
+            $name,
+            $node,
+        }))
     };
 }
 
@@ -59,25 +71,68 @@ impl_storage!(i64, StorageType::Int64);
 impl_storage!(f32, StorageType::Float);
 impl_storage!(f64, StorageType::Float64);
 
-impl<T: AttribAccess> NumericArrayAttr<T> {
-    fn get(&self, part_id: i32) -> Result<DataArray<Vec<T>>> {
-        T::get_array(&self.name, &self.node, part_id, &self.info)
+impl<T: AttribAccess> NumericArrayAttr<T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    fn get(&self, part_id: i32) -> Result<DataArray<T>> {
+        T::get_array(&self.0.name, &self.0.node, part_id, &self.0.info)
     }
-    fn set(&self, part_id: i32, values: &DataArray<&[T]>) -> Result<()> {
-        T::set_array(&self.name, &self.node, part_id, &self.info, values)
+    fn set(&self, part_id: i32, values: &DataArray<T>) -> Result<()> {
+        T::set_array(&self.0.name, &self.0.node, part_id, &self.0.info, values)
     }
 }
 
-impl<T: AttribAccess> NumericAttr<T> {
+impl<T: AttribAccess> NumericAttr<T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
     fn get(&self, part_id: i32) -> Result<Vec<T>> {
-        T::get(&self.name, &self.node, part_id, &self.info)
+        T::get(&self.0.name, &self.0.node, part_id, &self.0.info)
     }
     fn set(&self, part_id: i32, values: &[T]) -> Result<()> {
-        T::set(&self.name, &self.node, part_id, &self.info, values)
+        T::set(&self.0.name, &self.0.node, part_id, &self.0.info, values)
     }
 }
 
-pub trait AttribAccess: Sized + AttribStorage {
+impl StringAttr {
+    fn get(&self, part_id: i32) -> Result<StringArray> {
+        super::bindings::get_attribute_string_data(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.inner,
+        )
+    }
+    fn set(&self, part_id: i32, values: &[&str]) -> Result<()> {
+        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
+            values.iter().map(|s| CString::new(*s)).collect();
+        let cstr = cstr?;
+        let mut ptrs: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
+        super::bindings::set_attribute_string_data(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.inner,
+            ptrs.as_ref(),
+        )
+    }
+}
+
+impl StringArrayAttr {
+    fn get(&self, part_id: i32) -> Result<StringMultiArray> {
+        todo!()
+    }
+    fn set(&self, part_id: i32, values: &[&[&str]]) -> Result<()> {
+        todo!()
+    }
+}
+
+// calls to ffi on Rust type
+pub trait AttribAccess: Sized + AttribStorage
+where
+    [Self]: ToOwned<Owned = Vec<Self>>,
+{
     fn get(
         name: &CStr,
         node: &'_ HoudiniNode,
@@ -91,18 +146,18 @@ pub trait AttribAccess: Sized + AttribStorage {
         info: &AttributeInfo,
         values: &[Self],
     ) -> Result<()>;
-    fn get_array(
+    fn get_array<'a>(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-    ) -> Result<DataArray<Vec<Self>>>;
-    fn set_array(
+    ) -> Result<DataArray<'a, Self>>;
+    fn set_array<'a>(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-        data: &DataArray<&[Self]>,
+        data: &DataArray<'a, Self>,
     ) -> Result<()>;
 }
 
@@ -114,29 +169,60 @@ pub trait AsAttribute {
 
 impl<T: AttribStorage> AsAttribute for NumericAttr<T> {
     fn info(&self) -> &AttributeInfo {
-        &self.info
+        &self.0.info
     }
     fn storage(&self) -> StorageType {
         T::storage()
     }
 
     fn name(&self) -> Cow<str> {
-        self.name.to_string_lossy()
+        self.0.name.to_string_lossy()
     }
 }
 impl<T: AttribStorage> AsAttribute for NumericArrayAttr<T> {
     fn info(&self) -> &AttributeInfo {
-        &self.info
+        &self.0.info
     }
     fn storage(&self) -> StorageType {
         T::storage()
     }
     fn name(&self) -> Cow<str> {
-        self.name.to_string_lossy()
+        self.0.name.to_string_lossy()
     }
 }
 
-impl<T: Sized + AttribStorage> AttribAccess for T {
+impl AsAttribute for StringAttr {
+    fn info(&self) -> &AttributeInfo {
+        &self.0.info
+    }
+
+    fn storage(&self) -> StorageType {
+        StorageType::String
+    }
+
+    fn name(&self) -> Cow<str> {
+        self.0.name.to_string_lossy()
+    }
+}
+
+impl AsAttribute for StringArrayAttr {
+    fn info(&self) -> &AttributeInfo {
+        &self.0.info
+    }
+
+    fn storage(&self) -> StorageType {
+        StorageType::StringArray
+    }
+
+    fn name(&self) -> Cow<str> {
+        self.0.name.to_string_lossy()
+    }
+}
+
+impl<T: Sized + AttribStorage> AttribAccess for T
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
     fn get(
         name: &CStr,
         node: &'_ HoudiniNode,
@@ -154,20 +240,20 @@ impl<T: Sized + AttribStorage> AttribAccess for T {
     ) -> Result<()> {
         todo!()
     }
-    fn get_array(
+    fn get_array<'a>(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-    ) -> Result<DataArray<Vec<Self>>> {
+    ) -> Result<DataArray<'a, Self>> {
         todo!()
     }
-    fn set_array(
+    fn set_array<'a>(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-        data: &DataArray<&[Self]>,
+        data: &DataArray<'a, Self>,
     ) -> Result<()> {
         todo!()
     }

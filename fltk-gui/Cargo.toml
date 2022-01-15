@@ -6,5 +6,4 @@ edition = "2021"
 [workspace]
 
 [dependencies]
-fltk = {version = "~1.2.16", features = ["fltk-bundled"]}
 hapi-rs = {path = "../hapi-rs"}

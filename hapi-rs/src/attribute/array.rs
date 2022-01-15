@@ -1,25 +1,56 @@
 use crate::errors::Result;
 use crate::stringhandle::StringArray;
+use std::borrow::Cow;
 
-pub struct DataArray<T> {
-    pub data: Vec<T>,
-    pub sizes: Vec<i32>,
+pub struct DataArray<'a, T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    data: Cow<'a, [T]>,
+    sizes: Cow<'a, [i32]>,
+}
+impl<'a, T> DataArray<'a, T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    fn new(dat: &'a [T], sizes: &'a [i32]) -> DataArray<'a, T> {
+        DataArray {
+            data: Cow::Borrowed(dat),
+            sizes: Cow::Borrowed(sizes),
+        }
+    }
+
+    pub(crate) fn new_owned(dat: Vec<T>, sizes: Vec<i32>) -> DataArray<'static, T> {
+        DataArray {
+            data: Cow::Owned(dat),
+            sizes: Cow::Owned(sizes),
+        }
+    }
+
+    fn data(&self) -> &[T] {
+        self.data.as_ref()
+    }
+
+    fn data_mut(&mut self) -> &mut [T] {
+        self.data.to_mut().as_mut()
+    }
+    fn sizes(&self) -> &[i32] {
+        self.sizes.as_ref()
+    }
+
+    fn iter_values(&'a self) -> ArrayIter<'a, T> {
+        ArrayIter {
+            sizes: self.sizes.iter(),
+            data: self.data.iter(),
+            cursor: 0,
+        }
+    }
 }
 
 pub struct StringMultiArray {
     pub handles: Vec<i32>,
     pub sizes: Vec<i32>,
     pub(crate) session: crate::session::Session,
-}
-
-impl<T> DataArray<T> {
-    pub fn iter(&self) -> ArrayIter<'_, T> {
-        ArrayIter {
-            data: self.data.iter(),
-            sizes: self.sizes.iter(),
-            cursor: 0,
-        }
-    }
 }
 
 pub struct ArrayIter<'a, T> {

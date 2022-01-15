@@ -252,7 +252,7 @@ impl Geometry {
             StorageType::Int64 => box_attr!(NumericAttr, i64, info, name, node),
             StorageType::Float => box_attr!(NumericAttr, f32, info, name, node),
             StorageType::Float64 => box_attr!(NumericAttr, f64, info, name, node),
-            // StorageType::String => {}
+            StorageType::String => box_attr!(StringAttr, info, name, node),
             StorageType::Uint8 => box_attr!(NumericAttr, u8, info, name, node),
             StorageType::Int8 => box_attr!(NumericAttr, i8, info, name, node),
             StorageType::Int16 => box_attr!(NumericAttr, i16, info, name, node),
