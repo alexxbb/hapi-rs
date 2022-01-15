@@ -247,7 +247,9 @@ impl Geometry {
         let info = AttributeInfo { inner };
         let node = self.node.clone();
         let attr_obj: Box<dyn AnyAttribWrapper> = match storage {
-            // StorageType::Invalid => {}
+            s @ (StorageType::Invalid | StorageType::Max) => {
+                panic!("TODO: Invalid attribute storage {name:?}: {s:?}")
+            }
             StorageType::Int => box_attr!(NumericAttr, i32, info, name, node),
             StorageType::Int64 => box_attr!(NumericAttr, i64, info, name, node),
             StorageType::Float => box_attr!(NumericAttr, f32, info, name, node),
@@ -256,18 +258,14 @@ impl Geometry {
             StorageType::Uint8 => box_attr!(NumericAttr, u8, info, name, node),
             StorageType::Int8 => box_attr!(NumericAttr, i8, info, name, node),
             StorageType::Int16 => box_attr!(NumericAttr, i16, info, name, node),
-            // StorageType::Array => {}
-            // StorageType::Int64Array => {}
-            // StorageType::FloatArray => {}
-            // StorageType::Float64Array => {}
-            // StorageType::StringArray => {}
-            // StorageType::Uint8Array => {}
-            // StorageType::Int8Array => {}
-            // StorageType::Int16Array => {}
-            // StorageType::Max => {}
-            _ => {
-                todo!()
-            }
+            StorageType::Array => box_attr!(NumericArrayAttr, i32, info, name, node),
+            StorageType::Int64Array => box_attr!(NumericArrayAttr, i64, info, name, node),
+            StorageType::FloatArray => box_attr!(NumericArrayAttr, f32, info, name, node),
+            StorageType::Float64Array => box_attr!(NumericArrayAttr, f64, info, name, node),
+            StorageType::StringArray => box_attr!(StringAttr, info, name, node),
+            StorageType::Uint8Array => box_attr!(NumericArrayAttr, u8, info, name, node),
+            StorageType::Int8Array => box_attr!(NumericArrayAttr, i8, info, name, node),
+            StorageType::Int16Array => box_attr!(NumericArrayAttr, i16, info, name, node),
         };
         Ok(Some(Attribute::new(attr_obj)))
     }

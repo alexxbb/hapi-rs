@@ -1,9 +1,0 @@
-[package]
-name = "fltk-gui"
-version = "0.1.0"
-edition = "2021"
-
-[workspace]
-
-[dependencies]
-hapi-rs = {path = "../hapi-rs"}
