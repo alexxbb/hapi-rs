@@ -3,7 +3,51 @@
 use std::any::Any;
 use std::marker::PhantomData;
 
-struct DataArray<T>(T);
+struct DataArray<T, I: IntoIterator<Item=T>>(I);
+
+struct DataIter<I: IntoIterator> {
+    iter: <I as IntoIterator>::IntoIter
+}
+
+struct DataRefIter<T, I: Iterator<Item=T>> {
+    iter: I
+}
+
+// impl<T, I: IntoIterator<Item=T>> DataArray<T,I> {
+//
+//     fn iter(&self) -> DataRefIter<T, I::IntoIter> {
+//         DataRefIter{iter: self.0.into_iter()}
+//     }
+//
+// }
+
+// impl<T, I> Iterator for DataArray<T, I> {
+//     type Item = T;
+//
+//     fn next(&mut self) -> Option<Self::Item> {
+//         self.
+//     }
+//
+// }
+
+
+impl<T, I: IntoIterator<Item=T>> IntoIterator for DataArray<T, I> {
+    type Item = T;
+    type IntoIter = DataIter<<I as IntoIterator>::IntoIter>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        DataIter{iter: self.0.into_iter()}
+    }
+}
+
+impl<T, I: IntoIterator<Item=T>> Iterator for DataIter<I> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+
+}
 
 struct NumericAttr<T> {
     _m: PhantomData<T>,
@@ -38,8 +82,8 @@ impl_storage!(i32, StorageType::Int);
 impl_storage!(f32, StorageType::Float);
 
 impl<T: AttribTypeImpl> NumericArrayAttr<T> {
-    fn get(&self) -> DataArray<Vec<T>> { T::get_array() }
-    fn set(&self, values: &DataArray<&[T]>) { T::set_array() }
+    fn get(&self) -> DataArray<T, Vec<T>> { T::get_array() }
+    fn set<'a>(&self, values: &'a DataArray<&'a T, &'a [T]>) { T::set_array() }
 }
 
 
@@ -51,7 +95,7 @@ impl<T: AttribTypeImpl> NumericAttr<T> {
 trait AttribTypeImpl: Sized + AttribStorage {
     fn get() -> Vec<Self>;
     fn set();
-    fn get_array() -> DataArray<Vec<Self>>;
+    fn get_array() -> DataArray<Self, Vec<Self>>;
     fn set_array();
 }
 
@@ -91,7 +135,7 @@ impl<T: AttribStorage> AsAttribute for NumericArrayAttr<T>{
 impl<T: Sized + AttribStorage> AttribTypeImpl for T {
     fn get() -> Vec<T> { vec![] }
     fn set() {}
-    fn get_array() -> DataArray<Vec<T>> { DataArray(vec![]) }
+    fn get_array() -> DataArray<T, Vec<T>> { DataArray(vec![]) }
     fn set_array() {}
 }
 
@@ -135,6 +179,14 @@ fn get_attributes() -> Vec<Attribute> {
 }
 
 fn main() {
+    let dat = DataArray(&[1,3,4]);
+    for v in dat.into_iter() {
+        println!("{}", v);
+    }
+    let dat = DataArray(vec![1,2,3]);
+    for v in dat.into_iter() {
+        println!("{}", v);
+    }
     for attr in &get_attributes() {
         println!("Storage:{:?}", attr.storage());
         if let Some(a) = attr.downcast::<NumericAttr<i32>>() {
@@ -149,3 +201,52 @@ fn main() {
         }
     }
 }
+
+/// DataArray
+
+struct ArrayIter<'a, T> {
+    sizes: std::slice::Iter<'a, i32>,
+    data: std::slice::Iter<'a, T>
+}
+
+impl<'a, T> Iterator for ArrayIter<'a ,T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.data.next()
+    }
+}
+
+struct DataArray<'a, T> where [T]: ToOwned<Owned = Vec<T>>
+{
+    data: Cow<'a, [T]>,
+    sizes: Cow<'a, [i32]>
+}
+impl<'a, T> DataArray<'a, T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    fn new(dat: &'a [T], sizes: &'a [i32]) -> DataArray<'a, T> {
+        DataArray { data: Cow::Borrowed(dat), sizes: Cow::Borrowed(sizes) }
+    }
+
+    pub(crate) fn new_owned(dat: Vec<T>, sizes: Vec<i32>) -> DataArray<'static, T> {
+        DataArray { data: Cow::Owned(dat), sizes: Cow::Owned(sizes) }
+    }
+
+    fn data(&self) -> &[T] {
+        self.data.as_ref()
+    }
+
+    fn data_mut(&mut self) -> &mut [T] {
+        self.data.to_mut().as_mut()
+    }
+    fn sizes(&self) -> &[i32] {
+        self.sizes.as_ref()
+    }
+
+    fn iter_values(&'a self) -> ArrayIter<'a, T> {
+        ArrayIter{sizes: self.sizes.iter(), data: self.data.iter()}
+    }
+}
+
