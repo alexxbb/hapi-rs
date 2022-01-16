@@ -27,6 +27,7 @@ pub(crate) struct _StringAttrData {
 
 pub struct NumericAttr<T: AttribStorage>(pub(crate) _NumericAttrData<T>);
 
+// TODO: Special case for P attribute maybe?
 pub struct NumericArrayAttr<T: AttribStorage>(pub(crate) _NumericAttrData<T>);
 
 pub struct StringAttr(pub(crate) _StringAttrData);
@@ -56,9 +57,14 @@ impl_storage!(f32, StorageType::Float);
 impl_storage!(f64, StorageType::Float64);
 
 impl<T: AttribAccess> NumericArrayAttr<T>
-    where [T]: ToOwned<Owned=Vec<T>>,
+where
+    [T]: ToOwned<Owned = Vec<T>>,
 {
-    pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> NumericArrayAttr<T> {
+    pub(crate) fn new(
+        name: CString,
+        info: AttributeInfo,
+        node: HoudiniNode,
+    ) -> NumericArrayAttr<T> {
         NumericArrayAttr(_NumericAttrData {
             info,
             name,
@@ -69,6 +75,7 @@ impl<T: AttribAccess> NumericArrayAttr<T>
     pub fn boxed(self) -> Box<dyn AnyAttribWrapper> {
         Box::new(self)
     }
+    // TODO: I like "read" more than "get"
     pub fn get(&self, part_id: i32) -> Result<DataArray<T>> {
         T::get_array(&self.0.name, &self.0.node, part_id, &self.0.info)
     }
@@ -77,8 +84,7 @@ impl<T: AttribAccess> NumericArrayAttr<T>
     }
 }
 
-impl<T: AttribAccess> NumericAttr<T>
-{
+impl<T: AttribAccess> NumericAttr<T> {
     pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> NumericAttr<T> {
         NumericAttr(_NumericAttrData {
             info,
@@ -100,11 +106,7 @@ impl<T: AttribAccess> NumericAttr<T>
 
 impl StringAttr {
     pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringAttr {
-        StringAttr(_StringAttrData {
-            info,
-            name,
-            node,
-        })
+        StringAttr(_StringAttrData { info, name, node })
     }
     pub fn boxed(self) -> Box<dyn AnyAttribWrapper> {
         Box::new(self)
@@ -134,11 +136,7 @@ impl StringAttr {
 
 impl StringArrayAttr {
     pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringArrayAttr {
-        StringArrayAttr(_StringAttrData {
-            info,
-            name,
-            node,
-        })
+        StringArrayAttr(_StringAttrData { info, name, node })
     }
     pub fn boxed(self) -> Box<dyn AnyAttribWrapper> {
         Box::new(self)
@@ -174,14 +172,18 @@ pub trait AttribAccess: Sized + AttribStorage + 'static
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-    ) -> Result<DataArray<'a, Self>> where [Self]: ToOwned<Owned=Vec<Self>>;
+    ) -> Result<DataArray<'a, Self>>
+    where
+        [Self]: ToOwned<Owned = Vec<Self>>;
     fn set_array<'a>(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
         data: &DataArray<'a, Self>,
-    ) -> Result<()> where [Self]: ToOwned<Owned=Vec<Self>>;
+    ) -> Result<()>
+    where
+        [Self]: ToOwned<Owned = Vec<Self>>;
 }
 
 pub trait AsAttribute {
@@ -244,8 +246,8 @@ impl AsAttribute for StringArrayAttr {
 }
 
 impl<T: Sized + AttribStorage + 'static> AttribAccess for T
-    where
-        [T]: ToOwned<Owned=Vec<T>>,
+where
+    [T]: ToOwned<Owned = Vec<T>>,
 {
     fn get(
         name: &CStr,

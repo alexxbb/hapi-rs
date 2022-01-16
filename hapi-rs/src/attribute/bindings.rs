@@ -10,10 +10,10 @@ _data_type _func_name _default _ffi_func;
 [u8] [get_attribute_u8_data] [0] [HAPI_GetAttributeUInt8Data];
 [i8] [get_attribute_i8_data] [0] [HAPI_GetAttributeInt8Data];
 [i16] [get_attribute_i16_data] [0] [HAPI_GetAttributeInt16Data];
-[i32] [get_attribute_int_data] [0] [HAPI_GetAttributeIntData];
-[i64] [get_attribute_int64_data] [0] [HAPI_GetAttributeInt64Data];
-[f32] [get_attribute_float_data] [0.0] [HAPI_GetAttributeFloatData];
-[f64] [get_attribute_float64_data] [0.0] [HAPI_GetAttributeFloat64Data];
+[i32] [get_attribute_i32_data] [0] [HAPI_GetAttributeIntData];
+[i64] [get_attribute_i64_data] [0] [HAPI_GetAttributeInt64Data];
+[f32] [get_attribute_f32_data] [0.0] [HAPI_GetAttributeFloatData];
+[f64] [get_attribute_f64_data] [0.0] [HAPI_GetAttributeFloat64Data];
 )]
 pub fn _func_name(
     node: &HoudiniNode,

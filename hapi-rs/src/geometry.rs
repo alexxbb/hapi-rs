@@ -270,28 +270,49 @@ impl Geometry {
         Ok(Some(Attribute::new(attr_obj)))
     }
 
-    pub fn add_numeric_attribute<T: AttribAccess>(&self, name: &str, part_id: i32, info: AttributeInfo) -> Result<NumericAttr<T>> {
+    pub fn add_numeric_attribute<T: AttribAccess>(
+        &self,
+        name: &str,
+        part_id: i32,
+        info: AttributeInfo,
+    ) -> Result<NumericAttr<T>> {
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(NumericAttr::<T>::new(name, info, self.node.clone()))
     }
 
-    pub fn add_numeric_array_attribute<T>(&self, name: &str, part_id: i32, info: AttributeInfo) -> Result<NumericArrayAttr<T>>
-        where T: AttribAccess,
-              [T]: ToOwned<Owned=Vec<T>>,
+    pub fn add_numeric_array_attribute<T>(
+        &self,
+        name: &str,
+        part_id: i32,
+        info: AttributeInfo,
+    ) -> Result<NumericArrayAttr<T>>
+    where
+        T: AttribAccess,
+        [T]: ToOwned<Owned = Vec<T>>,
     {
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(NumericArrayAttr::<T>::new(name, info, self.node.clone()))
     }
 
-    pub fn add_string_attribute(&self, name: &str, part_id: i32, info: AttributeInfo) -> Result<StringAttr> {
+    pub fn add_string_attribute(
+        &self,
+        name: &str,
+        part_id: i32,
+        info: AttributeInfo,
+    ) -> Result<StringAttr> {
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(StringAttr::new(name, info, self.node.clone()))
     }
 
-    pub fn add_string_array_attribute(&self, name: &str, part_id: i32, info: AttributeInfo) -> Result<StringArrayAttr> {
+    pub fn add_string_array_attribute(
+        &self,
+        name: &str,
+        part_id: i32,
+        info: AttributeInfo,
+    ) -> Result<StringArrayAttr> {
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(StringArrayAttr::new(name, info, self.node.clone()))
@@ -524,17 +545,13 @@ mod tests {
     }
 
     #[test]
-    fn incorrect_attributes() {
+    fn wrong_attribute() {
         with_session(|session| {
             let geo = _load_test_geometry(session).unwrap();
             let foo_bar = geo
                 .get_attribute(0, AttributeOwner::Prim, "foo_bar")
                 .expect("attribute");
             assert!(foo_bar.is_none());
-            let pscale = geo
-                .get_attribute(0, AttributeOwner::Point, "pscale")
-                .expect("attribute");
-            assert!(pscale.is_none(), "pscale type is f32");
         });
     }
 
@@ -547,10 +564,10 @@ mod tests {
                 .get_attribute(0, AttributeOwner::Point, "P")
                 .unwrap()
                 .unwrap();
-            todo!()
-            // let val: Vec<_> = attr_p.read(0).expect("read_attribute");
-            // assert_eq!(val.len(), 9);
-            // input.delete().unwrap();
+            let attr_p = attr_p.downcast::<NumericArrayAttr<f32>>().unwrap();
+            let dat = attr_p.get(0).expect("read_attribute");
+            assert_eq!(dat.data().len(), 9);
+            input.delete().unwrap();
         });
     }
 
