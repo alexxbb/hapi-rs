@@ -3,6 +3,7 @@
 #include <HAPI/HAPI_Version.h>
 #include <HAPI/HAPI_Helpers.h>
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
@@ -46,6 +47,17 @@ main(int argc, char **argv) {
                                                      &c2,
                                                      &c3,
                                                      &c4));
+
+    std::vector<HAPI_ParmInfo> parms;
+    for (int i = 0; i < parm_count; i++) {
+        parms.push_back(HAPI_ParmInfo_Create());
+    }
+    ENSURE_SUCCESS(HAPI_GetAssetDefinitionParmInfos(&session,
+                                                    assetLibId,
+                                                    "SideFX::Object/spaceship",
+                                                    parms.data(),
+                                                    0,
+                                                    parm_count));
 
     return 0;
 }

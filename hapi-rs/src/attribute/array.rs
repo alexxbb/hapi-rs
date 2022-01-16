@@ -59,6 +59,12 @@ pub struct ArrayIter<'a, T> {
     cursor: usize,
 }
 
+pub struct ArrayIterMut<'a, T> {
+    data: &'a mut [T],
+    sizes: std::slice::IterMut<'a, i32>,
+    cursor: usize,
+}
+
 pub struct MultiArrayIter<'a> {
     handles: std::slice::Iter<'a, i32>,
     sizes: std::slice::Iter<'a, i32>,
@@ -78,6 +84,22 @@ impl<'a, T> Iterator for ArrayIter<'a, T> {
                 self.cursor = end;
                 // TODO: We know the data size, it can be rewritten to use unsafe unchecked
                 Some(&self.data.as_slice()[start..end])
+            }
+        }
+    }
+}
+
+impl<'a, T> Iterator for ArrayIterMut<'a, T> {
+    type Item = &'a mut [T];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.sizes.next() {
+            None => None,
+            Some(size) => {
+                let start = self.cursor;
+                let end = self.cursor + (*size as usize);
+                self.cursor = end;
+                Some(&self.data[start..end])
             }
         }
     }
@@ -108,5 +130,26 @@ impl<'a> Iterator for MultiArrayIter<'a> {
                 Some(crate::stringhandle::get_string_array(handles, self.session))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn data_array_iter() {
+        let ar = DataArray::new_owned(vec![1, 2, 3, 4, 5, 6], vec![2, 1, 3]);
+        let mut iter = ar.iter_values();
+        assert_eq!(iter.next(), Some([1, 2].as_slice()));
+        assert_eq!(iter.next(), Some([3].as_slice()));
+        assert_eq!(iter.next(), Some([4, 5, 6].as_slice()));
+    }
+
+    #[test]
+    fn data_array_mutate() {
+        let mut ar = DataArray::new(&[1, 2, 3, 4, 5, 6], &[2, 1, 3]);
+        let new: Vec<_> = ar.data_mut().iter_mut().map(|v| *v * 2).collect();
+        assert_eq!(new, &[2, 4, 6, 8, 10, 16])
     }
 }

@@ -12,7 +12,7 @@ use std::ffi::{CStr, CString};
 use std::any::Any;
 use std::marker::PhantomData;
 
-pub(crate) struct _NumericAttrData<T> {
+pub(crate) struct _NumericAttrData<T: AttribStorage> {
     pub(crate) info: AttributeInfo,
     pub(crate) name: CString,
     pub(crate) node: HoudiniNode,
@@ -25,33 +25,18 @@ pub(crate) struct _StringAttrData {
     pub(crate) node: HoudiniNode,
 }
 
-pub struct NumericAttr<T>(pub(crate) _NumericAttrData<T>);
-pub struct NumericArrayAttr<T>(pub(crate) _NumericAttrData<T>);
+pub struct NumericAttr<T: AttribStorage>(pub(crate) _NumericAttrData<T>);
+
+pub struct NumericArrayAttr<T: AttribStorage>(pub(crate) _NumericAttrData<T>);
 
 pub struct StringAttr(pub(crate) _StringAttrData);
-pub struct StringArrayAttr(pub(crate) _StringAttrData);
 
-macro_rules! box_attr {
-    ($st:ident, $tp:ty, $info:ident, $name:ident, $node:ident) => {
-        Box::new($st::<$tp>(_NumericAttrData {
-            $info,
-            $name,
-            $node,
-            _m: std::marker::PhantomData,
-        }))
-    };
-    ($st:ident, $info:ident, $name:ident, $node:ident) => {
-        Box::new($st(_StringAttrData {
-            $info,
-            $name,
-            $node,
-        }))
-    };
-}
+pub struct StringArrayAttr(pub(crate) _StringAttrData);
 
 pub trait AttribStorage {
     fn storage() -> StorageType;
 }
+
 macro_rules! impl_storage {
     ($tp:ty, $st:expr) => {
         impl AttribStorage for $tp {
@@ -61,7 +46,6 @@ macro_rules! impl_storage {
         }
     };
 }
-pub(crate) use box_attr;
 
 impl_storage!(i8, StorageType::Int8);
 impl_storage!(u8, StorageType::Uint8);
@@ -72,30 +56,59 @@ impl_storage!(f32, StorageType::Float);
 impl_storage!(f64, StorageType::Float64);
 
 impl<T: AttribAccess> NumericArrayAttr<T>
-where
-    [T]: ToOwned<Owned = Vec<T>>,
+    where [T]: ToOwned<Owned=Vec<T>>,
 {
-    fn get(&self, part_id: i32) -> Result<DataArray<T>> {
+    pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> NumericArrayAttr<T> {
+        NumericArrayAttr(_NumericAttrData {
+            info,
+            name,
+            node,
+            _m: Default::default(),
+        })
+    }
+    pub fn boxed(self) -> Box<dyn AnyAttribWrapper> {
+        Box::new(self)
+    }
+    pub fn get(&self, part_id: i32) -> Result<DataArray<T>> {
         T::get_array(&self.0.name, &self.0.node, part_id, &self.0.info)
     }
-    fn set(&self, part_id: i32, values: &DataArray<T>) -> Result<()> {
+    pub fn set(&self, part_id: i32, values: &DataArray<T>) -> Result<()> {
         T::set_array(&self.0.name, &self.0.node, part_id, &self.0.info, values)
     }
 }
 
 impl<T: AttribAccess> NumericAttr<T>
-where
-    [T]: ToOwned<Owned = Vec<T>>,
 {
-    fn get(&self, part_id: i32) -> Result<Vec<T>> {
+    pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> NumericAttr<T> {
+        NumericAttr(_NumericAttrData {
+            info,
+            name,
+            node,
+            _m: Default::default(),
+        })
+    }
+    pub fn boxed(self) -> Box<dyn AnyAttribWrapper> {
+        Box::new(self)
+    }
+    pub fn get(&self, part_id: i32) -> Result<Vec<T>> {
         T::get(&self.0.name, &self.0.node, part_id, &self.0.info)
     }
-    fn set(&self, part_id: i32, values: &[T]) -> Result<()> {
+    pub fn set(&self, part_id: i32, values: &[T]) -> Result<()> {
         T::set(&self.0.name, &self.0.node, part_id, &self.0.info, values)
     }
 }
 
 impl StringAttr {
+    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringAttr {
+        StringAttr(_StringAttrData {
+            info,
+            name,
+            node,
+        })
+    }
+    pub fn boxed(self) -> Box<dyn AnyAttribWrapper> {
+        Box::new(self)
+    }
     fn get(&self, part_id: i32) -> Result<StringArray> {
         super::bindings::get_attribute_string_data(
             &self.0.node,
@@ -104,7 +117,7 @@ impl StringAttr {
             &self.0.info.inner,
         )
     }
-    fn set(&self, part_id: i32, values: &[&str]) -> Result<()> {
+    pub fn set(&self, part_id: i32, values: &[&str]) -> Result<()> {
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
             values.iter().map(|s| CString::new(*s)).collect();
         let cstr = cstr?;
@@ -120,6 +133,16 @@ impl StringAttr {
 }
 
 impl StringArrayAttr {
+    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringArrayAttr {
+        StringArrayAttr(_StringAttrData {
+            info,
+            name,
+            node,
+        })
+    }
+    pub fn boxed(self) -> Box<dyn AnyAttribWrapper> {
+        Box::new(self)
+    }
     fn get(&self, part_id: i32) -> Result<StringMultiArray> {
         todo!()
     }
@@ -129,9 +152,9 @@ impl StringArrayAttr {
 }
 
 // calls to ffi on Rust type
-pub trait AttribAccess: Sized + AttribStorage
-where
-    [Self]: ToOwned<Owned = Vec<Self>>,
+pub trait AttribAccess: Sized + AttribStorage + 'static
+// where
+//     [Self]: ToOwned<Owned = Vec<Self>>,
 {
     fn get(
         name: &CStr,
@@ -151,14 +174,14 @@ where
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
-    ) -> Result<DataArray<'a, Self>>;
+    ) -> Result<DataArray<'a, Self>> where [Self]: ToOwned<Owned=Vec<Self>>;
     fn set_array<'a>(
         name: &CStr,
         node: &'_ HoudiniNode,
         part_id: i32,
         info: &AttributeInfo,
         data: &DataArray<'a, Self>,
-    ) -> Result<()>;
+    ) -> Result<()> where [Self]: ToOwned<Owned=Vec<Self>>;
 }
 
 pub trait AsAttribute {
@@ -179,6 +202,7 @@ impl<T: AttribStorage> AsAttribute for NumericAttr<T> {
         self.0.name.to_string_lossy()
     }
 }
+
 impl<T: AttribStorage> AsAttribute for NumericArrayAttr<T> {
     fn info(&self) -> &AttributeInfo {
         &self.0.info
@@ -219,9 +243,9 @@ impl AsAttribute for StringArrayAttr {
     }
 }
 
-impl<T: Sized + AttribStorage> AttribAccess for T
-where
-    [T]: ToOwned<Owned = Vec<T>>,
+impl<T: Sized + AttribStorage + 'static> AttribAccess for T
+    where
+        [T]: ToOwned<Owned=Vec<T>>,
 {
     fn get(
         name: &CStr,

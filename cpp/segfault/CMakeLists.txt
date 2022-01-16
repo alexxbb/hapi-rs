@@ -7,5 +7,5 @@ find_package(Houdini        REQUIRED)
 set(SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/simple.cpp)
 
 add_executable(segfault ${SOURCES})
-target_link_libraries(segfault Houdini Houdini::HoudiniHAPIL)
+target_link_libraries(segfault Houdini)
 

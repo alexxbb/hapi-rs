@@ -250,40 +250,51 @@ impl Geometry {
             s @ (StorageType::Invalid | StorageType::Max) => {
                 panic!("TODO: Invalid attribute storage {name:?}: {s:?}")
             }
-            StorageType::Int => box_attr!(NumericAttr, i32, info, name, node),
-            StorageType::Int64 => box_attr!(NumericAttr, i64, info, name, node),
-            StorageType::Float => box_attr!(NumericAttr, f32, info, name, node),
-            StorageType::Float64 => box_attr!(NumericAttr, f64, info, name, node),
-            StorageType::String => box_attr!(StringAttr, info, name, node),
-            StorageType::Uint8 => box_attr!(NumericAttr, u8, info, name, node),
-            StorageType::Int8 => box_attr!(NumericAttr, i8, info, name, node),
-            StorageType::Int16 => box_attr!(NumericAttr, i16, info, name, node),
-            StorageType::Array => box_attr!(NumericArrayAttr, i32, info, name, node),
-            StorageType::Int64Array => box_attr!(NumericArrayAttr, i64, info, name, node),
-            StorageType::FloatArray => box_attr!(NumericArrayAttr, f32, info, name, node),
-            StorageType::Float64Array => box_attr!(NumericArrayAttr, f64, info, name, node),
-            StorageType::StringArray => box_attr!(StringAttr, info, name, node),
-            StorageType::Uint8Array => box_attr!(NumericArrayAttr, u8, info, name, node),
-            StorageType::Int8Array => box_attr!(NumericArrayAttr, i8, info, name, node),
-            StorageType::Int16Array => box_attr!(NumericArrayAttr, i16, info, name, node),
+            StorageType::Int => NumericAttr::<i32>::new(name, info, node).boxed(),
+            StorageType::Int64 => NumericAttr::<i64>::new(name, info, node).boxed(),
+            StorageType::Float => NumericAttr::<f32>::new(name, info, node).boxed(),
+            StorageType::Float64 => NumericAttr::<f64>::new(name, info, node).boxed(),
+            StorageType::String => StringAttr::new(name, info, node).boxed(),
+            StorageType::Uint8 => NumericAttr::<u8>::new(name, info, node).boxed(),
+            StorageType::Int8 => NumericAttr::<i8>::new(name, info, node).boxed(),
+            StorageType::Int16 => NumericAttr::<i16>::new(name, info, node).boxed(),
+            StorageType::Array => NumericArrayAttr::<i32>::new(name, info, node).boxed(),
+            StorageType::Int64Array => NumericArrayAttr::<i64>::new(name, info, node).boxed(),
+            StorageType::FloatArray => NumericArrayAttr::<f32>::new(name, info, node).boxed(),
+            StorageType::Float64Array => NumericArrayAttr::<f64>::new(name, info, node).boxed(),
+            StorageType::StringArray => StringArrayAttr::new(name, info, node).boxed(),
+            StorageType::Uint8Array => NumericArrayAttr::<u8>::new(name, info, node).boxed(),
+            StorageType::Int8Array => NumericArrayAttr::<i8>::new(name, info, node).boxed(),
+            StorageType::Int16Array => NumericArrayAttr::<i16>::new(name, info, node).boxed(),
         };
         Ok(Some(Attribute::new(attr_obj)))
     }
 
-    pub fn add_attribute(
-        &self,
-        name: &str,
-        part_id: i32,
-        info: &AttributeInfo,
-    ) -> Result<Attribute> {
-        todo!()
-        // let name = CString::new(name)?;
-        // crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
-        // Ok(Attribute::new(
-        //     name,
-        //     AttributeInfo { inner: info.inner },
-        //     &self.node,
-        // ))
+    pub fn add_numeric_attribute<T: AttribAccess>(&self, name: &str, part_id: i32, info: AttributeInfo) -> Result<NumericAttr<T>> {
+        let name = CString::new(name)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        Ok(NumericAttr::<T>::new(name, info, self.node.clone()))
+    }
+
+    pub fn add_numeric_array_attribute<T>(&self, name: &str, part_id: i32, info: AttributeInfo) -> Result<NumericArrayAttr<T>>
+        where T: AttribAccess,
+              [T]: ToOwned<Owned=Vec<T>>,
+    {
+        let name = CString::new(name)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        Ok(NumericArrayAttr::<T>::new(name, info, self.node.clone()))
+    }
+
+    pub fn add_string_attribute(&self, name: &str, part_id: i32, info: AttributeInfo) -> Result<StringAttr> {
+        let name = CString::new(name)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        Ok(StringAttr::new(name, info, self.node.clone()))
+    }
+
+    pub fn add_string_array_attribute(&self, name: &str, part_id: i32, info: AttributeInfo) -> Result<StringArrayAttr> {
+        let name = CString::new(name)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        Ok(StringArrayAttr::new(name, info, self.node.clone()))
     }
 
     pub fn add_group(
@@ -489,15 +500,15 @@ mod tests {
             .with_tuple_size(3)
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::Float);
-        // let attr_p = geo
-        //     .add_attribute::<f32>("P", part.part_id(), &info)
-        //     .unwrap();
-        // attr_p
-        //     .set(
-        //         part.part_id(),
-        //         &[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
-        //     )
-        //     .unwrap();
+        let attr_p = geo
+            .add_numeric_attribute::<f32>("P", part.part_id(), info)
+            .unwrap();
+        attr_p
+            .set(
+                part.part_id(),
+                &[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
+            )
+            .unwrap();
         geo.set_vertex_list(0, [0, 1, 2]).unwrap();
         geo.set_face_counts(0, [3]).unwrap();
         geo.commit().expect("commit");
@@ -555,11 +566,10 @@ mod tests {
                 .with_tuple_size(1)
                 .with_count(part.point_count());
 
-            let attr_name = geo.add_attribute("name", 0, &info).unwrap();
-            todo!()
-            // attr_name.set(0, ["pt0", "pt1", "pt2"]).unwrap();
-            // geo.commit().unwrap();
-            // input.delete().unwrap();
+            let attr_name = geo.add_string_attribute("name", 0, info).unwrap();
+            attr_name.set(0, &["pt0", "pt1", "pt2"]).unwrap();
+            geo.commit().unwrap();
+            input.delete().unwrap();
         });
     }
 
@@ -572,8 +582,8 @@ mod tests {
                 .get_attribute(0, AttributeOwner::Point, "my_int_array")
                 .expect("attribute")
                 .unwrap();
-            todo!()
-            // let i_array = attr.read_array(0).unwrap();
+            let attr = attr.downcast::<NumericArrayAttr<i32>>().unwrap();
+            let i_array = attr.get(0).unwrap();
             //
             // assert_eq!(i_array.iter().count(), attr.info.count() as usize);
             // assert_eq!(i_array.iter().next().unwrap(), &[0, 0, 0, -1]);

@@ -299,7 +299,7 @@ wrap!(
     [get+session] split_attr->splitAttrSH->[Result<String>];
 );
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AttributeInfo {
     pub(crate) inner: HAPI_AttributeInfo,
 }
