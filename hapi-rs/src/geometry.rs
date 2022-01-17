@@ -206,9 +206,20 @@ impl Geometry {
         let count = match group_type {
             GroupType::Point => self.info.point_group_count(),
             GroupType::Prim => self.info.primitive_group_count(),
+            GroupType::Edge => self.info.edge_group_count(),
             _ => unreachable!("Impossible GroupType value"),
         };
         crate::ffi::get_group_names(&self.node, group_type, count)
+    }
+
+    pub fn get_edge_count_of_edge_group(&self, group: &str, part_id: i32) -> Result<i32> {
+        let group = CString::new(group)?;
+        crate::ffi::get_edge_count_of_edge_group(
+            &self.node.session,
+            self.node.handle,
+            &group,
+            part_id,
+        )
     }
 
     pub fn get_attribute_names(
@@ -247,7 +258,7 @@ impl Geometry {
         let node = self.node.clone();
         let attr_obj: Box<dyn AnyAttribWrapper> = match storage {
             s @ (StorageType::Invalid | StorageType::Max) => {
-                panic!("TODO: Invalid attribute storage {name:?}: {s:?}")
+                panic!("Invalid attribute storage {name:?}: {s:?}")
             }
             StorageType::Int => NumericAttr::<i32>::new(name, info, node).boxed(),
             StorageType::Int64 => NumericAttr::<i64>::new(name, info, node).boxed(),
@@ -626,21 +637,21 @@ mod tests {
                 .get_attribute(0, AttributeOwner::Point, "my_str_array")
                 .expect("attribute")
                 .unwrap();
-            todo!()
-            // let i_array = attr.read_array(0).unwrap();
-            // assert_eq!(i_array.iter().count(), attr.info.count() as usize);
-            //
-            // let it = i_array.iter().next().unwrap().unwrap();
-            // let pt_0: Vec<&str> = it.iter_str().collect();
-            // assert_eq!(pt_0, ["pt_0_0", "pt_0_1", "pt_0_2", "start"]);
-            //
-            // let it = i_array.iter().nth(1).unwrap().unwrap();
-            // let pt_1: Vec<&str> = it.iter_str().collect();
-            // assert_eq!(pt_1, ["pt_1_0", "pt_1_1", "pt_1_2"]);
-            //
-            // let it = i_array.iter().last().unwrap().unwrap();
-            // let pt_n: Vec<&str> = it.iter_str().collect();
-            // assert_eq!(pt_n, ["pt_7_0", "pt_7_1", "pt_7_2", "end"]);
+            let attr = attr.downcast::<StringArrayAttr>().unwrap();
+            let m_array = attr.get(0).unwrap();
+            assert_eq!(m_array.iter().count(), attr.info().count() as usize);
+
+            let it = m_array.iter().next().unwrap().unwrap();
+            let pt_0: Vec<&str> = it.iter_str().collect();
+            assert_eq!(pt_0, ["pt_0_0", "pt_0_1", "pt_0_2", "start"]);
+
+            let it = m_array.iter().nth(1).unwrap().unwrap();
+            let pt_1: Vec<&str> = it.iter_str().collect();
+            assert_eq!(pt_1, ["pt_1_0", "pt_1_1", "pt_1_2"]);
+
+            let it = m_array.iter().last().unwrap().unwrap();
+            let pt_n: Vec<&str> = it.iter_str().collect();
+            assert_eq!(pt_n, ["pt_7_0", "pt_7_1", "pt_7_2", "end"]);
         });
     }
 

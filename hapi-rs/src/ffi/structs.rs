@@ -378,6 +378,7 @@ impl<'s> GeoInfo {
     get!(is_display_geo->isDisplayGeo->bool);
     get!(has_geo_changed->hasGeoChanged->bool);
     get!(has_material_changed->hasMaterialChanged->bool);
+    get!(edge_group_count->edgeGroupCount->i32);
     get!(point_group_count->pointGroupCount->i32);
     get!(primitive_group_count->primitiveGroupCount->i32);
     get!(part_count->partCount->i32);

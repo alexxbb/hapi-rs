@@ -1,4 +1,4 @@
-use super::array::DataArray;
+use super::array::{DataArray, StringMultiArray};
 use crate::ffi::raw;
 use crate::ffi::raw::{HAPI_AttributeInfo, StorageType};
 use crate::ffi::AttributeInfo;
@@ -269,6 +269,61 @@ pub fn set_attribute_string_data(
             array.as_mut_ptr(),
             0,
             array.len() as i32,
+        )
+        .check_err(Some(&node.session))
+    }
+}
+
+pub fn get_attribute_string_array_data(
+    node: &HoudiniNode,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+) -> Result<StringMultiArray> {
+    unsafe {
+        let mut data_array = vec![0; info.totalArrayElements as usize];
+        let mut sizes_fixed_array = vec![0; info.count as usize];
+        raw::HAPI_GetAttributeStringArrayData(
+            node.session.ptr(),
+            node.handle.0,
+            0,
+            name.as_ptr(),
+            info as *const _ as *mut _,
+            data_array.as_mut_ptr(),
+            info.totalArrayElements as i32,
+            sizes_fixed_array.as_mut_ptr(),
+            0,
+            info.count,
+        )
+        .check_err(Some(&node.session))?;
+
+        Ok(StringMultiArray {
+            handles: data_array,
+            sizes: sizes_fixed_array,
+            session: node.session.clone(),
+        })
+    }
+}
+
+pub fn set_attribute_string_array_data(
+    node: &HoudiniNode,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    data: &[&CStr],
+    sizes: &[i32],
+) -> Result<()> {
+    let mut array = Vec::from_iter(data.iter().map(|cs| cs.as_ptr()));
+    unsafe {
+        raw::HAPI_SetAttributeStringArrayData(
+            node.session.ptr(),
+            node.handle.0,
+            0,
+            name.as_ptr(),
+            info as *const _ as *mut _,
+            array.as_mut_ptr(),
+            info.totalArrayElements as i32,
+            sizes.as_ptr(),
+            0,
+            info.count,
         )
         .check_err(Some(&node.session))
     }

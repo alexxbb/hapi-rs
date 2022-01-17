@@ -1118,6 +1118,26 @@ pub fn get_group_count_by_type(geo_info: &GeoInfo, group_type: raw::GroupType) -
     unsafe { raw::HAPI_GeoInfo_GetGroupCountByType(ptr, group_type) }
 }
 
+pub fn get_edge_count_of_edge_group(
+    session: &Session,
+    node: NodeHandle,
+    group_name: &CStr,
+    part_id: i32,
+) -> Result<i32> {
+    let mut count = uninit!();
+    unsafe {
+        raw::HAPI_GetEdgeCountOfEdgeGroup(
+            session.ptr(),
+            node.0,
+            part_id,
+            group_name.as_ptr(),
+            count.as_mut_ptr(),
+        )
+        .check_err(Some(session))?;
+        Ok(count.assume_init())
+    }
+}
+
 pub fn get_part_info(node: &HoudiniNode, id: i32) -> Result<raw::HAPI_PartInfo> {
     unsafe {
         let mut info = uninit!();
@@ -1459,6 +1479,10 @@ pub fn get_group_membership(
     length: i32,
 ) -> Result<Vec<i32>> {
     unsafe {
+        let mut length = length;
+        if matches!(group_type, raw::GroupType::Edge) {
+            length *= 2;
+        }
         let mut array = vec![0; length as usize];
         raw::HAPI_GetGroupMembership(
             session.ptr(),
@@ -1659,33 +1683,6 @@ pub fn get_session_sync_info(session: &Session) -> Result<raw::HAPI_SessionSyncI
     unsafe {
         raw::HAPI_GetSessionSyncInfo(session.ptr(), info.as_mut_ptr()).check_err(Some(session))?;
         Ok(info.assume_init())
-    }
-}
-
-pub fn get_attribute_string_array_data(
-    session: &Session,
-    node: NodeHandle,
-    name: &CStr,
-    info: &raw::HAPI_AttributeInfo,
-) -> Result<(Vec<i32>, Vec<i32>)> {
-    unsafe {
-        let mut data_array = vec![0; info.totalArrayElements as usize];
-        let mut sizes_fixed_array = vec![0; info.count as usize];
-        raw::HAPI_GetAttributeStringArrayData(
-            session.ptr(),
-            node.0,
-            0,
-            name.as_ptr(),
-            info as *const _ as *mut _,
-            data_array.as_mut_ptr(),
-            info.totalArrayElements as i32,
-            sizes_fixed_array.as_mut_ptr(),
-            0,
-            info.count,
-        )
-        .check_err(Some(session))?;
-
-        Ok((data_array, sizes_fixed_array))
     }
 }
 

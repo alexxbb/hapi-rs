@@ -127,11 +127,25 @@ impl StringArrayAttr {
     pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringArrayAttr {
         StringArrayAttr(_StringAttrData { info, name, node })
     }
-    fn get(&self, part_id: i32) -> Result<StringMultiArray> {
-        todo!()
+    pub fn get(&self, part_id: i32) -> Result<StringMultiArray> {
+        super::bindings::get_attribute_string_array_data(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            &self.0.info.inner,
+        )
     }
-    fn set(&self, part_id: i32, values: &[&[&str]]) -> Result<()> {
-        todo!()
+    pub fn set(&self, part_id: i32, values: &[&str], sizes: &[i32]) -> Result<()> {
+        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
+            values.iter().map(|s| CString::new(*s)).collect();
+        let cstr = cstr?;
+        let mut ptrs: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
+        super::bindings::set_attribute_string_array_data(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            &self.0.info.inner,
+            &ptrs,
+            sizes,
+        )
     }
 }
 
