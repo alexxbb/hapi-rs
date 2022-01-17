@@ -1,165 +1,233 @@
 use super::array::DataArray;
 use crate::ffi::raw;
+use crate::ffi::raw::{HAPI_AttributeInfo, StorageType};
+use crate::ffi::AttributeInfo;
 use crate::stringhandle::StringArray;
 use crate::{node::HoudiniNode, Result};
 use duplicate::duplicate;
 use std::ffi::CStr;
 
-#[duplicate(
-_data_type _func_name _default _ffi_func;
-[u8] [get_attribute_u8_data] [0] [HAPI_GetAttributeUInt8Data];
-[i8] [get_attribute_i8_data] [0] [HAPI_GetAttributeInt8Data];
-[i16] [get_attribute_i16_data] [0] [HAPI_GetAttributeInt16Data];
-[i32] [get_attribute_i32_data] [0] [HAPI_GetAttributeIntData];
-[i64] [get_attribute_i64_data] [0] [HAPI_GetAttributeInt64Data];
-[f32] [get_attribute_f32_data] [0.0] [HAPI_GetAttributeFloatData];
-[f64] [get_attribute_f64_data] [0.0] [HAPI_GetAttributeFloat64Data];
-)]
-pub fn _func_name(
-    node: &HoudiniNode,
-    part_id: i32,
-    name: &CStr,
-    attr_info: &raw::HAPI_AttributeInfo,
-    stride: i32,
-    start: i32,
-    length: i32,
-) -> Result<Vec<_data_type>> {
-    unsafe {
-        let mut data_array = Vec::new();
-        data_array.resize((length * attr_info.tupleSize) as usize, _default);
-        // SAFETY: Most likely an error in C API, it should not modify the info object,
-        // but for some reason it wants a mut pointer
-        let attr_info = attr_info as *const _ as *mut raw::HAPI_AttributeInfo;
-        // let mut data_array = vec![];
-        raw::_ffi_func(
-            node.session.ptr(),
-            node.handle.0,
-            part_id,
-            name.as_ptr(),
-            attr_info,
-            stride,
-            data_array.as_mut_ptr(),
-            start,
-            length,
-        )
-        .check_err(Some(&node.session))?;
-        Ok(data_array)
-    }
+pub trait AttribAccess: Sized + 'static {
+    fn storage() -> StorageType;
+    fn get(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+        stride: i32,
+        start: i32,
+        len: i32,
+    ) -> Result<Vec<Self>>;
+    fn set(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+        data: &[Self],
+        start: i32,
+        len: i32,
+    ) -> Result<()>;
+    fn get_array(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+    ) -> Result<DataArray<'static, Self>>
+    where
+        [Self]: ToOwned<Owned = Vec<Self>>;
+    fn set_array(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+        data: &[Self],
+        sizes: &[i32],
+    ) -> Result<()>
+    where
+        [Self]: ToOwned<Owned = Vec<Self>>;
 }
 
 #[duplicate(
-_data_type _func_name _ffi_name;
-[i8] [get_attribute_i8_array_data] [HAPI_GetAttributeInt8ArrayData];
-[u8] [get_attribute_u8_array_data] [HAPI_GetAttributeUInt8ArrayData];
-[i16] [get_attribute_i16_array_data] [HAPI_GetAttributeInt16ArrayData];
-[i32] [get_attribute_int_array_data] [HAPI_GetAttributeIntArrayData];
-[i64] [get_attribute_int64_array_data] [HAPI_GetAttributeInt64ArrayData];
-[f32] [get_attribute_float_array_data] [HAPI_GetAttributeFloatArrayData];
-[f64] [get_attribute_float64_array_data] [HAPI_GetAttributeFloat64ArrayData];
+[
+_int_type [u8]
+_storage [StorageType::Uint8]
+_get [HAPI_GetAttributeUInt8Data]
+_set [HAPI_SetAttributeUInt8Data]
+_get_array [HAPI_GetAttributeUInt8ArrayData]
+_set_array [HAPI_SetAttributeUInt8ArrayData]
+]
+[
+_int_type [i8]
+_storage [StorageType::Int8]
+_get [HAPI_GetAttributeInt8Data]
+_set [HAPI_SetAttributeInt8Data]
+_get_array [HAPI_GetAttributeInt8ArrayData]
+_set_array [HAPI_SetAttributeInt8ArrayData]
+]
+[
+_int_type [i16]
+_storage [StorageType::Int16]
+_get [HAPI_GetAttributeInt16Data]
+_set [HAPI_SetAttributeInt16Data]
+_get_array [HAPI_GetAttributeInt16ArrayData]
+_set_array [HAPI_SetAttributeInt16ArrayData]
+]
+[
+_int_type [i32]
+_storage [StorageType::Int]
+_get [HAPI_GetAttributeIntData]
+_set [HAPI_SetAttributeIntData]
+_get_array [HAPI_GetAttributeIntArrayData]
+_set_array [HAPI_SetAttributeIntArrayData]
+]
+[
+_int_type [i64]
+_storage [StorageType::Int64]
+_get [HAPI_GetAttributeInt64Data]
+_set [HAPI_SetAttributeInt64Data]
+_get_array [HAPI_GetAttributeInt64ArrayData]
+_set_array [HAPI_SetAttributeInt64ArrayData]
+]
+[
+_int_type [f32]
+_storage [StorageType::Float]
+_get [HAPI_GetAttributeFloatData]
+_set [HAPI_SetAttributeFloatData]
+_get_array [HAPI_GetAttributeFloatArrayData]
+_set_array [HAPI_SetAttributeFloatArrayData]
+]
+[
+_int_type [f64]
+_storage [StorageType::Float64]
+_get [HAPI_GetAttributeFloat64Data]
+_set [HAPI_SetAttributeFloat64Data]
+_get_array [HAPI_GetAttributeFloat64ArrayData]
+_set_array [HAPI_SetAttributeFloat64ArrayData]
+]
 )]
-pub fn _func_name(
-    node: &HoudiniNode,
-    part_id: i32,
-    name: &CStr,
-    attr_info: &raw::HAPI_AttributeInfo,
-) -> Result<DataArray<'static, _data_type>> {
-    let mut data = vec![_data_type::default(); attr_info.totalArrayElements as usize];
-    let mut sizes = vec![0; attr_info.count as usize];
-    unsafe {
-        raw::_ffi_name(
-            node.session.ptr(),
-            node.handle.0,
-            part_id,
-            name.as_ptr(),
-            attr_info as *const _ as *mut _,
-            data.as_mut_ptr(),
-            attr_info.totalArrayElements as i32,
-            sizes.as_mut_ptr(),
-            0,
-            attr_info.count as i32,
-        )
-        .check_err(Some(&node.session))?;
+impl AttribAccess for _int_type {
+    fn storage() -> StorageType {
+        _storage
     }
-
-    Ok(DataArray::new_owned(data, sizes))
-}
-
-#[duplicate(
-_data_type _func_name _ffi_func;
-[i8] [set_attribute_i8_data] [HAPI_SetAttributeInt8Data];
-[u8] [set_attribute_u8_data] [HAPI_SetAttributeUInt8Data];
-[i16] [set_attribute_i16_data] [HAPI_SetAttributeInt16Data];
-[i32] [set_attribute_int_data] [HAPI_SetAttributeIntData];
-[i64] [set_attribute_int64_data] [HAPI_SetAttributeInt64Data];
-[f32] [set_attribute_float_data]  [HAPI_SetAttributeFloatData];
-[f64] [set_attribute_float64_data]  [HAPI_SetAttributeFloat64Data];
-)]
-pub fn _func_name(
-    node: &HoudiniNode,
-    part_id: i32,
-    name: &CStr,
-    attr_info: &raw::HAPI_AttributeInfo,
-    data_array: &[_data_type],
-    start: i32,
-    length: i32,
-) -> Result<()> {
-    unsafe {
-        raw::_ffi_func(
-            node.session.ptr(),
-            node.handle.0,
-            part_id,
-            name.as_ptr(),
-            attr_info,
-            data_array.as_ptr(),
-            start,
-            length,
-        )
-        .check_err(Some(&node.session))
+    fn get(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+        stride: i32,
+        start: i32,
+        len: i32,
+    ) -> Result<Vec<_int_type>> {
+        unsafe {
+            let mut data_array = Vec::new();
+            data_array.resize((len * info.inner.tupleSize) as usize, _int_type::default());
+            // SAFETY: Most likely an error in C API, it should not modify the info object,
+            // but for some reason it wants a mut pointer
+            let attr_info = &info.inner as *const _ as *mut HAPI_AttributeInfo;
+            // let mut data_array = vec![];
+            raw::_get(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                attr_info,
+                stride,
+                data_array.as_mut_ptr(),
+                start,
+                len,
+            )
+            .check_err(Some(&node.session))?;
+            Ok(data_array)
+        }
     }
-}
-
-#[duplicate(
-_data_type _func_name _ffi_name;
-[u8] [set_attribute_u8_array_data] [HAPI_SetAttributeUInt8ArrayData];
-[i8] [set_attribute_i8_array_data] [HAPI_SetAttributeInt8ArrayData];
-[i16] [set_attribute_i16_array_data] [HAPI_SetAttributeInt16ArrayData];
-[i32] [set_attribute_i32_array_data] [HAPI_SetAttributeIntArrayData];
-[i64] [set_attribute_i64_array_data] [HAPI_SetAttributeInt64ArrayData];
-[f32] [set_attribute_f32_array_data] [HAPI_SetAttributeFloatArrayData];
-[f64] [set_attribute_f64_array_data] [HAPI_SetAttributeFloat64ArrayData];
-)]
-pub fn _func_name(
-    node: &HoudiniNode,
-    part_id: i32,
-    name: &CStr,
-    attr_info: &raw::HAPI_AttributeInfo,
-    data: &[_data_type],
-    sizes: &[i32],
-) -> Result<()> {
-    unsafe {
-        raw::_ffi_name(
-            node.session.ptr(),
-            node.handle.0,
-            part_id,
-            name.as_ptr(),
-            attr_info as *const _,
-            data.as_ptr(),
-            attr_info.totalArrayElements as i32,
-            sizes.as_ptr(),
-            0,
-            attr_info.count as i32,
-        )
-        .check_err(Some(&node.session))?;
+    fn set(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+        data: &[Self],
+        start: i32,
+        len: i32,
+    ) -> Result<()> {
+        unsafe {
+            raw::_set(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                &info.inner,
+                data.as_ptr(),
+                start,
+                len,
+            )
+            .check_err(Some(&node.session))
+        }
     }
+    fn get_array(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+    ) -> Result<DataArray<'static, Self>>
+    where
+        [Self]: ToOwned<Owned = Vec<Self>>,
+    {
+        let mut data = vec![_int_type::default(); info.inner.totalArrayElements as usize];
+        let mut sizes = vec![0; info.inner.count as usize];
+        unsafe {
+            raw::_get_array(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                &info.inner as *const _ as *mut _,
+                data.as_mut_ptr(),
+                info.inner.totalArrayElements as i32,
+                sizes.as_mut_ptr(),
+                0,
+                info.inner.count as i32,
+            )
+            .check_err(Some(&node.session))?;
+        }
 
-    Ok(())
+        Ok(DataArray::new_owned(data, sizes))
+    }
+    fn set_array(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+        data: &[Self],
+        sizes: &[i32],
+    ) -> Result<()>
+    where
+        [Self]: ToOwned<Owned = Vec<Self>>,
+    {
+        unsafe {
+            raw::_set_array(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                &info.inner,
+                data.as_ptr(),
+                info.inner.totalArrayElements as i32,
+                sizes.as_ptr(),
+                0,
+                info.inner.count as i32,
+            )
+            .check_err(Some(&node.session))?;
+        }
+
+        Ok(())
+    }
 }
 
 pub fn get_attribute_string_data(
     node: &HoudiniNode,
     part_id: i32,
     name: &CStr,
-    attr_info: &raw::HAPI_AttributeInfo,
+    attr_info: &HAPI_AttributeInfo,
 ) -> Result<StringArray> {
     unsafe {
         let mut handles = Vec::new();
@@ -167,7 +235,7 @@ pub fn get_attribute_string_data(
         handles.resize((count * attr_info.tupleSize) as usize, 0);
         // SAFETY: Most likely an error in C API, it should not modify the info object,
         // but for some reason it wants a mut pointer
-        let attr_info = attr_info as *const _ as *mut raw::HAPI_AttributeInfo;
+        let attr_info = attr_info as *const _ as *mut HAPI_AttributeInfo;
         raw::HAPI_GetAttributeStringData(
             node.session.ptr(),
             node.handle.0,
@@ -187,16 +255,11 @@ pub fn set_attribute_string_data(
     node: &HoudiniNode,
     part_id: i32,
     name: &CStr,
-    attr_info: &raw::HAPI_AttributeInfo,
+    attr_info: &HAPI_AttributeInfo,
     array: &[&CStr],
 ) -> Result<()> {
     unsafe {
-        // SAFETY: Most likely an error in C API, it should not modify the info object,
-        // but for some reason it wants a mut pointer
-        // TODO: Is there a way to set Vec capacity with collect?
-        // let mut array =  Vec::with_capacity(array.len());
         let mut array = Vec::from_iter(array.iter().map(|cs| cs.as_ptr()));
-        // let mut array = array.iter().map(|cs|cs.as_ptr()).collect::<Vec<_>>();
         raw::HAPI_SetAttributeStringData(
             node.session.ptr(),
             node.handle.0,

@@ -27,7 +27,7 @@ fn create_cube(session: &Session) -> Result<HoudiniNode> {
         .with_storage(StorageType::Float)
         .with_owner(AttributeOwner::Point);
 
-    let p_attr = geometry.add_attribute::<f32>("P", 0, &attr_info)?;
+    let p_attr = geometry.add_numeric_attribute("P", 0, attr_info)?;
 
     #[rustfmt::skip]
         let positions = [

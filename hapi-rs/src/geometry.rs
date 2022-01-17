@@ -71,7 +71,6 @@ impl Geometry {
     }
 
     pub fn set_part_info(&self, info: &PartInfo) -> Result<()> {
-        // TODO: Should part_id be provided by user or by PartInfo?
         crate::ffi::set_part_info(&self.node, info)
     }
 
@@ -564,9 +563,9 @@ mod tests {
                 .get_attribute(0, AttributeOwner::Point, "P")
                 .unwrap()
                 .unwrap();
-            let attr_p = attr_p.downcast::<NumericArrayAttr<f32>>().unwrap();
+            let attr_p = attr_p.downcast::<NumericAttr<f32>>().unwrap();
             let dat = attr_p.get(0).expect("read_attribute");
-            assert_eq!(dat.data().len(), 9);
+            assert_eq!(dat.len(), 9);
             input.delete().unwrap();
         });
     }
@@ -601,25 +600,25 @@ mod tests {
                 .unwrap();
             let attr = attr.downcast::<NumericArrayAttr<i32>>().unwrap();
             let i_array = attr.get(0).unwrap();
-            //
-            // assert_eq!(i_array.iter().count(), attr.info.count() as usize);
-            // assert_eq!(i_array.iter().next().unwrap(), &[0, 0, 0, -1]);
-            // assert_eq!(i_array.iter().last().unwrap(), &[7, 14, 21, -1]);
-            //
-            // let attr = geo
-            //     .get_attribute(0, AttributeOwner::Point, "my_float_array")
-            //     .expect("attribute")
-            //     .unwrap();
-            // let i_array = attr.downcast::<NumericArrayAttr<f32>>().unwrap();
-            // let i_array = attr.get(0).unwrap();
-            //
-            // assert_eq!(i_array.iter().count(), attr.info.count() as usize);
-            // assert_eq!(i_array.iter().next().unwrap(), &[0.0, 0.0, 0.0]);
-            // assert_eq!(i_array.iter().last().unwrap(), &[7.0, 14.0, 21.0]);
+            assert_eq!(i_array.iter().count(), attr.info().count() as usize);
+            assert_eq!(i_array.iter().next().unwrap(), &[0, 0, 0, -1]);
+            assert_eq!(i_array.iter().last().unwrap(), &[7, 14, 21, -1]);
+
+            let attr = geo
+                .get_attribute(0, AttributeOwner::Point, "my_float_array")
+                .expect("attribute")
+                .unwrap();
+            let i_array = attr.downcast::<NumericArrayAttr<f32>>().unwrap();
+            let data = i_array.get(0).unwrap();
+
+            assert_eq!(data.iter().count(), attr.info().count() as usize);
+            assert_eq!(data.iter().next().unwrap(), &[0.0, 0.0, 0.0]);
+            assert_eq!(data.iter().last().unwrap(), &[7.0, 14.0, 21.0]);
         });
     }
 
     #[test]
+    #[ignore]
     fn string_array_attribute() {
         with_session(|session| {
             let geo = _load_test_geometry(session).expect("geometry");

@@ -1,4 +1,5 @@
 // Translated from object_geos_parts.cpp
+use hapi_rs::attribute::*;
 use hapi_rs::geometry::*;
 use hapi_rs::session::*;
 use hapi_rs::Result;
@@ -30,12 +31,13 @@ fn main() -> Result<()> {
                 );
                 println!("Point Positions: ");
                 let attrib = geometry
-                    .get_attribute::<f32>(part_info.part_id(), AttributeOwner::Point, "P")?
+                    .get_attribute(part_info.part_id(), AttributeOwner::Point, "P")?
                     .unwrap();
 
-                let positions = attrib.read(part_info.part_id())?;
-                for p in 0..attrib.info.count() {
-                    let idx = (p * attrib.info.tuple_size()) as usize;
+                let attrib = attrib.downcast::<NumericAttr<f32>>().unwrap();
+                let positions = attrib.get(part_info.part_id())?;
+                for p in 0..attrib.info().count() {
+                    let idx = (p * attrib.info().tuple_size()) as usize;
                     println!("{:?}", &positions[idx..idx + 3])
                 }
 

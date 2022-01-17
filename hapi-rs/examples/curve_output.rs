@@ -1,3 +1,4 @@
+use hapi_rs::attribute::*;
 use hapi_rs::geometry::{AttributeOwner, CurveOrders, CurveType, Geometry, PartInfo, PartType};
 use hapi_rs::node::{NodeFlags, NodeType, ObjectInfo};
 use hapi_rs::session::{new_in_process, SessionOptions};
@@ -69,11 +70,12 @@ fn print_curve_info(geo: &Geometry, obj: &ObjectInfo, part: &PartInfo) -> Result
             continue;
         }
         let attrib = geo
-            .get_attribute::<f32>(part_id, AttributeOwner::Point, "P")?
+            .get_attribute(part_id, AttributeOwner::Point, "P")?
             .unwrap();
-        let positions = attrib.read(part_id)?;
-        for cv in 0..attrib.info.count() {
-            let idx = (cv * attrib.info.tuple_size()) as usize;
+        let attrib = attrib.downcast::<NumericAttr<f32>>().unwrap();
+        let positions = attrib.get(part_id)?;
+        for cv in 0..attrib.info().count() {
+            let idx = (cv * attrib.info().tuple_size()) as usize;
             println!("CV {}: {:?}", cv + 1, &positions[idx..idx + 3])
         }
 
