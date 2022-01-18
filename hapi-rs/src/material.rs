@@ -1,6 +1,6 @@
 use crate::ffi::ImageFileFormat;
 use crate::ffi::{raw::HAPI_MaterialInfo, ImageInfo};
-use crate::node::NodeHandle;
+use crate::node::{HoudiniNode, NodeHandle};
 use crate::parameter::ParmHandle;
 use crate::session::Session;
 use crate::Result;
@@ -15,7 +15,11 @@ pub struct Material {
 
 impl Material {
     #[inline]
-    pub fn node(&self) -> NodeHandle {
+    pub fn node(&self) -> Result<HoudiniNode> {
+        HoudiniNode::new(self.session.clone(), self.node_handle(), None)
+    }
+
+    fn node_handle(&self) -> NodeHandle {
         NodeHandle(self.info.nodeId, ())
     }
 
@@ -26,13 +30,13 @@ impl Material {
 
     pub fn render_texture(&self, parm_name: &str) -> Result<()> {
         let name = CString::new(parm_name)?;
-        let id = crate::ffi::get_parm_id_from_name(&name, self.node(), &self.session)?;
-        crate::ffi::render_texture_to_image(&self.session, self.node(), ParmHandle(id, ()))
+        let id = crate::ffi::get_parm_id_from_name(&name, self.node_handle(), &self.session)?;
+        crate::ffi::render_texture_to_image(&self.session, self.node_handle(), ParmHandle(id, ()))
     }
 
     pub fn extract_image_to_file(
         &self,
-        image_planes: &str,
+        image_planes: impl AsRef<str>,
         path: impl AsRef<Path>,
     ) -> Result<String> {
         let path = path.as_ref();
@@ -43,7 +47,7 @@ impl Material {
                 .to_string()
                 .to_uppercase(),
         )?;
-        let image_planes = CString::new(image_planes)?;
+        let image_planes = CString::new(image_planes.as_ref())?;
         let dest_folder =
             CString::new(path.parent().expect("parent").to_string_lossy().to_string())?;
         let dest_file = CString::new(
@@ -54,7 +58,7 @@ impl Material {
         )?;
         crate::ffi::extract_image_to_file(
             &self.session,
-            self.node(),
+            self.node_handle(),
             &format,
             &image_planes,
             &dest_folder,
@@ -65,19 +69,26 @@ impl Material {
     pub fn extract_image_to_memory(&self, image_planes: &str, format: &str) -> Result<Vec<i8>> {
         let format = CString::new(format)?;
         let image_planes = CString::new(image_planes)?;
-        crate::ffi::extract_image_to_memory(&self.session, self.node(), &format, &image_planes)
+        crate::ffi::extract_image_to_memory(
+            &self.session,
+            self.node_handle(),
+            &format,
+            &image_planes,
+        )
     }
 
     pub fn set_image_info(&self, info: &ImageInfo) -> Result<()> {
-        crate::ffi::set_image_info(&self.session, self.node(), info)
+        crate::ffi::set_image_info(&self.session, self.node_handle(), info)
     }
 
     pub fn get_image_info(&self) -> Result<ImageInfo> {
-        crate::ffi::get_image_info(&self.session, self.node()).map(|inner| ImageInfo { inner })
+        crate::ffi::get_image_info(&self.session, self.node_handle())
+            .map(|inner| ImageInfo { inner })
     }
 
     pub fn get_image_planes(&self) -> Result<Vec<String>> {
-        crate::ffi::get_image_planes(&self.session, self.node()).map(|a| a.into_iter().collect())
+        crate::ffi::get_image_planes(&self.session, self.node_handle())
+            .map(|a| a.into_iter().collect())
     }
 }
 

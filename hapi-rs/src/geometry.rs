@@ -629,7 +629,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn string_array_attribute() {
         with_session(|session| {
             let geo = _load_test_geometry(session).expect("geometry");
