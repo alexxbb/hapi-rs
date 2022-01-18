@@ -6,6 +6,7 @@ use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
 
+/// Holds a contiguous array of bytes where each individual string value is null-separated.
 pub struct StringArray {
     bytes: Vec<u8>,
 }
@@ -17,10 +18,12 @@ impl std::fmt::Debug for StringArray {
     }
 }
 
+/// Iterator over &str, returned from StringArray::iter_str()
 pub struct StringIter<'a> {
     inner: &'a [u8],
 }
 
+/// Consuming iterator over String, returned from StringArray::into_iter()
 pub struct OwnedStringIter {
     inner: Vec<u8>,
     cursor: usize,
@@ -47,6 +50,7 @@ impl std::iter::Iterator for OwnedStringIter {
     }
 }
 
+/// Iterator over CStrings returned from StringArray::iter_cstr()
 pub struct CStringIter<'a> {
     inner: &'a [u8],
 }
@@ -108,12 +112,12 @@ impl std::iter::IntoIterator for StringArray {
     }
 }
 
-pub fn get_string(handle: i32, session: &Session) -> Result<String> {
+pub(crate) fn get_string(handle: i32, session: &Session) -> Result<String> {
     let bytes = get_string_bytes(handle, session)?;
     String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
 }
 
-pub fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
+pub(crate) fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
     unsafe {
         let bytes = get_string_bytes(handle, session)?;
         // SAFETY: HAPI C API should not return strings with interior zero byte
@@ -121,13 +125,13 @@ pub fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
     }
 }
 
-pub fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>> {
+pub(crate) fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>> {
     let length = crate::ffi::get_string_buff_len(session, handle)?;
     let buffer = crate::ffi::get_string(session, handle, length)?;
     Ok(buffer)
 }
 
-pub fn get_string_array(handles: &[i32], session: &Session) -> Result<StringArray> {
+pub(crate) fn get_string_array(handles: &[i32], session: &Session) -> Result<StringArray> {
     let _lock = session.handle.1.lock();
     let length = crate::ffi::get_string_batch_size(handles, session)?;
     let bytes = if length > 0 {

@@ -5,12 +5,11 @@
 //! Apart from the main graphical interface written in C++ and Python, Houdini also provides a C interface called [Houdini Engine](https://www.sidefx.com/products/houdini-engine/) or HAPI for short.
 //! Its goal is to bring the power of Houdini to other DCCs (Digital Content Creation) software and game engines.
 //!
-//! This crate aims to provide idiomatic Rust interface to HAPI and is built on top of [hapi-sys](https://crates.io/crates/hapi-sys),
-//! but **it doesn't depend on it**, i.e. the generated bindings file from `hapi-sys` is included in this crate.
+//! This crate aims to provide idiomatic Rust interface to Houdini Engine and is built on top of [hapi-sys](https://crates.io/crates/hapi-sys).
 //!
 //! **⚠ A valid **commercial** Houdini Engine license is required to use this crate ⚠**
 //!
-//! Thanks to Rust's powerful type system using the engine from Rust is very simple
+//! Thanks to Rust's powerful type system using the engine from Rust is very straightforward.
 //!
 //! # Example
 //! ```ignore
@@ -50,7 +49,7 @@
 //! # Design Overview
 //! This crates tries hard to be nice and easy to use, hiding the inconvenient C API as much as possible
 //! while also trying to keep function names clear and close to original.
-//! To archive this, the crate wraps every single bindgen-generated C struct in a new struct and provide getters/setters for its fields.
+//! To archive this, the crate wraps every single C struct in a new struct and provide getters/setters for its fields.
 //! All structs and enums have their `HAPI_` prefix removed.
 //!
 //! In addition all enum variants are shortened. This is done by custom post-processing in [hapi-sys](https://crates.io/crates/hapi-sys)
@@ -82,7 +81,7 @@
 //! ```
 //! Also some structs, don't provide a direct way of creating them as well as missing setters because while it's possible to create them in C (and in Rust)
 //! it doesn't make sense from a usability point of view, i.e you never need to create and modify a [`node::NodeInfo`] struct.
-//! Structs that you do need ability to create, implement [Default] and have `with_` and `set_` methods:
+//! Structs that you do need ability to create, implement [Default] and follow the `Builder Pattern` with convenient `with_` and `set_` methods:
 //! ```ignore
 //! let part_info = PartInfo::default()
 //!    .with_part_type(PartType::Mesh)
@@ -107,7 +106,21 @@
 //!
 //! # Error type
 //! All API calls return [`HapiError`] ([HAPI_Result](https://www.sidefx.com/docs/hengine/_h_a_p_i___common_8h.html#ac52e921ba2c7fc21a0f245678f76c836))
-//! Moreover, in case of error, the HapiError struct keeps a pointer to [session::Session] to retrieves the error message from the engine ad hoc.
+//! Moreover, **only** in case of error, the HapiError struct will keep a pointer to [session::Session] to retrieves the error message from the engine ad hoc.
+//!
+//!
+//! # Strings
+//! Houdini Engine being C API, which makes life harder for Rust when it comes to strings.
+//! The crate chose to accept some overhead related to string conversion in exchange for a nicer API and
+//! easy of use.
+//!
+//! For example getting/setting a parameter value will perform a conversion CString <-> String,
+//! but not in every situation such conversion is acceptable, for example reading heavy geometry string attributes
+//! can be very expensive since we have do potentially thousands of CString to String conversions.
+//!
+//! To aid this situation, the crate provides custom structs which implement different iterators,
+//! which return CString or String. See the [`stringhandle`] module for more info.
+//!
 //!
 pub mod asset;
 pub mod attribute;
@@ -118,7 +131,7 @@ pub mod material;
 pub mod node;
 pub mod parameter;
 pub mod session;
-mod stringhandle;
+pub mod stringhandle;
 
 pub use errors::{HapiError, Kind, Result};
 pub use ffi::enums;
