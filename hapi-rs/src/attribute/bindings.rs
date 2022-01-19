@@ -119,6 +119,7 @@ impl AttribAccess for _int_type {
         len: i32,
     ) -> Result<Vec<_int_type>> {
         unsafe {
+            debug_assert!(node.is_valid()?);
             let mut data_array = Vec::new();
             data_array.resize((len * info.inner.tupleSize) as usize, _int_type::default());
             // SAFETY: Most likely an error in C API, it should not modify the info object,
@@ -150,6 +151,7 @@ impl AttribAccess for _int_type {
         len: i32,
     ) -> Result<()> {
         unsafe {
+            debug_assert!(node.is_valid()?);
             raw::_set(
                 node.session.ptr(),
                 node.handle.0,
@@ -172,6 +174,7 @@ impl AttribAccess for _int_type {
     where
         [Self]: ToOwned<Owned = Vec<Self>>,
     {
+        debug_assert!(node.is_valid()?);
         let mut data = vec![_int_type::default(); info.inner.totalArrayElements as usize];
         let mut sizes = vec![0; info.inner.count as usize];
         unsafe {
@@ -203,6 +206,7 @@ impl AttribAccess for _int_type {
     where
         [Self]: ToOwned<Owned = Vec<Self>>,
     {
+        debug_assert!(node.is_valid()?);
         unsafe {
             raw::_set_array(
                 node.session.ptr(),
@@ -229,6 +233,7 @@ pub fn get_attribute_string_data(
     name: &CStr,
     attr_info: &HAPI_AttributeInfo,
 ) -> Result<StringArray> {
+    debug_assert!(node.is_valid()?);
     unsafe {
         let mut handles = Vec::new();
         let count = attr_info.count;
@@ -258,6 +263,7 @@ pub fn set_attribute_string_data(
     attr_info: &HAPI_AttributeInfo,
     array: &[&CStr],
 ) -> Result<()> {
+    debug_assert!(node.is_valid()?);
     unsafe {
         let mut array = Vec::from_iter(array.iter().map(|cs| cs.as_ptr()));
         raw::HAPI_SetAttributeStringData(
@@ -279,6 +285,7 @@ pub fn get_attribute_string_array_data(
     name: &CStr,
     info: &raw::HAPI_AttributeInfo,
 ) -> Result<StringMultiArray> {
+    debug_assert!(node.is_valid()?);
     unsafe {
         let mut data_array = vec![0; info.totalArrayElements as usize];
         let mut sizes_fixed_array = vec![0; info.count as usize];
@@ -311,6 +318,7 @@ pub fn set_attribute_string_array_data(
     data: &[&CStr],
     sizes: &[i32],
 ) -> Result<()> {
+    debug_assert!(node.is_valid()?);
     let mut array = Vec::from_iter(data.iter().map(|cs| cs.as_ptr()));
     unsafe {
         raw::HAPI_SetAttributeStringArrayData(

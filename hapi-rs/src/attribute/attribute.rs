@@ -101,6 +101,7 @@ impl StringAttr {
         StringAttr(_StringAttrData { info, name, node })
     }
     fn get(&self, part_id: i32) -> Result<StringArray> {
+        debug_assert!(self.0.node.is_valid()?);
         super::bindings::get_attribute_string_data(
             &self.0.node,
             part_id,
@@ -109,6 +110,7 @@ impl StringAttr {
         )
     }
     pub fn set(&self, part_id: i32, values: &[&str]) -> Result<()> {
+        debug_assert!(self.0.node.is_valid()?);
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
             values.iter().map(|s| CString::new(*s)).collect();
         let cstr = cstr?;
@@ -128,6 +130,7 @@ impl StringArrayAttr {
         StringArrayAttr(_StringAttrData { info, name, node })
     }
     pub fn get(&self, part_id: i32) -> Result<StringMultiArray> {
+        debug_assert!(self.0.node.is_valid()?);
         super::bindings::get_attribute_string_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
@@ -135,6 +138,7 @@ impl StringArrayAttr {
         )
     }
     pub fn set(&self, part_id: i32, values: &[&str], sizes: &[i32]) -> Result<()> {
+        debug_assert!(self.0.node.is_valid()?);
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
             values.iter().map(|s| CString::new(*s)).collect();
         let cstr = cstr?;

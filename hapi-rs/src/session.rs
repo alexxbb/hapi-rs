@@ -88,6 +88,7 @@ impl Session {
         key: &str,
         value: &T::Type,
     ) -> Result<()> {
+        debug_assert!(self.is_valid());
         T::set_value(self, key, value)
     }
 
@@ -95,10 +96,12 @@ impl Session {
         &self,
         key: &str,
     ) -> Result<<T::Type as ToOwned>::Owned> {
+        debug_assert!(self.is_valid());
         T::get_value(self, key)
     }
 
     pub fn get_server_variables(&self) -> Result<StringArray> {
+        debug_assert!(self.is_valid());
         let count = crate::ffi::get_server_env_var_count(self)?;
         let handles = crate::ffi::get_server_env_var_list(self, count)?;
         crate::stringhandle::get_string_array(&handles, self)
@@ -106,6 +109,7 @@ impl Session {
 
     pub fn initialize(&mut self, opts: &SessionOptions) -> Result<()> {
         debug!("Initializing session");
+        debug_assert!(self.is_valid());
         self.threaded = opts.threaded;
         self.cleanup = opts.cleanup;
         let res = crate::ffi::initialize_session(self, opts);
@@ -129,14 +133,17 @@ impl Session {
 
     pub fn cleanup(&self) -> Result<()> {
         debug!("Cleaning session");
+        debug_assert!(self.is_valid());
         crate::ffi::cleanup_session(self)
     }
 
     pub fn is_initialized(&self) -> bool {
+        debug_assert!(self.is_valid());
         crate::ffi::is_session_initialized(self)
     }
 
     pub fn create_input_node(&self, name: &str) -> Result<HoudiniNode> {
+        debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_node(self, &name)?;
         HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)
@@ -147,6 +154,7 @@ impl Session {
         label: impl Into<Option<&'a str>>,
         parent: Option<NodeHandle>,
     ) -> Result<HoudiniNode> {
+        debug_assert!(self.is_valid());
         HoudiniNode::create(name, label.into(), parent, self.clone(), false)
     }
 
@@ -156,40 +164,48 @@ impl Session {
         label: impl Into<Option<&'a str>>,
         parent: Option<NodeHandle>,
     ) -> Result<HoudiniNode> {
+        debug_assert!(self.is_valid());
         HoudiniNode::create_blocking(name, label.into(), parent, self.clone(), false)
     }
 
     pub fn save_hip(&self, name: &str, lock_nodes: bool) -> Result<()> {
         debug!("Saving hip file: {}", name);
+        debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         crate::ffi::save_hip(self, &name, lock_nodes)
     }
 
     pub fn load_hip(&self, name: &str, cook: bool) -> Result<()> {
         debug!("Loading hip file: {}", name);
+        debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         crate::ffi::load_hip(self, &name, cook)
     }
 
     pub fn merge_hip(&self, name: &str, cook: bool) -> Result<i32> {
         debug!("Merging hip file: {}", name);
+        debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         crate::ffi::merge_hip(self, &name, cook)
     }
 
     pub fn load_asset_file(&self, file: impl AsRef<str>) -> Result<AssetLibrary> {
+        debug_assert!(self.is_valid());
         AssetLibrary::from_file(self.clone(), file)
     }
 
     pub fn interrupt(&self) -> Result<()> {
+        debug_assert!(self.is_valid());
         crate::ffi::interrupt(self)
     }
 
     pub fn get_status(&self, flag: StatusType) -> Result<State> {
+        debug_assert!(self.is_valid());
         crate::ffi::get_status(self, flag)
     }
 
     pub fn is_cooking(&self) -> Result<bool> {
+        debug_assert!(self.is_valid());
         Ok(matches!(
             self.get_status(StatusType::CookState)?,
             State::Cooking
@@ -201,6 +217,7 @@ impl Session {
     }
 
     pub fn get_string(&self, handle: i32) -> Result<String> {
+        debug_assert!(self.is_valid());
         crate::stringhandle::get_string(handle, self)
     }
 
@@ -209,23 +226,28 @@ impl Session {
         status: StatusType,
         verbosity: StatusVerbosity,
     ) -> Result<String> {
+        debug_assert!(self.is_valid());
         crate::ffi::get_status_string(self, status, verbosity)
     }
 
     pub fn get_cook_result_string(&self, verbosity: StatusVerbosity) -> Result<String> {
+        debug_assert!(self.is_valid());
         self.get_status_string(StatusType::CookResult, verbosity)
     }
 
     pub fn cooking_total_count(&self) -> Result<i32> {
+        debug_assert!(self.is_valid());
         crate::ffi::get_cooking_total_count(self)
     }
 
     pub fn cooking_current_count(&self) -> Result<i32> {
+        debug_assert!(self.is_valid());
         crate::ffi::get_cooking_current_count(self)
     }
 
     /// In threaded mode wait for Session finishes cooking. In single thread mode, immediately return
     pub fn cook(&self) -> Result<CookResult> {
+        debug_assert!(self.is_valid());
         if self.threaded {
             loop {
                 match self.get_status(StatusType::CookState)? {
@@ -248,14 +270,17 @@ impl Session {
     }
 
     pub fn get_connection_error(&self, clear: bool) -> Result<String> {
+        debug_assert!(self.is_valid());
         crate::ffi::get_connection_error(clear)
     }
 
     pub fn get_time(&self) -> Result<f32> {
+        debug_assert!(self.is_valid());
         crate::ffi::get_time(self)
     }
 
     pub fn set_time(&self, time: f32) -> Result<()> {
+        debug_assert!(self.is_valid());
         crate::ffi::set_time(self, time)
     }
 
@@ -264,37 +289,46 @@ impl Session {
     }
 
     pub fn set_timeline_options(&self, options: TimelineOptions) -> Result<()> {
+        debug_assert!(self.is_valid());
         crate::ffi::set_timeline_options(self, &options.inner)
     }
 
     pub fn get_timeline_options(&self) -> Result<TimelineOptions> {
+        debug_assert!(self.is_valid());
         crate::ffi::get_timeline_options(self).map(|opt| TimelineOptions { inner: opt })
     }
 
     pub fn set_use_houdini_time(&self, do_use: bool) -> Result<()> {
+        debug_assert!(self.is_valid());
         crate::ffi::set_use_houdini_time(self, do_use)
     }
 
     pub fn get_viewport(&self) -> Result<Viewport> {
+        debug_assert!(self.is_valid());
         crate::ffi::get_viewport(self).map(|inner| Viewport { inner })
     }
 
     pub fn set_viewport(&self, viewport: &Viewport) -> Result<()> {
+        debug_assert!(self.is_valid());
         crate::ffi::set_viewport(self, viewport)
     }
 
     pub fn set_sync(&self, enable: bool) -> Result<()> {
+        debug_assert!(self.is_valid());
         crate::ffi::set_session_sync(self, enable)
     }
     pub fn get_sync_info(&self) -> Result<SessionSyncInfo> {
+        debug_assert!(self.is_valid());
         crate::ffi::get_session_sync_info(self).map(|inner| SessionSyncInfo { inner })
     }
 
     pub fn set_sync_info(&self, info: &SessionSyncInfo) -> Result<()> {
+        debug_assert!(self.is_valid());
         crate::ffi::set_session_sync_info(self, &info.inner)
     }
 
     pub fn get_license_type(&self) -> Result<License> {
+        debug_assert!(self.is_valid());
         crate::ffi::session_get_license_type(self)
     }
 }

@@ -345,16 +345,16 @@ pub fn get_node_info(node: NodeHandle, session: &Session) -> Result<raw::HAPI_No
     }
 }
 
-pub fn is_node_valid(info: &super::NodeInfo) -> Result<bool> {
+pub fn is_node_valid(session: &Session, info: &raw::HAPI_NodeInfo) -> Result<bool> {
     unsafe {
         let mut answer = uninit!();
         raw::HAPI_IsNodeValid(
-            info.session.ptr(),
-            info.inner.id,
-            info.inner.uniqueHoudiniNodeId,
+            session.ptr(),
+            info.id,
+            info.uniqueHoudiniNodeId,
             answer.as_mut_ptr(),
         )
-        .check_err(Some(&info.session))?;
+            .check_err(Some(session))?;
         Ok(answer.assume_init() == 1)
     }
 }

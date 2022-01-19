@@ -128,16 +128,19 @@ pub struct AssetLibrary {
 impl AssetLibrary {
     pub fn from_file(session: Session, file: impl AsRef<str>) -> Result<AssetLibrary> {
         debug!("Loading library: {}", file.as_ref());
+        debug_assert!(session.is_valid());
         let cs = CString::new(file.as_ref())?;
         let lib_id = crate::ffi::load_library_from_file(&cs, &session, true)?;
         Ok(AssetLibrary { lib_id, session })
     }
 
     pub fn get_asset_count(&self) -> Result<i32> {
+        debug_assert!(self.session.is_valid());
         crate::ffi::get_asset_count(self.lib_id, &self.session)
     }
 
     pub fn get_asset_names(&self) -> Result<Vec<String>> {
+        debug_assert!(self.session.is_valid());
         let num_assets = self.get_asset_count()?;
         crate::ffi::get_asset_names(self.lib_id, num_assets, &self.session)
             .map(|a| a.into_iter().collect())
@@ -145,11 +148,13 @@ impl AssetLibrary {
 
     /// Returns the name of first asset in the library
     pub fn get_first_name(&self) -> Result<Option<String>> {
+        debug_assert!(self.session.is_valid());
         self.get_asset_names().map(|names| names.first().cloned())
     }
 
     /// Try to create the first available asset in the library
     pub fn try_create_first(&self) -> Result<HoudiniNode> {
+        debug_assert!(self.session.is_valid());
         let name = self
             .get_first_name()?
             .ok_or_else(|| crate::errors::HapiError {
@@ -161,9 +166,10 @@ impl AssetLibrary {
     }
 
     pub fn get_asset_parms(&self, asset: impl AsRef<str>) -> Result<AssetParameters> {
+        debug_assert!(self.session.is_valid());
         let _lock = self.session.handle.1.lock();
         let asset_name = String::from(asset.as_ref());
-        log::debug!("Reading asset parameter list of {}", asset_name);
+        log::debug!("Reading asset parameter list of {asset_name}");
         let asset_name = CString::new(asset_name)?;
         let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &asset_name, &self.session)?;
         let infos = crate::ffi::get_asset_def_parm_info(

@@ -146,7 +146,7 @@ impl Geometry {
     pub fn partitions(&self) -> Result<Vec<PartInfo>> {
         #[cfg(debug_assertions)]
         if self.node.info.total_cook_count() == 0 {
-            log::warn!("Node {} not cooked", self.node.path(None)?);
+            log::warn!("Node {} not cooked", self.node.path()?);
         }
         (0..self.info.part_count())
             .map(|i| self.part_info(i))

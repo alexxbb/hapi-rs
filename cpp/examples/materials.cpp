@@ -27,7 +27,7 @@ static std::string getString(HAPI_StringHandle stringHandle);
 
 int
 main(int argc, char **argv) {
-    const char *hdaFile = argc == 2 ? argv[1] : "otls/SideFX__spaceship.otl";
+    const char *hdaFile = argc == 2 ? argv[1] : "../otls/sesi/SideFX_spaceship.otl";
 
     HAPI_CookOptions cookOptions = HAPI_CookOptions_Create();
 
@@ -163,7 +163,7 @@ main(int argc, char **argv) {
         int destinationFilePath;
 
         ENSURE_SUCCESS(HAPI_ExtractImageToFile(&session, materialNodeInfo.id, nullptr,
-                                               imagePlaneName.c_str(), "./otls/", nullptr, &destinationFilePath));
+                                               imagePlaneName.c_str(), ".", nullptr, &destinationFilePath));
     }
 
     char in;

@@ -29,6 +29,7 @@ impl Material {
     }
 
     pub fn render_texture(&self, parm_name: &str) -> Result<()> {
+        debug_assert!(self.session.is_valid());
         let name = CString::new(parm_name)?;
         let id = crate::ffi::get_parm_id_from_name(&name, self.node_handle(), &self.session)?;
         crate::ffi::render_texture_to_image(&self.session, self.node_handle(), ParmHandle(id, ()))
@@ -39,6 +40,7 @@ impl Material {
         image_planes: impl AsRef<str>,
         path: impl AsRef<Path>,
     ) -> Result<String> {
+        debug_assert!(self.session.is_valid());
         let path = path.as_ref();
         let format = CString::new(
             path.extension()
@@ -67,6 +69,7 @@ impl Material {
     }
 
     pub fn extract_image_to_memory(&self, image_planes: &str, format: &str) -> Result<Vec<i8>> {
+        debug_assert!(self.session.is_valid());
         let format = CString::new(format)?;
         let image_planes = CString::new(image_planes)?;
         crate::ffi::extract_image_to_memory(
@@ -78,21 +81,25 @@ impl Material {
     }
 
     pub fn set_image_info(&self, info: &ImageInfo) -> Result<()> {
+        debug_assert!(self.session.is_valid());
         crate::ffi::set_image_info(&self.session, self.node_handle(), info)
     }
 
     pub fn get_image_info(&self) -> Result<ImageInfo> {
+        debug_assert!(self.session.is_valid());
         crate::ffi::get_image_info(&self.session, self.node_handle())
             .map(|inner| ImageInfo { inner })
     }
 
     pub fn get_image_planes(&self) -> Result<Vec<String>> {
+        debug_assert!(self.session.is_valid());
         crate::ffi::get_image_planes(&self.session, self.node_handle())
             .map(|a| a.into_iter().collect())
     }
 }
 
 pub fn get_supported_image_formats(session: &Session) -> Result<Vec<ImageFileFormat<'_>>> {
+    debug_assert!(session.is_valid());
     crate::ffi::get_supported_image_file_formats(session).map(|v| {
         v.into_iter()
             .map(|inner| ImageFileFormat { inner, session })

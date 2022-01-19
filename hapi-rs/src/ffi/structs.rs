@@ -236,12 +236,12 @@ impl ParmInfo {
 // TODO: Get rid of session here?
 pub struct NodeInfo {
     pub(crate) inner: HAPI_NodeInfo,
-    pub(crate) session: Session,
+    // pub(crate) session: Session,
 }
 
 impl NodeInfo {
-    get!(name->nameSH->Result<String>);
-    get!(internal_path->internalNodePathSH->Result<String>);
+    get!(with_session name->nameSH->Result<String>);
+    get!(with_session internal_path->internalNodePathSH->Result<String>);
     get!(node_type->type_->NodeType);
     get!(is_valid->isValid->bool);
     get!(unique_node_id->uniqueHoudiniNodeId->i32);
@@ -263,9 +263,9 @@ impl NodeInfo {
 impl std::fmt::Debug for NodeInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NodeInfo")
-            .field("name", &self.name().unwrap())
-            .field("internal_path", &self.internal_path().unwrap())
-            .field("type", &crate::node::node_type_name(self.node_type()))
+         .field("nameSH", &self.inner.nameSH)
+         .field("internalPathSH", &self.inner.internalNodePathSH)
+         .field("type", &crate::node::node_type_name(self.node_type()))
             .field("is_valid", &self.is_valid())
             .field("time_dependent", &self.is_time_dependent())
             .field("total_cook_count", &self.total_cook_count())

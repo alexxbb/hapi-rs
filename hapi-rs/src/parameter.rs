@@ -29,6 +29,7 @@ pub trait ParmBaseTrait {
             return Ok(None);
         }
         let wrap = self.wrap();
+        debug_assert!(wrap.info.session.is_valid());
         let parms = crate::ffi::get_parm_choice_list(
             wrap.node,
             &wrap.info.session,
@@ -47,18 +48,21 @@ pub trait ParmBaseTrait {
     }
     fn expression(&self, index: i32) -> Result<String> {
         let wrap = self.wrap();
+        debug_assert!(wrap.info.session.is_valid());
         let name = wrap.info.name_cstr()?;
         crate::ffi::get_parm_expression(wrap.node, &wrap.info.session, &name, index)
     }
 
     fn has_expression(&self, index: i32) -> Result<bool> {
         let wrap = self.wrap();
+        debug_assert!(wrap.info.session.is_valid());
         let name = wrap.info.name_cstr()?;
         crate::ffi::parm_has_expression(wrap.node, &wrap.info.session, &name, index)
     }
 
     fn set_expression(&self, value: &str, index: i32) -> Result<()> {
         let wrap = self.wrap();
+        debug_assert!(wrap.info.session.is_valid());
         let value = CString::new(value)?;
         crate::ffi::set_parm_expression(
             wrap.node,
@@ -76,6 +80,7 @@ pub trait ParmBaseTrait {
 
     fn set_anim_curve(&self, index: i32, keys: &[KeyFrame]) -> Result<()> {
         let wrap = self.wrap();
+        debug_assert!(wrap.info.session.is_valid());
         let keys =
             unsafe { std::mem::transmute::<&[KeyFrame], &[crate::ffi::raw::HAPI_Keyframe]>(keys) };
         crate::ffi::set_parm_anim_curve(&wrap.info.session, wrap.node, wrap.info.id(), index, keys)
@@ -87,11 +92,13 @@ pub struct ParmHandle(pub crate::ffi::raw::HAPI_ParmId, pub(crate) ());
 
 impl ParmHandle {
     pub fn from_name(name: &str, node: &HoudiniNode) -> Result<Self> {
+        debug_assert!(node.is_valid()?);
         let name = CString::new(name)?;
         let id = crate::ffi::get_parm_id_from_name(&name, node.handle, &node.session)?;
         Ok(ParmHandle(id, ()))
     }
     pub fn info(&self, node: &HoudiniNode) -> Result<ParmInfo> {
+        debug_assert!(node.is_valid()?);
         let info = crate::ffi::get_parm_info(node.handle, &node.session, *self)?;
         Ok(ParmInfo {
             inner: info,
@@ -102,6 +109,7 @@ impl ParmHandle {
 
 impl ParmInfo {
     pub fn from_parm_name(name: &str, node: &HoudiniNode) -> Result<Self> {
+        debug_assert!(node.is_valid()?);
         let name = CString::new(name)?;
         let info = crate::ffi::get_parm_info_from_name(node.handle, &node.session, &name);
         info.map(|info| ParmInfo {
@@ -178,6 +186,7 @@ impl Parameter {
 
     pub fn parent(&self) -> Result<Option<ParmInfo>> {
         let wrap = self.base();
+        debug_assert!(wrap.info.session.is_valid());
         match wrap.info.parent_id() {
             ParmHandle(-1, ()) => Ok(None),
             handle => {
@@ -210,9 +219,11 @@ impl ParmBaseTrait for FloatParameter {
     }
 
     fn get_value(&self) -> Result<Vec<Self::ValueType>> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
         crate::ffi::get_parm_float_values(
             self.wrap.node,
-            &self.wrap.info.session,
+            session,
             self.wrap.info.float_values_index(),
             self.wrap.info.size(),
         )
@@ -222,9 +233,11 @@ impl ParmBaseTrait for FloatParameter {
     where
         T: AsRef<[Self::ValueType]>,
     {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
         crate::ffi::set_parm_float_values(
             self.wrap.node,
-            &self.wrap.info.session,
+            session,
             self.wrap.info.float_values_index(),
             self.wrap.info.size(),
             val.as_ref(),
@@ -240,9 +253,11 @@ impl ParmBaseTrait for IntParameter {
     }
 
     fn get_value(&self) -> Result<Vec<Self::ValueType>> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
         crate::ffi::get_parm_int_values(
             self.wrap.node,
-            &self.wrap.info.session,
+            session,
             self.wrap.info.int_values_index(),
             self.wrap.info.size(),
         )
@@ -252,9 +267,11 @@ impl ParmBaseTrait for IntParameter {
     where
         T: AsRef<[Self::ValueType]>,
     {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
         crate::ffi::set_parm_int_values(
             self.wrap.node,
-            &self.wrap.info.session,
+            session,
             self.wrap.info.int_values_index(),
             self.wrap.info.size(),
             val.as_ref(),
@@ -279,14 +296,16 @@ impl ParmBaseTrait for StringParameter {
     }
 
     fn get_value(&self) -> Result<Vec<String>> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
         Ok(crate::ffi::get_parm_string_values(
             self.wrap.node,
-            &self.wrap.info.session,
+            session,
             self.wrap.info.string_values_index(),
             self.wrap.info.size(),
         )?
-        .into_iter()
-        .collect::<Vec<_>>())
+            .into_iter()
+            .collect::<Vec<_>>())
     }
 
     // TODO Maybe take it out of the trait? AsRef makes it an extra String copy. Consider ToOwned?
@@ -303,9 +322,11 @@ impl ParmBaseTrait for StringParameter {
             .iter()
             .map(|s| CString::new(s.clone()))
             .collect();
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
         crate::ffi::set_parm_string_values(
             self.wrap.node,
-            &self.wrap.info.session,
+            session,
             &self.wrap.info.id(),
             &c_str?,
         )
