@@ -1,3 +1,5 @@
+//! Session is responsible for communicating with HAPI
+//!
 #[rustfmt::skip]
 use std::{
     ffi::CString,

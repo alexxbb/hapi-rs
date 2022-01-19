@@ -19,8 +19,8 @@ fn main() -> Result<()> {
             for part_info in geometry.partitions()? {
                 println!(
                     "Object: {}, Display: {}, Partition: {}",
-                    obj_node.path(None)?,
-                    geometry.node.path(Some(obj_node.handle))?,
+                    obj_node.path()?,
+                    geometry.node.path_relative(Some(obj_node.handle))?,
                     part_info.part_id()
                 );
                 let attrib_names =

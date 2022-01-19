@@ -1,3 +1,4 @@
+//! For loading digital assets and reading their parameters
 use crate::ffi::raw as ffi;
 use crate::ffi::raw::{ChoiceListType, ParmType};
 use crate::{

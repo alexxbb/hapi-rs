@@ -1,3 +1,14 @@
+//! Manipulating Houdini nodes and networks, getting geometry and parameters
+//!
+//! Any Houdini nodes is represented as [`HoudiniNode`] struct and all node-related functions are exposed as
+//! methods on that struct. It has a public `info` filed with [`NodeInfo`] with details about the node.
+//!
+//! Nodes can be created directly with `HoudiniNode::create()` functions but a recommended way is
+//! through the session object: [`session::Session::create_node`]
+//!
+//! Newly created nodes need to be cooked, so `create_node` should follow by [`Session::cook`]
+//! or use a convenient function [`Session::create_node_blocking`]
+//!
 use std::sync::Arc;
 use std::{ffi::CString, fmt::Formatter};
 
@@ -35,9 +46,7 @@ pub const fn node_type_name(tp: NodeType) -> &'static str {
 impl crate::ffi::NodeInfo {
     pub fn new(session: &Session, node: NodeHandle) -> Result<Self> {
         let info = crate::ffi::get_node_info(node, session)?;
-        Ok(crate::ffi::NodeInfo {
-            inner: info,
-        })
+        Ok(crate::ffi::NodeInfo { inner: info })
     }
 }
 
@@ -70,9 +79,9 @@ pub struct HoudiniNode {
 impl std::fmt::Debug for HoudiniNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HoudiniNode")
-         .field("id", &self.handle.0)
-         .field("path", &self.path().unwrap())
-         .finish()
+            .field("id", &self.handle.0)
+            .field("path", &self.path().unwrap())
+            .finish()
     }
 }
 

@@ -1,3 +1,4 @@
+//! String handling utilities and iterators
 use std::ffi::{CStr, CString};
 use std::fmt::Formatter;
 

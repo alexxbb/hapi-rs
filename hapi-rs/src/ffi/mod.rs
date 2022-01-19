@@ -13,6 +13,9 @@ pub(crate) mod raw {
 pub(crate) use functions::*;
 pub use structs::*;
 
+/// All Engine API enums are here
+///
+/// Refer to [Houdini documentation](https://www.sidefx.com/docs/hengine/_h_a_p_i___common_8h.html#ab8e5b8743050848e96767af662b23f1d)
 pub mod enums {
     pub use super::bindings::{
         AttributeOwner, AttributeTypeInfo, CacheProperty, ChoiceListType, CurveOrders, CurveType,

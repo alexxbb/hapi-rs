@@ -1,3 +1,4 @@
+//! Access to geometry data, attributes, reading and writing to disk
 #![allow(unused)]
 use std::ffi::{CStr, CString};
 

@@ -1,3 +1,4 @@
+//! Reading and setting node parameters, setting expressions and keyframes.
 use std::ffi::CString;
 
 use log::warn;
@@ -304,8 +305,8 @@ impl ParmBaseTrait for StringParameter {
             self.wrap.info.string_values_index(),
             self.wrap.info.size(),
         )?
-            .into_iter()
-            .collect::<Vec<_>>())
+        .into_iter()
+        .collect::<Vec<_>>())
     }
 
     // TODO Maybe take it out of the trait? AsRef makes it an extra String copy. Consider ToOwned?
@@ -324,12 +325,7 @@ impl ParmBaseTrait for StringParameter {
             .collect();
         let session = &self.wrap.info.session;
         debug_assert!(self.wrap.node.is_valid(session)?);
-        crate::ffi::set_parm_string_values(
-            self.wrap.node,
-            session,
-            &self.wrap.info.id(),
-            &c_str?,
-        )
+        crate::ffi::set_parm_string_values(self.wrap.node, session, &self.wrap.info.id(), &c_str?)
     }
 }
 

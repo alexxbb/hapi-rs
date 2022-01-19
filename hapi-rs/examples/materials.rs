@@ -15,7 +15,7 @@ fn main() -> Result<()> {
         Materials::Multiple(_) => panic!("All materials should be the same"),
     };
     let mat_node = material.node()?;
-    let node_path = node.path(None)?;
+    let node_path = node.path()?;
     println!("Material node: {node_path}");
 
     if let Parameter::String(p) = mat_node.parameter("baseColorMap")? {

@@ -1,3 +1,5 @@
+//! Rendering material textures to memory or disk
+//!
 use crate::ffi::ImageFileFormat;
 use crate::ffi::{raw::HAPI_MaterialInfo, ImageInfo};
 use crate::node::{HoudiniNode, NodeHandle};

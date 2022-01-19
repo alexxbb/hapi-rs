@@ -92,8 +92,8 @@
 //! Engine [promises](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html#HAPI_Sessions_Multithreading)
 //! to be thread-safe when accessing a single `Session` from multiple threads.
 //! `hapi-rs` relies on this promise and the [session::Session] struct holds only an `Arc` pointer to the session,
-//! so it's `Send` and `Sync` in Rust, and a few occasions it internally uses a [parking_lot::ReentrantMutex] for
-//! making sure a series of API calls from the same thread are sequential.
+//! and *does not* protect the session with Mutex, although there is a [parking_lot::ReentrantMutex]
+//! private member which is used internally in a few cases where API calls must be sequential.
 //!
 //! When the last instance of the `Session` is about to drop, it'll be cleaned
 //! (if [session::SessionOptions::cleanup] was set) and automatically closed.
@@ -102,6 +102,17 @@
 //! See [session:start_engine_pipe_server] and [session::start_engine_socket_server]
 //!
 //! [session::quick_session] terminates the server by default. This is useful for quick one-off jobs.
+//!
+//! # Nodes
+//! Any Houdini nodes is represented as [`node::HoudiniNode`] struct and all node-related functions are
+//! methods on that struct. It has a public `info` filed with [`node::NodeInfo`] with details about the node.
+//!
+//! See the [`node`] module for details.
+//!
+//! # Geometry
+//! [`geometry::Geometry`] is a wrapper around `HoudiniNode` with methods for accessing geometry.
+//!
+//! See the [`geometry'] module for details.
 //!
 //!
 //! # Error type
