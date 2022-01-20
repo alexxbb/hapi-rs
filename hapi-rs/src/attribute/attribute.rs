@@ -49,9 +49,11 @@ where
         })
     }
     pub fn get(&self, part_id: i32) -> Result<DataArray<T>> {
+        debug_assert_eq!(self.0.info.storage(), T::storage());
         T::get_array(&self.0.name, &self.0.node, &self.0.info, part_id)
     }
     pub fn set(&self, part_id: i32, values: &DataArray<T>) -> Result<()> {
+        debug_assert_eq!(self.0.info.storage(), T::storage());
         T::set_array(
             &self.0.name,
             &self.0.node,
@@ -73,6 +75,7 @@ impl<T: AttribAccess> NumericAttr<T> {
         })
     }
     pub fn get(&self, part_id: i32) -> Result<Vec<T>> {
+        debug_assert_eq!(self.0.info.storage(), T::storage());
         T::get(
             &self.0.name,
             &self.0.node,
@@ -84,6 +87,7 @@ impl<T: AttribAccess> NumericAttr<T> {
         )
     }
     pub fn set(&self, part_id: i32, values: &[T]) -> Result<()> {
+        debug_assert_eq!(self.0.info.storage(), T::storage());
         T::set(
             &self.0.name,
             &self.0.node,

@@ -6,6 +6,7 @@ use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
     enums::*, AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, PartInfo, Transform,
+    VolumeInfo, VolumeTileInfo, VolumeVisualInfo,
 };
 use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
@@ -65,6 +66,10 @@ impl Geometry {
 
     pub fn part_info(&self, part_id: i32) -> Result<PartInfo> {
         crate::ffi::get_part_info(&self.node, part_id).map(|inner| PartInfo { inner })
+    }
+
+    pub fn volume_info(&self, part_id: i32) -> Result<VolumeInfo> {
+        crate::ffi::get_volume_info(&self.node, part_id).map(|inner| VolumeInfo { inner })
     }
 
     pub fn geo_info(&self) -> Result<GeoInfo> {
@@ -287,6 +292,7 @@ impl Geometry {
         part_id: i32,
         info: AttributeInfo,
     ) -> Result<NumericAttr<T>> {
+        debug_assert_eq!(info.storage(), T::storage());
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(NumericAttr::<T>::new(name, info, self.node.clone()))
@@ -302,6 +308,7 @@ impl Geometry {
         T: AttribAccess,
         [T]: ToOwned<Owned = Vec<T>>,
     {
+        debug_assert_eq!(info.storage(), T::storage());
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(NumericArrayAttr::<T>::new(name, info, self.node.clone()))

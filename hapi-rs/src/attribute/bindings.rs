@@ -49,7 +49,7 @@ pub trait AttribAccess: Sized + 'static {
 
 #[duplicate(
 [
-_int_type [u8]
+_val_type [u8]
 _storage [StorageType::Uint8]
 _get [HAPI_GetAttributeUInt8Data]
 _set [HAPI_SetAttributeUInt8Data]
@@ -57,7 +57,7 @@ _get_array [HAPI_GetAttributeUInt8ArrayData]
 _set_array [HAPI_SetAttributeUInt8ArrayData]
 ]
 [
-_int_type [i8]
+_val_type [i8]
 _storage [StorageType::Int8]
 _get [HAPI_GetAttributeInt8Data]
 _set [HAPI_SetAttributeInt8Data]
@@ -65,7 +65,7 @@ _get_array [HAPI_GetAttributeInt8ArrayData]
 _set_array [HAPI_SetAttributeInt8ArrayData]
 ]
 [
-_int_type [i16]
+_val_type [i16]
 _storage [StorageType::Int16]
 _get [HAPI_GetAttributeInt16Data]
 _set [HAPI_SetAttributeInt16Data]
@@ -73,7 +73,7 @@ _get_array [HAPI_GetAttributeInt16ArrayData]
 _set_array [HAPI_SetAttributeInt16ArrayData]
 ]
 [
-_int_type [i32]
+_val_type [i32]
 _storage [StorageType::Int]
 _get [HAPI_GetAttributeIntData]
 _set [HAPI_SetAttributeIntData]
@@ -81,7 +81,7 @@ _get_array [HAPI_GetAttributeIntArrayData]
 _set_array [HAPI_SetAttributeIntArrayData]
 ]
 [
-_int_type [i64]
+_val_type [i64]
 _storage [StorageType::Int64]
 _get [HAPI_GetAttributeInt64Data]
 _set [HAPI_SetAttributeInt64Data]
@@ -89,7 +89,7 @@ _get_array [HAPI_GetAttributeInt64ArrayData]
 _set_array [HAPI_SetAttributeInt64ArrayData]
 ]
 [
-_int_type [f32]
+_val_type [f32]
 _storage [StorageType::Float]
 _get [HAPI_GetAttributeFloatData]
 _set [HAPI_SetAttributeFloatData]
@@ -97,7 +97,7 @@ _get_array [HAPI_GetAttributeFloatArrayData]
 _set_array [HAPI_SetAttributeFloatArrayData]
 ]
 [
-_int_type [f64]
+_val_type [f64]
 _storage [StorageType::Float64]
 _get [HAPI_GetAttributeFloat64Data]
 _set [HAPI_SetAttributeFloat64Data]
@@ -105,7 +105,7 @@ _get_array [HAPI_GetAttributeFloat64ArrayData]
 _set_array [HAPI_SetAttributeFloat64ArrayData]
 ]
 )]
-impl AttribAccess for _int_type {
+impl AttribAccess for _val_type {
     fn storage() -> StorageType {
         _storage
     }
@@ -117,11 +117,11 @@ impl AttribAccess for _int_type {
         stride: i32,
         start: i32,
         len: i32,
-    ) -> Result<Vec<_int_type>> {
+    ) -> Result<Vec<_val_type>> {
         unsafe {
             debug_assert!(node.is_valid()?);
             let mut data_array = Vec::new();
-            data_array.resize((len * info.inner.tupleSize) as usize, _int_type::default());
+            data_array.resize((len * info.inner.tupleSize) as usize, _val_type::default());
             // SAFETY: Most likely an error in C API, it should not modify the info object,
             // but for some reason it wants a mut pointer
             let attr_info = &info.inner as *const _ as *mut HAPI_AttributeInfo;
@@ -146,7 +146,7 @@ impl AttribAccess for _int_type {
         node: &HoudiniNode,
         info: &AttributeInfo,
         part: i32,
-        data: &[Self],
+        data: &[_val_type],
         start: i32,
         len: i32,
     ) -> Result<()> {
@@ -175,7 +175,7 @@ impl AttribAccess for _int_type {
         [Self]: ToOwned<Owned = Vec<Self>>,
     {
         debug_assert!(node.is_valid()?);
-        let mut data = vec![_int_type::default(); info.inner.totalArrayElements as usize];
+        let mut data = vec![_val_type::default(); info.inner.totalArrayElements as usize];
         let mut sizes = vec![0; info.inner.count as usize];
         unsafe {
             raw::_get_array(
@@ -200,7 +200,7 @@ impl AttribAccess for _int_type {
         node: &HoudiniNode,
         info: &AttributeInfo,
         part: i32,
-        data: &[Self],
+        data: &[_val_type],
         sizes: &[i32],
     ) -> Result<()>
     where

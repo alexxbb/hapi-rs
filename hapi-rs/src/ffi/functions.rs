@@ -354,7 +354,7 @@ pub fn is_node_valid(session: &Session, info: &raw::HAPI_NodeInfo) -> Result<boo
             info.uniqueHoudiniNodeId,
             answer.as_mut_ptr(),
         )
-            .check_err(Some(session))?;
+        .check_err(Some(session))?;
         Ok(answer.assume_init() == 1)
     }
 }
@@ -1142,6 +1142,15 @@ pub fn get_part_info(node: &HoudiniNode, id: i32) -> Result<raw::HAPI_PartInfo> 
     unsafe {
         let mut info = uninit!();
         super::raw::HAPI_GetPartInfo(node.session.ptr(), node.handle.0, id, info.as_mut_ptr())
+            .check_err(Some(&node.session))?;
+        Ok(info.assume_init())
+    }
+}
+
+pub fn get_volume_info(node: &HoudiniNode, id: i32) -> Result<raw::HAPI_VolumeInfo> {
+    unsafe {
+        let mut info = uninit!();
+        super::raw::HAPI_GetVolumeInfo(node.session.ptr(), node.handle.0, id, info.as_mut_ptr())
             .check_err(Some(&node.session))?;
         Ok(info.assume_init())
     }

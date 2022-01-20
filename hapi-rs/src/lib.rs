@@ -45,6 +45,8 @@
 //! Make sure the environment variables are set as said above.
 //! `cargo run --examples ...`
 //!
+//! # API Coverage
+//! Currently only PDG APIs are not yet implemented.
 //!
 //! # Design Overview
 //! This crates tries hard to be nice and easy to use, hiding the inconvenient C API as much as possible
@@ -143,6 +145,7 @@ pub mod node;
 pub mod parameter;
 pub mod session;
 pub mod stringhandle;
+pub mod volume;
 
 pub use errors::{HapiError, Kind, Result};
 pub use ffi::enums;

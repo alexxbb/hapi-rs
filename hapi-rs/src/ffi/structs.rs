@@ -233,10 +233,8 @@ impl ParmInfo {
 }
 
 #[derive(Clone)]
-// TODO: Get rid of session here?
 pub struct NodeInfo {
     pub(crate) inner: HAPI_NodeInfo,
-    // pub(crate) session: Session,
 }
 
 impl NodeInfo {
@@ -263,9 +261,9 @@ impl NodeInfo {
 impl std::fmt::Debug for NodeInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NodeInfo")
-         .field("nameSH", &self.inner.nameSH)
-         .field("internalPathSH", &self.inner.internalNodePathSH)
-         .field("type", &crate::node::node_type_name(self.node_type()))
+            .field("nameSH", &self.inner.nameSH)
+            .field("internalPathSH", &self.inner.internalNodePathSH)
+            .field("type", &crate::node::node_type_name(self.node_type()))
             .field("is_valid", &self.is_valid())
             .field("time_dependent", &self.is_time_dependent())
             .field("total_cook_count", &self.total_cook_count())
@@ -603,3 +601,66 @@ impl<'a> ImageFileFormat<'a> {
     get!(description->descriptionSH->Result<String>);
     get!(extension->defaultExtensionSH->Result<String>);
 }
+
+#[derive(Debug, Clone)]
+pub struct VolumeInfo {
+    pub(crate) inner: HAPI_VolumeInfo,
+}
+
+wrap!(
+    impl VolumeInfo => HAPI_VolumeInfo;
+    [get+session] name->nameSH->[Result<String>];
+    [get] volume_type->type_->[VolumeType];
+    [get|set|with] x_length->xLength->[i32];
+    [get|set|with] y_length->yLength->[i32];
+    [get|set|with] z_length->zLength->[i32];
+    [get|set|with] min_x->minX->[i32];
+    [get|set|with] min_y->minY->[i32];
+    [get|set|with] min_z->minZ->[i32];
+    [get|set|with] tuple_size->tupleSize->[i32];
+    [get|set|with] storage->storage->[StorageType];
+    [get|set|with] tile_size->tileSize->[i32];
+    [get|set|with] has_taper->hasTaper->[bool];
+    [get|set|with] x_taper->xTaper->[f32];
+    [get|set|with] y_taper->yTaper->[f32];
+);
+
+impl VolumeInfo {
+    fn transform(&self) -> Transform {
+        Transform {
+            inner: self.inner.transform,
+        }
+    }
+    fn set_transform(&mut self, transform: Transform) {
+        self.inner.transform = transform.inner
+    }
+    fn with_transform(mut self, transform: Transform) -> Self {
+        self.inner.transform = transform.inner;
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct VolumeTileInfo {
+    pub(crate) inner: HAPI_VolumeTileInfo,
+}
+
+wrap!(
+    impl VolumeTileInfo => HAPI_VolumeTileInfo;
+    [get|set|with] min_x->minX->[i32];
+    [get|set|with] min_y->minY->[i32];
+    [get|set|with] min_z->minZ->[i32];
+    [get] is_valid->isValid->[bool];
+);
+
+#[derive(Debug, Clone)]
+pub struct VolumeVisualInfo {
+    pub(crate) inner: HAPI_VolumeVisualInfo,
+}
+
+wrap!(
+    impl VolumeVisualInfo => HAPI_VolumeVisualInfo;
+    [get|set|with] visual_type->type_->[VolumeVisualType];
+    [get|set|with] iso->iso->[f32];
+    [get|set|with] density->density->[f32];
+);
