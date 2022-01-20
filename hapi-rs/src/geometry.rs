@@ -12,6 +12,7 @@ use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::session::Session;
 use crate::stringhandle::StringArray;
+use crate::volume::VolumeBounds;
 
 macro_rules! unwrap_or_create {
     ($out:ident, $opt:expr, $default:expr) => {
@@ -70,6 +71,10 @@ impl Geometry {
 
     pub fn volume_info(&self, part_id: i32) -> Result<VolumeInfo> {
         crate::ffi::get_volume_info(&self.node, part_id).map(|inner| VolumeInfo { inner })
+    }
+
+    pub fn volume_bounds(&self, part_id: i32) -> Result<VolumeBounds> {
+        crate::ffi::get_volume_bounds(&self.node, part_id)
     }
 
     pub fn geo_info(&self) -> Result<GeoInfo> {

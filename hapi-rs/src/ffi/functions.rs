@@ -1156,6 +1156,28 @@ pub fn get_volume_info(node: &HoudiniNode, id: i32) -> Result<raw::HAPI_VolumeIn
     }
 }
 
+pub fn get_volume_bounds(node: &HoudiniNode, id: i32) -> Result<crate::volume::VolumeBounds> {
+    unsafe {
+        let mut b = crate::volume::VolumeBounds::default();
+        super::raw::HAPI_GetVolumeBounds(
+            node.session.ptr(),
+            node.handle.0,
+            id,
+            &mut b.x_min as *mut _,
+            &mut b.y_min as *mut _,
+            &mut b.z_min as *mut _,
+            &mut b.x_max as *mut _,
+            &mut b.y_max as *mut _,
+            &mut b.z_max as *mut _,
+            &mut b.x_center as *mut _,
+            &mut b.y_center as *mut _,
+            &mut b.z_center as *mut _,
+        )
+        .check_err(Some(&node.session))?;
+        Ok(b)
+    }
+}
+
 pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {
     unsafe {
         super::raw::HAPI_SetPartInfo(
