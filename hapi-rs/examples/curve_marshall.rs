@@ -2,7 +2,7 @@
 use hapi_rs::{attribute::*, geometry::*, session::*, Result};
 
 fn main() -> Result<()> {
-    let mut session = new_in_process()?;
+    let mut session = quick_session(None)?;
     session.initialize(&SessionOptions::default())?;
     let new_node = session.create_input_node("Curve")?;
     new_node.cook_blocking(None)?;
@@ -35,7 +35,7 @@ fn main() -> Result<()> {
         .with_tuple_size(3)
         .with_storage(StorageType::Float)
         .with_owner(AttributeOwner::Point);
-    let p_attrib = geom.add_numeric_attribute("P", 0, p_info)?;
+    let p_attrib = geom.add_numeric_attribute::<f32>("P", 0, p_info)?;
 
     #[rustfmt::skip]
         p_attrib.set(
