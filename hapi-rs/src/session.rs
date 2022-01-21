@@ -549,6 +549,9 @@ pub(crate) mod tests {
             .load_asset_file("../otls/hapi_geo.hda")
             .expect("load asset");
         session
+            .load_asset_file("../otls/hapi_vol.hda")
+            .expect("load asset");
+        session
             .load_asset_file("../otls/hapi_parms.hda")
             .expect("load asset");
         session

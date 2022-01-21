@@ -1156,6 +1156,74 @@ pub fn get_volume_info(node: &HoudiniNode, id: i32) -> Result<raw::HAPI_VolumeIn
     }
 }
 
+pub fn get_volume_first_tile_info(node: &HoudiniNode, id: i32) -> Result<raw::HAPI_VolumeTileInfo> {
+    unsafe {
+        let mut info = uninit!();
+        super::raw::HAPI_GetFirstVolumeTile(
+            node.session.ptr(),
+            node.handle.0,
+            id,
+            info.as_mut_ptr(),
+        )
+        .check_err(Some(&node.session))?;
+        Ok(info.assume_init())
+    }
+}
+
+pub fn get_volume_next_tile_info(
+    node: &HoudiniNode,
+    id: i32,
+    info: &mut raw::HAPI_VolumeTileInfo,
+) -> Result<()> {
+    unsafe {
+        super::raw::HAPI_GetNextVolumeTile(node.session.ptr(), node.handle.0, id, info as *mut _)
+            .check_err(Some(&node.session))?;
+        Ok(())
+    }
+}
+
+pub fn get_volume_tile_float_data(
+    node: &HoudiniNode,
+    part: i32,
+    fill_value: f32,
+    tiles: &mut [f32],
+    info: &mut raw::HAPI_VolumeTileInfo,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_GetVolumeTileFloatData(
+            node.session.ptr(),
+            node.handle.0,
+            part,
+            fill_value,
+            info as *mut _,
+            tiles.as_mut_ptr(),
+            tiles.len() as i32,
+        )
+        .check_err(Some(&node.session))
+    }
+}
+
+pub fn get_volume_tile_int_data(
+    node: &HoudiniNode,
+    part: i32,
+    fill_value: i32,
+    tiles: &mut [i32],
+    info: &mut raw::HAPI_VolumeTileInfo,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_GetVolumeTileIntData(
+            node.session.ptr(),
+            node.handle.0,
+            part,
+            fill_value,
+            info as *mut _,
+            tiles.as_mut_ptr(),
+            tiles.len() as i32,
+        )
+        .check_err(Some(&node.session))
+    }
+}
+
 pub fn get_volume_bounds(node: &HoudiniNode, id: i32) -> Result<crate::volume::VolumeBounds> {
     unsafe {
         let mut b = crate::volume::VolumeBounds::default();
