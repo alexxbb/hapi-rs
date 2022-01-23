@@ -550,34 +550,24 @@ impl Geometry {
         crate::ffi::load_geo_from_memory(&self.node.session, self.node.handle, data, format)
     }
 
-    pub fn get_first_volume_tile(&self, part: i32) -> Result<VolumeTileInfo> {
-        crate::ffi::get_volume_first_tile_info(&self.node, part)
-            .map(|inner| VolumeTileInfo { inner })
-    }
-
     pub fn read_volume_float(
         &self,
         part: i32,
         info: &VolumeInfo,
         fill_value: f32,
-        callback: impl Fn(&VolumeTileInfo, &mut [f32]),
-    ) -> Result<Vec<f32>> {
-        let mut tile = self.get_first_volume_tile(part)?;
-        let mut values = vec![fill_value; info.tile_size().pow(3) as usize];
-        while tile.is_valid() {
-            crate::ffi::get_volume_tile_float_data(
-                &self.node,
-                part,
-                0.0,
-                values.as_mut_slice(),
-                &mut tile.inner,
-            )?;
+        callback: impl Fn(&mut [f32], usize),
+    ) -> Result<()> {
+        crate::volume::read_volume(&self.node, info, part, fill_value, callback)
+    }
 
-            callback(&tile, values.as_mut_slice());
-            crate::ffi::get_volume_next_tile_info(&self.node, part, &mut tile.inner)?;
-        }
-
-        Ok(values)
+    pub fn read_volume_int(
+        &self,
+        part: i32,
+        info: &VolumeInfo,
+        fill_value: i32,
+        callback: impl Fn(&mut [i32], usize),
+    ) -> Result<()> {
+        crate::volume::read_volume(&self.node, info, part, fill_value, callback)
     }
 }
 
@@ -858,7 +848,10 @@ mod tests {
             let vol = node.geometry().unwrap().unwrap();
             let _info = vol.volume_info(0).unwrap();
             assert!(vol.volume_bounds(0).is_ok());
-            let values = vol.read_volume_float(0, &_info, -1.0, |_, _| {}).unwrap();
+            vol.read_volume_float(0, &_info, -1.0, |values, tile| {
+                dbg!(&values[0..10]);
+            })
+            .unwrap();
         });
     }
 }

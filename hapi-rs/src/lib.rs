@@ -19,7 +19,7 @@
 //!
 //! fn main() -> Result<()> {
 //!     // Quick session starts a standalone engine process
-//!     let session = quick_session(None)?;
+//!     let session = quick_session()?;
 //!     // Load a Houdini Asset, create a node
 //!     session.load_asset_file("otls/hapi_geo.hda")?;
 //!     let node = session.create_node_blocking("Object/hapi_geo", None, None)?;
@@ -123,7 +123,7 @@
 //!
 //!
 //! # Strings
-//! Houdini Engine being C API, which makes life harder for Rust when it comes to strings.
+//! Houdini Engine being C API, makes life harder for Rust when it comes to strings.
 //! The crate chose to accept some overhead related to string conversion in exchange for a nicer API and
 //! easy of use.
 //!

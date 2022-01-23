@@ -10,7 +10,7 @@ hou.hscript('set -g TEST=hapi')
 "#;
 
 fn main() -> Result<()> {
-    let ses = quick_session(None)?;
+    let ses = quick_session()?;
     let lib = ses.load_asset_file("otls/hapi_script.hda")?;
     let node = lib.try_create_first()?;
     if let Parameter::String(parm) = node.parameter("code")? {

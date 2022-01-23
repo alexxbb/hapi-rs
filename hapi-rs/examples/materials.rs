@@ -5,7 +5,7 @@ use hapi_rs::session::quick_session;
 use hapi_rs::Result;
 
 fn main() -> Result<()> {
-    let session = quick_session(None)?;
+    let session = quick_session()?;
     let lib = session.load_asset_file("otls/sesi/SideFX_spaceship.otl")?;
     let node = lib.try_create_first()?;
     node.cook(None)?;

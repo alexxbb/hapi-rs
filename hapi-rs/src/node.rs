@@ -524,7 +524,7 @@ mod tests {
 
     #[test]
     fn set_transform_anim() {
-        let session = crate::session::quick_session(None).unwrap();
+        let session = crate::session::quick_session().unwrap();
         let bone = session
             .create_node_blocking("Object/bone", None, None)
             .unwrap();

@@ -521,7 +521,7 @@ pub fn start_engine_socket_server(port: u16, auto_close: bool, timeout: i32) -> 
     crate::ffi::start_thrift_socket_server(port as i32, &opts)
 }
 
-pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
+pub fn quick_session() -> Result<Session> {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
     use std::time::SystemTime;
@@ -532,7 +532,7 @@ pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
     let file = file.to_string_lossy();
     start_engine_pipe_server(&file, true, 4000.0)?;
     let mut session = connect_to_pipe(&file)?;
-    session.initialize(options.unwrap_or(&SessionOptions::default()))?;
+    session.initialize(&SessionOptions::default())?;
     Ok(session)
 }
 
@@ -544,7 +544,7 @@ pub(crate) mod tests {
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         env_logger::init();
-        let session = quick_session(None).expect("Could not create test session");
+        let session = quick_session().expect("Could not create test session");
         session
             .load_asset_file("../otls/hapi_geo.hda")
             .expect("load asset");
@@ -586,7 +586,7 @@ pub(crate) mod tests {
         let mut opt = super::SessionOptions::default();
         opt.set_dso_search_paths(["/path/one", "/path/two"]);
         opt.set_otl_search_paths(["/path/thee", "/path/four"]);
-        let mut ses = super::quick_session(Some(&opt)).unwrap();
+        let mut ses = super::quick_session().unwrap();
         assert!(ses.is_initialized());
         assert!(ses.is_valid());
         assert!(ses.cleanup().is_ok());
@@ -612,7 +612,7 @@ pub(crate) mod tests {
     fn server_variables() {
         // Starting new separate session because getting/setting env variables from multiple
         // clients ( threads ) break the server
-        let session = super::quick_session(None).expect("Could not start session");
+        let session = super::quick_session().expect("Could not start session");
         session.set_server_var::<str>("FOO", "foo_string").unwrap();
         assert_eq!(session.get_server_var::<str>("FOO").unwrap(), "foo_string");
         session.set_server_var::<i32>("BAR", &123).unwrap();
@@ -650,7 +650,7 @@ pub(crate) mod tests {
         use crate::ffi::raw::{NodeFlags, NodeType};
         let mut opt = super::SessionOptions::default();
         opt.threaded = true;
-        let session = super::quick_session(Some(&opt)).unwrap();
+        let session = super::quick_session().unwrap();
         let lib = session.load_asset_file(&OTLS["spaceship"]).unwrap();
         let node = lib.try_create_first().unwrap();
         assert_eq!(
