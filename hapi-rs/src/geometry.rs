@@ -863,25 +863,31 @@ mod tests {
                 .unwrap();
             node.cook_blocking(None).unwrap();
             let source = node.geometry().unwrap().unwrap();
+            let source_part = source.part_info(0).unwrap();
             let vol_info = source.volume_info(0).unwrap();
+            dbg!(source.volume_bounds(0));
 
             let input = session.create_input_node("volume_copy").unwrap();
             let dest = input.geometry().unwrap().unwrap();
-            dest.set_part_info(&source.part_info(0).unwrap()).unwrap();
-            dest.node.cook_blocking(None).unwrap();
+            input.cook_blocking(None).unwrap();
+            dest.set_part_info(&source_part).unwrap();
             dest.set_volume_info(0, &vol_info).unwrap();
+            // dest.volume_info(0).unwrap();
+            // dbg!(dest.volume_bounds(0));
 
             source
                 .foreach_volume_tile(0, &vol_info, |tile| {
-                    let mut values = vec![0.0; tile.size];
+                    let mut values = vec![-1.0; tile.size];
                     source
                         .read_volume_tile::<f32>(0, -1.0, tile.info, &mut values)
                         .unwrap();
+                    dbg!(&tile);
                     dest.write_volume_tile::<f32>(0, tile.info, &values)
                         .unwrap();
                 })
                 .unwrap();
             dest.commit().unwrap();
+            dest.node.cook_blocking(None).unwrap();
             dest.save_to_file("c:/temp/foo.bgeo").unwrap();
         });
     }
