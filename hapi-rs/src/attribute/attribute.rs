@@ -13,7 +13,8 @@ use std::ffi::{CStr, CString};
 
 impl StorageType {
     // Helper for matching array types to actual data type,
-    // e.g StorageType::Array is actually an array of StorageType::Int
+    // e.g StorageType::Array is actually an array of StorageType::Int,
+    // StorageType::FloatArray is StorageType::Float
     pub(crate) fn type_matches(&self, other: StorageType) -> bool {
         use StorageType::*;
         match other {

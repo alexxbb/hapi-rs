@@ -12,7 +12,7 @@ use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::session::Session;
 use crate::stringhandle::StringArray;
-use crate::volume::VolumeBounds;
+use crate::volume::{Tile, VolumeBounds, VolumeStorage};
 
 macro_rules! unwrap_or_create {
     ($out:ident, $opt:expr, $default:expr) => {
@@ -73,6 +73,11 @@ impl Geometry {
     pub fn volume_info(&self, part_id: i32) -> Result<VolumeInfo> {
         debug_assert!(self.node.is_valid()?);
         crate::ffi::get_volume_info(&self.node, part_id).map(|inner| VolumeInfo { inner })
+    }
+
+    pub fn set_volume_info(&self, part_id: i32, info: &VolumeInfo) -> Result<()> {
+        debug_assert!(self.node.is_valid()?);
+        crate::ffi::set_volume_info(&self.node, part_id, &info.inner)
     }
 
     pub fn volume_bounds(&self, part_id: i32) -> Result<VolumeBounds> {
@@ -550,24 +555,36 @@ impl Geometry {
         crate::ffi::load_geo_from_memory(&self.node.session, self.node.handle, data, format)
     }
 
-    pub fn read_volume_float(
+    pub fn read_volume_tile<T: VolumeStorage>(
         &self,
         part: i32,
-        info: &VolumeInfo,
-        fill_value: f32,
-        callback: impl Fn(&mut [f32], usize),
+        fill: T,
+        tile: &VolumeTileInfo,
+        values: &mut [T],
     ) -> Result<()> {
-        crate::volume::read_volume(&self.node, info, part, fill_value, callback)
+        debug_assert!(self.node.is_valid()?);
+        T::read_tile(&self.node, part, fill, values, &tile.inner)
     }
 
-    pub fn read_volume_int(
+    pub fn write_volume_tile<T: VolumeStorage>(
+        &self,
+        part: i32,
+        tile: &VolumeTileInfo,
+        values: &[T],
+    ) -> Result<()> {
+        debug_assert!(self.node.is_valid()?);
+        T::write_tile(&self.node, part, values, &tile.inner)
+    }
+
+    pub fn foreach_volume_tile(
         &self,
         part: i32,
         info: &VolumeInfo,
-        fill_value: i32,
-        callback: impl Fn(&mut [i32], usize),
+        callback: impl Fn(Tile),
     ) -> Result<()> {
-        crate::volume::read_volume(&self.node, info, part, fill_value, callback)
+        debug_assert!(self.node.is_valid()?);
+        let tile_size = (info.tile_size().pow(3) * info.tuple_size()) as usize;
+        crate::volume::iterate_tiles(&self.node, part, tile_size, callback)
     }
 }
 
@@ -839,19 +856,33 @@ mod tests {
     }
 
     #[test]
-    fn read_volume() {
+    fn read_write_volume() {
         with_session(|session| {
             let node = session
                 .create_node_blocking("Object/hapi_vol", None, None)
                 .unwrap();
             node.cook_blocking(None).unwrap();
-            let vol = node.geometry().unwrap().unwrap();
-            let _info = vol.volume_info(0).unwrap();
-            assert!(vol.volume_bounds(0).is_ok());
-            vol.read_volume_float(0, &_info, -1.0, |values, tile| {
-                dbg!(&values[0..10]);
-            })
-            .unwrap();
+            let source = node.geometry().unwrap().unwrap();
+            let vol_info = source.volume_info(0).unwrap();
+
+            let input = session.create_input_node("volume_copy").unwrap();
+            let dest = input.geometry().unwrap().unwrap();
+            dest.set_part_info(&source.part_info(0).unwrap()).unwrap();
+            dest.node.cook_blocking(None).unwrap();
+            dest.set_volume_info(0, &vol_info).unwrap();
+
+            source
+                .foreach_volume_tile(0, &vol_info, |tile| {
+                    let mut values = vec![0.0; tile.size];
+                    source
+                        .read_volume_tile::<f32>(0, -1.0, tile.info, &mut values)
+                        .unwrap();
+                    dest.write_volume_tile::<f32>(0, tile.info, &values)
+                        .unwrap();
+                })
+                .unwrap();
+            dest.commit().unwrap();
+            dest.save_to_file("c:/temp/foo.bgeo").unwrap();
         });
     }
 }

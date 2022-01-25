@@ -148,6 +148,7 @@ impl<'session> HoudiniNode {
 
     /// In sync mode (single threaded), the error will be available in Err(..) while
     /// in threaded mode the error will be in Ok(..)
+    /// TODO: Maybe get rid of options here
     pub fn cook_blocking(&self, options: Option<&CookOptions>) -> Result<CookResult> {
         debug_assert!(self.is_valid()?);
         self.cook(options)?;
