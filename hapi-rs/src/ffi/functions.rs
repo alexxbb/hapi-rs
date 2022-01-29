@@ -1269,6 +1269,98 @@ pub fn get_volume_tile_int_data(
     }
 }
 
+pub fn get_volume_voxel_int(
+    node: &HoudiniNode,
+    part: i32,
+    x: i32,
+    y: i32,
+    z: i32,
+    values: &mut [i32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_GetVolumeVoxelIntData(
+            node.session.ptr(),
+            node.handle.0,
+            part,
+            x,
+            y,
+            z,
+            values.as_mut_ptr(),
+            values.len() as i32,
+        )
+        .check_err(Some(&node.session))
+    }
+}
+
+pub fn set_volume_voxel_int(
+    node: &HoudiniNode,
+    part: i32,
+    x: i32,
+    y: i32,
+    z: i32,
+    values: &[i32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetVolumeVoxelIntData(
+            node.session.ptr(),
+            node.handle.0,
+            part,
+            x,
+            y,
+            z,
+            values.as_ptr(),
+            values.len() as i32,
+        )
+        .check_err(Some(&node.session))
+    }
+}
+
+pub fn get_volume_voxel_float(
+    node: &HoudiniNode,
+    part: i32,
+    x: i32,
+    y: i32,
+    z: i32,
+    values: &mut [f32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_GetVolumeVoxelFloatData(
+            node.session.ptr(),
+            node.handle.0,
+            part,
+            x,
+            y,
+            z,
+            values.as_mut_ptr(),
+            values.len() as i32,
+        )
+        .check_err(Some(&node.session))
+    }
+}
+
+pub fn set_volume_voxel_float(
+    node: &HoudiniNode,
+    part: i32,
+    x: i32,
+    y: i32,
+    z: i32,
+    values: &[f32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetVolumeVoxelFloatData(
+            node.session.ptr(),
+            node.handle.0,
+            part,
+            x,
+            y,
+            z,
+            values.as_ptr(),
+            values.len() as i32,
+        )
+        .check_err(Some(&node.session))
+    }
+}
+
 pub fn get_volume_bounds(node: &HoudiniNode, id: i32) -> Result<crate::volume::VolumeBounds> {
     unsafe {
         let mut b = crate::volume::VolumeBounds::default();
@@ -1289,6 +1381,63 @@ pub fn get_volume_bounds(node: &HoudiniNode, id: i32) -> Result<crate::volume::V
         .check_err(Some(&node.session))?;
         Ok(b)
     }
+}
+
+pub fn create_heightfield_input(
+    node: &HoudiniNode,
+    parent: Option<i32>,
+    name: &CStr,
+    x_size: i32,
+    y_size: i32,
+    voxel_size: f32,
+    sampling: raw::HeightFieldSampling,
+) -> Result<(i32, i32, i32, i32)> {
+    let heightfield_node = -1;
+    let height_node = -1;
+    let mask_node = -1;
+    let merge_node = -1;
+    unsafe {
+        raw::HAPI_CreateHeightFieldInput(
+            node.session.ptr(),
+            parent.unwrap_or(-1),
+            name.as_ptr(),
+            x_size,
+            y_size,
+            voxel_size,
+            sampling,
+            heightfield_node as *mut _,
+            height_node as *mut _,
+            mask_node as *mut _,
+            merge_node as *mut _,
+        )
+        .check_err(Some(&node.session))?;
+    }
+    Ok((heightfield_node, height_node, mask_node, merge_node))
+}
+
+pub fn create_heightfield_input_volume(
+    node: &HoudiniNode,
+    parent: Option<i32>,
+    name: &CStr,
+    xsize: i32,
+    ysize: i32,
+    size: f32,
+) -> Result<NodeHandle> {
+    let volume_node = -1;
+    unsafe {
+        raw::HAPI_CreateHeightfieldInputVolumeNode(
+            node.session.ptr(),
+            parent.unwrap_or(-1),
+            volume_node as *mut _,
+            name.as_ptr(),
+            xsize,
+            ysize,
+            size,
+        )
+        .check_err(Some(&node.session))?;
+    }
+
+    Ok(NodeHandle(volume_node, ()))
 }
 
 pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {

@@ -11,11 +11,29 @@ pub trait VolumeStorage: Sized + Copy {
         tile: &HAPI_VolumeTileInfo,
     ) -> Result<()>;
 
+    fn read_voxel(
+        node: &HoudiniNode,
+        part: i32,
+        x: i32,
+        y: i32,
+        z: i32,
+        values: &mut [Self],
+    ) -> Result<()>;
+
     fn write_tile(
         node: &HoudiniNode,
         part: i32,
         values: &[Self],
         tile: &HAPI_VolumeTileInfo,
+    ) -> Result<()>;
+
+    fn write_voxel(
+        node: &HoudiniNode,
+        part: i32,
+        x: i32,
+        y: i32,
+        z: i32,
+        values: &[Self],
     ) -> Result<()>;
 }
 
@@ -30,6 +48,17 @@ impl VolumeStorage for i32 {
         crate::ffi::get_volume_tile_int_data(&node, part, fill_value, values, info)
     }
 
+    fn read_voxel(
+        node: &HoudiniNode,
+        part: i32,
+        x: i32,
+        y: i32,
+        z: i32,
+        values: &mut [Self],
+    ) -> Result<()> {
+        crate::ffi::get_volume_voxel_int(&node, part, x, y, z, values)
+    }
+
     fn write_tile(
         node: &HoudiniNode,
         part: i32,
@@ -37,6 +66,17 @@ impl VolumeStorage for i32 {
         tile: &HAPI_VolumeTileInfo,
     ) -> Result<()> {
         crate::ffi::set_volume_tile_int_data(node, part, values, tile)
+    }
+
+    fn write_voxel(
+        node: &HoudiniNode,
+        part: i32,
+        x: i32,
+        y: i32,
+        z: i32,
+        values: &[Self],
+    ) -> Result<()> {
+        crate::ffi::set_volume_voxel_int(&node, part, x, y, z, values)
     }
 }
 
@@ -51,6 +91,17 @@ impl VolumeStorage for f32 {
         crate::ffi::get_volume_tile_float_data(&node, part, fill_value, values, info)
     }
 
+    fn read_voxel(
+        node: &HoudiniNode,
+        part: i32,
+        x: i32,
+        y: i32,
+        z: i32,
+        values: &mut [Self],
+    ) -> Result<()> {
+        crate::ffi::get_volume_voxel_float(&node, part, x, y, z, values)
+    }
+
     fn write_tile(
         node: &HoudiniNode,
         part: i32,
@@ -58,6 +109,17 @@ impl VolumeStorage for f32 {
         tile: &HAPI_VolumeTileInfo,
     ) -> Result<()> {
         crate::ffi::set_volume_tile_float_data(node, part, values, tile)
+    }
+
+    fn write_voxel(
+        node: &HoudiniNode,
+        part: i32,
+        x: i32,
+        y: i32,
+        z: i32,
+        values: &[Self],
+    ) -> Result<()> {
+        crate::ffi::set_volume_voxel_float(&node, part, x, y, z, values)
     }
 }
 
@@ -89,31 +151,3 @@ pub(crate) fn iterate_tiles(
     }
     Ok(())
 }
-
-// pub(crate) fn read_volumes<T: VolumeStorage>(
-//     node: &HoudiniNode,
-//     info: &crate::ffi::VolumeInfo,
-//     part: i32,
-//     fill_value: T,
-//     callback: impl Fn(&mut [T], usize, &crate::ffi::VolumeTileInfo),
-// ) -> Result<()> {
-//     let mut tile = VolumeTileInfo {
-//         inner: crate::ffi::get_volume_first_tile_info(&node, part)?,
-//     };
-//     let tile_value_count = (info.tile_size().pow(3) * info.tuple_size()) as usize;
-//     let mut values = vec![fill_value; tile_value_count];
-//     let mut tile_num = 0;
-//     while tile.is_valid() {
-//         T::read_tile(
-//             &node,
-//             part,
-//             fill_value,
-//             values.as_mut_slice(),
-//             &mut tile.inner,
-//         )?;
-//         callback(&mut values, tile_num, &tile);
-//         crate::ffi::get_volume_next_tile_info(&node, part, &mut tile.inner)?;
-//         tile_num += 1;
-//     }
-//     Ok(())
-// }

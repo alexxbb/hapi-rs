@@ -576,6 +576,30 @@ impl Geometry {
         T::write_tile(&self.node, part, values, &tile.inner)
     }
 
+    pub fn read_volume_voxel<T: VolumeStorage>(
+        &self,
+        part: i32,
+        x_index: i32,
+        y_index: i32,
+        z_index: i32,
+        values: &mut [T],
+    ) -> Result<()> {
+        debug_assert!(self.node.is_valid()?);
+        T::read_voxel(&self.node, part, x_index, y_index, z_index, values)
+    }
+
+    pub fn write_volume_voxel<T: VolumeStorage>(
+        &self,
+        part: i32,
+        x_index: i32,
+        y_index: i32,
+        z_index: i32,
+        values: &[T],
+    ) -> Result<()> {
+        debug_assert!(self.node.is_valid()?);
+        T::write_voxel(&self.node, part, x_index, y_index, z_index, values)
+    }
+
     pub fn foreach_volume_tile(
         &self,
         part: i32,
@@ -586,6 +610,55 @@ impl Geometry {
         let tile_size = (info.tile_size().pow(3) * info.tuple_size()) as usize;
         crate::volume::iterate_tiles(&self.node, part, tile_size, callback)
     }
+
+    pub fn create_heightfield_input(
+        &self,
+        parent: Option<NodeHandle>,
+        volume_name: &str,
+        x_size: i32,
+        y_size: i32,
+        voxel_size: f32,
+        sampling: HeightFieldSampling,
+    ) -> Result<HeightfieldNodes> {
+        let name = CString::new(volume_name)?;
+        let (heightfield, height, mask, merge) = crate::ffi::create_heightfield_input(
+            &self.node,
+            parent.map(|h| h.0),
+            &name,
+            x_size,
+            y_size,
+            voxel_size,
+            sampling,
+        )?;
+        Ok(HeightfieldNodes {
+            heightfield: NodeHandle(heightfield, ()).to_node(&self.node.session)?,
+            height: NodeHandle(height, ()).to_node(&self.node.session)?,
+            mask: NodeHandle(mask, ()).to_node(&self.node.session)?,
+            merge: NodeHandle(merge, ()).to_node(&self.node.session)?,
+        })
+    }
+
+    pub fn create_heightfield_input_volume(
+        &self,
+        parent: Option<NodeHandle>,
+        volume_name: &str,
+        x_size: i32,
+        y_size: i32,
+        voxel_size: f32,
+    ) -> Result<HoudiniNode> {
+        let name = CString::new(volume_name)?;
+        let handle = crate::ffi::create_heightfield_input_volume(
+            &self.node, None, &name, x_size, y_size, voxel_size,
+        )?;
+        handle.to_node(&self.node.session)
+    }
+}
+
+pub struct HeightfieldNodes {
+    heightfield: HoudiniNode,
+    height: HoudiniNode,
+    mask: HoudiniNode,
+    merge: HoudiniNode,
 }
 
 impl PartInfo {
@@ -866,14 +939,13 @@ mod tests {
             let source_part = source.part_info(0).unwrap();
             let vol_info = source.volume_info(0).unwrap();
             dbg!(source.volume_bounds(0));
+            dbg!(&vol_info);
 
             let input = session.create_input_node("volume_copy").unwrap();
             let dest = input.geometry().unwrap().unwrap();
             input.cook_blocking(None).unwrap();
             dest.set_part_info(&source_part).unwrap();
             dest.set_volume_info(0, &vol_info).unwrap();
-            // dest.volume_info(0).unwrap();
-            // dbg!(dest.volume_bounds(0));
 
             source
                 .foreach_volume_tile(0, &vol_info, |tile| {
@@ -881,13 +953,15 @@ mod tests {
                     source
                         .read_volume_tile::<f32>(0, -1.0, tile.info, &mut values)
                         .unwrap();
-                    dbg!(&tile);
                     dest.write_volume_tile::<f32>(0, tile.info, &values)
                         .unwrap();
                 })
                 .unwrap();
             dest.commit().unwrap();
             dest.node.cook_blocking(None).unwrap();
+            dest.volume_info(0).unwrap();
+            dbg!(dest.volume_info(0));
+            dbg!(dest.volume_bounds(0));
             dest.save_to_file("c:/temp/foo.bgeo").unwrap();
         });
     }
