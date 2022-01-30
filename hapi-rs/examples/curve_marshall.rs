@@ -23,7 +23,7 @@ fn main() -> Result<()> {
 
     let geom = new_node.geometry()?.expect("geometry");
     geom.set_part_info(&part_info)?;
-    geom.set_curve_info(&curve_info, 0)?;
+    geom.set_curve_info(0, &curve_info)?;
     geom.set_curve_counts(part_info.part_id(), &[4])?;
     geom.set_curve_knots(
         part_info.part_id(),

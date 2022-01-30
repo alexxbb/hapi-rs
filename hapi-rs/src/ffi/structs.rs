@@ -664,3 +664,18 @@ wrap!(
     [get|set|with] iso->iso->[f32];
     [get|set|with] density->density->[f32];
 );
+
+#[derive(Debug, Clone)]
+pub struct InputCurveInfo {
+    pub(crate) inner: HAPI_InputCurveInfo,
+}
+
+wrap!(
+    Default InputCurveInfo [HAPI_InputCurveInfo_Create => HAPI_InputCurveInfo];
+    [get|set|with] curve_type->curveType->[CurveType];
+    [get|set|with] order->order->[i32];
+    [get|set|with] closed->closed->[bool];
+    [get|set|with] reverse->reverse->[bool];
+    [get|set|with] input_method->inputMethod->[InputCurveMethod];
+    [get|set|with] breakpoint_parameterization->breakpointParameterization->[InputCurveParameterization];
+);

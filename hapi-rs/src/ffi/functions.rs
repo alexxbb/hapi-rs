@@ -4,7 +4,7 @@ use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
 
-use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, PartInfo, Viewport};
+use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
 use crate::{
     errors::{HapiError, Kind, Result},
     node::{HoudiniNode, NodeHandle},
@@ -1448,13 +1448,20 @@ pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {
             info.part_id(),
             &info.inner,
         )
-        .check_err(Some(&node.session))
+            .check_err(Some(&node.session))
     }
 }
 
-pub fn set_curve_info(node: &HoudiniNode, info: &CurveInfo, part_id: i32) -> Result<()> {
+pub fn set_curve_info(node: &HoudiniNode, part_id: i32, info: &CurveInfo) -> Result<()> {
     unsafe {
         super::raw::HAPI_SetCurveInfo(node.session.ptr(), node.handle.0, part_id, &info.inner)
+            .check_err(Some(&node.session))
+    }
+}
+
+pub fn set_input_curve_info(node: &HoudiniNode, part_id: i32, info: &InputCurveInfo) -> Result<()> {
+    unsafe {
+        super::raw::HAPI_SetInputCurveInfo(node.session.ptr(), node.handle.0, part_id, info.ptr())
             .check_err(Some(&node.session))
     }
 }
@@ -1468,7 +1475,7 @@ pub fn get_curve_info(node: &HoudiniNode, part_id: i32) -> Result<raw::HAPI_Curv
             part_id,
             info.as_mut_ptr(),
         )
-        .check_err(Some(&node.session))?;
+            .check_err(Some(&node.session))?;
         Ok(info.assume_init())
     }
 }

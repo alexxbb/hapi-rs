@@ -6,7 +6,7 @@ use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
     enums::*, AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, PartInfo, Transform,
-    VolumeInfo, VolumeTileInfo, VolumeVisualInfo,
+    VolumeInfo, VolumeTileInfo, VolumeVisualInfo, InputCurveInfo,
 };
 use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
@@ -107,9 +107,14 @@ impl Geometry {
             .map(|inner| BoxInfo { inner })
     }
 
-    pub fn set_curve_info(&self, info: &CurveInfo, part_id: i32) -> Result<()> {
+    pub fn set_curve_info(&self, part_id: i32, info: &CurveInfo) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
-        crate::ffi::set_curve_info(&self.node, info, part_id)
+        crate::ffi::set_curve_info(&self.node, part_id, info)
+    }
+
+    pub fn set_input_curve_info(&self, part_id: i32, info: &InputCurveInfo) -> Result<()> {
+        debug_assert!(self.node.is_valid()?);
+        crate::ffi::set_input_curve_info(&self.node, part_id, info)
     }
 
     pub fn set_curve_counts(&self, part_id: i32, count: &[i32]) -> Result<()> {
