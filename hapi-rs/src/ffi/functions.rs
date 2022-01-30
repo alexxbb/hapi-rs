@@ -2412,6 +2412,10 @@ pub fn render_texture_to_image(
     }
 }
 
+pub fn render_cop_to_image(session: &Session, cop_node: NodeHandle) -> Result<()> {
+    unsafe { raw::HAPI_RenderCOPToImage(session.ptr(), cop_node.0).check_err(Some(session)) }
+}
+
 pub fn set_image_info(session: &Session, material: NodeHandle, info: &ImageInfo) -> Result<()> {
     unsafe {
         raw::HAPI_SetImageInfo(session.ptr(), material.0, info.ptr()).check_err(Some(session))

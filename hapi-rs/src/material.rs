@@ -21,6 +21,7 @@ impl Material {
         HoudiniNode::new(self.session.clone(), self.node_handle(), None)
     }
 
+    #[inline]
     fn node_handle(&self) -> NodeHandle {
         NodeHandle(self.info.nodeId, ())
     }
@@ -43,43 +44,16 @@ impl Material {
         path: impl AsRef<Path>,
     ) -> Result<String> {
         debug_assert!(self.session.is_valid());
-        let path = path.as_ref();
-        let format = CString::new(
-            path.extension()
-                .expect("extension")
-                .to_string_lossy()
-                .to_string()
-                .to_uppercase(),
-        )?;
-        let image_planes = CString::new(image_planes.as_ref())?;
-        let dest_folder =
-            CString::new(path.parent().expect("parent").to_string_lossy().to_string())?;
-        let dest_file = CString::new(
-            path.file_stem()
-                .expect("extension")
-                .to_string_lossy()
-                .to_string(),
-        )?;
-        crate::ffi::extract_image_to_file(
-            &self.session,
-            self.node_handle(),
-            &format,
-            &image_planes,
-            &dest_folder,
-            &dest_file,
-        )
+        extract_image_to_file(&self.session, self.node_handle(), image_planes, path)
     }
 
-    pub fn extract_image_to_memory(&self, image_planes: &str, format: &str) -> Result<Vec<i8>> {
+    pub fn extract_image_to_memory(
+        &self,
+        image_planes: impl AsRef<str>,
+        format: impl AsRef<str>,
+    ) -> Result<Vec<i8>> {
         debug_assert!(self.session.is_valid());
-        let format = CString::new(format)?;
-        let image_planes = CString::new(image_planes)?;
-        crate::ffi::extract_image_to_memory(
-            &self.session,
-            self.node_handle(),
-            &format,
-            &image_planes,
-        )
+        extract_image_to_memory(&self.session, self.node_handle(), format, image_planes)
     }
 
     pub fn set_image_info(&self, info: &ImageInfo) -> Result<()> {
@@ -107,6 +81,50 @@ pub fn get_supported_image_formats(session: &Session) -> Result<Vec<ImageFileFor
             .map(|inner| ImageFileFormat { inner, session })
             .collect()
     })
+}
+
+pub(crate) fn extract_image_to_file(
+    session: &Session,
+    node: NodeHandle,
+    image_planes: impl AsRef<str>,
+    path: impl AsRef<Path>,
+) -> Result<String> {
+    debug_assert!(session.is_valid());
+    let path = path.as_ref();
+    let format = CString::new(
+        path.extension()
+            .expect("extension")
+            .to_string_lossy()
+            .to_string()
+            .to_uppercase(),
+    )?;
+    let image_planes = CString::new(image_planes.as_ref())?;
+    let dest_folder = CString::new(path.parent().expect("parent").to_string_lossy().to_string())?;
+    let dest_file = CString::new(
+        path.file_stem()
+            .expect("extension")
+            .to_string_lossy()
+            .to_string(),
+    )?;
+    crate::ffi::extract_image_to_file(
+        &session,
+        node,
+        &format,
+        &image_planes,
+        &dest_folder,
+        &dest_file,
+    )
+}
+
+pub(crate) fn extract_image_to_memory(
+    session: &Session,
+    node: NodeHandle,
+    image_planes: impl AsRef<str>,
+    format: impl AsRef<str>,
+) -> Result<Vec<i8>> {
+    let format = CString::new(format.as_ref())?;
+    let image_planes = CString::new(image_planes.as_ref())?;
+    crate::ffi::extract_image_to_memory(session, node, &format, &image_planes)
 }
 
 #[cfg(test)]

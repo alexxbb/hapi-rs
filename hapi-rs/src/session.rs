@@ -4,6 +4,7 @@
 use std::{
     ffi::CString,
     sync::Arc,
+    path::Path,
 };
 pub use crate::ffi::enums::*;
 use log::{debug, error, warn};
@@ -340,6 +341,30 @@ impl Session {
     pub fn get_license_type(&self) -> Result<License> {
         debug_assert!(self.is_valid());
         crate::ffi::session_get_license_type(self)
+    }
+
+    pub fn render_cop_to_image(
+        &self,
+        cop_node: impl Into<NodeHandle>,
+        image_planes: impl AsRef<str>,
+        path: impl AsRef<Path>,
+    ) -> Result<String> {
+        let cop_node = cop_node.into();
+        debug_assert!(cop_node.is_valid(self)?);
+        crate::ffi::render_cop_to_image(self, cop_node)?;
+        crate::material::extract_image_to_file(self, cop_node, image_planes, path)
+    }
+
+    pub fn render_cop_to_memory(
+        &self,
+        cop_node: impl Into<NodeHandle>,
+        image_planes: impl AsRef<str>,
+        path: impl AsRef<Path>,
+    ) -> Result<Vec<i8>> {
+        let cop_node = cop_node.into();
+        debug_assert!(cop_node.is_valid(self)?);
+        crate::ffi::render_cop_to_image(self, cop_node)?;
+        crate::material::extract_image_to_memory(self, cop_node, image_planes, path)
     }
 }
 
