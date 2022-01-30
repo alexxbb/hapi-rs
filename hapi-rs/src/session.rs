@@ -150,6 +150,14 @@ impl Session {
         let id = crate::ffi::create_input_node(self, &name)?;
         HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)
     }
+
+    pub fn create_input_curve_node(&self, name: &str) -> Result<HoudiniNode> {
+        debug_assert!(self.is_valid());
+        let name = CString::new(name)?;
+        let id = crate::ffi::create_input_curve_node(self, &name)?;
+        HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)
+    }
+
     pub fn create_node<'a>(
         &self,
         name: &str,

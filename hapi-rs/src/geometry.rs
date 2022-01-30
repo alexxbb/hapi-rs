@@ -5,8 +5,8 @@ use std::ffi::{CStr, CString};
 use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
-    enums::*, AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, PartInfo, Transform,
-    VolumeInfo, VolumeTileInfo, VolumeVisualInfo, InputCurveInfo,
+    enums::*, AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, InputCurveInfo, PartInfo,
+    Transform, VolumeInfo, VolumeTileInfo, VolumeVisualInfo,
 };
 use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
@@ -115,6 +115,26 @@ impl Geometry {
     pub fn set_input_curve_info(&self, part_id: i32, info: &InputCurveInfo) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
         crate::ffi::set_input_curve_info(&self.node, part_id, info)
+    }
+
+    pub fn set_input_curve_positions(&self, part_id: i32, positions: &[f32]) -> Result<()> {
+        crate::ffi::set_input_curve_positions(
+            &self.node,
+            part_id,
+            positions,
+            0,
+            positions.len() as i32,
+        )
+    }
+
+    pub fn set_input_curve_transform(
+        &self,
+        part_id: i32,
+        positions: &[f32],
+        rotation: &[f32],
+        scale: &[f32],
+    ) -> Result<()> {
+        crate::ffi::set_input_curve_transform(&self.node, part_id, positions, rotation, scale)
     }
 
     pub fn set_curve_counts(&self, part_id: i32, count: &[i32]) -> Result<()> {
@@ -279,6 +299,21 @@ impl Geometry {
             AttributeOwner::Max => unreachable!(),
         };
         crate::ffi::get_attribute_names(&self.node, part.part_id(), count, owner)
+    }
+
+    pub fn get_position_attribute(&self, part_id: i32) -> Result<NumericAttr<f32>> {
+        let name = CString::new("P")?;
+        let inner = crate::ffi::get_attribute_info(
+            &self.node,
+            part_id,
+            AttributeOwner::Point,
+            name.as_c_str(),
+        )?;
+        Ok(NumericAttr::new(
+            name,
+            AttributeInfo { inner },
+            self.node.clone(),
+        ))
     }
 
     pub fn get_attribute(
@@ -934,6 +969,23 @@ mod tests {
     }
 
     #[test]
+    fn create_input_curve() {
+        with_session(|session| {
+            let geo = session
+                .create_input_curve_node("InputCurve")
+                .unwrap()
+                .geometry()
+                .unwrap()
+                .unwrap();
+            let positions = &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+            geo.set_input_curve_positions(0, positions).unwrap();
+            let p = geo.get_position_attribute(0).unwrap();
+            let coords = p.get(0).unwrap();
+            assert_eq!(positions, coords.as_slice());
+        })
+    }
+
+    #[test]
     fn read_write_volume() {
         with_session(|session| {
             let node = session
@@ -964,10 +1016,6 @@ mod tests {
                 .unwrap();
             dest.commit().unwrap();
             dest.node.cook_blocking(None).unwrap();
-            dest.volume_info(0).unwrap();
-            dbg!(dest.volume_info(0));
-            dbg!(dest.volume_bounds(0));
-            dest.save_to_file("c:/temp/foo.bgeo").unwrap();
         });
     }
 }

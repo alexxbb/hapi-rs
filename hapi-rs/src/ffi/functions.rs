@@ -890,6 +890,15 @@ pub fn create_input_node(session: &Session, name: &CStr) -> Result<raw::HAPI_Nod
     }
 }
 
+pub fn create_input_curve_node(session: &Session, name: &CStr) -> Result<raw::HAPI_NodeId> {
+    let mut id = uninit!();
+    unsafe {
+        raw::HAPI_CreateInputCurveNode(session.ptr(), id.as_mut_ptr(), name.as_ptr())
+            .check_err(Some(session))?;
+        Ok(id.assume_init())
+    }
+}
+
 pub fn get_manager_node(session: &Session, node_type: raw::NodeType) -> Result<raw::HAPI_NodeId> {
     unsafe {
         let mut id = uninit!();
@@ -1448,7 +1457,7 @@ pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {
             info.part_id(),
             &info.inner,
         )
-            .check_err(Some(&node.session))
+        .check_err(Some(&node.session))
     }
 }
 
@@ -1466,6 +1475,52 @@ pub fn set_input_curve_info(node: &HoudiniNode, part_id: i32, info: &InputCurveI
     }
 }
 
+pub fn set_input_curve_positions(
+    node: &HoudiniNode,
+    part_id: i32,
+    positions: &[f32],
+    start: i32,
+    length: i32,
+) -> Result<()> {
+    unsafe {
+        super::raw::HAPI_SetInputCurvePositions(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            positions.as_ptr(),
+            start,
+            length,
+        )
+        .check_err(Some(&node.session))
+    }
+}
+
+pub fn set_input_curve_transform(
+    node: &HoudiniNode,
+    part_id: i32,
+    positions: &[f32],
+    rotation: &[f32],
+    scale: &[f32],
+) -> Result<()> {
+    unsafe {
+        super::raw::HAPI_SetInputCurvePositionsRotationsScales(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            positions.as_ptr(),
+            0,
+            positions.len() as i32,
+            rotation.as_ptr(),
+            0,
+            rotation.len() as i32,
+            scale.as_ptr(),
+            0,
+            scale.len() as i32,
+        )
+        .check_err(Some(&node.session))
+    }
+}
+
 pub fn get_curve_info(node: &HoudiniNode, part_id: i32) -> Result<raw::HAPI_CurveInfo> {
     unsafe {
         let mut info = uninit!();
@@ -1475,7 +1530,7 @@ pub fn get_curve_info(node: &HoudiniNode, part_id: i32) -> Result<raw::HAPI_Curv
             part_id,
             info.as_mut_ptr(),
         )
-            .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))?;
         Ok(info.assume_init())
     }
 }
