@@ -359,12 +359,12 @@ impl Session {
         &self,
         cop_node: impl Into<NodeHandle>,
         image_planes: impl AsRef<str>,
-        path: impl AsRef<Path>,
+        format: impl AsRef<str>,
     ) -> Result<Vec<i8>> {
         let cop_node = cop_node.into();
         debug_assert!(cop_node.is_valid(self)?);
         crate::ffi::render_cop_to_image(self, cop_node)?;
-        crate::material::extract_image_to_memory(self, cop_node, image_planes, path)
+        crate::material::extract_image_to_memory(self, cop_node, image_planes, format)
     }
 }
 

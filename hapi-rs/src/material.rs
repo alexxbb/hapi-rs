@@ -53,7 +53,7 @@ impl Material {
         format: impl AsRef<str>,
     ) -> Result<Vec<i8>> {
         debug_assert!(self.session.is_valid());
-        extract_image_to_memory(&self.session, self.node_handle(), format, image_planes)
+        extract_image_to_memory(&self.session, self.node_handle(), image_planes, format)
     }
 
     pub fn set_image_info(&self, info: &ImageInfo) -> Result<()> {

@@ -909,7 +909,8 @@ pub fn get_manager_node(session: &Session, node_type: raw::NodeType) -> Result<r
 }
 
 pub fn get_compose_child_node_list(
-    node: &HoudiniNode,
+    session: &Session,
+    node: NodeHandle,
     types: raw::NodeType,
     flags: raw::NodeFlags,
     recursive: bool,
@@ -917,24 +918,19 @@ pub fn get_compose_child_node_list(
     unsafe {
         let mut count = uninit!();
         raw::HAPI_ComposeChildNodeList(
-            node.session.ptr(),
-            node.handle.0,
+            session.ptr(),
+            node.0,
             types.0,
             flags.0,
             recursive as i8,
             count.as_mut_ptr(),
         )
-        .check_err(Some(&node.session))?;
+        .check_err(Some(session))?;
 
         let count = count.assume_init();
         let mut obj_infos = vec![0i32; count as usize];
-        raw::HAPI_GetComposedChildNodeList(
-            node.session.ptr(),
-            node.handle.0,
-            obj_infos.as_mut_ptr(),
-            count,
-        )
-        .check_err(Some(&node.session))?;
+        raw::HAPI_GetComposedChildNodeList(session.ptr(), node.0, obj_infos.as_mut_ptr(), count)
+            .check_err(Some(session))?;
         Ok(obj_infos)
     }
 }
@@ -986,6 +982,61 @@ pub fn connect_node_input(
             output_index,
         )
         .check_err(Some(session))
+    }
+}
+
+pub fn disconnect_node_input(node: &HoudiniNode, input: i32) -> Result<()> {
+    unsafe {
+        raw::HAPI_DisconnectNodeInput(node.session.ptr(), node.handle.0, input)
+            .check_err(Some(&node.session))
+    }
+}
+
+pub fn disconnect_node_outputs(node: &HoudiniNode, output_index: i32) -> Result<()> {
+    unsafe {
+        raw::HAPI_DisconnectNodeOutputsAt(node.session.ptr(), node.handle.0, output_index)
+            .check_err(Some(&node.session))
+    }
+}
+
+pub fn query_node_output_connected_nodes(
+    node: &HoudiniNode,
+    output_index: i32,
+    search_subnets: bool,
+) -> Result<Vec<NodeHandle>> {
+    let mut count = uninit!();
+    unsafe {
+        raw::HAPI_QueryNodeOutputConnectedCount(
+            node.session.ptr(),
+            node.handle.0,
+            output_index,
+            search_subnets as i8,
+            1,
+            count.as_mut_ptr(),
+        )
+        .check_err(Some(&node.session))?;
+
+        let count = count.assume_init();
+        let mut handles = vec![-1; count as usize];
+        raw::HAPI_QueryNodeOutputConnectedNodes(
+            node.session.ptr(),
+            node.handle.0,
+            output_index,
+            search_subnets as i8,
+            1,
+            handles.as_mut_ptr(),
+            0,
+            count,
+        )
+        .check_err(Some(&node.session))?;
+        Ok(handles.into_iter().map(|h| NodeHandle(h, ())).collect())
+    }
+}
+
+pub fn rename_node(node: &HoudiniNode, new_name: &CStr) -> Result<()> {
+    unsafe {
+        raw::HAPI_RenameNode(node.session.ptr(), node.handle.0, new_name.as_ptr())
+            .check_err(Some(&node.session))
     }
 }
 

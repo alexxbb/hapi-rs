@@ -243,30 +243,50 @@ impl<'session> HoudiniNode {
         recursive: bool,
     ) -> Result<Vec<NodeHandle>> {
         debug_assert!(self.is_valid()?);
-        let ids = crate::ffi::get_compose_child_node_list(self, types, flags, recursive)?;
+        let ids = crate::ffi::get_compose_child_node_list(
+            &self.session,
+            self.handle,
+            types,
+            flags,
+            recursive,
+        )?;
         Ok(ids.iter().map(|i| NodeHandle(*i, ())).collect())
     }
 
-    /// Search child node by name, relatively expensive, due to retrieving node names
-    pub fn node(&self, name: &str) -> Result<Option<HoudiniNode>> {
+    /// Search child node by name
+    pub fn find_sibling(
+        &self,
+        name: impl AsRef<str>,
+        node_type: NodeType,
+    ) -> Result<Option<HoudiniNode>> {
         debug_assert!(self.is_valid()?);
-        let types = self.info.node_type();
-        let flags = NodeFlags::Any;
-        let nodes = crate::ffi::get_compose_child_node_list(self, types, flags, false)?;
-        let handle = nodes.iter().find(|id| {
-            let h = NodeHandle(**id, ());
-            match h.info(&self.session) {
-                Ok(info) => info.name(&self.session).expect("oops") == name,
-                Err(_) => {
-                    warn!("Failed to get NodeInfo");
-                    false
+        match self.parent_node() {
+            None => Ok(None),
+            Some(parent) => {
+                let flags = NodeFlags::Any;
+                let nodes = crate::ffi::get_compose_child_node_list(
+                    &self.session,
+                    parent,
+                    node_type,
+                    flags,
+                    false,
+                )?;
+                let handle = nodes.iter().find(|id| {
+                    let h = NodeHandle(**id, ());
+                    match h.info(&self.session) {
+                        Ok(info) => info.name(&self.session).expect("oops") == name.as_ref(),
+                        Err(_) => {
+                            warn!("Failed to get NodeInfo");
+                            false
+                        }
+                    }
+                });
+
+                match handle {
+                    None => Ok(None),
+                    Some(id) => Ok(Some(NodeHandle(*id, ()).to_node(&self.session)?)),
                 }
             }
-        });
-
-        match handle {
-            None => Ok(None),
-            Some(id) => Ok(Some(NodeHandle(*id, ()).to_node(&self.session)?)),
         }
     }
 
@@ -326,6 +346,11 @@ impl<'session> HoudiniNode {
                 HoudiniNode::new(self.session.clone(), NodeHandle(idx, ()), None).ok()
             }
         })
+    }
+
+    pub fn rename(&self, new_name: impl AsRef<str>) -> Result<()> {
+        let name = CString::new(new_name.as_ref())?;
+        crate::ffi::rename_node(self, &name)
     }
 
     pub fn save_to_file(&self, file: impl AsRef<std::path::Path>) -> Result<()> {
@@ -447,6 +472,25 @@ impl<'session> HoudiniNode {
         )
     }
 
+    pub fn output_connected_nodes(
+        &self,
+        output_index: i32,
+        search_subnets: bool,
+    ) -> Result<Vec<NodeHandle>> {
+        debug_assert!(self.is_valid()?);
+        crate::ffi::query_node_output_connected_nodes(self, output_index, search_subnets)
+    }
+
+    pub fn disconnect_input(&self, input_index: i32) -> Result<()> {
+        debug_assert!(self.is_valid()?);
+        crate::ffi::disconnect_node_input(self, input_index)
+    }
+
+    pub fn disconnect_outputs(&self, output_index: i32) -> Result<()> {
+        debug_assert!(self.is_valid()?);
+        crate::ffi::disconnect_node_outputs(self, output_index)
+    }
+
     pub fn set_display_flag(&self, on: bool) -> Result<()> {
         debug_assert!(self.is_valid()?);
         crate::ffi::set_node_display(&self.session, self.handle, on)
@@ -472,6 +516,31 @@ mod tests {
             sphere.set_display_flag(true).unwrap();
             assert!(!_box.geometry().unwrap().unwrap().info.is_display_geo());
         });
+    }
+
+    #[test]
+    fn node_inputs_and_outputs() {
+        with_session(|session| {
+            let node = session.create_node("Object/hapi_geo", None, None).unwrap();
+            let geo = node.geometry().unwrap().unwrap();
+            let mut input = geo.node.input_node(0).unwrap();
+            while let Some(ref n) = input {
+                assert!(n.is_valid().unwrap());
+                input = n.input_node(0).unwrap();
+            }
+            let outputs = geo.node.output_connected_nodes(0, false).unwrap();
+            assert!(outputs.is_empty());
+        })
+    }
+
+    #[test]
+    fn node_find_siblings() {
+        with_session(|session| {
+            let node = session.create_node("Object/hapi_geo", None, None).unwrap();
+            let geo = node.geometry().unwrap().unwrap();
+            let add_color = geo.node.find_sibling("add_color", NodeType::Sop).unwrap();
+            assert!(add_color.is_some())
+        })
     }
 
     #[test]
