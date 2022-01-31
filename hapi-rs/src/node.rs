@@ -9,6 +9,7 @@
 //! Newly created nodes need to be cooked, so `create_node` should follow by [`Session::cook`]
 //! or use a convenient function [`Session::create_node_blocking`]
 //!
+use std::path::Path;
 use std::sync::Arc;
 use std::{ffi::CString, fmt::Formatter};
 
@@ -353,7 +354,7 @@ impl<'session> HoudiniNode {
         crate::ffi::rename_node(self, &name)
     }
 
-    pub fn save_to_file(&self, file: impl AsRef<std::path::Path>) -> Result<()> {
+    pub fn save_to_file(&self, file: impl AsRef<Path>) -> Result<()> {
         debug_assert!(self.is_valid()?);
         let filename = CString::new(file.as_ref().to_string_lossy().to_string())?;
         crate::ffi::save_node_to_file(self.handle, &self.session, &filename)
@@ -364,7 +365,7 @@ impl<'session> HoudiniNode {
         parent: Option<NodeHandle>,
         label: &str,
         cook: bool,
-        file: impl AsRef<std::path::Path>,
+        file: impl AsRef<Path>,
     ) -> Result<HoudiniNode> {
         debug_assert!(session.is_valid());
         let filename = CString::new(file.as_ref().to_string_lossy().to_string())?;

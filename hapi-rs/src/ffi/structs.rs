@@ -35,14 +35,14 @@ macro_rules! get {
     ($method:ident->$field:ident->Result<String>) => {
         #[inline]
         pub fn $method(&self) -> Result<String> {
-            self.session.get_string(self.inner.$field)
+            crate::stringhandle::get_string(self.inner.$field, &self.session)
         }
     };
 
     (with_session $method:ident->$field:ident->Result<String>) => {
         #[inline]
         pub fn $method(&self, session: &Session) -> Result<String> {
-            session.get_string(self.inner.$field)
+            crate::stringhandle::get_string(self.inner.$field, session)
         }
     };
 
@@ -169,6 +169,7 @@ macro_rules! wrap {
     };
 }
 
+/// Menu parameter label and value
 #[derive(Debug)]
 pub struct ParmChoiceInfo {
     pub(crate) inner: HAPI_ParmChoiceInfo,
@@ -180,6 +181,7 @@ impl ParmChoiceInfo {
     get!(label->labelSH->Result<String>);
 }
 
+/// Holds parameter information [HAPI_ParmInfo]
 #[derive(Debug)]
 pub struct ParmInfo {
     pub(crate) inner: HAPI_ParmInfo,
@@ -275,6 +277,7 @@ impl std::fmt::Debug for NodeInfo {
     }
 }
 
+/// Session cook options [`Documentation`](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___cook_options.html)
 #[derive(Debug)]
 pub struct CookOptions {
     pub(crate) inner: HAPI_CookOptions,
@@ -314,6 +317,7 @@ wrap!(
     [get|set|with] count->count->[i32];
 );
 
+/// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___asset_info.html)
 #[derive(Debug)]
 pub struct AssetInfo<'session> {
     pub(crate) inner: HAPI_AssetInfo,

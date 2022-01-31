@@ -116,7 +116,7 @@ pub fn get_parm_string_value(node: &HoudiniNode, name: &CStr, index: i32) -> Res
         .check_err(Some(&node.session))?;
         handle.assume_init()
     };
-    node.session.get_string(handle)
+    crate::stringhandle::get_string(handle, &node.session)
 }
 
 pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<NodeHandle>> {

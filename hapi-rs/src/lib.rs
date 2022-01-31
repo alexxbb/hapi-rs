@@ -150,6 +150,7 @@ pub mod volume;
 pub use errors::{HapiError, Kind, Result};
 pub use ffi::enums;
 
+/// Houdini version this library was build upon
 #[derive(Debug)]
 pub struct HoudiniVersion {
     pub major: u32,
@@ -158,6 +159,7 @@ pub struct HoudiniVersion {
     pub patch: u32,
 }
 
+/// Engine version this library was build upon
 #[derive(Debug)]
 pub struct EngineVersion {
     pub major: u32,
@@ -165,6 +167,7 @@ pub struct EngineVersion {
     pub api: u32,
 }
 
+/// Houdini version this library was build upon
 pub const HOUDINI_VERSION: HoudiniVersion = HoudiniVersion {
     major: ffi::raw::HAPI_VERSION_HOUDINI_MAJOR,
     minor: ffi::raw::HAPI_VERSION_HOUDINI_MINOR,
@@ -172,6 +175,7 @@ pub const HOUDINI_VERSION: HoudiniVersion = HoudiniVersion {
     patch: ffi::raw::HAPI_VERSION_HOUDINI_PATCH,
 };
 
+/// Engine version this library was build upon
 pub const ENGINE_VERSION: EngineVersion = EngineVersion {
     major: ffi::raw::HAPI_VERSION_HOUDINI_ENGINE_MAJOR,
     minor: ffi::raw::HAPI_VERSION_HOUDINI_ENGINE_MINOR,

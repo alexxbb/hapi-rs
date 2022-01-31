@@ -57,10 +57,12 @@ pub struct CStringIter<'a> {
 }
 
 impl<'a> StringArray {
+    /// Return an iterator over &str
     pub fn iter_str(&'a self) -> StringIter<'a> {
         StringIter { inner: &self.bytes }
     }
 
+    /// Return an iterator over &CStr
     pub fn iter_cstr(&'a self) -> CStringIter<'a> {
         CStringIter { inner: &self.bytes }
     }
@@ -68,6 +70,12 @@ impl<'a> StringArray {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.bytes.is_empty()
+    }
+
+    /// Reference to underlying bytes
+    #[inline]
+    pub fn bytes(&self) -> &[u8] {
+        self.bytes.as_slice()
     }
 }
 

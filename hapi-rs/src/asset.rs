@@ -1,4 +1,5 @@
-//! For loading digital assets and reading their parameters
+//! For loading digital assets and reading their parameters.
+//! [Documentation](https://www.sidefx.com/docs/hengine/_h_a_p_i__assets.html)
 use crate::ffi::raw as ffi;
 use crate::ffi::raw::{ChoiceListType, ParmType};
 use crate::{
@@ -18,6 +19,8 @@ struct AssetParmValues {
     menus: Vec<ParmChoiceInfo>,
 }
 
+/// Holds asset parameters data.
+/// Call `into_iter` to get an iterator over each parameter
 pub struct AssetParameters {
     infos: Vec<ParmInfo>,
     values: AssetParmValues,
@@ -36,6 +39,7 @@ impl<'a> IntoIterator for &'a AssetParameters {
 }
 
 impl AssetParameters {
+    /// Find asset parameter by name
     pub fn find_parameter(&self, name: &str) -> Option<AssetParm<'_>> {
         self.infos
             .iter()
@@ -47,6 +51,7 @@ impl AssetParameters {
     }
 }
 
+/// Iterator over asset parameter default values
 pub struct AssetParmIter<'a> {
     iter: std::slice::Iter<'a, ParmInfo>,
     values: &'a AssetParmValues,
@@ -63,6 +68,7 @@ impl<'a> Iterator for AssetParmIter<'a> {
     }
 }
 
+/// Holds info and default value of a parameter
 pub struct AssetParm<'a> {
     info: &'a ParmInfo,
     values: &'a AssetParmValues,
@@ -76,6 +82,7 @@ impl<'a> std::ops::Deref for AssetParm<'a> {
     }
 }
 
+/// Parameter default value
 #[derive(Debug)]
 pub enum ParmValue<'a> {
     Int(&'a [i32]),
@@ -86,6 +93,7 @@ pub enum ParmValue<'a> {
 }
 
 impl<'a> AssetParm<'a> {
+    /// Get parameter default value
     pub fn default_value(&self) -> ParmValue<'a> {
         let size = self.info.size() as usize;
         use ParmType::*;
@@ -110,6 +118,7 @@ impl<'a> AssetParm<'a> {
         }
     }
 
+    /// Returns menu parameter items
     pub fn menu_items(&self) -> Option<&[ParmChoiceInfo]> {
         if let ChoiceListType::None = self.choice_list_type() {
             return None;
@@ -120,6 +129,7 @@ impl<'a> AssetParm<'a> {
     }
 }
 
+/// A handle to a loaded HDA file
 #[derive(Debug, Clone)]
 pub struct AssetLibrary {
     lib_id: ffi::HAPI_AssetLibraryId,
@@ -127,6 +137,7 @@ pub struct AssetLibrary {
 }
 
 impl AssetLibrary {
+    /// Load an asset from file
     pub fn from_file(session: Session, file: impl AsRef<str>) -> Result<AssetLibrary> {
         debug!("Loading library: {}", file.as_ref());
         debug_assert!(session.is_valid());
@@ -135,11 +146,13 @@ impl AssetLibrary {
         Ok(AssetLibrary { lib_id, session })
     }
 
+    /// Get number of assets defined in the current library
     pub fn get_asset_count(&self) -> Result<i32> {
         debug_assert!(self.session.is_valid());
         crate::ffi::get_asset_count(self.lib_id, &self.session)
     }
 
+    /// Get asset names this library contains
     pub fn get_asset_names(&self) -> Result<Vec<String>> {
         debug_assert!(self.session.is_valid());
         let num_assets = self.get_asset_count()?;
@@ -159,13 +172,14 @@ impl AssetLibrary {
         let name = self
             .get_first_name()?
             .ok_or_else(|| crate::errors::HapiError {
-                kind: crate::errors::Kind::Other("Library is empty".to_string()),
+                kind: crate::errors::Kind::Other("Library file is empty".to_string()),
                 message: None,
                 session: None,
             })?;
         self.session.create_node_blocking(&name, None, None)
     }
 
+    /// Returns a struct holding the asset parameter information and vlaues
     pub fn get_asset_parms(&self, asset: impl AsRef<str>) -> Result<AssetParameters> {
         debug_assert!(self.session.is_valid());
         let _lock = self.session.handle.1.lock();
@@ -204,7 +218,7 @@ impl AssetLibrary {
 }
 
 impl<'node> AssetInfo<'node> {
-    pub fn new(node: &'node HoudiniNode) -> Result<AssetInfo<'_>> {
+    pub(crate) fn new(node: &'node HoudiniNode) -> Result<AssetInfo<'_>> {
         Ok(AssetInfo {
             inner: crate::ffi::get_asset_info(node)?,
             session: &node.session,

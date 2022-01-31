@@ -6,8 +6,11 @@ use std::fmt::Formatter;
 
 pub type Result<T> = std::result::Result<T, HapiError>;
 
+/// Error type returned by all APIs
 pub struct HapiError {
+    /// A specific type
     pub kind: Kind,
+    /// Optional error message some APIs can set
     pub message: Option<Cow<'static, str>>,
     pub(crate) session: Option<Session>,
 }
@@ -21,9 +24,13 @@ impl PartialEq for HapiError {
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Kind {
+    /// Error returned by ffi calls
     Hapi(HapiResult),
+    /// CString contains null byte
     NullByte,
+    /// String is not a valid utf-8
     Utf8Error,
+    /// Any other error
     Other(String),
 }
 
