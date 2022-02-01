@@ -44,6 +44,12 @@ pub const fn node_type_name(tp: NodeType) -> &'static str {
     }
 }
 
+impl std::fmt::Display for NodeType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(node_type_name(*self))
+    }
+}
+
 impl crate::ffi::NodeInfo {
     pub fn new(session: &Session, node: NodeHandle) -> Result<Self> {
         let info = crate::ffi::get_node_info(node, session)?;

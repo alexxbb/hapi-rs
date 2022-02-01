@@ -1,11 +1,11 @@
 use hapi_rs::parameter::{Parameter, ParmBaseTrait};
-use hapi_rs::session::{new_in_process, SessionOptions};
+use hapi_rs::session::{quick_session, SessionOptions};
 use hapi_rs::Result;
 use prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR as FORMAT;
 use prettytable::*;
 
 fn main() -> Result<()> {
-    let mut session = new_in_process()?;
+    let mut session = quick_session()?;
     let mut opt = SessionOptions::default();
     opt.threaded = true;
     session.initialize(&opt)?;

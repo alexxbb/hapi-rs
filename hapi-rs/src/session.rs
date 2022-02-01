@@ -183,7 +183,7 @@ impl Session {
         HoudiniNode::create(name, label.into(), parent, self.clone(), false)
     }
 
-    /// Create a node. `name` must start with a network category, e.g, "Object/geo", "Sop/box"
+    /// Create a node. `name` must start with a network category, e.g, "Object/geo", "Sop/box".
     /// New node will be cooked
     pub fn create_node_blocking<'a>(
         &self,
@@ -764,17 +764,6 @@ pub(crate) mod tests {
             assert_eq!(vp.rotation(), vp2.rotation());
             assert_eq!(vp.offset(), vp2.offset());
         });
-    }
-
-    #[test]
-    fn license_type() {
-        with_session(|session| {
-            // Loading asset triggers license acquisition
-            session
-                .load_asset_file(OTLS.get("geometry").unwrap())
-                .unwrap();
-            assert_eq!(session.get_license_type(), Ok(License::HoudiniFx));
-        })
     }
 
     #[test]

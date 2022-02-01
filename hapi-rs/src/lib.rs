@@ -39,7 +39,30 @@
 //! # Building
 //!
 //! **HFS** environment variable must be set for build script to link to Houdini libraries.
-//! Also runtime libraries are searched in `$PATH` on windows, `$LD_LIBRARY_PATH` on Linux and `$DYLD_LIBRARY_PATH` on MacOS
+//!
+//! ## Runtime Houdini libraries
+//! **Option 1**
+//!
+//! Via RUSTFLAGS variable:
+//! ```bash
+//! RUSTFLAGS="-C link-args=-Wl,-rpath,/path/to/hfs/dsolib" cargo build
+//! ```
+//! **Option 2**
+//!
+//! Via a cargo config file: `.cargo/config` of your project
+//!```
+//! [target.'cfg(target_os = "linux")']
+//! rustflags = ["-C", "link-arg=-Wl,-rpath=/opt/hfs/19.0.455/dsolib"]
+//! [target.x86_64-apple-darwin]
+//! rustflags = ["-C",
+//!     "link-arg=-Wl,-rpath,/Applications/Houdini/Current/Frameworks/Houdini.framework/Versions/Current/Libraries",
+//! ]
+//! [target.x86_64-pc-windows-msvc]
+//! rustflags = ["-C", "link-arg=-Wl,-rpath,C:/Houdini/19.0.455/custom/houdini/dsolib"]
+//!```
+//! **Option 3**
+//!
+//! At runtime via env variables: `$PATH` on windows, `$LD_LIBRARY_PATH` on Linux and `$DYLD_LIBRARY_PATH` on MacOS
 //!
 //! # Running examples
 //! Make sure the environment variables are set as said above.

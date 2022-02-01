@@ -5,7 +5,7 @@ use hapi_rs::geometry::{
 };
 use hapi_rs::node::HoudiniNode;
 use hapi_rs::parameter::{Parameter, ParmBaseTrait};
-use hapi_rs::session::{new_in_process, Session, SessionOptions};
+use hapi_rs::session::{quick_session, Session, SessionOptions};
 use hapi_rs::Result;
 
 fn create_cube(session: &Session) -> Result<HoudiniNode> {
@@ -65,7 +65,7 @@ fn create_cube(session: &Session) -> Result<HoudiniNode> {
 }
 
 fn main() -> Result<()> {
-    let mut session = new_in_process()?;
+    let mut session = quick_session()?;
     session.initialize(&SessionOptions::default())?;
     let cube = create_cube(&session)?;
     let xform = session.create_node("Sop/xform", Some("PointGroupManipulator"), None)?;

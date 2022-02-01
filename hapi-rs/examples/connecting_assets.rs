@@ -3,7 +3,7 @@ use hapi_rs::Result;
 use hapi_rs::{attribute::*, geometry::*, session::*};
 
 fn main() -> Result<()> {
-    let mut session = new_in_process()?;
+    let mut session = quick_session()?;
     session.initialize(&SessionOptions::default())?;
     let new_node = session.create_input_node("Cube")?;
     new_node.cook_blocking(None)?;

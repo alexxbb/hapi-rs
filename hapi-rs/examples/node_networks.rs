@@ -3,7 +3,7 @@ use hapi_rs::session::*;
 use hapi_rs::Result;
 
 fn main() -> Result<()> {
-    let mut session = new_in_process()?;
+    let mut session = quick_session()?;
     session.initialize(&SessionOptions::default())?;
     let lib = session.load_asset_file("otls/sesi/FourShapes.hda")?;
     let asset = lib.try_create_first()?;

@@ -1,11 +1,11 @@
 use hapi_rs::attribute::*;
 use hapi_rs::geometry::{AttributeOwner, CurveOrders, CurveType, Geometry, PartInfo, PartType};
 use hapi_rs::node::{NodeFlags, NodeType, ObjectInfo};
-use hapi_rs::session::{new_in_process, SessionOptions};
+use hapi_rs::session::{quick_session, SessionOptions};
 use hapi_rs::Result;
 
 fn main() -> Result<()> {
-    let mut session = new_in_process()?;
+    let mut session = quick_session()?;
     let mut opt = SessionOptions::default();
     opt.threaded = true;
     session.initialize(&opt)?;
