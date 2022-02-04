@@ -1,4 +1,3 @@
-#![allow(unused)]
 use crate::errors::Result;
 use crate::stringhandle::StringArray;
 use std::borrow::Cow;

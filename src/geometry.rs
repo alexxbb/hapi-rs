@@ -1,5 +1,7 @@
 //! Access to geometry data, attributes, reading and writing to disk
-#![allow(unused)]
+//!
+//! [`Geometry`] struct is a wrapper around [`HoudiniNode`] with methods for manipulating geometry.
+//!
 use std::ffi::{CStr, CString};
 
 use crate::attribute::*;

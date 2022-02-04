@@ -33,9 +33,9 @@ fn main() -> Result<()> {
 fn print_curve_info(geo: &Geometry, obj: &ObjectInfo, part: &PartInfo) -> Result<()> {
     let part_id = part.part_id();
     println!(
-        "Object Node: {}, Geometry: {}, Part ID: {}",
-        obj.node_id().0,
-        geo.geo_info()?.node_id().0,
+        "Object Node: {:?}, Geometry: {:?}, Part ID: {}",
+        obj.node_id(),
+        geo.geo_info()?.node_id(),
         part_id
     );
 

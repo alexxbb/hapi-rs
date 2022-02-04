@@ -1,4 +1,3 @@
-#![allow(unused)]
 use super::array::{DataArray, StringMultiArray};
 pub use super::bindings::AttribAccess;
 use crate::errors::Result;

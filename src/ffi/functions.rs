@@ -917,6 +917,7 @@ pub fn get_compose_child_node_list(
 ) -> Result<Vec<i32>> {
     unsafe {
         let mut count = uninit!();
+        let _lock = session.lock();
         raw::HAPI_ComposeChildNodeList(
             session.ptr(),
             node.0,
@@ -1005,6 +1006,7 @@ pub fn query_node_output_connected_nodes(
     search_subnets: bool,
 ) -> Result<Vec<NodeHandle>> {
     let mut count = uninit!();
+    let _lock = node.session.lock();
     unsafe {
         raw::HAPI_QueryNodeOutputConnectedCount(
             node.session.ptr(),

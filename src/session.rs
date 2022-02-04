@@ -1,5 +1,19 @@
 //! Session is responsible for communicating with HAPI
 //!
+//! Engine [promises](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html#HAPI_Sessions_Multithreading)
+//! to be thread-safe when accessing a single `Session` from multiple threads.
+//! `hapi-rs` relies on this promise and the [session::Session] struct holds only an `Arc` pointer to the session,
+//! and *does not* protect the session with Mutex, although there is a [parking_lot::ReentrantMutex]
+//! private member which is used internally in a few cases where API calls must be sequential.
+//!
+//! When the last instance of the `Session` is about to drop, it'll be cleaned
+//! (if [session::SessionOptions::cleanup] was set) and automatically closed.
+//!
+//! The Engine process (pipe or socket) can be auto-terminated as well if told so when starting the server:
+//! See [session:start_engine_pipe_server] and [session::start_engine_socket_server]
+//!
+//! [session::quick_session] terminates the server by default. This is useful for quick one-off jobs.
+//!
 #[rustfmt::skip]
 use std::{
     ffi::CString,

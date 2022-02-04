@@ -181,7 +181,7 @@ impl ParmChoiceInfo {
     get!(label->labelSH->Result<String>);
 }
 
-/// Holds parameter information [HAPI_ParmInfo]
+/// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___parm_info.html)
 #[derive(Debug)]
 pub struct ParmInfo {
     pub(crate) inner: HAPI_ParmInfo,
@@ -235,6 +235,7 @@ impl ParmInfo {
 }
 
 #[derive(Clone)]
+/// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___node_info.html)
 pub struct NodeInfo {
     pub(crate) inner: HAPI_NodeInfo,
 }
@@ -265,7 +266,7 @@ impl std::fmt::Debug for NodeInfo {
         f.debug_struct("NodeInfo")
             .field("nameSH", &self.inner.nameSH)
             .field("internalPathSH", &self.inner.internalNodePathSH)
-            .field("type", &crate::node::node_type_name(self.node_type()))
+            .field("type", &self.node_type())
             .field("is_valid", &self.is_valid())
             .field("time_dependent", &self.is_time_dependent())
             .field("total_cook_count", &self.total_cook_count())
@@ -277,7 +278,7 @@ impl std::fmt::Debug for NodeInfo {
     }
 }
 
-/// Session cook options [`Documentation`](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___cook_options.html)
+/// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___cook_options.html)
 #[derive(Debug)]
 pub struct CookOptions {
     pub(crate) inner: HAPI_CookOptions,
@@ -345,6 +346,7 @@ impl<'s> AssetInfo<'s> {
 }
 
 #[derive(Debug)]
+/// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___object_info.html)
 pub struct ObjectInfo<'session> {
     pub(crate) inner: HAPI_ObjectInfo,
     pub session: &'session Session,
@@ -367,6 +369,7 @@ impl<'s> ObjectInfo<'s> {
 }
 
 #[derive(Debug, Clone)]
+/// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___geo_info.html)
 pub struct GeoInfo {
     pub(crate) inner: HAPI_GeoInfo,
 }
@@ -454,6 +457,7 @@ wrap!(
 );
 
 #[derive(Debug, Clone)]
+/// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___transform.html)
 pub struct Transform {
     pub(crate) inner: HAPI_Transform,
 }
@@ -479,6 +483,7 @@ impl Transform {
 }
 
 #[derive(Debug, Clone)]
+/// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___transform_euler.html)
 pub struct TransformEuler {
     pub(crate) inner: HAPI_TransformEuler,
 }
@@ -587,6 +592,7 @@ wrap!(
 
 #[repr(C)]
 #[derive(Debug, Clone)]
+/// For parameter animation
 pub struct KeyFrame {
     pub time: f32,
     pub value: f32,

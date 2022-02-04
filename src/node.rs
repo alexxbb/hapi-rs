@@ -3,8 +3,10 @@
 //! Any Houdini nodes is represented as [`HoudiniNode`] struct and all node-related functions are exposed as
 //! methods on that struct. It has a public `info` filed with [`NodeInfo`] with details about the node.
 //!
-//! Nodes can be created directly with `HoudiniNode::create()` functions but a recommended way is
-//! through the session object: [`session::Session::create_node`]
+//! Nodes can be created directly with [`HoudiniNode::create()`] functions but a recommended way is
+//! through the session object: [`Session::create_node`]
+//!
+//! HoudiniNode is [`Sync`] and [`Send`]
 use std::path::Path;
 use std::sync::Arc;
 use std::{ffi::CString, fmt::Formatter};
@@ -26,23 +28,19 @@ pub use crate::{
     ffi::{CookOptions, Transform, TransformEuler},
 };
 
-pub const fn node_type_name(tp: NodeType) -> &'static str {
-    match tp {
-        NodeType::Sop => "Sop",
-        NodeType::Obj => "Obj",
-        NodeType::Rop => "Rop",
-        NodeType::Dop => "Dop",
-        NodeType::Cop => "Cop",
-        NodeType::Shop => "Shop",
-        NodeType::Vop => "Vop",
-        NodeType::Chop => "Chop",
-        _ => "Unknown",
-    }
-}
-
 impl std::fmt::Display for NodeType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(node_type_name(*self))
+        f.write_str(match *self {
+            NodeType::Sop => "Sop",
+            NodeType::Obj => "Obj",
+            NodeType::Rop => "Rop",
+            NodeType::Dop => "Dop",
+            NodeType::Cop => "Cop",
+            NodeType::Shop => "Shop",
+            NodeType::Vop => "Vop",
+            NodeType::Chop => "Chop",
+            _ => "Unknown",
+        })
     }
 }
 
@@ -55,24 +53,29 @@ impl crate::ffi::NodeInfo {
 
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct NodeHandle(pub crate::ffi::raw::HAPI_NodeId, pub(crate) ());
+/// A handle to a node. Can not be created manually, use [`HoudiniNode`] instead.
+pub struct NodeHandle(pub(crate) crate::ffi::raw::HAPI_NodeId, pub(crate) ());
 
 impl NodeHandle {
+    /// Retrieve info about the node this handle belongs to
     pub fn info(&self, session: &Session) -> Result<NodeInfo> {
         NodeInfo::new(session, *self)
     }
 
+    /// Check if the handle is valid (node wasn't deleted)
     pub fn is_valid(&self, session: &Session) -> Result<bool> {
         let info = self.info(session)?;
         crate::ffi::is_node_valid(session, &info.inner)
     }
 
+    /// Upgrade the handle to HoudiniNode, which has more capabilities
     pub fn to_node(&self, session: &Session) -> Result<HoudiniNode> {
         HoudiniNode::new(session.clone(), *self, None)
     }
 }
 
 #[derive(Clone)]
+/// Represents a Houdini node
 pub struct HoudiniNode {
     pub handle: NodeHandle,
     pub session: Session,
@@ -150,8 +153,7 @@ impl<'session> HoudiniNode {
     }
 
     /// In sync mode (single threaded), the error will be available in Err(..) while
-    /// in threaded mode the error will be in Ok(..)
-    /// TODO: Maybe get rid of options here
+    /// in threaded cooking mode the status will be in [`CookResult`]
     pub fn cook_blocking(&self, options: Option<&CookOptions>) -> Result<CookResult> {
         debug_assert!(self.is_valid()?);
         self.cook(options)?;
@@ -526,12 +528,11 @@ mod tests {
 
     #[test]
     fn node_find_siblings() {
-        with_session(|session| {
-            let node = session.create_node("Object/hapi_geo", None, None).unwrap();
-            let geo = node.geometry().unwrap().unwrap();
-            let add_color = geo.node.find_sibling("add_color", NodeType::Sop).unwrap();
-            assert!(add_color.is_some())
-        })
+        let session = crate::session::quick_session().unwrap();
+        let node = session.create_node("Object/hapi_geo", None, None).unwrap();
+        let geo = node.geometry().unwrap().unwrap();
+        let add_color = geo.node.find_sibling("add_color", NodeType::Sop).unwrap();
+        assert!(add_color.is_some())
     }
 
     #[test]

@@ -8,11 +8,12 @@ pub type Result<T> = std::result::Result<T, HapiError>;
 
 /// Error type returned by all APIs
 pub struct HapiError {
-    /// A specific type
+    /// A specific error type.
     pub kind: Kind,
-    /// Optional error message some APIs can set
-    pub message: Option<Cow<'static, str>>,
-    pub(crate) session: Option<Session>,
+    /// Optional error message some APIs can set.
+    pub context_message: Option<Cow<'static, str>>,
+    /// Error message retrieved from the server. Server doesn't always return a message.
+    pub server_message: Option<String>,
 }
 
 impl PartialEq for HapiError {
@@ -73,8 +74,8 @@ impl From<HapiResult> for HapiError {
     fn from(r: HapiResult) -> Self {
         HapiError {
             kind: Kind::Hapi(r),
-            message: None,
-            session: None,
+            context_message: None,
+            server_message: None,
         }
     }
 }
@@ -82,13 +83,13 @@ impl From<HapiResult> for HapiError {
 impl HapiError {
     pub(crate) fn new(
         kind: Kind,
-        session: Option<Session>,
-        message: Option<Cow<'static, str>>,
+        context_message: Option<Cow<'static, str>>,
+        server_message: Option<String>,
     ) -> HapiError {
         HapiError {
             kind,
-            message,
-            session,
+            context_message,
+            server_message,
         }
     }
 }
@@ -97,14 +98,11 @@ impl std::fmt::Display for HapiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
             Kind::Hapi(_) => {
-                if let Some(ref session) = self.session {
-                    let err_msg = session
-                        .get_status_string(StatusType::CallResult, StatusVerbosity::All)
-                        .unwrap_or_else(|_| String::from("could not retrieve error message"));
-                    write!(f, "[{}]: ", self.kind.description())?;
-                    write!(f, "[Engine Message]: {} ", err_msg)?;
+                write!(f, "[{}]: ", self.kind.description())?;
+                if let Some(ref msg) = self.server_message {
+                    write!(f, "[Engine Message]: {}", msg)?;
                 }
-                if let Some(ref msg) = self.message {
+                if let Some(ref msg) = self.context_message {
                     write!(f, "[Context Message]: {}", msg)?;
                 }
                 Ok(())
@@ -138,18 +136,29 @@ impl HapiResult {
     fn _into_result<R: Default>(
         self,
         session: Option<&Session>,
-        message: Option<Cow<'static, str>>,
+        context_msg: Option<Cow<'static, str>>,
     ) -> Result<R> {
         match self {
             HapiResult::Success => Ok(R::default()),
-            err => Err(HapiError::new(Kind::Hapi(err), session.cloned(), message)),
+            err => {
+                let mut server_msg = None;
+                if let Some(session) = session {
+                    let err_msg = session
+                        .get_status_string(StatusType::CallResult, StatusVerbosity::All)
+                        .unwrap_or_else(|_| String::from("could not retrieve error message"));
+                    server_msg.replace(err_msg);
+                }
+                Err(HapiError::new(Kind::Hapi(err), context_msg, server_msg))
+            }
         }
     }
 
+    #[inline]
     pub(crate) fn check_err<R: Default>(self, session: Option<&Session>) -> Result<R> {
         self._into_result(session, None)
     }
 
+    #[inline]
     pub(crate) fn error_message<I: Into<Cow<'static, str>>, R: Default>(
         self,
         message: I,

@@ -38,7 +38,7 @@ fn print_child_node(session: &Session, ids: &[NodeHandle]) -> Result<()> {
     for handle in ids {
         let info = handle.info(session)?;
         #[rustfmt::skip]
-        println!("\t{} - {}", handle.0, info.created_post_asset_load().then(|| "NEW").unwrap_or("EXISTING"));
+        println!("\t{:?} - {}", handle, info.created_post_asset_load().then(|| "NEW").unwrap_or("EXISTING"));
     }
 
     Ok(())

@@ -18,9 +18,9 @@
 //! use hapi_rs::parameter::*;
 //!
 //! fn main() -> Result<()> {
-//!     // Quick session starts a standalone engine process
+//!     // Start a standalone engine process
 //!     let session = quick_session()?;
-//!     // Load a Houdini Asset, create a node
+//!     // Load a Houdini Asset and create a node
 //!     session.load_asset_file("otls/hapi_geo.hda")?;
 //!     let node = session.create_node("Object/hapi_geo", None, None)?;
 //!     // Set the "scale" parameter
@@ -42,9 +42,9 @@
 //!
 //! # Building and running
 //!
-//! **HFS** environment variable must be set for build script to link to Houdini libraries.
+//! **HFS** environment variable must be set for the build script to link to Houdini libraries.
 //!
-//! For runtime Houdini libraries there are several options:
+//! For runtime discovery of Houdini libraries there are several options:
 //!
 //! **Option 1**
 //!
@@ -114,36 +114,9 @@
 //!    .with_face_count(6);
 //! ```
 //!
-//! # Session
-//! Engine [promises](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html#HAPI_Sessions_Multithreading)
-//! to be thread-safe when accessing a single `Session` from multiple threads.
-//! `hapi-rs` relies on this promise and the [session::Session] struct holds only an `Arc` pointer to the session,
-//! and *does not* protect the session with Mutex, although there is a [parking_lot::ReentrantMutex]
-//! private member which is used internally in a few cases where API calls must be sequential.
-//!
-//! When the last instance of the `Session` is about to drop, it'll be cleaned
-//! (if [session::SessionOptions::cleanup] was set) and automatically closed.
-//!
-//! The Engine process (pipe or socket) can be auto-terminated as well if told so when starting the server:
-//! See [session:start_engine_pipe_server] and [session::start_engine_socket_server]
-//!
-//! [session::quick_session] terminates the server by default. This is useful for quick one-off jobs.
-//!
-//! # Nodes
-//! Houdini nodes are represented as [`node::HoudiniNode`] struct and all node-related functions are
-//! methods on that struct. It has a public `info` field with [`node::NodeInfo`] with details about the node.
-//!
-//! See the [node] module for details.
-//!
-//! # Geometry
-//! [`geometry::Geometry`] is a wrapper around `HoudiniNode` with methods for accessing geometry.
-//!
-//! See the [geometry] module for details.
-//!
-//!
 //! # Error type
 //! All API calls return [`HapiError`] ([HAPI_Result](https://www.sidefx.com/docs/hengine/_h_a_p_i___common_8h.html#ac52e921ba2c7fc21a0f245678f76c836))
-//! Moreover, **only** in case of error, the HapiError struct will keep a pointer to [session::Session] to retrieves the error message from the engine ad hoc.
+//! In case of error, the HapiError struct contains an Option<String> with the error message returned from the Engine.
 //!
 //!
 //! # Strings
@@ -161,8 +134,6 @@
 //!
 pub mod asset;
 pub mod attribute;
-mod errors;
-mod ffi;
 pub mod geometry;
 pub mod material;
 pub mod node;
@@ -170,8 +141,10 @@ pub mod parameter;
 pub mod session;
 pub mod stringhandle;
 pub mod volume;
+mod errors;
+mod ffi;
 
-pub use errors::{HapiError, Kind, Result};
+pub use errors::{HapiError, Result};
 pub use ffi::enums;
 
 /// Houdini version this library was build upon
