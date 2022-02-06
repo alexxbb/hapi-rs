@@ -602,7 +602,7 @@ pub fn create_inprocess_session() -> Result<raw::HAPI_Session> {
             err @ raw::HapiResult::Failure => Err(HapiError::new(
                 Kind::Hapi(err),
                 None,
-                Some(get_connection_error(true)?.into()),
+                get_connection_error(true).ok(),
             )),
             _ => Ok(ses.assume_init()),
         }
@@ -2525,8 +2525,7 @@ pub fn extract_image_to_memory(
         )
         .check_err(Some(session))?;
         let size = size.assume_init() as usize;
-        let mut buffer = Vec::with_capacity(size);
-        buffer.resize(size, 0);
+        let mut buffer = vec![0; size];
         raw::HAPI_GetImageMemoryBuffer(
             session.ptr(),
             material.0,

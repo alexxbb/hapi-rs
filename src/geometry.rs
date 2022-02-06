@@ -718,7 +718,6 @@ impl PartInfo {
 #[cfg(test)]
 mod tests {
     use crate::geometry::Geometry;
-    use crate::node::HoudiniNode;
     use crate::session::tests::with_session;
     use crate::session::Session;
 

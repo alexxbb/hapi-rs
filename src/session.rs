@@ -485,6 +485,7 @@ where
 }
 
 /// Session options used in [`Session::initialize`]
+// TODO: Add builder
 pub struct SessionOptions {
     /// Session cook options
     pub cook_opt: CookOptions,

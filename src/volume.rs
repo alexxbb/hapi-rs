@@ -60,7 +60,7 @@ impl VolumeStorage for i32 {
         values: &mut [Self],
         info: &HAPI_VolumeTileInfo,
     ) -> Result<()> {
-        crate::ffi::get_volume_tile_int_data(&node, part, fill_value, values, info)
+        crate::ffi::get_volume_tile_int_data(node, part, fill_value, values, info)
     }
 
     fn read_voxel(
@@ -71,7 +71,7 @@ impl VolumeStorage for i32 {
         z: i32,
         values: &mut [Self],
     ) -> Result<()> {
-        crate::ffi::get_volume_voxel_int(&node, part, x, y, z, values)
+        crate::ffi::get_volume_voxel_int(node, part, x, y, z, values)
     }
 
     fn write_tile(
@@ -91,7 +91,7 @@ impl VolumeStorage for i32 {
         z: i32,
         values: &[Self],
     ) -> Result<()> {
-        crate::ffi::set_volume_voxel_int(&node, part, x, y, z, values)
+        crate::ffi::set_volume_voxel_int(node, part, x, y, z, values)
     }
 }
 
@@ -103,7 +103,7 @@ impl VolumeStorage for f32 {
         values: &mut [Self],
         info: &HAPI_VolumeTileInfo,
     ) -> Result<()> {
-        crate::ffi::get_volume_tile_float_data(&node, part, fill_value, values, info)
+        crate::ffi::get_volume_tile_float_data(node, part, fill_value, values, info)
     }
 
     fn read_voxel(
@@ -114,7 +114,7 @@ impl VolumeStorage for f32 {
         z: i32,
         values: &mut [Self],
     ) -> Result<()> {
-        crate::ffi::get_volume_voxel_float(&node, part, x, y, z, values)
+        crate::ffi::get_volume_voxel_float(node, part, x, y, z, values)
     }
 
     fn write_tile(
@@ -134,7 +134,7 @@ impl VolumeStorage for f32 {
         z: i32,
         values: &[Self],
     ) -> Result<()> {
-        crate::ffi::set_volume_voxel_float(&node, part, x, y, z, values)
+        crate::ffi::set_volume_voxel_float(node, part, x, y, z, values)
     }
 }
 
@@ -152,7 +152,7 @@ pub(crate) fn iterate_tiles(
     callback: impl Fn(Tile),
 ) -> Result<()> {
     let mut tile = VolumeTileInfo {
-        inner: crate::ffi::get_volume_first_tile_info(&node, part)?,
+        inner: crate::ffi::get_volume_first_tile_info(node, part)?,
     };
     let mut tile_num = 0;
     while tile.is_valid() {
@@ -161,7 +161,7 @@ pub(crate) fn iterate_tiles(
             size: tile_size,
             index: tile_num,
         });
-        crate::ffi::get_volume_next_tile_info(&node, part, &mut tile.inner)?;
+        crate::ffi::get_volume_next_tile_info(node, part, &mut tile.inner)?;
         tile_num += 1;
     }
     Ok(())

@@ -108,7 +108,7 @@ pub(crate) fn extract_image_to_file(
             .to_string(),
     )?;
     crate::ffi::extract_image_to_file(
-        &session,
+        session,
         node,
         &format,
         &image_planes,
@@ -138,14 +138,8 @@ mod tests {
     fn image_file_formats() {
         with_session(|session| {
             let formats = get_supported_image_formats(session).unwrap();
-            assert!(formats
-                .iter()
-                .find(|f| f.name().unwrap() == "JPEG")
-                .is_some());
-            assert!(formats
-                .iter()
-                .find(|f| f.extension().unwrap() == "jpg")
-                .is_some());
+            assert!(formats.iter().any(|f| f.name().unwrap() == "JPEG"));
+            assert!(formats.iter().any(|f| f.extension().unwrap() == "jpg"));
         });
     }
 
@@ -163,14 +157,14 @@ mod tests {
                 mat.render_texture("baseColorMap").unwrap();
                 mat.set_image_info(&info).unwrap();
                 let ip = mat.get_image_planes().unwrap();
-                assert!(ip.iter().find(|ip| *ip == "C").is_some());
+                assert!(ip.iter().any(|ip| *ip == "C"));
                 let file = std::env::temp_dir().join("hapi.jpeg");
                 mat.extract_image_to_file("C", file).expect("extract_image");
                 mat.render_texture("baseColorMap").unwrap();
                 let bytes = mat
                     .extract_image_to_memory("C", "JPEG")
                     .expect("extract_image");
-                assert!(bytes.len() > 0);
+                assert!(!bytes.is_empty());
             } else {
                 unreachable!();
             }
