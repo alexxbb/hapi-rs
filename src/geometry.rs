@@ -690,17 +690,22 @@ impl Geometry {
     ) -> Result<HoudiniNode> {
         let name = CString::new(volume_name)?;
         let handle = crate::ffi::create_heightfield_input_volume(
-            &self.node, None, &name, x_size, y_size, voxel_size,
+            &self.node,
+            parent.map(|h| h.0),
+            &name,
+            x_size,
+            y_size,
+            voxel_size,
         )?;
         handle.to_node(&self.node.session)
     }
 }
 
 pub struct HeightfieldNodes {
-    heightfield: HoudiniNode,
-    height: HoudiniNode,
-    mask: HoudiniNode,
-    merge: HoudiniNode,
+    pub heightfield: HoudiniNode,
+    pub height: HoudiniNode,
+    pub mask: HoudiniNode,
+    pub merge: HoudiniNode,
 }
 
 impl PartInfo {

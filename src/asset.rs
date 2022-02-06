@@ -89,7 +89,7 @@ pub enum ParmValue<'a> {
     Float(&'a [f32]),
     String(&'a [String]),
     Toggle(bool),
-    Other(String),
+    NoDefault,
 }
 
 impl<'a> AssetParm<'a> {
@@ -106,15 +106,15 @@ impl<'a> AssetParm<'a> {
                 let start = self.info.int_values_index() as usize;
                 ParmValue::Toggle(self.values.int[start] == 1)
             }
-            Float => {
+            Float | Color => {
                 let start = self.info.float_values_index() as usize;
                 ParmValue::Float(&self.values.float[start..start + size])
             }
-            String | PathFileGeo | PathFile | PathFileImage | PathFileDir => {
+            String | PathFileGeo | PathFile | PathFileImage | PathFileDir | Node => {
                 let start = self.info.string_values_index() as usize;
                 ParmValue::String(&self.values.string[start..start + size])
             }
-            _ => ParmValue::Other(format!("TODO: {:?}", self.info.parm_type())),
+            _ => ParmValue::NoDefault,
         }
     }
 

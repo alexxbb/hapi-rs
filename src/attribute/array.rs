@@ -13,7 +13,7 @@ impl<'a, T> DataArray<'a, T>
 where
     [T]: ToOwned<Owned = Vec<T>>,
 {
-    fn new(dat: &'a [T], sizes: &'a [i32]) -> DataArray<'a, T> {
+    pub fn new(dat: &'a [T], sizes: &'a [i32]) -> DataArray<'a, T> {
         DataArray {
             data: Cow::Borrowed(dat),
             sizes: Cow::Borrowed(sizes),

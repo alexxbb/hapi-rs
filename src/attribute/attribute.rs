@@ -5,7 +5,6 @@ pub use crate::ffi::enums::StorageType;
 pub use crate::ffi::AttributeInfo;
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringArray;
-use duplicate::duplicate;
 use std::any::Any;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
@@ -20,18 +19,9 @@ impl StorageType {
             Array | Uint8Array | Int8Array | Int16Array | Int64Array => {
                 matches!(*self, Int | Uint8 | Int16 | Int64)
             }
-            FloatArray | Float64Array => {
-                matches!(*self, Float | Float64)
-            }
-            StringArray => {
-                matches!(*self, StringArray)
-            }
-            st => {
-                matches!(*self, st)
-            }
-            Max | Invalid => {
-                panic!()
-            }
+            FloatArray | Float64Array => matches!(*self, Float | Float64),
+            StringArray => matches!(*self, StringArray),
+            _st => matches!(*self, _st),
         }
     }
 }
@@ -129,7 +119,7 @@ impl StringAttr {
     pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringAttr {
         StringAttr(_StringAttrData { info, name, node })
     }
-    fn get(&self, part_id: i32) -> Result<StringArray> {
+    pub fn get(&self, part_id: i32) -> Result<StringArray> {
         debug_assert!(self.0.node.is_valid()?);
         super::bindings::get_attribute_string_data(
             &self.0.node,
@@ -143,7 +133,7 @@ impl StringAttr {
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
             values.iter().map(|s| CString::new(*s)).collect();
         let cstr = cstr?;
-        let mut ptrs: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
+        let ptrs: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
         super::bindings::set_attribute_string_data(
             &self.0.node,
             part_id,
@@ -163,6 +153,7 @@ impl StringArrayAttr {
         super::bindings::get_attribute_string_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
+            part_id,
             &self.0.info.inner,
         )
     }
@@ -171,10 +162,11 @@ impl StringArrayAttr {
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
             values.iter().map(|s| CString::new(*s)).collect();
         let cstr = cstr?;
-        let mut ptrs: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
+        let ptrs: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
         super::bindings::set_attribute_string_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
+            part_id,
             &self.0.info.inner,
             &ptrs,
             sizes,

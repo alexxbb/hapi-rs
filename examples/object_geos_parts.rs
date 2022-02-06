@@ -8,7 +8,7 @@ fn main() -> Result<()> {
     let mut session = quick_session()?;
     session.initialize(&SessionOptions::default())?;
 
-    let lib = session.load_asset_file("otls/sesi/SideFX_spaceship.otl")?;
+    let lib = session.load_asset_file("otls/sesi/SideFX_spaceship.hda")?;
     let node = lib.try_create_first()?;
     node.cook_blocking(None)?;
     let _asset_info = node.asset_info()?;

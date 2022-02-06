@@ -227,7 +227,7 @@ impl AttribAccess for _val_type {
     }
 }
 
-pub fn get_attribute_string_data(
+pub(crate) fn get_attribute_string_data(
     node: &HoudiniNode,
     part_id: i32,
     name: &CStr,
@@ -283,6 +283,7 @@ pub fn set_attribute_string_data(
 pub fn get_attribute_string_array_data(
     node: &HoudiniNode,
     name: &CStr,
+    part_id: i32,
     info: &raw::HAPI_AttributeInfo,
 ) -> Result<StringMultiArray> {
     debug_assert!(node.is_valid()?);
@@ -292,7 +293,7 @@ pub fn get_attribute_string_array_data(
         raw::HAPI_GetAttributeStringArrayData(
             node.session.ptr(),
             node.handle.0,
-            0,
+            part_id,
             name.as_ptr(),
             info as *const _ as *mut _,
             data_array.as_mut_ptr(),
@@ -314,6 +315,7 @@ pub fn get_attribute_string_array_data(
 pub fn set_attribute_string_array_data(
     node: &HoudiniNode,
     name: &CStr,
+    part_id: i32,
     info: &raw::HAPI_AttributeInfo,
     data: &[&CStr],
     sizes: &[i32],
@@ -324,7 +326,7 @@ pub fn set_attribute_string_array_data(
         raw::HAPI_SetAttributeStringArrayData(
             node.session.ptr(),
             node.handle.0,
-            0,
+            part_id,
             name.as_ptr(),
             info as *const _ as *mut _,
             array.as_mut_ptr(),
