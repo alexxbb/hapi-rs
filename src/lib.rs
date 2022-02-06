@@ -1,41 +1,9 @@
 #![doc(html_logo_url = "https://media.sidefx.com/uploads/products/engine/engine_orange.svg")]
-//! SideFX Houdini Meets Rust!
+//! # Idiomatic Rust bindings to Houdini Engine C API.
 //!
-//! [SideFx Houdini](https://www.sidefx.com/) is a world leading software for creating stunning visual effects for movies and games.
-//! Apart from the main graphical interface written in C++ and Python, Houdini also provides a C interface called [Houdini Engine](https://www.sidefx.com/products/houdini-engine/) or HAPI for short.
-//! Its goal is to bring the power of Houdini to other DCCs (Digital Content Creation) software and game engines.
+//! Official HAPI [documentation](https://www.sidefx.com/docs/hengine/):
 //!
-//! This crate aims to provide idiomatic Rust interface to Houdini Engine and is built on top of [hapi-sys](https://crates.io/crates/hapi-sys).
-//!
-//! **⚠ A valid **commercial** Houdini Engine license is required to use this crate ⚠**
-//!
-//! Thanks to Rust's powerful type system using the engine from Rust is very straightforward.
-//!
-//! # Example
-//! ```ignore
-//! use hapi_rs::Result;
-//! use hapi_rs::session::quick_session;
-//! use hapi_rs::parameter::*;
-//!
-//! fn main() -> Result<()> {
-//!     // Start a standalone engine process
-//!     let session = quick_session()?;
-//!     // Load a Houdini Asset and create a node
-//!     session.load_asset_file("otls/hapi_geo.hda")?;
-//!     let node = session.create_node("Object/hapi_geo", None, None)?;
-//!     // Set the "scale" parameter
-//!     if let Parameter::Float(parm) = node.parameter("scale")? {
-//!         parm.set_value(&[3.0])?;
-//!         node.cook(None)?;
-//!     }
-//!     // Get a reference to the node's internal geometry
-//!     let geometry = node.geometry()?.expect("geometry");
-//!     // Save it to one of the supported geometry formats
-//!     geometry.save_to_file("/tmp/output.fbx")?;
-//!     Ok(())
-//! }
-//! ```
-//! Check out the other examples:
+//! Check out the [examples](https://github.com/alexxbb/hapi-rs/tree/dev/examples):
 //!
 //! `cargo run --examples ...`
 //!
@@ -69,16 +37,16 @@
 //!
 //! At runtime via env variables: `$PATH` on windows, `$LD_LIBRARY_PATH` on Linux and `$DYLD_LIBRARY_PATH` on MacOS
 //!
-//! # API Coverage
-//! Currently PDG APIs are not yet implemented.
+//! # API Overview
 //!
-//! # Design Overview
+//! ```Note: Currently PDG APIs are not yet implemented.```
+//!
 //! This crates tries hard to be nice and easy to use, hiding the inconvenient C API as much as possible
 //! while also trying to keep function names clear and close to original.
 //! To archive this, the crate wraps every single C struct in a new struct and provide getters/setters for its fields.
 //! All structs and enums have their `HAPI_` prefix removed.
 //!
-//! In addition all enum variants are shortened. This is done by custom post-processing in [hapi-sys](https://crates.io/crates/hapi-sys)
+//! In addition all enum variants are shortened.
 //! For example:
 //! ```ignore
 //! // Original struct:
