@@ -43,8 +43,8 @@ fn main() -> Result<()> {
 
 # Building
 
-Check the documentation [building section](https://docs.rs/bevy/latest/hapi-rs/#building-and-running)
+Check the documentation [building section](https://docs.rs/hapi-rs/latest/hapi-rs/#building-and-running)
 
 [HAPI C Documentation](https://www.sidefx.com/docs/hengine/)
 
-[More Examples](https://github.com/alexxbb/hapi-rs/tree/dev/examples)
+[More Examples](https://github.com/alexxbb/hapi-rs/tree/main/examples)

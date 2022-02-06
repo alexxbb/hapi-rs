@@ -3,7 +3,7 @@
 //!
 //! Official HAPI [documentation](https://www.sidefx.com/docs/hengine/):
 //!
-//! Check out the [examples](https://github.com/alexxbb/hapi-rs/tree/dev/examples):
+//! Check out the [examples](https://github.com/alexxbb/hapi-rs/tree/main/examples):
 //!
 //! `cargo run --examples ...`
 //!
