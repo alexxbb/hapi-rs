@@ -3,19 +3,21 @@
 [![Cargo](https://img.shields.io/crates/v/hapi-rs.svg)](https://crates.io/crates/hapi-rs)
 [![MIT/Apache 2.0](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](./LICENSE)
 
-
 SideFX Houdini Meets Rust!
 
-[SideFx Houdini](https://www.sidefx.com/) is a world leading software for creating stunning visual effects for movies and games.
-Apart from the main graphical interface written in C++ and Python, Houdini also provides a C interface called [Houdini Engine](https://www.sidefx.com/products/houdini-engine/) or HAPI for short.
-Its goal is to bring the power of Houdini to other DCCs (Digital Content Creation) software and game engines.
+[SideFx Houdini](https://www.sidefx.com/) is a world leading software for creating stunning visual effects for movies
+and games. Apart from the main graphical interface written in C++ and Python, Houdini also provides a C interface
+called [Houdini Engine](https://www.sidefx.com/products/houdini-engine/) or HAPI for short. Its goal is to bring the
+power of Houdini to other DCCs (Digital Content Creation) software and game engines.
 
-This crate aims to provide idiomatic Rust interface to Houdini Engine and is built on top of [hapi-sys](https://crates.io/crates/hapi-sys).
+This crate aims to provide idiomatic Rust interface to Houdini Engine and is built on top
+of [hapi-sys](https://crates.io/crates/hapi-sys).
 
 > :exclamation: A valid **commercial** Houdini Engine license is required to use this crate
 
 # Example
-```ignore
+
+```rust
 use hapi_rs::Result;
 use hapi_rs::session::quick_session;
 use hapi_rs::parameter::*;
@@ -38,6 +40,10 @@ fn main() -> Result<()> {
     Ok(())
 }
 ```
+
+# Building
+
+Check the documentation [building section](https://docs.rs/bevy/latest/hapi-rs/#building-and-running)
 
 [HAPI C Documentation](https://www.sidefx.com/docs/hengine/)
 

@@ -1,4 +1,16 @@
 //! Geometry attributes access and iterators
+//!
+//! Geometry attributes of different types are represented as trait objects
+//! and need to be downcast to concrete types
+//!
+//! ```ignore
+//! let geo: Geometry;
+//! let attr_p = geo.get_attribute(0, AttributeOwner::Point, "P")?.expect("P exists");
+//! let attr_p = attr_p.downcast::<NumericAttr<f32>>()?;
+//! let dat = attr_p.get(0).expect("read_attribute");
+//! attr_p.set(0, &[0.0, 1.0, 0.0])?;
+//!
+//! ```
 mod array;
 mod bindings;
 
@@ -178,6 +190,7 @@ impl StringArrayAttr {
     }
 }
 
+#[doc(hidden)]
 pub trait AsAttribute {
     fn info(&self) -> &AttributeInfo;
     fn storage(&self) -> StorageType;
@@ -243,7 +256,7 @@ impl AsAttribute for StringArrayAttr {
     }
 }
 
-// object safe trait
+#[doc(hidden)]
 pub trait AnyAttribWrapper: Any + AsAttribute {
     fn as_any(&self) -> &dyn Any;
 }

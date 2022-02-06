@@ -1,5 +1,5 @@
 #![doc(html_logo_url = "https://media.sidefx.com/uploads/products/engine/engine_orange.svg")]
-//! # Idiomatic Rust bindings to Houdini Engine C API.
+//! # Rust bindings to Houdini Engine C API.
 //!
 //! Official HAPI [documentation](https://www.sidefx.com/docs/hengine/):
 //!
@@ -74,7 +74,7 @@
 //! }
 //! ```
 //! Also some structs, don't provide a direct way of creating them as well as missing setters because while it's possible to create them in C (and in Rust)
-//! it doesn't make sense from a usability point of view, i.e you never need to create and modify a [`node::NodeInfo`] struct.
+//! it doesn't make sense from a usability point of view, e.g you never need to create and modify a [`node::NodeInfo`] struct.
 //! Structs that you do need ability to create, implement [Default] and follow the `Builder Pattern` with convenient `with_` and `set_` methods:
 //! ```ignore
 //! let part_info = PartInfo::default()
@@ -84,16 +84,16 @@
 //!
 //! # Error type
 //! All API calls return [`HapiError`] ([HAPI_Result](https://www.sidefx.com/docs/hengine/_h_a_p_i___common_8h.html#ac52e921ba2c7fc21a0f245678f76c836))
-//! In case of error, the HapiError struct contains an Option<String> with the error message returned from the Engine.
+//! In case of error, the HapiError struct contains an Option<String> with an error message returned from the Engine.
 //!
 //!
 //! # Strings
-//! Houdini Engine being C API, makes life harder for Rust when it comes to strings.
+//! Houdini Engine being C API, makes life a little harder for Rust programmer when it comes to strings.
 //! The crate chose to accept some overhead related to string conversion in exchange for a nicer API and
 //! easy of use.
 //!
 //! For example getting/setting a parameter value will perform a conversion CString <-> String,
-//! but not in every situation such conversion is acceptable, for example reading heavy geometry string attributes
+//! but not in every situation such conversion is acceptable, for example reading geometry string attributes
 //! can be very expensive since we have do potentially thousands of CString to String conversions.
 //!
 //! To aid this situation, the crate provides custom structs which implement different iterators,
