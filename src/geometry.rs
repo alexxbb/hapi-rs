@@ -1,6 +1,5 @@
 //! Access to geometry data, attributes, reading and writing to disk
 //!
-//! [`Geometry`] struct is a wrapper around [`HoudiniNode`] with methods for manipulating geometry.
 //!
 use std::ffi::{CStr, CString};
 
@@ -29,6 +28,7 @@ macro_rules! unwrap_or_create {
 }
 
 #[derive(Debug, Clone)]
+/// Represents a SOP node with methods for manipulating geometry.
 pub struct Geometry {
     pub node: HoudiniNode,
     pub(crate) info: GeoInfo,
@@ -42,10 +42,11 @@ pub enum GeoFormat {
 }
 
 #[derive(Debug)]
-/// Single - when material is assigned at object level
-/// Multiple - when assigned per-face
+/// Face materials
 pub enum Materials {
+    /// Material was assigned at object level or all faces on geometry share the same material
     Single(Material),
+    /// Materials assigned per-face
     Multiple(Vec<Material>),
 }
 
@@ -723,9 +724,7 @@ mod tests {
 
     use super::*;
 
-    fn _create_triangle(node: &HoudiniNode) -> Geometry {
-        let geo = node.geometry().expect("geometry").unwrap();
-
+    fn _create_triangle(geo: &Geometry) {
         let part = PartInfo::default()
             .with_part_type(PartType::Mesh)
             .with_face_count(1)
@@ -749,8 +748,7 @@ mod tests {
         geo.set_vertex_list(0, [0, 1, 2]).unwrap();
         geo.set_face_counts(0, [3]).unwrap();
         geo.commit().expect("commit");
-        node.cook_blocking(None).unwrap();
-        geo
+        geo.node.cook_blocking(None).unwrap();
     }
 
     fn _load_test_geometry(session: &Session) -> super::Result<Geometry> {
@@ -774,8 +772,8 @@ mod tests {
     #[test]
     fn numeric_attributes() {
         with_session(|session| {
-            let input = session.create_input_node("test").unwrap();
-            let geo = _create_triangle(&input);
+            let geo = session.create_input_node("test").unwrap();
+            _create_triangle(&geo);
             let attr_p = geo
                 .get_attribute(0, AttributeOwner::Point, "P")
                 .unwrap()
@@ -783,15 +781,15 @@ mod tests {
             let attr_p = attr_p.downcast::<NumericAttr<f32>>().unwrap();
             let dat = attr_p.get(0).expect("read_attribute");
             assert_eq!(dat.len(), 9);
-            input.delete().unwrap();
+            geo.node.delete().unwrap();
         });
     }
 
     #[test]
     fn create_string_attrib() {
         with_session(|session| {
-            let input = session.create_input_node("test").unwrap();
-            let geo = _create_triangle(&input);
+            let geo = session.create_input_node("test").unwrap();
+            _create_triangle(&geo);
             let part = geo.part_info(0).unwrap();
             let info = AttributeInfo::default()
                 .with_owner(AttributeOwner::Point)
@@ -802,7 +800,7 @@ mod tests {
             let attr_name = geo.add_string_attribute("name", 0, info).unwrap();
             attr_name.set(0, &["pt0", "pt1", "pt2"]).unwrap();
             geo.commit().unwrap();
-            input.delete().unwrap();
+            geo.node.delete().unwrap();
         });
     }
 
@@ -863,59 +861,61 @@ mod tests {
     #[test]
     fn save_and_load_to_file() {
         with_session(|session| {
-            let input = session.create_input_node("triangle").unwrap();
-            let geo = _create_triangle(&input);
+            let geo = session.create_input_node("triangle").unwrap();
+            _create_triangle(&geo);
             let tmp_file = std::env::temp_dir().join("triangle.geo");
             geo.save_to_file(&tmp_file.to_string_lossy())
                 .expect("save_to_file");
-            let input = session.create_input_node("dummy").unwrap();
-            let geo = input.geometry().unwrap().unwrap();
+            geo.node.delete().unwrap();
+
+            let geo = session.create_input_node("dummy").unwrap();
             geo.load_from_file(&tmp_file.to_string_lossy())
                 .expect("load_from_file");
             geo.node.cook(None).unwrap();
             assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
-            input.delete().unwrap();
+            geo.node.delete().unwrap();
         });
     }
 
     #[test]
     fn geometry_in_memory() {
         with_session(|session| {
-            let node = session.create_input_node("source").unwrap();
-            let source = _create_triangle(&node);
-            let blob = source
+            let src_geo = session.create_input_node("source").unwrap();
+            _create_triangle(&src_geo);
+            let blob = src_geo
                 .save_to_memory(super::GeoFormat::Geo)
                 .expect("save_geo_to_memory");
-            node.delete().unwrap();
+            src_geo.node.delete().unwrap();
 
-            let node = session.create_input_node("dest").unwrap();
-            let dest = _create_triangle(&node);
-            dest.load_from_memory(&blob, super::GeoFormat::Geo)
+            let dest_geo = session.create_input_node("dest").unwrap();
+            _create_triangle(&dest_geo);
+            dest_geo
+                .load_from_memory(&blob, super::GeoFormat::Geo)
                 .expect("load_from_memory");
-            node.delete().unwrap();
+            dest_geo.node.delete().unwrap();
         });
     }
 
     #[test]
     fn commit_and_revert() {
         with_session(|session| {
-            let input = session.create_input_node("input").unwrap();
-            let geo = _create_triangle(&input);
+            let geo = session.create_input_node("input").unwrap();
+            _create_triangle(&geo);
             geo.commit().unwrap();
-            input.cook_blocking(None).unwrap();
+            geo.node.cook_blocking(None).unwrap();
             assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
             geo.revert().unwrap();
-            input.cook_blocking(None).unwrap();
+            geo.node.cook_blocking(None).unwrap();
             assert_eq!(geo.part_info(0).unwrap().point_count(), 0);
-            input.delete().unwrap();
+            geo.node.delete().unwrap();
         });
     }
 
     #[test]
     fn add_and_delete_group() {
         with_session(|session| {
-            let input = session.create_input_node("input").unwrap();
-            let geo = _create_triangle(&input);
+            let geo = session.create_input_node("input").unwrap();
+            _create_triangle(&geo);
             geo.add_group(0, GroupType::Point, "test", Some(&[1, 1, 1]))
                 .unwrap();
             geo.commit().unwrap();
@@ -929,7 +929,7 @@ mod tests {
             geo.commit().unwrap();
             geo.node.cook_blocking(None).unwrap();
             assert_eq!(geo.group_count_by_type(GroupType::Point, None), Ok(0));
-            input.delete().unwrap();
+            geo.node.delete().unwrap();
         });
     }
 
@@ -974,12 +974,7 @@ mod tests {
     #[test]
     fn create_input_curve() {
         with_session(|session| {
-            let geo = session
-                .create_input_curve_node("InputCurve")
-                .unwrap()
-                .geometry()
-                .unwrap()
-                .unwrap();
+            let geo = session.create_input_curve_node("InputCurve").unwrap();
             let positions = &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
             geo.set_input_curve_positions(0, positions).unwrap();
             let p = geo.get_position_attribute(0).unwrap();
@@ -996,11 +991,10 @@ mod tests {
             let source = node.geometry().unwrap().unwrap();
             let source_part = source.part_info(0).unwrap();
             let vol_info = source.volume_info(0).unwrap();
-            let input = session.create_input_node("volume_copy").unwrap();
-            let dest = input.geometry().unwrap().unwrap();
-            input.cook_blocking(None).unwrap();
-            dest.set_part_info(&source_part).unwrap();
-            dest.set_volume_info(0, &vol_info).unwrap();
+            let dest_geo = session.create_input_node("volume_copy").unwrap();
+            dest_geo.node.cook_blocking(None).unwrap();
+            dest_geo.set_part_info(&source_part).unwrap();
+            dest_geo.set_volume_info(0, &vol_info).unwrap();
 
             source
                 .foreach_volume_tile(0, &vol_info, |tile| {
@@ -1008,12 +1002,13 @@ mod tests {
                     source
                         .read_volume_tile::<f32>(0, -1.0, tile.info, &mut values)
                         .unwrap();
-                    dest.write_volume_tile::<f32>(0, tile.info, &values)
+                    dest_geo
+                        .write_volume_tile::<f32>(0, tile.info, &values)
                         .unwrap();
                 })
                 .unwrap();
-            dest.commit().unwrap();
-            dest.node.cook_blocking(None).unwrap();
+            dest_geo.commit().unwrap();
+            dest_geo.node.cook_blocking(None).unwrap();
         });
     }
 }

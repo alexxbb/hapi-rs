@@ -9,8 +9,8 @@ use hapi_rs::session::{quick_session, Session, SessionOptions};
 use hapi_rs::Result;
 
 fn create_cube(session: &Session) -> Result<HoudiniNode> {
-    let cube_node = session.create_input_node("Cube")?;
-    cube_node.cook(None)?;
+    let geometry = session.create_input_node("Cube")?;
+    geometry.node.cook(None)?;
 
     let part_info = PartInfo::default()
         .with_part_type(PartType::Mesh)
@@ -18,7 +18,6 @@ fn create_cube(session: &Session) -> Result<HoudiniNode> {
         .with_vertex_count(24)
         .with_point_count(8);
 
-    let geometry = cube_node.geometry()?.unwrap();
     geometry.set_part_info(&part_info)?;
 
     let attr_info = AttributeInfo::default()
@@ -61,7 +60,7 @@ fn create_cube(session: &Session) -> Result<HoudiniNode> {
         .collect();
     geometry.add_group(0, GroupType::Point, "pointGroup", Some(&membership))?;
     geometry.commit()?;
-    Ok(cube_node)
+    Ok(geometry.node)
 }
 
 fn main() -> Result<()> {

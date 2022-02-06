@@ -10,6 +10,7 @@ use std::ffi::CString;
 use std::path::Path;
 
 #[derive(Debug, Clone)]
+/// Represents a material node (SHOP) with methods for texture baking
 pub struct Material {
     pub(crate) session: Session,
     pub(crate) info: HAPI_MaterialInfo,

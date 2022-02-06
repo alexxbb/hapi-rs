@@ -1,18 +1,18 @@
 //! Session is responsible for communicating with HAPI
 //!
-//! Engine [promises](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html#HAPI_Sessions_Multithreading)
+//! The Engine [promises](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html#HAPI_Sessions_Multithreading)
 //! to be thread-safe when accessing a single `Session` from multiple threads.
-//! `hapi-rs` relies on this promise and the [session::Session] struct holds only an `Arc` pointer to the session,
+//! `hapi-rs` relies on this promise and the [Session] struct holds only an `Arc` pointer to the session,
 //! and *does not* protect the session with Mutex, although there is a [parking_lot::ReentrantMutex]
 //! private member which is used internally in a few cases where API calls must be sequential.
 //!
 //! When the last instance of the `Session` is about to drop, it'll be cleaned
-//! (if [session::SessionOptions::cleanup] was set) and automatically closed.
+//! (if [SessionOptions::cleanup] was set) and automatically closed.
 //!
 //! The Engine process (pipe or socket) can be auto-terminated as well if told so when starting the server:
-//! See [session:start_engine_pipe_server] and [session::start_engine_socket_server]
+//! See [start_engine_pipe_server] and [start_engine_socket_server]
 //!
-//! [session::quick_session] terminates the server by default. This is useful for quick one-off jobs.
+//! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
 //!
 #[rustfmt::skip]
 use std::{
@@ -170,19 +170,23 @@ impl Session {
 
     // TODO: Return a Geometry instead for convenient use
     /// Create an input geometry node which can accept modifications
-    pub fn create_input_node(&self, name: &str) -> Result<HoudiniNode> {
+    pub fn create_input_node(&self, name: &str) -> Result<crate::geometry::Geometry> {
         debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_node(self, &name)?;
-        HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)
+        let node = HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)?;
+        let info = crate::geometry::GeoInfo::from_node(&node)?;
+        Ok(crate::geometry::Geometry { node, info })
     }
 
     /// Create an input geometry node with [`crate::enums::PartType`] set to `Curve`
-    pub fn create_input_curve_node(&self, name: &str) -> Result<HoudiniNode> {
+    pub fn create_input_curve_node(&self, name: &str) -> Result<crate::geometry::Geometry> {
         debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_curve_node(self, &name)?;
-        HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)
+        let node = HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)?;
+        let info = crate::geometry::GeoInfo::from_node(&node)?;
+        Ok(crate::geometry::Geometry { node, info })
     }
 
     /// Create a node. `name` must start with a network category, e.g, "Object/geo", "Sop/box"

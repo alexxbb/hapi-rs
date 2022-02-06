@@ -4,8 +4,8 @@ use hapi_rs::{attribute::*, geometry::*, session::*, Result};
 fn main() -> Result<()> {
     let mut session = quick_session()?;
     session.initialize(&SessionOptions::default())?;
-    let new_node = session.create_input_node("Curve")?;
-    new_node.cook_blocking(None)?;
+    let geom = session.create_input_node("Curve")?;
+    geom.node.cook_blocking(None)?;
     let part_info = PartInfo::default()
         .with_part_type(PartType::Curve)
         .with_face_count(1)
@@ -21,7 +21,6 @@ fn main() -> Result<()> {
         .with_periodic(true)
         .with_has_knots(true);
 
-    let geom = new_node.geometry()?.expect("geometry");
     geom.set_part_info(&part_info)?;
     geom.set_curve_info(0, &curve_info)?;
     geom.set_curve_counts(part_info.part_id(), &[4])?;

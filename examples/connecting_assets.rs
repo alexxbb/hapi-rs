@@ -5,14 +5,13 @@ use hapi_rs::{attribute::*, geometry::*, session::*};
 fn main() -> Result<()> {
     let mut session = quick_session()?;
     session.initialize(&SessionOptions::default())?;
-    let new_node = session.create_input_node("Cube")?;
-    new_node.cook_blocking(None)?;
+    let geom = session.create_input_node("Cube")?;
+    geom.node.cook_blocking(None)?;
     let part_info = PartInfo::default()
         .with_part_type(PartType::Mesh)
         .with_face_count(6)
         .with_vertex_count(24)
         .with_point_count(8);
-    let geom = new_node.geometry()?.expect("geometry");
     geom.set_part_info(&part_info)?;
     let p_info = AttributeInfo::default()
         .with_count(8)
@@ -50,7 +49,7 @@ fn main() -> Result<()> {
     geom.commit()?;
 
     let subdivide_node = session.create_node("Sop/subdivide", Some("Cube Subdivider"), None)?;
-    subdivide_node.connect_input(0, new_node, 0)?;
+    subdivide_node.connect_input(0, geom.node, 0)?;
     let hip = std::env::temp_dir().join("connecting_assets.hip");
     session.save_hip(&hip.to_string_lossy(), false)?;
     println!("Saving {}", hip.to_string_lossy());
