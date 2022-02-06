@@ -1,6 +1,9 @@
 use std::path::Path;
 
 fn main() {
+    if let Ok(_) = std::env::var("DOCS_RS") {
+        return;
+    }
     let hfs = std::env::var("HFS").expect("HFS variable not set");
     let filename;
     let lib_dir;

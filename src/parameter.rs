@@ -399,7 +399,7 @@ mod tests {
             }
             if let Parameter::Float(p) = node.parameter("single_float").unwrap() {
                 p.set_expression("$T", 0).unwrap();
-                assert_eq!("$T", p.expression(0).unwrap());
+                assert_eq!("$T", p.expression(0).unwrap().unwrap());
             }
 
             if let Parameter::String(p) = node.parameter("multi_string").unwrap() {
