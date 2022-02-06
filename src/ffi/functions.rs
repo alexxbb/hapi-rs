@@ -241,7 +241,7 @@ pub fn get_parm_expression(
     session: &Session,
     parm: &CStr,
     index: i32,
-) -> Result<String> {
+) -> Result<Option<String>> {
     let handle = unsafe {
         let mut handle = uninit!();
         raw::HAPI_GetParmExpression(
@@ -254,7 +254,10 @@ pub fn get_parm_expression(
         .check_err(Some(session))?;
         handle.assume_init()
     };
-    crate::stringhandle::get_string(handle, session)
+    match handle {
+        0 => Ok(None),
+        _ => Ok(Some(crate::stringhandle::get_string(handle, session)?)),
+    }
 }
 
 pub fn parm_has_expression(

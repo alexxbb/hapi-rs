@@ -1,4 +1,15 @@
 //! Reading and setting node parameters, setting expressions and keyframes.
+//!
+//! Different parameter types are modeled with a [Parameter] enum, to get to a concrete type,
+//! use pattern matching:
+//!
+//! ```ignore
+//! let node: HoudiniNode;
+//! if let Parameter:String(path) = node.parameter("file") {
+//!     path.get_value();
+//!     path.set_value(&["/path/to/file"]);
+//! }
+//! ```
 use std::ffi::CString;
 
 use log::warn;
@@ -14,17 +25,21 @@ use crate::{
     node::{HoudiniNode, NodeHandle},
 };
 
+/// Common trait for parameters
 pub trait ParmBaseTrait {
     type ValueType;
 
+    #[inline]
     fn name(&self) -> Result<String> {
         self.wrap().info.name()
     }
+    #[inline]
     fn is_menu(&self) -> bool {
         !matches!(self.wrap().info.choice_list_type(), ChoiceListType::None)
     }
     #[doc(hidden)]
     fn wrap(&self) -> &ParmNodeWrap;
+    /// If parameter is a menu type, return a vec of menu items
     fn menu_items(&self) -> Result<Option<Vec<ParmChoiceInfo>>> {
         if !self.is_menu() {
             return Ok(None);
@@ -47,13 +62,15 @@ pub trait ParmBaseTrait {
         })?;
         Ok(Some(parms))
     }
-    fn expression(&self, index: i32) -> Result<String> {
+    /// Returns a parameter expression string
+    fn expression(&self, index: i32) -> Result<Option<String>> {
         let wrap = self.wrap();
         debug_assert!(wrap.info.session.is_valid());
         let name = wrap.info.name_cstr()?;
         crate::ffi::get_parm_expression(wrap.node, &wrap.info.session, &name, index)
     }
 
+    /// Checks if parameter has an expression
     fn has_expression(&self, index: i32) -> Result<bool> {
         let wrap = self.wrap();
         debug_assert!(wrap.info.session.is_valid());
@@ -61,6 +78,7 @@ pub trait ParmBaseTrait {
         crate::ffi::parm_has_expression(wrap.node, &wrap.info.session, &name, index)
     }
 
+    /// Set parameter expression
     fn set_expression(&self, value: &str, index: i32) -> Result<()> {
         let wrap = self.wrap();
         debug_assert!(wrap.info.session.is_valid());
@@ -74,11 +92,14 @@ pub trait ParmBaseTrait {
         )
     }
 
+    /// Get parameter value
     fn get_value(&self) -> Result<Vec<Self::ValueType>>;
+    /// Set parameter value
     fn set_value<T>(&self, val: T) -> Result<()>
     where
         T: AsRef<[Self::ValueType]>;
 
+    /// Set keyframes on the parameter
     fn set_anim_curve(&self, index: i32, keys: &[KeyFrame]) -> Result<()> {
         let wrap = self.wrap();
         debug_assert!(wrap.info.session.is_valid());
@@ -89,15 +110,18 @@ pub trait ParmBaseTrait {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// An internal handle to a parameter
 pub struct ParmHandle(pub crate::ffi::raw::HAPI_ParmId, pub(crate) ());
 
 impl ParmHandle {
+    /// Find a parameter handle by name
     pub fn from_name(name: &str, node: &HoudiniNode) -> Result<Self> {
         debug_assert!(node.is_valid()?);
         let name = CString::new(name)?;
         let id = crate::ffi::get_parm_id_from_name(&name, node.handle, &node.session)?;
         Ok(ParmHandle(id, ()))
     }
+    /// Retrieve parameter information from of the handle
     pub fn info(&self, node: &HoudiniNode) -> Result<ParmInfo> {
         debug_assert!(node.is_valid()?);
         let info = crate::ffi::get_parm_info(node.handle, &node.session, *self)?;
@@ -125,12 +149,14 @@ impl ParmInfo {
 }
 
 #[derive(Debug)]
+#[doc(hidden)]
 pub struct ParmNodeWrap {
     pub(crate) info: ParmInfo,
     pub(crate) node: NodeHandle,
 }
 
 #[derive(Debug)]
+#[doc(hidden)]
 pub struct BaseParameter {
     pub(crate) wrap: ParmNodeWrap,
 }
@@ -151,11 +177,17 @@ pub struct StringParameter {
 }
 
 #[derive(Debug)]
+/// Enum of different parameter types.
 pub enum Parameter {
+    /// `ParmType::Float | ParmType::Color`
     Float(FloatParameter),
+    /// `ParmType::Int | ParmType::Toggle`
     Int(IntParameter),
+    /// `ParmType::String | ParmType::Node | ParmType::PathFile | ParmType::PathFileDir | ParmType::PathFileGeo | ParmType::PathFileImage`
     String(StringParameter),
+    /// `ParmType::Int`
     Button(IntParameter),
+    /// `Other ParmType::_`
     Other(BaseParameter),
 }
 
@@ -177,14 +209,25 @@ impl Parameter {
             _ => Parameter::Other(BaseParameter { wrap: base }),
         }
     }
+    /// Information about the parameter
+    #[inline]
     pub fn info(&self) -> &ParmInfo {
         &self.base().info
     }
 
+    /// Parameter name
+    #[inline]
     pub fn name(&self) -> Result<String> {
         self.info().name()
     }
 
+    /// Parameter label
+    #[inline]
+    pub fn label(&self) -> Result<String> {
+        self.info().label()
+    }
+
+    /// Parameter parent if any (examples are mutli-parm or Folder type parameters)
     pub fn parent(&self) -> Result<Option<ParmInfo>> {
         let wrap = self.base();
         debug_assert!(wrap.info.session.is_valid());
@@ -215,6 +258,7 @@ impl Parameter {
 impl ParmBaseTrait for FloatParameter {
     type ValueType = f32;
 
+    #[doc(hidden)]
     fn wrap(&self) -> &ParmNodeWrap {
         &self.wrap
     }
@@ -249,6 +293,7 @@ impl ParmBaseTrait for FloatParameter {
 impl ParmBaseTrait for IntParameter {
     type ValueType = i32;
 
+    #[doc(hidden)]
     fn wrap(&self) -> &ParmNodeWrap {
         &self.wrap
     }
@@ -281,6 +326,7 @@ impl ParmBaseTrait for IntParameter {
 }
 
 impl IntParameter {
+    /// Emulates a button press action
     pub fn press_button(&self) -> Result<()> {
         if !matches!(self.wrap.info.parm_type(), ParmType::Button) {
             warn!("Parm {} not a Button type", self.wrap.info.name()?);
@@ -292,6 +338,7 @@ impl IntParameter {
 impl ParmBaseTrait for StringParameter {
     type ValueType = String;
 
+    #[doc(hidden)]
     fn wrap(&self) -> &ParmNodeWrap {
         &self.wrap
     }
@@ -352,7 +399,7 @@ mod tests {
             }
             if let Parameter::Float(p) = node.parameter("single_float").unwrap() {
                 p.set_expression("$T", 0).unwrap();
-                assert_eq!("$T", p.expression(0).unwrap());
+                assert_eq!("$T", p.expression(0).unwrap().unwrap());
             }
 
             if let Parameter::String(p) = node.parameter("multi_string").unwrap() {
