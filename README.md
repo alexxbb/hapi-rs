@@ -1,6 +1,7 @@
 # Rust bindings to Houdini Engine API
 
 [![Cargo](https://img.shields.io/crates/v/hapi-rs.svg)](https://crates.io/crates/hapi-rs)
+[![Documentation](https://docs.rs/hapi-rs/badge.svg)](https://docs.rs/hapi-rs)
 [![MIT/Apache 2.0](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](./LICENSE)
 
 SideFX Houdini Meets Rust!
