@@ -43,7 +43,7 @@ fn main() -> Result<()> {
 
 # Building
 
-Check the documentation [building section](https://docs.rs/hapi-rs/latest/hapi-rs/#building-and-running)
+Check the documentation [building section](https://docs.rs/hapi-rs/latest/hapi_rs/#building-and-running)
 
 [HAPI C Documentation](https://www.sidefx.com/docs/hengine/)
 
