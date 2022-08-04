@@ -111,6 +111,7 @@ pub mod parameter;
 pub mod session;
 pub mod stringhandle;
 pub mod volume;
+pub mod pdg;
 mod errors;
 mod ffi;
 

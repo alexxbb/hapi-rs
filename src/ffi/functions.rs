@@ -4,6 +4,8 @@ use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
 
+use raw::HAPI_PDG_EventInfo;
+
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
 use crate::{
     errors::{HapiError, Kind, Result},
@@ -2597,4 +2599,72 @@ pub fn get_image_planes(session: &Session, material: NodeHandle) -> Result<Strin
             .check_err(Some(session))?;
         crate::stringhandle::get_string_array(&handles, session)
     }
+}
+
+pub fn cook_pdg(session: &Session, pdg_node: NodeHandle, blocking: bool) -> Result<()> {
+    unsafe {
+        raw::HAPI_CookPDG(session.ptr(), pdg_node.0, 0, blocking as i32).check_err(Some(session))
+    }
+}
+
+pub fn get_pdg_contexts(session: &Session) -> Result<(Vec<i32>, Vec<i32>)> {
+    const NUM: usize = 32;
+    let mut contexts = vec![-1; NUM];
+    let mut names = vec![-1; NUM];
+    let num_contexts = unsafe {
+        let mut num_contexts = uninit!();
+        raw::HAPI_GetPDGGraphContexts(
+            session.ptr(),
+            num_contexts.as_mut_ptr(),
+            names.as_mut_ptr(),
+            contexts.as_mut_ptr(),
+            NUM as i32,
+        )
+        .check_err(Some(session))?;
+        num_contexts.assume_init()
+    };
+    contexts.shrink_to(num_contexts as usize);
+    names.shrink_to(num_contexts as usize);
+
+    Ok((contexts, names))
+}
+
+pub fn get_pdg_events(session: &Session, context_id: i32) -> Result<Vec<HAPI_PDG_EventInfo>> {
+    const NUM: usize = 32;
+    // Not impl Default :(
+    let _info = HAPI_PDG_EventInfo {
+        nodeId: -1,
+        workitemId: -1,
+        dependencyId: -1,
+        currentState: -1,
+        lastState: -1,
+        eventType: -1,
+        msgSH: -1,
+    };
+    let drained = -1;
+    let leftover = -1;
+    let mut events = vec![_info; NUM];
+    unsafe {
+        raw::HAPI_GetPDGEvents(
+            session.ptr(),
+            context_id,
+            events.as_mut_ptr(),
+            events.len() as i32,
+            drained as *mut i32,
+            leftover as *mut i32,
+        )
+        .check_err(Some(session))?;
+    }
+    assert!(drained >= 0);
+    events.truncate(drained as usize);
+    Ok(events)
+}
+
+pub fn get_pdg_context_id(session: &Session, pdg_node: NodeHandle) -> Result<i32> {
+    let context_id = -1;
+    unsafe {
+        raw::HAPI_GetPDGGraphContextId(session.ptr(), pdg_node.0, context_id as *mut i32)
+            .check_err(Some(session))?;
+    }
+    Ok(context_id)
 }

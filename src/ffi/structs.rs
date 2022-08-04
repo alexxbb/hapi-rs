@@ -691,3 +691,23 @@ wrap!(
     [get|set|with] input_method->inputMethod->[InputCurveMethod];
     [get|set|with] breakpoint_parameterization->breakpointParameterization->[InputCurveParameterization];
 );
+
+pub struct PDGEventInfo {
+    pub(crate) inner: HAPI_PDG_EventInfo,
+}
+
+impl PDGEventInfo {
+    get!(node_id->nodeId->[handle: NodeHandle]);
+    get!(workitem_id->workitemId->i32);
+    get!(dependency_id->dependencyId->i32);
+    get!(with_session message->msgSH->Result<String>);
+    pub fn current_state(&self) -> PdgWorkitemState {
+        unsafe { std::mem::transmute::<i32, PdgWorkitemState>(self.inner.currentState) }
+    }
+    pub fn last_state(&self) -> PdgWorkitemState {
+        unsafe { std::mem::transmute::<i32, PdgWorkitemState>(self.inner.lastState) }
+    }
+    pub fn event_type(&self) -> PdgEventType {
+        unsafe { std::mem::transmute::<i32, PdgEventType>(self.inner.eventType) }
+    }
+}
