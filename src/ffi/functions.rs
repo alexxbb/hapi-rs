@@ -2668,3 +2668,33 @@ pub fn get_pdg_context_id(session: &Session, pdg_node: NodeHandle) -> Result<i32
     }
     Ok(context_id)
 }
+
+pub fn cancel_pdg_cook(session: &Session, pdg_ctx: i32) -> Result<()> {
+    unsafe {
+        raw::HAPI_CancelPDGCook(session.ptr(), pdg_ctx).check_err(Some(session))
+    }
+}
+
+pub fn dirty_pdg_node(session: &Session, pdg_node: NodeHandle, clean: bool) -> Result<()> {
+    unsafe {
+        raw::HAPI_DirtyPDGNode(session.ptr(), pdg_node.0, clean as i8).check_err(Some(session))
+    }
+}
+
+pub fn get_pdg_state(session: &Session, context: i32) -> Result<raw::PdgState> {
+    unsafe {
+        let state = -1;
+        raw::HAPI_GetPDGState(session.ptr(), context, state as *mut i32).check_err(Some(session))?;
+        assert_ne!(state, -1);
+        Ok(std::mem::transmute::<i32, raw::PdgState>(state))
+    }
+
+}
+
+pub fn get_workitem_info(session: &Session, context_id: i32, workitem_id: i32) -> Result<raw::HAPI_PDG_WorkitemInfo> {
+    unsafe {
+        let mut info = uninit!();
+        raw::HAPI_GetWorkitemInfo(session.ptr(), context_id, workitem_id, info.as_mut_ptr()).check_err(Some(session))?;
+        Ok(info.assume_init())
+    }
+}

@@ -711,3 +711,25 @@ impl PDGEventInfo {
         unsafe { std::mem::transmute::<i32, PdgEventType>(self.inner.eventType) }
     }
 }
+
+struct PDGWorkItemResult {
+    pub(crate) inner: HAPI_PDG_WorkitemResultInfo
+}
+
+wrap! {
+    impl PDGWorkItemResult => HAPI_PDG_WorkitemResultInfo;
+    [get+session] result->resultSH->[Result<String>];
+    [get+session] tag->resultTagSH->[Result<String>];
+    [get] sha->resultHash->[i64];
+}
+
+pub struct PDGWorkItemInfo {
+    pub(crate) inner: HAPI_PDG_WorkitemInfo
+}
+
+wrap! {
+    impl PDGWorkItemInfo => HAPI_PDG_WorkitemInfo;
+    [get] index->index->[i32];
+    [get] num_results->numResults->[i32];
+    [get+session] name->nameSH->[Result<String>];
+}
