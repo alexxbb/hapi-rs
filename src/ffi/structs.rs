@@ -712,8 +712,8 @@ impl PDGEventInfo {
     }
 }
 
-struct PDGWorkItemResult {
-    pub(crate) inner: HAPI_PDG_WorkitemResultInfo
+pub struct PDGWorkItemResult {
+    pub(crate) inner: HAPI_PDG_WorkitemResultInfo,
 }
 
 wrap! {
@@ -724,7 +724,7 @@ wrap! {
 }
 
 pub struct PDGWorkItemInfo {
-    pub(crate) inner: HAPI_PDG_WorkitemInfo
+    pub(crate) inner: HAPI_PDG_WorkitemInfo,
 }
 
 wrap! {

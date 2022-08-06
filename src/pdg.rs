@@ -1,9 +1,33 @@
 use crate::ffi::{
     raw::{PdgEventType, PdgState},
-    PDGEventInfo, PDGWorkItemInfo,
+    PDGEventInfo, PDGWorkItemInfo, PDGWorkItemResult,
 };
 use crate::node::HoudiniNode;
 use crate::Result;
+
+pub struct PDGWorkItem<'session> {
+    pub info: PDGWorkItemInfo,
+    pub id: i32,
+    pub context_id: i32,
+    pub node: &'session HoudiniNode,
+}
+
+impl<'session> PDGWorkItem<'session> {
+    pub fn get_results(&self) -> Result<Vec<PDGWorkItemResult>> {
+        crate::ffi::get_workitem_result(
+            &self.node.session,
+            self.node.handle,
+            self.id,
+            self.info.num_results(),
+        )
+        .map(|results| {
+            results
+                .into_iter()
+                .map(|result| PDGWorkItemResult { inner: result })
+                .collect()
+        })
+    }
+}
 
 pub struct PDGNode {
     pub node: HoudiniNode,
@@ -43,14 +67,30 @@ impl PDGNode {
         crate::ffi::dirty_pdg_node(&self.node.session, self.node.handle, clean_results)
     }
 
-    pub fn get_current_state(&self) -> Result<PdgState> {
-        let context = self.get_context_id()?;
+    pub fn get_current_state(&self, context_id: Option<i32>) -> Result<PdgState> {
+        let context = match context_id {
+            Some(c) => c,
+            None => self.get_context_id()?,
+        };
         crate::ffi::get_pdg_state(&self.node.session, context)
     }
 
-    pub fn get_workitem_info(&self, workitem_id: i32) -> Result<PDGWorkItemInfo> {
-        let context_id = self.get_context_id()?;
-        crate::ffi::get_workitem_info(&self.node.session, context_id, workitem_id)
-            .map(|inner| PDGWorkItemInfo { inner })
+    pub fn get_workitem(
+        &self,
+        workitem_id: i32,
+        context_id: Option<i32>,
+    ) -> Result<PDGWorkItem<'_>> {
+        let context_id = match context_id {
+            Some(c) => c,
+            None => self.get_context_id()?,
+        };
+        crate::ffi::get_workitem_info(&self.node.session, context_id, workitem_id).map(|inner| {
+            PDGWorkItem {
+                info: PDGWorkItemInfo { inner },
+                id: workitem_id,
+                context_id,
+                node: &self.node,
+            }
+        })
     }
 }

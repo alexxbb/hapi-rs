@@ -3,6 +3,7 @@
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
+use std::vec;
 
 use raw::HAPI_PDG_EventInfo;
 
@@ -2670,9 +2671,7 @@ pub fn get_pdg_context_id(session: &Session, pdg_node: NodeHandle) -> Result<i32
 }
 
 pub fn cancel_pdg_cook(session: &Session, pdg_ctx: i32) -> Result<()> {
-    unsafe {
-        raw::HAPI_CancelPDGCook(session.ptr(), pdg_ctx).check_err(Some(session))
-    }
+    unsafe { raw::HAPI_CancelPDGCook(session.ptr(), pdg_ctx).check_err(Some(session)) }
 }
 
 pub fn dirty_pdg_node(session: &Session, pdg_node: NodeHandle, clean: bool) -> Result<()> {
@@ -2684,17 +2683,47 @@ pub fn dirty_pdg_node(session: &Session, pdg_node: NodeHandle, clean: bool) -> R
 pub fn get_pdg_state(session: &Session, context: i32) -> Result<raw::PdgState> {
     unsafe {
         let state = -1;
-        raw::HAPI_GetPDGState(session.ptr(), context, state as *mut i32).check_err(Some(session))?;
+        raw::HAPI_GetPDGState(session.ptr(), context, state as *mut i32)
+            .check_err(Some(session))?;
         assert_ne!(state, -1);
         Ok(std::mem::transmute::<i32, raw::PdgState>(state))
     }
-
 }
 
-pub fn get_workitem_info(session: &Session, context_id: i32, workitem_id: i32) -> Result<raw::HAPI_PDG_WorkitemInfo> {
+pub fn get_workitem_info(
+    session: &Session,
+    context_id: i32,
+    workitem_id: i32,
+) -> Result<raw::HAPI_PDG_WorkitemInfo> {
     unsafe {
         let mut info = uninit!();
-        raw::HAPI_GetWorkitemInfo(session.ptr(), context_id, workitem_id, info.as_mut_ptr()).check_err(Some(session))?;
+        raw::HAPI_GetWorkitemInfo(session.ptr(), context_id, workitem_id, info.as_mut_ptr())
+            .check_err(Some(session))?;
         Ok(info.assume_init())
     }
+}
+
+pub fn get_workitem_result(
+    session: &Session,
+    pdg_node: NodeHandle,
+    workitem_id: i32,
+    count: i32,
+) -> Result<Vec<raw::HAPI_PDG_WorkitemResultInfo>> {
+    let _info = raw::HAPI_PDG_WorkitemResultInfo {
+        resultSH: -1,
+        resultTagSH: -1,
+        resultHash: -1,
+    };
+    let mut infos = vec![_info; count as usize];
+    unsafe {
+        raw::HAPI_GetWorkitemResultInfo(
+            session.ptr(),
+            pdg_node.0,
+            workitem_id,
+            infos.as_mut_ptr(),
+            count as i32,
+        )
+        .check_err(Some(session))?;
+    }
+    Ok(infos)
 }
