@@ -4,6 +4,7 @@ use crate::ffi::{
 };
 use crate::node::HoudiniNode;
 use crate::Result;
+use crate::ffi;
 
 pub struct PDGWorkItem<'session> {
     pub info: PDGWorkItemInfo,
@@ -14,7 +15,7 @@ pub struct PDGWorkItem<'session> {
 
 impl<'session> PDGWorkItem<'session> {
     pub fn get_results(&self) -> Result<Vec<PDGWorkItemResult>> {
-        crate::ffi::get_workitem_result(
+        ffi::get_workitem_result(
             &self.node.session,
             self.node.handle,
             self.id,
@@ -35,14 +36,13 @@ pub struct PDGNode {
 
 impl PDGNode {
     pub fn cook<F: FnMut(PDGEventInfo, &str)>(&self, mut func: F) -> Result<()> {
-        crate::ffi::cook_pdg(&self.node.session, self.node.handle, false)?;
+        ffi::cook_pdg(&self.node.session, self.node.handle, false)?;
         'main: loop {
-            let (graph_ids, graph_names) = crate::ffi::get_pdg_contexts(&self.node.session)?;
+            let (graph_ids, graph_names) = ffi::get_pdg_contexts(&self.node.session)?;
 
             for (ctx_id, ctx_name) in graph_ids.into_iter().zip(graph_names) {
                 let ctx_name = crate::stringhandle::get_string(ctx_name, &self.node.session)?;
-                let events = crate::ffi::get_pdg_events(&self.node.session, ctx_id)?;
-                for event in events {
+                for event in ffi::get_pdg_events(&self.node.session, ctx_id)? {
                     let event = PDGEventInfo { inner: event };
                     match event.event_type() {
                         PdgEventType::EventCookComplete => break 'main,
@@ -55,16 +55,16 @@ impl PDGNode {
     }
 
     pub fn get_context_id(&self) -> Result<i32> {
-        crate::ffi::get_pdg_context_id(&self.node.session, self.node.handle)
+        ffi::get_pdg_context_id(&self.node.session, self.node.handle)
     }
 
     pub fn cancel_cook(&self) -> Result<()> {
         let context = self.get_context_id()?;
-        crate::ffi::cancel_pdg_cook(&self.node.session, context)
+        ffi::cancel_pdg_cook(&self.node.session, context)
     }
 
-    pub fn dirty_pdg_node(&self, clean_results: bool) -> Result<()> {
-        crate::ffi::dirty_pdg_node(&self.node.session, self.node.handle, clean_results)
+    pub fn dirty_node(&self, clean_results: bool) -> Result<()> {
+        ffi::dirty_pdg_node(&self.node.session, self.node.handle, clean_results)
     }
 
     pub fn get_current_state(&self, context_id: Option<i32>) -> Result<PdgState> {
@@ -72,7 +72,7 @@ impl PDGNode {
             Some(c) => c,
             None => self.get_context_id()?,
         };
-        crate::ffi::get_pdg_state(&self.node.session, context)
+        ffi::get_pdg_state(&self.node.session, context)
     }
 
     pub fn get_workitem(
@@ -84,7 +84,7 @@ impl PDGNode {
             Some(c) => c,
             None => self.get_context_id()?,
         };
-        crate::ffi::get_workitem_info(&self.node.session, context_id, workitem_id).map(|inner| {
+        ffi::get_workitem_info(&self.node.session, context_id, workitem_id).map(|inner| {
             PDGWorkItem {
                 info: PDGWorkItemInfo { inner },
                 id: workitem_id,
