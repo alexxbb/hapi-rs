@@ -1,10 +1,10 @@
+use crate::ffi;
 use crate::ffi::{
     raw::{PdgEventType, PdgState},
     PDGEventInfo, PDGWorkItemInfo, PDGWorkItemResult,
 };
 use crate::node::HoudiniNode;
 use crate::Result;
-use crate::ffi;
 
 pub struct PDGWorkItem<'session> {
     pub info: PDGWorkItemInfo,
@@ -92,5 +92,22 @@ impl PDGNode {
                 node: &self.node,
             }
         })
+    }
+
+    pub fn get_workitems(&self) -> Result<Vec<PDGWorkItem<'_>>> {
+        let context_id = self.get_context_id()?;
+        ffi::get_pdg_workitems(&self.node.session, self.node.handle)?
+            .into_iter()
+            .map(|workitem_id| {
+                Ok(PDGWorkItem {
+                    info: PDGWorkItemInfo {
+                        inner: ffi::get_workitem_info(&self.node.session, context_id, workitem_id)?,
+                    },
+                    id: workitem_id,
+                    context_id,
+                    node: &self.node,
+                })
+            })
+            .collect()
     }
 }

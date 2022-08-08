@@ -2727,3 +2727,15 @@ pub fn get_workitem_result(
     }
     Ok(infos)
 }
+
+pub fn get_pdg_workitems(session: &Session, pdg_node: NodeHandle) -> Result<Vec<i32>> {
+    unsafe {
+        let mut num = -1;
+        raw::HAPI_GetNumWorkitems(session.ptr(), pdg_node.0, &mut num as *mut i32)
+            .check_err(Some(session))?;
+        let mut array = vec![-1; num as usize];
+        raw::HAPI_GetWorkitems(session.ptr(), pdg_node.0, array.as_mut_ptr(), num)
+            .check_err(Some(session))?;
+        Ok(array)
+    }
+}
