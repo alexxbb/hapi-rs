@@ -663,10 +663,13 @@ pub fn get_server_env_int(session: &Session, key: &CStr) -> Result<i32> {
 pub fn start_thrift_pipe_server(
     file: &CStr,
     options: &raw::HAPI_ThriftServerOptions,
+    log_file: Option<&CStr>
 ) -> Result<u32> {
     let mut pid = uninit!();
     unsafe {
-        raw::HAPI_StartThriftNamedPipeServer(options as *const _, file.as_ptr(), pid.as_mut_ptr())
+        raw::HAPI_StartThriftNamedPipeServer(options as *const _, file.as_ptr(), pid.as_mut_ptr(),
+            log_file.map(|s|s.as_ptr()).unwrap_or(std::ptr::null())
+        )
             .error_message("Could not start thrift server")?;
         Ok(pid.assume_init())
     }
@@ -675,10 +678,13 @@ pub fn start_thrift_pipe_server(
 pub fn start_thrift_socket_server(
     port: i32,
     options: &raw::HAPI_ThriftServerOptions,
+    log_file: Option<&CStr>
 ) -> Result<u32> {
     let mut pid = uninit!();
     unsafe {
-        raw::HAPI_StartThriftSocketServer(options as *const _, port, pid.as_mut_ptr())
+        raw::HAPI_StartThriftSocketServer(options as *const _, port, pid.as_mut_ptr(),
+                                          log_file.map(|s|s.as_ptr()).unwrap_or(std::ptr::null())
+        )
             .error_message("Could not start thrift server")?;
         Ok(pid.assume_init())
     }
@@ -852,8 +858,8 @@ pub fn get_total_cook_count(
         raw::HAPI_GetTotalCookCount(
             node.session.ptr(),
             node.handle.0,
-            node_types.0,
-            node_flags.0,
+            node_types as i32,
+            node_flags as i32,
             recursive as i8,
             count.as_mut_ptr(),
         )
@@ -924,8 +930,8 @@ pub fn get_compose_child_node_list(
         raw::HAPI_ComposeChildNodeList(
             session.ptr(),
             node.0,
-            types.0,
-            flags.0,
+            types as i32,
+            flags as i32,
             recursive as i8,
             count.as_mut_ptr(),
         )
@@ -1063,11 +1069,11 @@ pub fn check_for_specific_errors(
         raw::HAPI_CheckForSpecificErrors(
             node.session.ptr(),
             node.handle.0,
-            error_bits.0 as i32,
+            error_bits as i32,
             code.as_mut_ptr(),
         )
         .check_err(Some(&node.session))?;
-        Ok(raw::ErrorCode(code.assume_init()))
+        Ok(std::mem::transmute(code.assume_init()))
     }
 }
 

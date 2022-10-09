@@ -587,24 +587,29 @@ impl From<i32> for State {
 }
 
 /// Spawn a new pipe Engine process and return its PID
-pub fn start_engine_pipe_server(path: &str, auto_close: bool, timeout: f32) -> Result<u32> {
+pub fn start_engine_pipe_server(path: &str, auto_close: bool, timeout: f32,
+                                                verbosity: StatusVerbosity, log_file: Option<&str>) -> Result<u32> {
     debug!("Starting named pipe server: {}", path);
     let path = CString::new(path)?;
     let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
         autoClose: auto_close as i8,
         timeoutMs: timeout,
+        verbosity
     };
-    crate::ffi::start_thrift_pipe_server(&path, &opts)
+    let log_file = log_file.map(|p| CString::new(p)).transpose()?;
+    crate::ffi::start_thrift_pipe_server(&path, &opts, log_file.as_deref())
 }
 
 /// Spawn a new socket Engine server and return its PID
-pub fn start_engine_socket_server(port: u16, auto_close: bool, timeout: i32) -> Result<u32> {
+pub fn start_engine_socket_server(port: u16, auto_close: bool, timeout: i32, verbosity: StatusVerbosity, log_file: Option<&str>) -> Result<u32> {
     debug!("Starting socket server on port: {}", port);
     let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
         autoClose: auto_close as i8,
         timeoutMs: timeout as f32,
+        verbosity
     };
-    crate::ffi::start_thrift_socket_server(port as i32, &opts)
+    let log_file = log_file.map(|p| CString::new(p)).transpose()?;
+    crate::ffi::start_thrift_socket_server(port as i32, &opts, log_file.as_deref())
 }
 
 /// A quick drop-in session, useful for on-off jobs
@@ -618,7 +623,7 @@ pub fn quick_session() -> Result<Session> {
     std::thread::current().id().hash(&mut hash);
     let file = std::env::temp_dir().join(format!("hars-session-{}", hash.finish()));
     let file = file.to_string_lossy();
-    start_engine_pipe_server(&file, true, 4000.0)?;
+    start_engine_pipe_server(&file, true, 4000.0, StatusVerbosity::Statusverbosity1, None)?;
     let mut session = connect_to_pipe(&file)?;
     session.initialize(&SessionOptions::default())?;
     Ok(session)

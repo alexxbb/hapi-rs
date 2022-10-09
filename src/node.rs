@@ -44,10 +44,10 @@ impl std::fmt::Display for NodeType {
     }
 }
 
-impl crate::ffi::NodeInfo {
+impl NodeInfo {
     pub fn new(session: &Session, node: NodeHandle) -> Result<Self> {
         let info = crate::ffi::get_node_info(node, session)?;
-        Ok(crate::ffi::NodeInfo { inner: info })
+        Ok(NodeInfo { inner: info })
     }
 }
 
@@ -293,7 +293,7 @@ impl<'session> HoudiniNode {
 
     pub fn parameter(&self, name: &str) -> Result<Parameter> {
         debug_assert!(self.is_valid()?);
-        let parm_info = crate::ffi::ParmInfo::from_parm_name(name, self)?;
+        let parm_info = ParmInfo::from_parm_name(name, self)?;
         Ok(Parameter::new(self.handle, parm_info))
     }
 
@@ -392,7 +392,7 @@ impl<'session> HoudiniNode {
                     info,
                 }))
             }
-            NodeType(_) => Ok(None),
+            _ => Ok(None),
         }
     }
 
