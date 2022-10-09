@@ -698,16 +698,16 @@ pub(crate) mod tests {
 
     #[test]
     fn session_time() {
-        with_session(|session| {
-            let _lock = session.lock();
-            let opt = TimelineOptions::default().with_end_time(5.5);
-            assert!(session.set_timeline_options(opt.clone()).is_ok());
-            let opt2 = session.get_timeline_options().expect("timeline_options");
-            assert!(opt.end_time().eq(&opt2.end_time()));
-            session.set_time(4.12).expect("set_time");
-            assert!(matches!(session.cook(), Ok(CookResult::Succeeded)));
-            assert_eq!(session.get_time().expect("get_time"), 4.12);
-        });
+        // For some reason, this test randomly fails when using shared session
+        let session = super::quick_session().expect("Could not start session");
+        let _lock = session.lock();
+        let opt = TimelineOptions::default().with_end_time(5.5);
+        assert!(session.set_timeline_options(opt.clone()).is_ok());
+        let opt2 = session.get_timeline_options().expect("timeline_options");
+        assert!(opt.end_time().eq(&opt2.end_time()));
+        session.set_time(4.12).expect("set_time");
+        assert!(matches!(session.cook(), Ok(CookResult::Succeeded)));
+        assert_eq!(session.get_time().expect("get_time"), 4.12);
     }
 
     #[test]
