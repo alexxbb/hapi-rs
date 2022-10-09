@@ -297,6 +297,8 @@ wrap!(
     [get|set|with] handle_box_part_types->handleBoxPartTypes->[bool];
     [get|set|with] handle_sphere_part_types->handleSpherePartTypes->[bool];
     [get|set|with] check_part_changes->checkPartChanges->[bool];
+    [get|set|with] cache_mesh_topology->cacheMeshTopology->[bool];
+    [get|set|with] prefer_output_nodes->preferOutputNodes->[bool];
     [get|set|with] packed_prim_instancing_mode->packedPrimInstancingMode->[PackedPrimInstancingMode];
     [get+session] split_attr->splitAttrSH->[Result<String>];
 );

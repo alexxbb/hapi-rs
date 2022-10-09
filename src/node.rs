@@ -128,6 +128,10 @@ impl<'session> HoudiniNode {
         self.handle.is_valid(&self.session)
     }
 
+    pub fn name(&self) -> Result<String> {
+        self.info.name(&self.session)
+    }
+
     pub fn path(&self) -> Result<String> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_node_path(&self.session, self.handle, None)
@@ -229,6 +233,7 @@ impl<'session> HoudiniNode {
             .collect())
     }
 
+    /// Find all children of this node by type.
     pub fn get_children(
         &self,
         types: NodeType,
@@ -246,8 +251,13 @@ impl<'session> HoudiniNode {
         Ok(ids.iter().map(|i| NodeHandle(*i, ())).collect())
     }
 
-    /// Search child node by name
-    pub fn find_sibling(
+    /// Get a child node by path.
+    pub fn get_child(&self, relative_path: &str) -> Result<HoudiniNode> {
+        self.session.find_node(relative_path, Some(self.handle))
+    }
+
+    /// *Search* for child node by name.
+    pub fn find_child(
         &self,
         name: impl AsRef<str>,
         node_type: NodeType,
@@ -488,6 +498,10 @@ impl<'session> HoudiniNode {
         debug_assert!(self.is_valid()?);
         crate::ffi::set_node_display(&self.session, self.handle, on)
     }
+
+    pub fn get_input_name(&self, input_index: i32) -> Result<String> {
+        crate::ffi::get_node_input_name(self, input_index)
+    }
 }
 
 #[cfg(test)]
@@ -523,6 +537,11 @@ mod tests {
             }
             let outputs = geo.node.output_connected_nodes(0, false).unwrap();
             assert!(outputs.is_empty());
+            let n = node.get_child("geo/point_attr").unwrap();
+            assert_eq!(
+                n.get_input_name(0).unwrap(),
+                "Geometry to Process with Wrangle"
+            );
         })
     }
 
@@ -531,8 +550,10 @@ mod tests {
         let session = crate::session::quick_session().unwrap();
         let node = session.create_node("Object/hapi_geo", None, None).unwrap();
         let geo = node.geometry().unwrap().unwrap();
-        let add_color = geo.node.find_sibling("add_color", NodeType::Sop).unwrap();
-        assert!(add_color.is_some())
+        let child = geo.node.find_child("add_color", NodeType::Sop).unwrap();
+        assert!(child.is_some());
+        let child = node.get_child("geo/add_color");
+        assert!(child.is_ok());
     }
 
     #[test]

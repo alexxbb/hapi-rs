@@ -201,6 +201,18 @@ impl Session {
         HoudiniNode::create(name.as_ref(), label.into(), parent, self.clone(), false)
     }
 
+    /// Find a node given an absolute path. To find a child node, pass the `parent` node
+    /// or see [`HoudiniNode::get_child`]
+    pub fn find_node(
+        &self,
+        path: impl AsRef<str>,
+        parent: Option<NodeHandle>,
+    ) -> Result<HoudiniNode> {
+        let path = CString::new(path.as_ref())?;
+        crate::ffi::get_node_from_path(self, parent, &path)
+            .map(|id| NodeHandle(id, ()).to_node(self))?
+    }
+
     /// Save current session to hip file
     pub fn save_hip(&self, name: &str, lock_nodes: bool) -> Result<()> {
         debug!("Saving hip file: {}", name);
@@ -424,6 +436,9 @@ impl Drop for Session {
                         error!("Cleanup failed in Drop: {}", e);
                     }
                 }
+                if let Err(e) = crate::ffi::shutdown_session(self) {
+                    error!("Could not shutdown session in Drop: {}", e);
+                }
                 if let Err(e) = crate::ffi::close_session(self) {
                     error!("Closing session failed in Drop: {}", e);
                 }
@@ -587,26 +602,37 @@ impl From<i32> for State {
 }
 
 /// Spawn a new pipe Engine process and return its PID
-pub fn start_engine_pipe_server(path: &str, auto_close: bool, timeout: f32,
-                                                verbosity: StatusVerbosity, log_file: Option<&str>) -> Result<u32> {
+pub fn start_engine_pipe_server(
+    path: &str,
+    auto_close: bool,
+    timeout: f32,
+    verbosity: StatusVerbosity,
+    log_file: Option<&str>,
+) -> Result<u32> {
     debug!("Starting named pipe server: {}", path);
     let path = CString::new(path)?;
     let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
         autoClose: auto_close as i8,
         timeoutMs: timeout,
-        verbosity
+        verbosity,
     };
     let log_file = log_file.map(|p| CString::new(p)).transpose()?;
     crate::ffi::start_thrift_pipe_server(&path, &opts, log_file.as_deref())
 }
 
 /// Spawn a new socket Engine server and return its PID
-pub fn start_engine_socket_server(port: u16, auto_close: bool, timeout: i32, verbosity: StatusVerbosity, log_file: Option<&str>) -> Result<u32> {
+pub fn start_engine_socket_server(
+    port: u16,
+    auto_close: bool,
+    timeout: i32,
+    verbosity: StatusVerbosity,
+    log_file: Option<&str>,
+) -> Result<u32> {
     debug!("Starting socket server on port: {}", port);
     let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
         autoClose: auto_close as i8,
         timeoutMs: timeout as f32,
-        verbosity
+        verbosity,
     };
     let log_file = log_file.map(|p| CString::new(p)).transpose()?;
     crate::ffi::start_thrift_socket_server(port as i32, &opts, log_file.as_deref())

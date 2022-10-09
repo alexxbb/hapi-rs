@@ -386,6 +386,23 @@ pub fn get_node_path(
     }
 }
 
+pub fn get_node_from_path(
+    session: &Session,
+    parent_node: Option<NodeHandle>,
+    path: &CStr,
+) -> Result<raw::HAPI_NodeId> {
+    let mut node = uninit!();
+    let parent_node = match parent_node {
+        None => -1,
+        Some(h) => h.0,
+    };
+    unsafe {
+        raw::HAPI_GetNodeFromPath(session.ptr(), parent_node, path.as_ptr(), node.as_mut_ptr())
+            .check_err(Some(session))?;
+        Ok(node.assume_init())
+    }
+}
+
 pub fn cook_node(node: &HoudiniNode, options: &CookOptions) -> Result<()> {
     unsafe {
         raw::HAPI_CookNode(node.session.ptr(), node.handle.0, options.ptr())
@@ -663,14 +680,17 @@ pub fn get_server_env_int(session: &Session, key: &CStr) -> Result<i32> {
 pub fn start_thrift_pipe_server(
     file: &CStr,
     options: &raw::HAPI_ThriftServerOptions,
-    log_file: Option<&CStr>
+    log_file: Option<&CStr>,
 ) -> Result<u32> {
     let mut pid = uninit!();
     unsafe {
-        raw::HAPI_StartThriftNamedPipeServer(options as *const _, file.as_ptr(), pid.as_mut_ptr(),
-            log_file.map(|s|s.as_ptr()).unwrap_or(std::ptr::null())
+        raw::HAPI_StartThriftNamedPipeServer(
+            options as *const _,
+            file.as_ptr(),
+            pid.as_mut_ptr(),
+            log_file.map(|s| s.as_ptr()).unwrap_or(std::ptr::null()),
         )
-            .error_message("Could not start thrift server")?;
+        .error_message("Could not start thrift server")?;
         Ok(pid.assume_init())
     }
 }
@@ -678,14 +698,17 @@ pub fn start_thrift_pipe_server(
 pub fn start_thrift_socket_server(
     port: i32,
     options: &raw::HAPI_ThriftServerOptions,
-    log_file: Option<&CStr>
+    log_file: Option<&CStr>,
 ) -> Result<u32> {
     let mut pid = uninit!();
     unsafe {
-        raw::HAPI_StartThriftSocketServer(options as *const _, port, pid.as_mut_ptr(),
-                                          log_file.map(|s|s.as_ptr()).unwrap_or(std::ptr::null())
+        raw::HAPI_StartThriftSocketServer(
+            options as *const _,
+            port,
+            pid.as_mut_ptr(),
+            log_file.map(|s| s.as_ptr()).unwrap_or(std::ptr::null()),
         )
-            .error_message("Could not start thrift server")?;
+        .error_message("Could not start thrift server")?;
         Ok(pid.assume_init())
     }
 }
@@ -752,6 +775,14 @@ pub fn initialize_session(session: &Session, options: &SessionOptions) -> Result
 
 pub fn cleanup_session(session: &Session) -> Result<()> {
     unsafe { raw::HAPI_Cleanup(session.ptr()).check_err(Some(session)) }
+}
+
+pub fn shutdown_session(session: &Session) -> Result<()> {
+    if session.handle.0.type_ == raw::SessionType::Inprocess {
+        unsafe { raw::HAPI_Shutdown(session.ptr()).check_err(Some(session)) }
+    } else {
+        Ok(())
+    }
 }
 
 pub fn close_session(session: &Session) -> Result<()> {
@@ -999,6 +1030,15 @@ pub fn disconnect_node_input(node: &HoudiniNode, input: i32) -> Result<()> {
     unsafe {
         raw::HAPI_DisconnectNodeInput(node.session.ptr(), node.handle.0, input)
             .check_err(Some(&node.session))
+    }
+}
+
+pub fn get_node_input_name(node: &HoudiniNode, input: i32) -> Result<String> {
+    let mut name = uninit!();
+    unsafe {
+        raw::HAPI_GetNodeInputName(node.session.ptr(), node.handle.0, input, name.as_mut_ptr())
+            .check_err(Some(&node.session))?;
+        crate::stringhandle::get_string(name.assume_init(), &node.session)
     }
 }
 
