@@ -168,7 +168,6 @@ impl Session {
         crate::ffi::is_session_initialized(self)
     }
 
-    // TODO: Return a Geometry instead for convenient use
     /// Create an input geometry node which can accept modifications
     pub fn create_input_node(&self, name: &str) -> Result<crate::geometry::Geometry> {
         debug_assert!(self.is_valid());
@@ -500,7 +499,6 @@ where
 }
 
 /// Session options used in [`Session::initialize`]
-// TODO: Add builder
 pub struct SessionOptions {
     /// Session cook options
     pub cook_opt: CookOptions,
@@ -533,8 +531,21 @@ impl Default for SessionOptions {
     }
 }
 
-impl SessionOptions {
-    pub fn set_houdini_env_files<I>(&mut self, files: I)
+#[derive(Default)]
+pub struct SessionOptionsBuilder {
+    cook_opt: CookOptions,
+    threaded: bool,
+    cleanup: bool,
+    ignore_already_init: bool,
+    env_files: Option<CString>,
+    otl_path: Option<CString>,
+    dso_path: Option<CString>,
+    img_dso_path: Option<CString>,
+    aud_dso_path: Option<CString>,
+}
+
+impl SessionOptionsBuilder {
+    pub fn houdini_env_files<I>(&mut self, files: I) -> &mut Self
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
@@ -542,9 +553,10 @@ impl SessionOptions {
         let paths = join_paths(files);
         self.env_files
             .replace(CString::new(paths).expect("Zero byte"));
+        self
     }
 
-    pub fn set_otl_search_paths<I>(&mut self, paths: I)
+    pub fn otl_search_paths<I>(&mut self, paths: I) -> &mut Self
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
@@ -552,9 +564,10 @@ impl SessionOptions {
         let paths = join_paths(paths);
         self.otl_path
             .replace(CString::new(paths).expect("Zero byte"));
+        self
     }
 
-    pub fn set_dso_search_paths<P>(&mut self, paths: P)
+    pub fn dso_search_paths<P>(&mut self, paths: P) -> &mut Self
     where
         P: IntoIterator,
         P::Item: AsRef<str>,
@@ -562,9 +575,10 @@ impl SessionOptions {
         let paths = join_paths(paths);
         self.dso_path
             .replace(CString::new(paths).expect("Zero byte"));
+        self
     }
 
-    pub fn set_image_search_paths<P>(&mut self, paths: P)
+    pub fn image_search_paths<P>(&mut self, paths: P) -> &mut Self
     where
         P: IntoIterator,
         P::Item: AsRef<str>,
@@ -572,9 +586,10 @@ impl SessionOptions {
         let paths = join_paths(paths);
         self.img_dso_path
             .replace(CString::new(paths).expect("Zero byte"));
+        self
     }
 
-    pub fn set_audio_search_paths<P>(&mut self, paths: P)
+    pub fn audio_search_paths<P>(&mut self, paths: P) -> &mut Self
     where
         P: IntoIterator,
         P::Item: AsRef<str>,
@@ -582,6 +597,42 @@ impl SessionOptions {
         let paths = join_paths(paths);
         self.aud_dso_path
             .replace(CString::new(paths).expect("Zero byte"));
+        self
+    }
+
+    pub fn ignore_already_init(&mut self, ignore: bool) -> &mut Self {
+        self.ignore_already_init = ignore;
+        self
+    }
+
+    pub fn cook_options(&mut self, options: CookOptions) -> &mut Self {
+        self.cook_opt = options;
+        self
+    }
+
+    pub fn threaded(&mut self, threaded: bool) -> &mut Self {
+        self.threaded = threaded;
+        self
+    }
+
+    pub fn build(self) -> SessionOptions {
+        SessionOptions {
+            cook_opt: self.cook_opt,
+            threaded: self.threaded,
+            cleanup: self.cleanup,
+            ignore_already_init: self.cleanup,
+            env_files: self.env_files,
+            otl_path: self.otl_path,
+            dso_path: self.dso_path,
+            img_dso_path: self.img_dso_path,
+            aud_dso_path: self.aud_dso_path,
+        }
+    }
+}
+
+impl SessionOptions {
+    pub fn builder() -> SessionOptionsBuilder {
+        SessionOptionsBuilder::default()
     }
 }
 
@@ -659,6 +710,7 @@ pub fn quick_session() -> Result<Session> {
 pub(crate) mod tests {
     use crate::session::*;
     use once_cell::sync::Lazy;
+    use std::default::Default;
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         env_logger::init();
@@ -684,9 +736,10 @@ pub(crate) mod tests {
 
     #[test]
     fn init_and_teardown() {
-        let mut opt = super::SessionOptions::default();
-        opt.set_dso_search_paths(["/path/one", "/path/two"]);
-        opt.set_otl_search_paths(["/path/thee", "/path/four"]);
+        let opt = super::SessionOptions::builder()
+            .dso_search_paths(["/path/one", "/path/two"])
+            .otl_search_paths(["/path/thee", "/path/four"])
+            .build();
         let mut ses = super::quick_session().unwrap();
         assert!(ses.is_initialized());
         assert!(ses.is_valid());
@@ -725,8 +778,7 @@ pub(crate) mod tests {
     #[test]
     fn create_node_async() {
         use crate::ffi::raw::{NodeFlags, NodeType};
-        let mut opt = super::SessionOptions::default();
-        opt.threaded = true;
+        let mut opt = SessionOptions::builder().threaded(true).build();
         let session = super::quick_session().unwrap();
         session
             .load_asset_file("otls/sesi/SideFX_spaceship.hda")
