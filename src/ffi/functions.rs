@@ -598,7 +598,7 @@ pub fn get_status_string(
     verbosity: raw::StatusVerbosity,
 ) -> Result<String> {
     let mut length = uninit!();
-    let _lock = session.handle.1.lock();
+    let _lock = session.lock();
     unsafe {
         raw::HAPI_GetStatusStringBufLength(session.ptr(), status, verbosity, length.as_mut_ptr())
             .error_message("GetStatusStringBufLength failed")?;
@@ -778,7 +778,7 @@ pub fn cleanup_session(session: &Session) -> Result<()> {
 }
 
 pub fn shutdown_session(session: &Session) -> Result<()> {
-    if session.handle.0.type_ == raw::SessionType::Inprocess {
+    if session.session_type() == raw::SessionType::Inprocess {
         unsafe { raw::HAPI_Shutdown(session.ptr()).check_err(Some(session)) }
     } else {
         Ok(())

@@ -14,14 +14,9 @@
 //!
 //! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
 //!
-#[rustfmt::skip]
-use std::{
-    ffi::CString,
-    sync::Arc,
-    path::Path,
-};
 pub use crate::ffi::enums::*;
-use log::{debug, error, warn};
+use log::{debug, error};
+use std::{ffi::CString, path::Path, sync::Arc};
 
 use crate::{
     asset::AssetLibrary,
@@ -87,19 +82,39 @@ pub enum CookResult {
     Errored(String),
 }
 
+#[derive(Debug)]
+pub(crate) struct SessionInner {
+    pub(crate) handle: raw::HAPI_Session,
+    pub(crate) options: SessionOptions,
+    pub(crate) lock: ReentrantMutex<()>,
+}
+
 /// Session represents a unique connection to the Engine instance and all API calls require a valid session.
 /// It implements [`Clone`] and is [`Send`] and [`Sync`]
 #[derive(Debug, Clone)]
 pub struct Session {
-    pub(crate) handle: Arc<(raw::HAPI_Session, ReentrantMutex<()>)>,
-    pub(crate) threaded: bool,
-    cleanup: bool,
+    pub(crate) inner: Arc<SessionInner>,
 }
 
 impl Session {
+    fn new(handle: raw::HAPI_Session, options: SessionOptions) -> Session {
+        Session {
+            inner: Arc::new(SessionInner {
+                handle,
+                options,
+                lock: ReentrantMutex::new(()),
+            }),
+        }
+    }
+
+    /// Return [`SessionType`] current session is initialized with.
+    pub fn session_type(&self) -> SessionType {
+        self.inner.handle.type_
+    }
+
     #[inline]
     pub(crate) fn ptr(&self) -> *const raw::HAPI_Session {
-        &(self.handle.0) as *const _
+        &(self.inner.handle) as *const _
     }
 
     /// Set environment variable on the server
@@ -129,28 +144,10 @@ impl Session {
         crate::stringhandle::get_string_array(&handles, self)
     }
 
-    fn initialize(&mut self, opts: &SessionOptions) -> Result<()> {
+    fn initialize(&self) -> Result<()> {
         debug!("Initializing session");
         debug_assert!(self.is_valid());
-        self.threaded = opts.threaded;
-        self.cleanup = opts.cleanup;
-        let res = crate::ffi::initialize_session(self, opts);
-        if !opts.ignore_already_init {
-            return res;
-        }
-        match res {
-            Ok(_) => Ok(()),
-            Err(e) => match e {
-                HapiError {
-                    kind: Kind::Hapi(HapiResult::AlreadyInitialized),
-                    ..
-                } => {
-                    warn!("Session already initialized, skipping");
-                    Ok(())
-                }
-                e => Err(e),
-            },
-        }
+        crate::ffi::initialize_session(self, &self.inner.options)
     }
 
     /// Cleanup the session. Session will not be valid after this call
@@ -298,7 +295,7 @@ impl Session {
     /// See [Documentation](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html)
     pub fn cook(&self) -> Result<CookResult> {
         debug_assert!(self.is_valid());
-        if self.threaded {
+        if self.inner.options.threaded {
             loop {
                 match self.get_status(StatusType::CookState)? {
                     State::Ready => break Ok(CookResult::Succeeded),
@@ -340,7 +337,7 @@ impl Session {
     /// Lock the internal reentrant mutex. Should not be used in general, but may be useful
     /// in certain situations when a series of API calls must be done in sequence
     pub fn lock(&self) -> parking_lot::ReentrantMutexGuard<()> {
-        self.handle.1.lock()
+        self.inner.lock.lock()
     }
 
     /// Set Houdini timeline options
@@ -425,10 +422,10 @@ impl Session {
 
 impl Drop for Session {
     fn drop(&mut self) {
-        if Arc::strong_count(&self.handle) == 1 {
+        if Arc::strong_count(&self.inner) == 1 {
             debug!("Dropping session");
             if self.is_valid() {
-                if self.cleanup {
+                if self.inner.options.cleanup {
                     debug!("Cleaning up session");
                     if let Err(e) = self.cleanup() {
                         error!("Cleanup failed in Drop: {}", e);
@@ -448,46 +445,33 @@ impl Drop for Session {
 /// Connect to the engine process via a Unix pipe
 pub fn connect_to_pipe(pipe: &str, options: Option<&SessionOptions>) -> Result<Session> {
     debug!("Connecting to Thrift session: {}", pipe);
-    let tmp;
-    let options = match options {
-        None => {
-            tmp = SessionOptions::default();
-            &tmp
-        }
-        Some(opt) => opt,
-    };
     let path = CString::new(pipe)?;
-    let session = crate::ffi::new_thrift_piped_session(&path)?;
-    let mut session = Session {
-        handle: Arc::new((session, ReentrantMutex::new(()))),
-        threaded: options.threaded,
-        cleanup: options.cleanup,
-    };
-    session.initialize(&options)?;
+    let handle = crate::ffi::new_thrift_piped_session(&path)?;
+    let session = Session::new(handle, options.cloned().unwrap_or_default());
+    session.initialize()?;
     Ok(session)
 }
 
 /// Connect to the engine process via a Unix socket
-pub fn connect_to_socket(addr: std::net::SocketAddrV4) -> Result<Session> {
+pub fn connect_to_socket(
+    addr: std::net::SocketAddrV4,
+    options: Option<&SessionOptions>,
+) -> Result<Session> {
     debug!("Connecting to socket server: {:?}", addr);
     let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
-    let session = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
-    Ok(Session {
-        handle: Arc::new((session, ReentrantMutex::new(()))),
-        threaded: false,
-        cleanup: false,
-    })
+    let handle = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
+    let session = Session::new(handle, options.cloned().unwrap_or_default());
+    session.initialize()?;
+    Ok(session)
 }
 
 /// Create in-process session
-pub fn new_in_process() -> Result<Session> {
+pub fn new_in_process(options: Option<&SessionOptions>) -> Result<Session> {
     debug!("Creating new in-process session");
-    let session = crate::ffi::create_inprocess_session()?;
-    Ok(Session {
-        handle: Arc::new((session, ReentrantMutex::new(()))),
-        threaded: false,
-        cleanup: false,
-    })
+    let handle = crate::ffi::create_inprocess_session()?;
+    let session = Session::new(handle, options.cloned().unwrap_or_default());
+    session.initialize()?;
+    Ok(session)
 }
 
 /// Join a sequence of paths into a single String
@@ -508,6 +492,7 @@ where
 }
 
 /// Session options used in [`Session::initialize`]
+#[derive(Clone, Debug)]
 pub struct SessionOptions {
     /// Session cook options
     pub cook_opt: CookOptions,

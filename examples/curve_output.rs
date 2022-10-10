@@ -6,7 +6,7 @@ use hapi_rs::Result;
 
 fn main() -> Result<()> {
     let opt = SessionOptions::builder().threaded(true).build();
-    let mut session = quick_session(Some(&opt))?;
+    let session = quick_session(Some(&opt))?;
     let lib = session.load_asset_file("otls/sesi/nurbs_curve.hda")?;
     let node = lib.try_create_first()?;
     node.cook_blocking(None)?;

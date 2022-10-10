@@ -187,7 +187,7 @@ impl AssetLibrary {
     /// Returns a struct holding the asset parameter information and vlaues
     pub fn get_asset_parms(&self, asset: impl AsRef<str>) -> Result<AssetParameters> {
         debug_assert!(self.session.is_valid());
-        let _lock = self.session.handle.1.lock();
+        let _lock = self.session.lock();
         let asset_name = String::from(asset.as_ref());
         log::debug!("Reading asset parameter list of {asset_name}");
         let asset_name = CString::new(asset_name)?;
