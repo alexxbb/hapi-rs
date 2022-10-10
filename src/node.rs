@@ -547,7 +547,7 @@ mod tests {
 
     #[test]
     fn node_find_siblings() {
-        let session = crate::session::quick_session().unwrap();
+        let session = crate::session::quick_session(None).unwrap();
         let node = session.create_node("Object/hapi_geo", None, None).unwrap();
         let geo = node.geometry().unwrap().unwrap();
         let child = geo.node.find_child("add_color", NodeType::Sop).unwrap();
@@ -605,7 +605,7 @@ mod tests {
 
     #[test]
     fn set_transform_anim() {
-        let session = crate::session::quick_session().unwrap();
+        let session = crate::session::quick_session(None).unwrap();
         let bone = session.create_node("Object/bone", None, None).unwrap();
         let ty = [
             KeyFrame {

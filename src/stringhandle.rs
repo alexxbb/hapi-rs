@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_string_array() {
-        let session = quick_session().expect("simple session");
+        let session = quick_session(None).expect("simple session");
         session
             .set_server_var::<str>("TEST", "177")
             .expect("could not set var");

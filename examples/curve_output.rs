@@ -5,9 +5,8 @@ use hapi_rs::session::{quick_session, SessionOptions};
 use hapi_rs::Result;
 
 fn main() -> Result<()> {
-    let mut session = quick_session()?;
-    let mut opt = SessionOptions::builder().threaded(true).build();
-    session.initialize(&opt)?;
+    let opt = SessionOptions::builder().threaded(true).build();
+    let mut session = quick_session(Some(&opt))?;
     let lib = session.load_asset_file("otls/sesi/nurbs_curve.hda")?;
     let node = lib.try_create_first()?;
     node.cook_blocking(None)?;

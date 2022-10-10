@@ -64,8 +64,7 @@ fn create_cube(session: &Session) -> Result<HoudiniNode> {
 }
 
 fn main() -> Result<()> {
-    let mut session = quick_session()?;
-    session.initialize(&SessionOptions::default())?;
+    let mut session = quick_session(None)?;
     let cube = create_cube(&session)?;
     let xform = session.create_node("Sop/xform", Some("PointGroupManipulator"), None)?;
     xform.connect_input(0, &cube, 0)?;

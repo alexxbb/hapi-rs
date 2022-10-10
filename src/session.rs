@@ -129,8 +129,7 @@ impl Session {
         crate::stringhandle::get_string_array(&handles, self)
     }
 
-    /// Initialize session with options
-    pub fn initialize(&mut self, opts: &SessionOptions) -> Result<()> {
+    fn initialize(&mut self, opts: &SessionOptions) -> Result<()> {
         debug!("Initializing session");
         debug_assert!(self.is_valid());
         self.threaded = opts.threaded;
@@ -447,15 +446,25 @@ impl Drop for Session {
 }
 
 /// Connect to the engine process via a Unix pipe
-pub fn connect_to_pipe(pipe: &str) -> Result<Session> {
+pub fn connect_to_pipe(pipe: &str, options: Option<&SessionOptions>) -> Result<Session> {
     debug!("Connecting to Thrift session: {}", pipe);
+    let tmp;
+    let options = match options {
+        None => {
+            tmp = SessionOptions::default();
+            &tmp
+        }
+        Some(opt) => opt,
+    };
     let path = CString::new(pipe)?;
     let session = crate::ffi::new_thrift_piped_session(&path)?;
-    Ok(Session {
+    let mut session = Session {
         handle: Arc::new((session, ReentrantMutex::new(()))),
-        threaded: false,
-        cleanup: false,
-    })
+        threaded: options.threaded,
+        cleanup: options.cleanup,
+    };
+    session.initialize(&options)?;
+    Ok(session)
 }
 
 /// Connect to the engine process via a Unix socket
@@ -545,7 +554,7 @@ pub struct SessionOptionsBuilder {
 }
 
 impl SessionOptionsBuilder {
-    pub fn houdini_env_files<I>(&mut self, files: I) -> &mut Self
+    pub fn houdini_env_files<I>(mut self, files: I) -> Self
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
@@ -556,7 +565,7 @@ impl SessionOptionsBuilder {
         self
     }
 
-    pub fn otl_search_paths<I>(&mut self, paths: I) -> &mut Self
+    pub fn otl_search_paths<I>(mut self, paths: I) -> Self
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
@@ -567,7 +576,7 @@ impl SessionOptionsBuilder {
         self
     }
 
-    pub fn dso_search_paths<P>(&mut self, paths: P) -> &mut Self
+    pub fn dso_search_paths<P>(mut self, paths: P) -> Self
     where
         P: IntoIterator,
         P::Item: AsRef<str>,
@@ -578,7 +587,7 @@ impl SessionOptionsBuilder {
         self
     }
 
-    pub fn image_search_paths<P>(&mut self, paths: P) -> &mut Self
+    pub fn image_search_paths<P>(mut self, paths: P) -> Self
     where
         P: IntoIterator,
         P::Item: AsRef<str>,
@@ -589,7 +598,7 @@ impl SessionOptionsBuilder {
         self
     }
 
-    pub fn audio_search_paths<P>(&mut self, paths: P) -> &mut Self
+    pub fn audio_search_paths<P>(mut self, paths: P) -> Self
     where
         P: IntoIterator,
         P::Item: AsRef<str>,
@@ -600,17 +609,17 @@ impl SessionOptionsBuilder {
         self
     }
 
-    pub fn ignore_already_init(&mut self, ignore: bool) -> &mut Self {
+    pub fn ignore_already_init(mut self, ignore: bool) -> Self {
         self.ignore_already_init = ignore;
         self
     }
 
-    pub fn cook_options(&mut self, options: CookOptions) -> &mut Self {
+    pub fn cook_options(mut self, options: CookOptions) -> Self {
         self.cook_opt = options;
         self
     }
 
-    pub fn threaded(&mut self, threaded: bool) -> &mut Self {
+    pub fn threaded(mut self, threaded: bool) -> Self {
         self.threaded = threaded;
         self
     }
@@ -691,7 +700,7 @@ pub fn start_engine_socket_server(
 
 /// A quick drop-in session, useful for on-off jobs
 /// It starts a single-threaded pipe server and initialize a session with default options
-pub fn quick_session() -> Result<Session> {
+pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
     use std::time::SystemTime;
@@ -701,9 +710,7 @@ pub fn quick_session() -> Result<Session> {
     let file = std::env::temp_dir().join(format!("hars-session-{}", hash.finish()));
     let file = file.to_string_lossy();
     start_engine_pipe_server(&file, true, 4000.0, StatusVerbosity::Statusverbosity1, None)?;
-    let mut session = connect_to_pipe(&file)?;
-    session.initialize(&SessionOptions::default())?;
-    Ok(session)
+    connect_to_pipe(&file, options)
 }
 
 #[cfg(test)]
@@ -714,7 +721,7 @@ pub(crate) mod tests {
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         env_logger::init();
-        let session = quick_session().expect("Could not create test session");
+        let session = quick_session(None).expect("Could not create test session");
         session
             .load_asset_file("otls/hapi_geo.hda")
             .expect("load asset");
@@ -740,19 +747,17 @@ pub(crate) mod tests {
             .dso_search_paths(["/path/one", "/path/two"])
             .otl_search_paths(["/path/thee", "/path/four"])
             .build();
-        let mut ses = super::quick_session().unwrap();
+        let ses = super::quick_session(Some(&opt)).unwrap();
         assert!(ses.is_initialized());
         assert!(ses.is_valid());
         assert!(ses.cleanup().is_ok());
         assert!(!ses.is_initialized());
-        ses.initialize(&opt).unwrap();
-        assert!(ses.is_initialized());
     }
 
     #[test]
     fn session_time() {
         // For some reason, this test randomly fails when using shared session
-        let session = super::quick_session().expect("Could not start session");
+        let session = super::quick_session(None).expect("Could not start session");
         let _lock = session.lock();
         let opt = TimelineOptions::default().with_end_time(5.5);
         assert!(session.set_timeline_options(opt.clone()).is_ok());
@@ -767,7 +772,7 @@ pub(crate) mod tests {
     fn server_variables() {
         // Starting a new separate session because getting/setting env variables from multiple
         // clients ( threads ) breaks the server
-        let session = super::quick_session().expect("Could not start session");
+        let session = super::quick_session(None).expect("Could not start session");
         session.set_server_var::<str>("FOO", "foo_string").unwrap();
         assert_eq!(session.get_server_var::<str>("FOO").unwrap(), "foo_string");
         session.set_server_var::<i32>("BAR", &123).unwrap();
@@ -778,8 +783,8 @@ pub(crate) mod tests {
     #[test]
     fn create_node_async() {
         use crate::ffi::raw::{NodeFlags, NodeType};
-        let mut opt = SessionOptions::builder().threaded(true).build();
-        let session = super::quick_session().unwrap();
+        let opt = SessionOptions::builder().threaded(true).build();
+        let session = super::quick_session(Some(&opt)).unwrap();
         session
             .load_asset_file("otls/sesi/SideFX_spaceship.hda")
             .unwrap();

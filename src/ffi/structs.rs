@@ -279,7 +279,7 @@ impl std::fmt::Debug for NodeInfo {
 }
 
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___cook_options.html)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CookOptions {
     pub(crate) inner: HAPI_CookOptions,
 }
