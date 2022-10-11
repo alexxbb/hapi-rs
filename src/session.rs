@@ -661,7 +661,7 @@ pub fn start_engine_pipe_server(
         timeoutMs: timeout,
         verbosity,
     };
-    let log_file = log_file.map(|p| CString::new(p)).transpose()?;
+    let log_file = log_file.map(CString::new).transpose()?;
     crate::ffi::start_thrift_pipe_server(&path, &opts, log_file.as_deref())
 }
 
@@ -679,7 +679,7 @@ pub fn start_engine_socket_server(
         timeoutMs: timeout as f32,
         verbosity,
     };
-    let log_file = log_file.map(|p| CString::new(p)).transpose()?;
+    let log_file = log_file.map(CString::new).transpose()?;
     crate::ffi::start_thrift_socket_server(port as i32, &opts, log_file.as_deref())
 }
 

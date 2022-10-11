@@ -22,7 +22,7 @@ impl PartialEq for HapiError {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Kind {
     /// Error returned by ffi calls

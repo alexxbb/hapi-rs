@@ -5,7 +5,7 @@ use hapi_rs::geometry::{
 };
 use hapi_rs::node::HoudiniNode;
 use hapi_rs::parameter::{Parameter, ParmBaseTrait};
-use hapi_rs::session::{quick_session, Session, SessionOptions};
+use hapi_rs::session::{quick_session, Session};
 use hapi_rs::Result;
 
 fn create_cube(session: &Session) -> Result<HoudiniNode> {

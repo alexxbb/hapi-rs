@@ -5,7 +5,7 @@ use prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR as FORMAT;
 use prettytable::*;
 
 fn main() -> Result<()> {
-    let mut opt = SessionOptions::builder().threaded(true).build();
+    let opt = SessionOptions::builder().threaded(true).build();
     let session = quick_session(Some(&opt))?;
     let lib = session.load_asset_file("otls/sesi/SideFX_spaceship.otl")?;
     let node = lib.try_create_first()?;

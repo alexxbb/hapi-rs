@@ -1,7 +1,7 @@
 use std::path::Path;
 
 fn main() {
-    if let Ok(_) = std::env::var("DOCS_RS") {
+    if std::env::var("DOCS_RS").is_ok() {
         return;
     }
     let hfs = std::env::var("HFS").expect("HFS variable not set");

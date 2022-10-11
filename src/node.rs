@@ -183,8 +183,7 @@ impl<'session> HoudiniNode {
     ) -> Result<HoudiniNode> {
         debug_assert!(session.is_valid());
         // assert!(!parent.is_none() && !name.contains('/'));
-        debug_assert!(
-            !(parent.is_none() && !name.contains('/')),
+        debug_assert!(parent.is_some() || name.contains('/'),
             "Node name must be fully qualified if parent is not specified"
         );
         debug_assert!(
