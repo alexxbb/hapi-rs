@@ -312,6 +312,9 @@ mod tests {
                 .map(|p| p.value().unwrap())
                 .collect();
             assert_eq!(menu_values, &["item_1", "item_2", "item_3"]);
+            // Script Menus are not evaluated from asset definition, only from a node instance
+            let parm = parms.find_parameter("script_menu").expect("parm");
+            assert!(parm.menu_items().expect("Script Items").is_empty());
         });
     }
 }

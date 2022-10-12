@@ -197,7 +197,7 @@ impl Session {
     }
 
     /// Find a node given an absolute path. To find a child node, pass the `parent` node
-    /// or see [`HoudiniNode::get_child`]
+    /// or use [`HoudiniNode::get_child`]
     pub fn find_node(
         &self,
         path: impl AsRef<str>,

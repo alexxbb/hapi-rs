@@ -419,6 +419,15 @@ mod tests {
                 }
             }
 
+            if let Parameter::String(p) = node.parameter("script_menu").unwrap() {
+                assert!(p.is_menu());
+                assert_eq!(p.get_value().unwrap()[0], "rs");
+                if let Some(items) = p.menu_items().unwrap() {
+                    assert_eq!(items[0].value().unwrap(), "rs");
+                    assert_eq!(items[0].label().unwrap(), "Rust");
+                }
+            }
+
             if let Parameter::Int(p) = node.parameter("toggle").unwrap() {
                 assert_eq!(p.get_value().unwrap()[0], 0);
                 p.set_value([1]).unwrap();
