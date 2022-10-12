@@ -234,7 +234,7 @@ impl ParmInfo {
     get!(disabled_condition->disabledConditionSH->Result<String>);
 }
 
-#[derive(Clone)]
+// #[derive(Clone)]
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___node_info.html)
 pub struct NodeInfo {
     pub(crate) inner: HAPI_NodeInfo,

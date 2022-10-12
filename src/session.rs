@@ -16,6 +16,7 @@
 //!
 pub use crate::ffi::enums::*;
 use log::{debug, error};
+use std::ffi::OsString;
 use std::{ffi::CString, path::Path, sync::Arc};
 
 use crate::{
@@ -82,10 +83,20 @@ pub enum CookResult {
     Errored(String),
 }
 
+/// By which means the session communicates with the server.
+#[derive(Debug, Clone)]
+pub enum ConnectionType {
+    ThriftPipe(OsString),
+    ThriftSocket(std::net::SocketAddrV4),
+    InProcess,
+    Custom,
+}
+
 #[derive(Debug)]
 pub(crate) struct SessionInner {
     pub(crate) handle: raw::HAPI_Session,
     pub(crate) options: SessionOptions,
+    pub(crate) connection: ConnectionType,
     pub(crate) lock: ReentrantMutex<()>,
 }
 
@@ -96,12 +107,24 @@ pub struct Session {
     pub(crate) inner: Arc<SessionInner>,
 }
 
+impl PartialEq for Session {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner.handle.id == other.inner.handle.id
+            && self.inner.handle.type_ == other.inner.handle.type_
+    }
+}
+
 impl Session {
-    fn new(handle: raw::HAPI_Session, options: SessionOptions) -> Session {
+    fn new(
+        handle: raw::HAPI_Session,
+        connection: ConnectionType,
+        options: SessionOptions,
+    ) -> Session {
         Session {
             inner: Arc::new(SessionInner {
                 handle,
                 options,
+                connection,
                 lock: ReentrantMutex::new(()),
             }),
         }
@@ -110,6 +133,11 @@ impl Session {
     /// Return [`SessionType`] current session is initialized with.
     pub fn session_type(&self) -> SessionType {
         self.inner.handle.type_
+    }
+
+    /// Return enum with extra connection data such as pipe file or socket.
+    pub fn connection_type(&self) -> &ConnectionType {
+        &self.inner.connection
     }
 
     #[inline]
@@ -437,6 +465,12 @@ impl Drop for Session {
                 if let Err(e) = crate::ffi::close_session(self) {
                     error!("Closing session failed in Drop: {}", e);
                 }
+            } else {
+                // The server should automatically delete the pipe file when closed successfully,
+                // but we could try a cleanup just in case.
+                if let ConnectionType::ThriftPipe(f) = &self.inner.connection {
+                    let _ = std::fs::remove_file(f);
+                }
             }
         }
     }
@@ -447,7 +481,8 @@ pub fn connect_to_pipe(pipe: &str, options: Option<&SessionOptions>) -> Result<S
     debug!("Connecting to Thrift session: {}", pipe);
     let path = CString::new(pipe)?;
     let handle = crate::ffi::new_thrift_piped_session(&path)?;
-    let session = Session::new(handle, options.cloned().unwrap_or_default());
+    let connection = ConnectionType::ThriftPipe(std::ffi::OsString::from(pipe));
+    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
     session.initialize()?;
     Ok(session)
 }
@@ -460,7 +495,8 @@ pub fn connect_to_socket(
     debug!("Connecting to socket server: {:?}", addr);
     let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
     let handle = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
-    let session = Session::new(handle, options.cloned().unwrap_or_default());
+    let connection = ConnectionType::ThriftSocket(addr);
+    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
     session.initialize()?;
     Ok(session)
 }
@@ -469,7 +505,8 @@ pub fn connect_to_socket(
 pub fn new_in_process(options: Option<&SessionOptions>) -> Result<Session> {
     debug!("Creating new in-process session");
     let handle = crate::ffi::create_inprocess_session()?;
-    let session = Session::new(handle, options.cloned().unwrap_or_default());
+    let connection = ConnectionType::InProcess;
+    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
     session.initialize()?;
     Ok(session)
 }
@@ -733,6 +770,10 @@ pub(crate) mod tests {
             .otl_search_paths(["/path/thee", "/path/four"])
             .build();
         let ses = super::quick_session(Some(&opt)).unwrap();
+        assert!(matches!(
+            ses.connection_type(),
+            ConnectionType::ThriftPipe(_)
+        ));
         assert!(ses.is_initialized());
         assert!(ses.is_valid());
         assert!(ses.cleanup().is_ok());
@@ -742,7 +783,7 @@ pub(crate) mod tests {
     #[test]
     fn session_time() {
         // For some reason, this test randomly fails when using shared session
-        let session = super::quick_session(None).expect("Could not start session");
+        let session = quick_session(None).expect("Could not start session");
         let _lock = session.lock();
         let opt = TimelineOptions::default().with_end_time(5.5);
         assert!(session.set_timeline_options(opt.clone()).is_ok());

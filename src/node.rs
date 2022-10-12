@@ -82,6 +82,12 @@ pub struct HoudiniNode {
     pub info: Arc<NodeInfo>,
 }
 
+impl PartialEq for HoudiniNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.handle == other.handle && self.session == other.session
+    }
+}
+
 impl std::fmt::Debug for HoudiniNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HoudiniNode")
@@ -183,7 +189,8 @@ impl<'session> HoudiniNode {
     ) -> Result<HoudiniNode> {
         debug_assert!(session.is_valid());
         // assert!(!parent.is_none() && !name.contains('/'));
-        debug_assert!(parent.is_some() || name.contains('/'),
+        debug_assert!(
+            parent.is_some() || name.contains('/'),
             "Node name must be fully qualified if parent is not specified"
         );
         debug_assert!(
