@@ -15,7 +15,7 @@
 //! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
 //!
 pub use crate::ffi::enums::*;
-use log::{debug, error};
+use log::{debug, error, warn};
 use std::ffi::OsString;
 use std::{ffi::CString, path::Path, sync::Arc};
 
@@ -175,7 +175,20 @@ impl Session {
     fn initialize(&self) -> Result<()> {
         debug!("Initializing session");
         debug_assert!(self.is_valid());
-        crate::ffi::initialize_session(self, &self.inner.options)
+        let res = crate::ffi::initialize_session(self, &self.inner.options);
+        match res {
+            Ok(_) => Ok(()),
+            Err(e) => match e {
+                HapiError {
+                    kind: Kind::Hapi(HapiResult::AlreadyInitialized),
+                    ..
+                } => {
+                    warn!("Session already initialized, skipping");
+                    Ok(())
+                }
+                e => Err(e),
+            },
+        }
     }
 
     /// Cleanup the session. Session will not be valid after this call
@@ -261,7 +274,7 @@ impl Session {
     }
 
     /// Load an HDA file into current session
-    pub fn load_asset_file(&self, file: impl AsRef<str>) -> Result<AssetLibrary> {
+    pub fn load_asset_file(&self, file: impl AsRef<Path>) -> Result<AssetLibrary> {
         debug_assert!(self.is_valid());
         AssetLibrary::from_file(self.clone(), file)
     }
@@ -476,12 +489,21 @@ impl Drop for Session {
     }
 }
 
+fn path_to_cstring(path: impl AsRef<Path>) -> Result<CString> {
+    let s = path.as_ref().as_os_str().to_string_lossy().to_string();
+    Ok(CString::new(s)?)
+}
+
 /// Connect to the engine process via a Unix pipe
-pub fn connect_to_pipe(pipe: &str, options: Option<&SessionOptions>) -> Result<Session> {
-    debug!("Connecting to Thrift session: {}", pipe);
-    let path = CString::new(pipe)?;
-    let handle = crate::ffi::new_thrift_piped_session(&path)?;
-    let connection = ConnectionType::ThriftPipe(std::ffi::OsString::from(pipe));
+pub fn connect_to_pipe(
+    pipe: impl AsRef<Path>,
+    options: Option<&SessionOptions>,
+) -> Result<Session> {
+    debug!("Connecting to Thrift session: {:?}", pipe.as_ref());
+    let c_str = path_to_cstring(&pipe)?;
+    let pipe = pipe.as_ref().as_os_str().to_os_string();
+    let handle = crate::ffi::new_thrift_piped_session(&c_str)?;
+    let connection = ConnectionType::ThriftPipe(pipe);
     let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
     session.initialize()?;
     Ok(session)
@@ -685,21 +707,21 @@ impl From<i32> for State {
 
 /// Spawn a new pipe Engine process and return its PID
 pub fn start_engine_pipe_server(
-    path: &str,
+    path: impl AsRef<Path>,
     auto_close: bool,
     timeout: f32,
     verbosity: StatusVerbosity,
     log_file: Option<&str>,
 ) -> Result<u32> {
-    debug!("Starting named pipe server: {}", path);
-    let path = CString::new(path)?;
+    debug!("Starting named pipe server: {:?}", path.as_ref());
     let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
         autoClose: auto_close as i8,
         timeoutMs: timeout,
         verbosity,
     };
     let log_file = log_file.map(CString::new).transpose()?;
-    crate::ffi::start_thrift_pipe_server(&path, &opts, log_file.as_deref())
+    let c_str = path_to_cstring(path)?;
+    crate::ffi::start_thrift_pipe_server(&c_str, &opts, log_file.as_deref())
 }
 
 /// Spawn a new socket Engine server and return its PID
@@ -730,9 +752,8 @@ pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
     SystemTime::now().hash(&mut hash);
     std::thread::current().id().hash(&mut hash);
     let file = std::env::temp_dir().join(format!("hars-session-{}", hash.finish()));
-    let file = file.to_string_lossy();
     start_engine_pipe_server(&file, true, 4000.0, StatusVerbosity::Statusverbosity1, None)?;
-    connect_to_pipe(&file, options)
+    connect_to_pipe(file, options)
 }
 
 #[cfg(test)]

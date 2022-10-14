@@ -13,6 +13,7 @@ use std::{ffi::CString, fmt::Formatter};
 
 use log::{debug, warn};
 
+use crate::pdg::TopNode;
 pub use crate::{
     errors::Result,
     ffi::{AssetInfo, GeoInfo, KeyFrame, NodeInfo, ObjectInfo, ParmInfo},
@@ -72,6 +73,29 @@ impl NodeHandle {
     pub fn to_node(&self, session: &Session) -> Result<HoudiniNode> {
         HoudiniNode::new(session.clone(), *self, None)
     }
+
+    /// Upgrade the handle to Geometry node
+    pub fn as_geometry_node(&self, session: &Session) -> Result<Option<Geometry>> {
+        let info = NodeInfo::new(session, *self)?;
+        match info.node_type() {
+            NodeType::Sop => Ok(Some(Geometry {
+                node: HoudiniNode::new(session.clone(), *self, Some(info))?,
+                info: GeoInfo::from_handle(*self, session)?,
+            })),
+            _ => Ok(None),
+        }
+    }
+
+    /// Upgrade the handle to TOP node
+    pub fn as_top_node(&self, session: &Session) -> Result<Option<TopNode>> {
+        let info = NodeInfo::new(session, *self)?;
+        match info.node_type() {
+            NodeType::Top => Ok(Some(TopNode {
+                node: HoudiniNode::new(session.clone(), *self, Some(info))?,
+            })),
+            _ => Ok(None),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -92,6 +116,7 @@ impl std::fmt::Debug for HoudiniNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HoudiniNode")
             .field("id", &self.handle.0)
+            .field("type", &self.info.node_type())
             .field("path", &self.path().unwrap())
             .finish()
     }
@@ -394,6 +419,8 @@ impl<'session> HoudiniNode {
         crate::ffi::set_preset(&self.session, self.handle, &name, preset_type, data)
     }
 
+    /// Return Geometry for this node if it's a SOP node,
+    /// otherwise find a child SOP node with display flag and return.
     pub fn geometry(&self) -> Result<Option<Geometry>> {
         debug_assert!(self.is_valid()?);
         match self.info.node_type() {
@@ -412,12 +439,23 @@ impl<'session> HoudiniNode {
         }
     }
 
+    /// Search this node for TOP networks
+    pub fn find_top_networks(&self) -> Result<Vec<HoudiniNode>> {
+        self.get_children(NodeType::Top, NodeFlags::Network, true)
+            .map(|vec| {
+                vec.into_iter()
+                    .map(|h| h.to_node(&self.session))
+                    .collect::<Result<Vec<_>>>()
+            })?
+    }
+
     #[inline]
     pub fn number_of_geo_outputs(&self) -> Result<i32> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_output_geo_count(self)
     }
 
+    /// Return all output nodes as Geometry.
     pub fn geometry_outputs(&self) -> Result<Vec<Geometry>> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_output_geos(self).map(|vec| {

@@ -698,14 +698,14 @@ pub struct PDGEventInfo {
 
 impl PDGEventInfo {
     get!(node_id->nodeId->[handle: NodeHandle]);
-    get!(workitem_id->workitemId->i32);
+    get!(workitem_id->workItemId->i32);
     get!(dependency_id->dependencyId->i32);
     get!(with_session message->msgSH->Result<String>);
-    pub fn current_state(&self) -> PdgWorkitemState {
-        unsafe { std::mem::transmute::<i32, PdgWorkitemState>(self.inner.currentState) }
+    pub fn current_state(&self) -> PdgWorkItemState {
+        unsafe { std::mem::transmute::<i32, PdgWorkItemState>(self.inner.currentState) }
     }
-    pub fn last_state(&self) -> PdgWorkitemState {
-        unsafe { std::mem::transmute::<i32, PdgWorkitemState>(self.inner.lastState) }
+    pub fn last_state(&self) -> PdgWorkItemState {
+        unsafe { std::mem::transmute::<i32, PdgWorkItemState>(self.inner.lastState) }
     }
     pub fn event_type(&self) -> PdgEventType {
         unsafe { std::mem::transmute::<i32, PdgEventType>(self.inner.eventType) }
@@ -713,23 +713,23 @@ impl PDGEventInfo {
 }
 
 pub struct PDGWorkItemResult {
-    pub(crate) inner: HAPI_PDG_WorkitemResultInfo,
+    pub(crate) inner: HAPI_PDG_WorkItemOutputFile,
 }
 
 wrap! {
-    impl PDGWorkItemResult => HAPI_PDG_WorkitemResultInfo;
-    [get+session] result->resultSH->[Result<String>];
-    [get+session] tag->resultTagSH->[Result<String>];
-    [get] sha->resultHash->[i64];
+    impl PDGWorkItemResult => HAPI_PDG_WorkItemOutputFile;
+    [get+session] result->filePathSH->[Result<String>];
+    [get+session] tag->tagSH->[Result<String>];
+    [get] sha->hash->[i64];
 }
 
 pub struct PDGWorkItemInfo {
-    pub(crate) inner: HAPI_PDG_WorkitemInfo,
+    pub(crate) inner: HAPI_PDG_WorkItemInfo,
 }
 
 wrap! {
-    impl PDGWorkItemInfo => HAPI_PDG_WorkitemInfo;
+    impl PDGWorkItemInfo => HAPI_PDG_WorkItemInfo;
     [get] index->index->[i32];
-    [get] num_results->numResults->[i32];
+    [get] output_file_count->outputFileCount->[i32];
     [get+session] name->nameSH->[Result<String>];
 }

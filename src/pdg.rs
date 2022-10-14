@@ -4,7 +4,10 @@ use crate::ffi::{
     PDGEventInfo, PDGWorkItemInfo, PDGWorkItemResult,
 };
 use crate::node::HoudiniNode;
+use crate::stringhandle::get_string;
 use crate::Result;
+use std::fmt::Formatter;
+use std::ops::ControlFlow;
 
 pub struct PDGWorkItem<'session> {
     pub info: PDGWorkItemInfo,
@@ -13,13 +16,23 @@ pub struct PDGWorkItem<'session> {
     pub node: &'session HoudiniNode,
 }
 
+impl std::fmt::Debug for PDGWorkItem<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PDGWorkItem")
+            .field("id", &self.id)
+            .field("context", &self.context_id)
+            .field("name", &self.info.name(&self.node.session))
+            .finish()
+    }
+}
+
 impl<'session> PDGWorkItem<'session> {
     pub fn get_results(&self) -> Result<Vec<PDGWorkItemResult>> {
         ffi::get_workitem_result(
             &self.node.session,
             self.node.handle,
             self.id,
-            self.info.num_results(),
+            self.info.output_file_count(),
         )
         .map(|results| {
             results
@@ -30,23 +43,30 @@ impl<'session> PDGWorkItem<'session> {
     }
 }
 
-pub struct PDGNode {
+#[derive(Debug, Clone)]
+pub struct TopNode {
     pub node: HoudiniNode,
 }
 
-impl PDGNode {
-    pub fn cook<F: FnMut(PDGEventInfo, &str)>(&self, mut func: F) -> Result<()> {
+impl TopNode {
+    pub fn cook<F>(&self, mut func: F) -> Result<()>
+    where
+        F: FnMut(PDGEventInfo, &str) -> ControlFlow<()>,
+    {
         ffi::cook_pdg(&self.node.session, self.node.handle, false)?;
         'main: loop {
             let (graph_ids, graph_names) = ffi::get_pdg_contexts(&self.node.session)?;
-
             for (ctx_id, ctx_name) in graph_ids.into_iter().zip(graph_names) {
-                let ctx_name = crate::stringhandle::get_string(ctx_name, &self.node.session)?;
                 for event in ffi::get_pdg_events(&self.node.session, ctx_id)? {
                     let event = PDGEventInfo { inner: event };
                     match event.event_type() {
                         PdgEventType::EventCookComplete => break 'main,
-                        _ => func(event, ctx_name.as_ref()),
+                        _ => {
+                            let ctx_name = get_string(ctx_name, &self.node.session)?;
+                            if let ControlFlow::Break(_) = func(event, ctx_name.as_ref()) {
+                                break 'main;
+                            }
+                        }
                     }
                 }
             }

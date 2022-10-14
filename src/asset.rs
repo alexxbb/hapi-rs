@@ -138,10 +138,10 @@ pub struct AssetLibrary {
 
 impl AssetLibrary {
     /// Load an asset from file
-    pub fn from_file(session: Session, file: impl AsRef<str>) -> Result<AssetLibrary> {
-        debug!("Loading library: {}", file.as_ref());
+    pub fn from_file(session: Session, file: impl AsRef<std::path::Path>) -> Result<AssetLibrary> {
+        debug!("Loading library: {:?}", file.as_ref());
         debug_assert!(session.is_valid());
-        let cs = CString::new(file.as_ref())?;
+        let cs = CString::new(file.as_ref().as_os_str().to_string_lossy().to_string())?;
         let lib_id = crate::ffi::load_library_from_file(&cs, &session, true)?;
         Ok(AssetLibrary { lib_id, session })
     }
