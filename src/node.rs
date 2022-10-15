@@ -85,17 +85,6 @@ impl NodeHandle {
             _ => Ok(None),
         }
     }
-
-    /// Upgrade the handle to TOP node
-    pub fn as_top_node(&self, session: &Session) -> Result<Option<TopNode>> {
-        let info = NodeInfo::new(session, *self)?;
-        match info.node_type() {
-            NodeType::Top => Ok(Some(TopNode {
-                node: HoudiniNode::new(session.clone(), *self, Some(info))?,
-            })),
-            _ => Ok(None),
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -149,6 +138,14 @@ impl<'session> HoudiniNode {
             session,
             info,
         })
+    }
+
+    pub fn as_top_node(&'session self) -> Option<TopNode<'session>> {
+        match self.info.node_type() {
+            NodeType::Top => Some(TopNode{node: self}),
+            _ => None,
+        }
+
     }
     pub fn delete(self) -> Result<()> {
         debug_assert!(self.is_valid()?);
@@ -292,35 +289,31 @@ impl<'session> HoudiniNode {
         &self,
         name: impl AsRef<str>,
         node_type: NodeType,
+        recursive: bool,
     ) -> Result<Option<HoudiniNode>> {
         debug_assert!(self.is_valid()?);
-        match self.parent_node() {
-            None => Ok(None),
-            Some(parent) => {
-                let flags = NodeFlags::Any;
-                let nodes = crate::ffi::get_compose_child_node_list(
-                    &self.session,
-                    parent,
-                    node_type,
-                    flags,
-                    false,
-                )?;
-                let handle = nodes.iter().find(|id| {
-                    let h = NodeHandle(**id, ());
-                    match h.info(&self.session) {
-                        Ok(info) => info.name(&self.session).expect("oops") == name.as_ref(),
-                        Err(_) => {
-                            warn!("Failed to get NodeInfo");
-                            false
-                        }
-                    }
-                });
-
-                match handle {
-                    None => Ok(None),
-                    Some(id) => Ok(Some(NodeHandle(*id, ()).to_node(&self.session)?)),
+        let nodes = crate::ffi::get_compose_child_node_list(
+            &self.session,
+            self.handle,
+            node_type,
+            NodeFlags::Any,
+            recursive,
+        )?;
+        // TODO: Shortcut if "recursive" is false, search directly by path
+        let handle = nodes.iter().find(|id| {
+            let h = NodeHandle(**id, ());
+            match h.info(&self.session) {
+                Ok(info) => info.name(&self.session).expect("oops") == name.as_ref(),
+                Err(_) => {
+                    warn!("Failed to get NodeInfo");
+                    false
                 }
             }
+        });
+
+        match handle {
+            None => Ok(None),
+            Some(id) => Ok(Some(NodeHandle(*id, ()).to_node(&self.session)?)),
         }
     }
 

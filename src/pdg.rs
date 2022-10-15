@@ -4,7 +4,6 @@ use crate::ffi::{
     PDGEventInfo, PDGWorkItemInfo, PDGWorkItemResult,
 };
 use crate::node::HoudiniNode;
-use crate::stringhandle::get_string;
 use crate::Result;
 use std::fmt::Formatter;
 use std::ops::ControlFlow;
@@ -44,14 +43,14 @@ impl<'session> PDGWorkItem<'session> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TopNode {
-    pub node: HoudiniNode,
+pub struct TopNode<'node> {
+    pub node: &'node HoudiniNode,
 }
 
-impl TopNode {
+impl<'node> TopNode<'node> {
     pub fn cook<F>(&self, mut func: F) -> Result<()>
     where
-        F: FnMut(PDGEventInfo, &str) -> ControlFlow<()>,
+        F: FnMut(PDGEventInfo, i32) -> ControlFlow<()>,
     {
         ffi::cook_pdg(&self.node.session, self.node.handle, false)?;
         'main: loop {
@@ -62,8 +61,7 @@ impl TopNode {
                     match event.event_type() {
                         PdgEventType::EventCookComplete => break 'main,
                         _ => {
-                            let ctx_name = get_string(ctx_name, &self.node.session)?;
-                            if let ControlFlow::Break(_) = func(event, ctx_name.as_ref()) {
+                            if let ControlFlow::Break(_) = func(event, ctx_name) {
                                 break 'main;
                             }
                         }

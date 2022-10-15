@@ -7,6 +7,12 @@ use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
 
+
+// TODO: Use this in public APIs instead of i32
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug)]
+pub struct StringHandle(i32);
+
 /// Holds a contiguous array of bytes where each individual string value is null-separated.
 pub struct StringArray {
     bytes: Vec<u8>,

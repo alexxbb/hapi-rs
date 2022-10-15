@@ -953,7 +953,7 @@ pub fn get_manager_node(session: &Session, node_type: raw::NodeType) -> Result<r
 
 pub fn get_compose_child_node_list(
     session: &Session,
-    node: NodeHandle,
+    parent: NodeHandle,
     types: raw::NodeType,
     flags: raw::NodeFlags,
     recursive: bool,
@@ -963,7 +963,7 @@ pub fn get_compose_child_node_list(
         let _lock = session.lock();
         raw::HAPI_ComposeChildNodeList(
             session.ptr(),
-            node.0,
+            parent.0,
             types as i32,
             flags as i32,
             recursive as i8,
@@ -973,7 +973,7 @@ pub fn get_compose_child_node_list(
 
         let count = count.assume_init();
         let mut obj_infos = vec![0i32; count as usize];
-        raw::HAPI_GetComposedChildNodeList(session.ptr(), node.0, obj_infos.as_mut_ptr(), count)
+        raw::HAPI_GetComposedChildNodeList(session.ptr(), parent.0, obj_infos.as_mut_ptr(), count)
             .check_err(Some(session))?;
         Ok(obj_infos)
     }

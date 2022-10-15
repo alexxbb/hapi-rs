@@ -14,20 +14,12 @@ fn main() -> Result<()> {
     node.cook_blocking(None)?;
     let networks = node.find_top_networks()?;
     let top_net = &networks[0];
-    let _top_nodes = top_net.get_children(NodeType::Top, NodeFlags::Nonscheduler, false)?;
-    for n in _top_nodes {
-        let top_node = n.as_top_node(&session)?.unwrap();
-        let mut num = 0;
-        top_node.cook(|info, _| {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-            dbg!(info.event_type());
-            if info.event_type() == PdgEventType::EventWorkitemAdd {
-                num += 1;
-            }
-            ControlFlow::Continue(())
-        })?;
-        dbg!(num);
-    }
-    // dbg!(&node.name()?);
+    let node = top_net
+        .find_child("out", NodeType::Top, false)?
+        .expect("out node");
+    let out_top = node.as_top_node().expect("top node");
+    out_top.cook(|info, _ctx_name| {
+        ControlFlow::Continue(())
+    })?;
     Ok(())
 }
