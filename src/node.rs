@@ -325,11 +325,7 @@ impl<'session> HoudiniNode {
         recursive: bool,
     ) -> Result<Option<HoudiniNode>> {
         debug_assert!(self.is_valid()?);
-        let nodes = self.find_children_by_type(
-            node_type,
-            NodeFlags::Any,
-            recursive,
-        )?;
+        let nodes = self.find_children_by_type(node_type, NodeFlags::Any, recursive)?;
         // TODO: Shortcut if "recursive" is false, search directly by path
         let handle = nodes
             .iter()
@@ -564,6 +560,7 @@ impl<'session> HoudiniNode {
 #[cfg(test)]
 mod tests {
     use crate::session::tests::with_session;
+    use std::iter::repeat_with;
 
     use super::*;
 
@@ -609,7 +606,11 @@ mod tests {
         let geo = node.geometry().unwrap().unwrap();
         dbg!(&geo.node);
         let child = geo
-            .node.parent_node().unwrap().to_node(&session).unwrap()
+            .node
+            .parent_node()
+            .unwrap()
+            .to_node(&session)
+            .unwrap()
             .find_child_by_name("add_color", NodeType::Sop, false)
             .unwrap();
         assert!(child.is_some());
@@ -702,6 +703,79 @@ mod tests {
                 p.set_value(&[2.0]).unwrap();
                 node.set_preset("test", PresetType::Binary, &save).unwrap();
                 assert_eq!(p.get_value().unwrap(), &[1.0]);
+            }
+        });
+    }
+
+    #[test]
+    fn concurrent_parm_access() {
+        use crate::session::*;
+
+        fn set_parm_value(parm: &Parameter) {
+            match parm {
+                Parameter::Float(parm) => {
+                    let val: [f32; 3] = std::array::from_fn(|_| fastrand::f32());
+                    parm.set_value(val).unwrap()
+                }
+                Parameter::Int(parm) => {
+                    let value: Vec<_> = repeat_with(|| fastrand::i32(0..10))
+                        .take(parm.wrap.info.size() as usize)
+                        .collect();
+                    parm.set_value(&value).unwrap()
+                }
+                Parameter::String(parm) => {
+                    let value: Vec<String> = (0..parm.wrap.info.size())
+                        .into_iter()
+                        .map(|_| repeat_with(fastrand::alphanumeric).take(10).collect())
+                        .collect();
+                    parm.set_value(&value).unwrap()
+                }
+                Parameter::Button(parm) => parm.press_button().unwrap(),
+                Parameter::Other(_) => {}
+            };
+        }
+
+        fn get_parm_value(parm: &Parameter) {
+            match parm {
+                Parameter::Float(parm) => {
+                    parm.get_value().unwrap();
+                }
+                Parameter::Int(parm) => {
+                    parm.get_value().unwrap();
+                }
+                Parameter::String(parm) => {
+                    parm.get_value().unwrap();
+                }
+                Parameter::Button(_) => {}
+                Parameter::Other(_) => {}
+            };
+        }
+
+        let session = quick_session(Some(
+            &SessionOptionsBuilder::default().threaded(true).build(),
+        ))
+        .unwrap();
+        let lib = session
+            .load_asset_file("otls/hapi_parms.hda")
+            .expect("loaded asset");
+        let node = lib.try_create_first().expect("hapi_parm node");
+        node.cook_blocking(None).unwrap();
+        let parameters = node.parameters().expect("parameters");
+        std::thread::scope(|scope| {
+            for _ in 0..3 {
+                scope.spawn(|| {
+                    for _ in 0..parameters.len() {
+                        let i = fastrand::usize(..parameters.len());
+                        let parm = &parameters[i];
+                        if fastrand::bool() {
+                            set_parm_value(parm);
+                            node.cook(None).unwrap();
+                        } else {
+                            get_parm_value(parm);
+                            node.cook(None).unwrap();
+                        }
+                    }
+                });
             }
         });
     }
