@@ -1,5 +1,4 @@
-use hapi_rs::enums::PdgEventType;
-use hapi_rs::node::{NodeFlags, NodeType};
+use hapi_rs::node::{NodeType};
 use hapi_rs::session::connect_to_pipe;
 use hapi_rs::Result;
 use std::ops::ControlFlow;
@@ -15,11 +14,19 @@ fn main() -> Result<()> {
     let networks = node.find_top_networks()?;
     let top_net = &networks[0];
     let node = top_net
-        .find_child("out", NodeType::Top, false)?
+        .find_child_by_name("out", NodeType::Top, false)?
         .expect("out node");
-    let out_top = node.as_top_node().expect("top node");
-    out_top.cook(|info, _ctx_name| {
-        ControlFlow::Continue(())
-    })?;
+    let out_top = node.to_top_node().expect("top node");
+    std::thread::spawn(move || {
+        out_top
+            .cook(|_info, _ctx_name| {
+                dbg!(_ctx_name);
+                ControlFlow::Continue(())
+                // ControlFlow::Break(true)
+            })
+            .unwrap();
+    })
+    .join()
+    .unwrap();
     Ok(())
 }
