@@ -45,6 +45,45 @@ impl std::fmt::Display for NodeType {
     }
 }
 
+fn get_child_node_list(
+    session: &Session,
+    parent: impl Into<NodeHandle>,
+    types: NodeType,
+    flags: NodeFlags,
+    recursive: bool,
+) -> Result<Vec<NodeHandle>> {
+    debug_assert!(session.is_valid());
+    let ids =
+        crate::ffi::get_compose_child_node_list(session, parent.into(), types, flags, recursive)?;
+    Ok(ids.iter().map(|i| NodeHandle(*i, ())).collect())
+}
+
+fn find_networks_nodes(
+    session: &Session,
+    types: NodeType,
+    parent: impl Into<NodeHandle>,
+    recursive: bool,
+) -> Result<Vec<HoudiniNode>> {
+    get_child_node_list(session, parent, types, NodeFlags::Network, recursive).map(|vec| {
+        vec.into_iter()
+            .map(|handle| handle.to_node(session))
+            .collect::<Result<Vec<_>>>()
+    })?
+}
+
+#[derive(Debug, Clone)]
+pub struct ManagerNode {
+    pub session: Session,
+    pub handle: NodeHandle,
+    pub node_type: NodeType,
+}
+
+impl ManagerNode {
+    pub fn find_network_nodes(&self, types: NodeType) -> Result<Vec<HoudiniNode>> {
+        find_networks_nodes(&self.session, types, self.handle, true)
+    }
+}
+
 impl NodeInfo {
     pub fn new(session: &Session, node: NodeHandle) -> Result<Self> {
         let info = crate::ffi::get_node_info(node, session)?;
@@ -54,7 +93,7 @@ impl NodeInfo {
 
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-/// A handle to a node. Can not be created manually, use [`HoudiniNode`] instead.
+/// A lightweight handle to a node. Can not be created manually, use [`HoudiniNode`] instead.
 pub struct NodeHandle(pub(crate) crate::ffi::raw::HAPI_NodeId, pub(crate) ());
 
 impl NodeHandle {
@@ -69,12 +108,12 @@ impl NodeHandle {
         crate::ffi::is_node_valid(session, &info.inner)
     }
 
-    /// Upgrade the handle to HoudiniNode, which has more capabilities
+    /// Upgrade the handle to HoudiniNode, which has more capabilities.
     pub fn to_node(&self, session: &Session) -> Result<HoudiniNode> {
         HoudiniNode::new(session.clone(), *self, None)
     }
 
-    /// Upgrade the handle to Geometry node
+    /// Upgrade the handle to Geometry node.
     pub fn as_geometry_node(&self, session: &Session) -> Result<Option<Geometry>> {
         let info = NodeInfo::new(session, *self)?;
         match info.node_type() {
@@ -82,6 +121,14 @@ impl NodeHandle {
                 node: HoudiniNode::new(session.clone(), *self, Some(info))?,
                 info: GeoInfo::from_handle(*self, session)?,
             })),
+            _ => Ok(None),
+        }
+    }
+
+    pub fn as_top_node(&self, session: &Session) -> Result<Option<TopNode>> {
+        let node = self.to_node(session)?;
+        match node.info.node_type() {
+            NodeType::Top => Ok(Some(TopNode { node })),
             _ => Ok(None),
         }
     }
@@ -140,12 +187,11 @@ impl<'session> HoudiniNode {
         })
     }
 
-    pub fn as_top_node(&'session self) -> Option<TopNode<'session>> {
+    pub fn to_top_node(&self) -> Option<TopNode> {
         match self.info.node_type() {
-            NodeType::Top => Some(TopNode{node: self}),
+            NodeType::Top => Some(TopNode { node: self.clone() }),
             _ => None,
         }
-
     }
     pub fn delete(self) -> Result<()> {
         debug_assert!(self.is_valid()?);
@@ -231,12 +277,6 @@ impl<'session> HoudiniNode {
         HoudiniNode::new(session, NodeHandle(id, ()), None)
     }
 
-    pub fn get_manager_node(session: &Session, node_type: NodeType) -> Result<HoudiniNode> {
-        debug_assert!(session.is_valid());
-        let id = crate::ffi::get_manager_node(session, node_type)?;
-        HoudiniNode::new(session.clone(), NodeHandle(id, ()), None)
-    }
-
     pub fn get_object_info(&self) -> Result<ObjectInfo<'_>> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_object_info(&self.session, self.handle).map(|info| ObjectInfo {
@@ -262,67 +302,52 @@ impl<'session> HoudiniNode {
     }
 
     /// Find all children of this node by type.
-    pub fn get_children(
+    pub fn find_children_by_type(
         &self,
         types: NodeType,
         flags: NodeFlags,
         recursive: bool,
     ) -> Result<Vec<NodeHandle>> {
-        debug_assert!(self.is_valid()?);
-        let ids = crate::ffi::get_compose_child_node_list(
-            &self.session,
-            self.handle,
-            types,
-            flags,
-            recursive,
-        )?;
-        Ok(ids.iter().map(|i| NodeHandle(*i, ())).collect())
+        get_child_node_list(&self.session, self, types, flags, recursive)
     }
 
     /// Get a child node by path.
-    pub fn get_child(&self, relative_path: &str) -> Result<HoudiniNode> {
-        self.session.find_node(relative_path, Some(self.handle))
+    pub fn find_child_by_path(&self, relative_path: &str) -> Result<HoudiniNode> {
+        self.session
+            .find_node_from_path(relative_path, Some(self.handle))
     }
 
     /// *Search* for child node by name.
-    pub fn find_child(
+    pub fn find_child_by_name(
         &self,
         name: impl AsRef<str>,
         node_type: NodeType,
         recursive: bool,
     ) -> Result<Option<HoudiniNode>> {
         debug_assert!(self.is_valid()?);
-        let nodes = crate::ffi::get_compose_child_node_list(
-            &self.session,
-            self.handle,
+        let nodes = self.find_children_by_type(
             node_type,
             NodeFlags::Any,
             recursive,
         )?;
         // TODO: Shortcut if "recursive" is false, search directly by path
-        let handle = nodes.iter().find(|id| {
-            let h = NodeHandle(**id, ());
-            match h.info(&self.session) {
+        let handle = nodes
+            .iter()
+            .find(|handle| match handle.info(&self.session) {
                 Ok(info) => info.name(&self.session).expect("oops") == name.as_ref(),
                 Err(_) => {
                     warn!("Failed to get NodeInfo");
                     false
                 }
-            }
-        });
-
-        match handle {
-            None => Ok(None),
-            Some(id) => Ok(Some(NodeHandle(*id, ()).to_node(&self.session)?)),
-        }
+            });
+        handle
+            .map(|handle| handle.to_node(&self.session))
+            .transpose()
     }
 
     pub fn parent_node(&self) -> Option<NodeHandle> {
-        let h = self.info.parent_id();
-        match h.0 > -1 {
-            true => Some(h),
-            false => None,
-        }
+        let handle = self.info.parent_id();
+        (handle.0 > -1).then_some(handle)
     }
 
     pub fn parameter(&self, name: &str) -> Result<Parameter> {
@@ -434,12 +459,7 @@ impl<'session> HoudiniNode {
 
     /// Search this node for TOP networks
     pub fn find_top_networks(&self) -> Result<Vec<HoudiniNode>> {
-        self.get_children(NodeType::Top, NodeFlags::Network, true)
-            .map(|vec| {
-                vec.into_iter()
-                    .map(|h| h.to_node(&self.session))
-                    .collect::<Result<Vec<_>>>()
-            })?
+        find_networks_nodes(&self.session, NodeType::Top, self, true)
     }
 
     #[inline]
@@ -574,7 +594,7 @@ mod tests {
             }
             let outputs = geo.node.output_connected_nodes(0, false).unwrap();
             assert!(outputs.is_empty());
-            let n = node.get_child("geo/point_attr").unwrap();
+            let n = node.find_child_by_path("geo/point_attr").unwrap();
             assert_eq!(
                 n.get_input_name(0).unwrap(),
                 "Geometry to Process with Wrangle"
@@ -587,9 +607,13 @@ mod tests {
         let session = crate::session::quick_session(None).unwrap();
         let node = session.create_node("Object/hapi_geo", None, None).unwrap();
         let geo = node.geometry().unwrap().unwrap();
-        let child = geo.node.find_child("add_color", NodeType::Sop).unwrap();
+        dbg!(&geo.node);
+        let child = geo
+            .node.parent_node().unwrap().to_node(&session).unwrap()
+            .find_child_by_name("add_color", NodeType::Sop, false)
+            .unwrap();
         assert!(child.is_some());
-        let child = node.get_child("geo/add_color");
+        let child = node.find_child_by_path("geo/add_color");
         assert!(child.is_ok());
     }
 

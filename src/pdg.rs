@@ -43,14 +43,14 @@ impl<'session> PDGWorkItem<'session> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TopNode<'node> {
-    pub node: &'node HoudiniNode,
+pub struct TopNode {
+    pub node: HoudiniNode,
 }
 
-impl<'node> TopNode<'node> {
+impl TopNode {
     pub fn cook<F>(&self, mut func: F) -> Result<()>
     where
-        F: FnMut(PDGEventInfo, i32) -> ControlFlow<()>,
+        F: FnMut(PDGEventInfo, i32) -> ControlFlow<bool>,
     {
         ffi::cook_pdg(&self.node.session, self.node.handle, false)?;
         'main: loop {
@@ -61,7 +61,11 @@ impl<'node> TopNode<'node> {
                     match event.event_type() {
                         PdgEventType::EventCookComplete => break 'main,
                         _ => {
-                            if let ControlFlow::Break(_) = func(event, ctx_name) {
+                            if let ControlFlow::Break(cancel_cook) = func(event, ctx_name) {
+                                if cancel_cook {
+                                    // TODO: Should we call this for all graph ids?
+                                    ffi::cancel_pdg_cook(&self.node.session, ctx_id)?;
+                                }
                                 break 'main;
                             }
                         }

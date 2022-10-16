@@ -24,10 +24,11 @@ use crate::{
     errors::*,
     ffi::raw,
     ffi::{CookOptions, SessionSyncInfo, TimelineOptions, Viewport},
-    node::{HoudiniNode, NodeHandle},
+    node::{HoudiniNode, ManagerNode, NodeHandle},
     stringhandle::StringArray,
 };
 
+use crate::node::NodeType;
 use parking_lot::ReentrantMutex;
 
 impl std::cmp::PartialEq for raw::HAPI_Session {
@@ -238,8 +239,8 @@ impl Session {
     }
 
     /// Find a node given an absolute path. To find a child node, pass the `parent` node
-    /// or use [`HoudiniNode::get_child`]
-    pub fn find_node(
+    /// or use [`HoudiniNode::find_child_by_path`]
+    pub fn find_node_from_path(
         &self,
         path: impl AsRef<str>,
         parent: Option<NodeHandle>,
@@ -247,6 +248,17 @@ impl Session {
         let path = CString::new(path.as_ref())?;
         crate::ffi::get_node_from_path(self, parent, &path)
             .map(|id| NodeHandle(id, ()).to_node(self))?
+    }
+
+    /// Returns a manager (root) node such as OBJ, TOP, CHOP, etc
+    pub fn get_manager_node(&self, node_type: NodeType) -> Result<ManagerNode> {
+        debug_assert!(self.is_valid());
+        let id = crate::ffi::get_manager_node(self, node_type)?;
+        Ok(ManagerNode {
+            session: self.clone(),
+            handle: NodeHandle(id, ()),
+            node_type,
+        })
     }
 
     /// Save current session to hip file
@@ -258,10 +270,10 @@ impl Session {
     }
 
     /// Load a hip file into current session
-    pub fn load_hip(&self, name: &str, cook: bool) -> Result<()> {
-        debug!("Loading hip file: {}", name);
+    pub fn load_hip(&self, path: impl AsRef<Path>, cook: bool) -> Result<()> {
+        debug!("Loading hip file: {:?}", path.as_ref());
         debug_assert!(self.is_valid());
-        let name = CString::new(name)?;
+        let name = path_to_cstring(path)?;
         crate::ffi::load_hip(self, &name, cook)
     }
 

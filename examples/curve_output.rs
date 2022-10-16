@@ -13,7 +13,7 @@ fn main() -> Result<()> {
 
     let obj_info = &node.get_objects_info()?[0];
 
-    let children = node.get_children(NodeType::Sop, NodeFlags::Curve, true)?;
+    let children = node.find_children_by_type(NodeType::Sop, NodeFlags::Curve, true)?;
     for node_h in children {
         let node = node_h.to_node(&session)?;
         let geo = node.geometry()?.expect("geometry");

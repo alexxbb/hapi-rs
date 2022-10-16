@@ -7,7 +7,6 @@ use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
 
-
 // TODO: Use this in public APIs instead of i32
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug)]
