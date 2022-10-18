@@ -238,11 +238,12 @@ impl ParmInfo {
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___node_info.html)
 pub struct NodeInfo {
     pub(crate) inner: HAPI_NodeInfo,
+    pub(crate) session: Session,
 }
 
 impl NodeInfo {
-    get!(with_session name->nameSH->Result<String>);
-    get!(with_session internal_path->internalNodePathSH->Result<String>);
+    get!(name->nameSH->Result<String>);
+    get!(internal_path->internalNodePathSH->Result<String>);
     get!(node_type->type_->NodeType);
     get!(is_valid->isValid->bool);
     get!(unique_node_id->uniqueHoudiniNodeId->i32);
@@ -263,9 +264,13 @@ impl NodeInfo {
 
 impl std::fmt::Debug for NodeInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let err = "Error in Debug impl";
         f.debug_struct("NodeInfo")
-            .field("nameSH", &self.inner.nameSH)
-            .field("internalPathSH", &self.inner.internalNodePathSH)
+            .field("name", &self.name().as_deref().unwrap_or(err))
+            .field(
+                "internal_path",
+                &self.internal_path().as_deref().unwrap_or(err),
+            )
             .field("type", &self.node_type())
             .field("is_valid", &self.is_valid())
             .field("time_dependent", &self.is_time_dependent())

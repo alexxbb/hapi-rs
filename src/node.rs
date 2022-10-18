@@ -87,7 +87,10 @@ impl ManagerNode {
 impl NodeInfo {
     pub fn new(session: &Session, node: NodeHandle) -> Result<Self> {
         let info = crate::ffi::get_node_info(node, session)?;
-        Ok(NodeInfo { inner: info })
+        Ok(NodeInfo {
+            inner: info,
+            session: session.clone(),
+        })
     }
 }
 
@@ -203,7 +206,7 @@ impl<'session> HoudiniNode {
     }
 
     pub fn name(&self) -> Result<String> {
-        self.info.name(&self.session)
+        self.info.name()
     }
 
     pub fn path(&self) -> Result<String> {
@@ -330,7 +333,7 @@ impl<'session> HoudiniNode {
         let handle = nodes
             .iter()
             .find(|handle| match handle.info(&self.session) {
-                Ok(info) => info.name(&self.session).expect("oops") == name.as_ref(),
+                Ok(info) => info.name().expect("oops") == name.as_ref(),
                 Err(_) => {
                     warn!("Failed to get NodeInfo");
                     false

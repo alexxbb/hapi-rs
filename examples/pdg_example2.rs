@@ -16,9 +16,9 @@ fn main() -> Result<()> {
         .get_manager_node(NodeType::Obj)?
         .find_network_nodes(NodeType::Top)?;
     let top_net = &networks[0];
-    // let node = top_net
-    //     .find_child("out", NodeType::Top, false)?
-    //     .expect("out node");
+    let node = top_net.find_children_by_type(NodeType::Top, NodeFlags::Any, true)?;
+    dbg!(node.len());
+    dbg!(&node[1].to_node(&session)?.info);
     // let out_top = node.to_top_node().expect("top node");
     // std::thread::spawn(move || {
     //     out_top

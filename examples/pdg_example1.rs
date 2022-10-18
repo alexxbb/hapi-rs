@@ -1,4 +1,4 @@
-use hapi_rs::node::{NodeType};
+use hapi_rs::node::NodeType;
 use hapi_rs::session::connect_to_pipe;
 use hapi_rs::Result;
 use std::ops::ControlFlow;
