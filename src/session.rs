@@ -173,6 +173,11 @@ impl Session {
         crate::stringhandle::get_string_array(&handles, self)
     }
 
+    /// Retrieve string data given a handle.
+    pub fn get_string(&self, handle: i32) -> Result<String> {
+        crate::stringhandle::get_string(handle, self)
+    }
+
     fn initialize(&self) -> Result<()> {
         debug!("Initializing session");
         debug_assert!(self.is_valid());

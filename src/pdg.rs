@@ -47,26 +47,61 @@ pub struct TopNode {
     pub node: HoudiniNode,
 }
 
+pub struct CookStep {
+    pub event: PDGEventInfo,
+    pub graph_id: i32,
+    pub graph_name: i32,
+}
+
+fn create_events() -> Vec<ffi::raw::HAPI_PDG_EventInfo> {
+    const NUM: usize = 32;
+    vec![
+        ffi::raw::HAPI_PDG_EventInfo {
+            nodeId: -1,
+            workItemId: -1,
+            dependencyId: -1,
+            currentState: -1,
+            lastState: -1,
+            eventType: -1,
+            msgSH: -1,
+        };
+        NUM
+    ]
+}
+
 impl TopNode {
     pub fn cook<F>(&self, mut func: F) -> Result<()>
     where
-        F: FnMut(PDGEventInfo, i32) -> ControlFlow<bool>,
+        F: FnMut(CookStep) -> Result<ControlFlow<bool>>,
     {
-        ffi::cook_pdg(&self.node.session, self.node.handle, false)?;
+        let session = &self.node.session;
+        ffi::cook_pdg(session, self.node.handle, false)?;
+        let mut events = create_events();
         'main: loop {
-            let (graph_ids, graph_names) = ffi::get_pdg_contexts(&self.node.session)?;
-            for (ctx_id, ctx_name) in graph_ids.into_iter().zip(graph_names) {
-                for event in ffi::get_pdg_events(&self.node.session, ctx_id)? {
-                    let event = PDGEventInfo { inner: event };
+            let (graph_ids, graph_names) = ffi::get_pdg_contexts(session)?;
+            debug_assert_eq!(graph_ids.len(), graph_names.len());
+            for (graph_id, graph_name) in graph_ids.into_iter().zip(graph_names) {
+                for event in ffi::get_pdg_events(session, graph_id, &mut events)? {
+                    let event = PDGEventInfo {
+                        inner: event.clone(),
+                    };
                     match event.event_type() {
                         PdgEventType::EventCookComplete => break 'main,
                         _ => {
-                            if let ControlFlow::Break(cancel_cook) = func(event, ctx_name) {
-                                if cancel_cook {
-                                    // TODO: Should we call this for all graph ids?
-                                    ffi::cancel_pdg_cook(&self.node.session, ctx_id)?;
+                            match func(CookStep {
+                                event,
+                                graph_id,
+                                graph_name,
+                            }) {
+                                Err(e) => return Err(e),
+                                Ok(ControlFlow::Continue(_)) => {}
+                                Ok(ControlFlow::Break(stop_cooking)) => {
+                                    if stop_cooking {
+                                        // TODO: Should we call this for all graph ids?
+                                        ffi::cancel_pdg_cook(session, graph_id)?;
+                                    }
+                                    break 'main;
                                 }
-                                break 'main;
                             }
                         }
                     }
@@ -97,15 +132,7 @@ impl TopNode {
         ffi::get_pdg_state(&self.node.session, context)
     }
 
-    pub fn get_workitem(
-        &self,
-        workitem_id: i32,
-        context_id: Option<i32>,
-    ) -> Result<PDGWorkItem<'_>> {
-        let context_id = match context_id {
-            Some(c) => c,
-            None => self.get_context_id()?,
-        };
+    pub fn get_workitem(&self, workitem_id: i32, context_id: i32) -> Result<PDGWorkItem<'_>> {
         ffi::get_workitem_info(&self.node.session, context_id, workitem_id).map(|inner| {
             PDGWorkItem {
                 info: PDGWorkItemInfo { inner },

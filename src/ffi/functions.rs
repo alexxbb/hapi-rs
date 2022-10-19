@@ -2630,18 +2630,7 @@ pub fn get_pdg_contexts(session: &Session) -> Result<(Vec<i32>, Vec<i32>)> {
     Ok((contexts, names))
 }
 
-pub fn get_pdg_events(session: &Session, context_id: i32) -> Result<Vec<HAPI_PDG_EventInfo>> {
-    const NUM: usize = 32;
-    let _info = HAPI_PDG_EventInfo {
-        nodeId: -1,
-        workItemId: -1,
-        dependencyId: -1,
-        currentState: -1,
-        lastState: -1,
-        eventType: -1,
-        msgSH: -1,
-    };
-    let mut events = vec![_info; NUM];
+pub fn get_pdg_events<'a>(session: &Session, context_id: i32, events: &'a mut Vec<HAPI_PDG_EventInfo> ) -> Result<&'a [HAPI_PDG_EventInfo]> {
     let drained = unsafe {
         let mut drained = uninit!();
         let mut leftover = uninit!();
@@ -2657,8 +2646,7 @@ pub fn get_pdg_events(session: &Session, context_id: i32) -> Result<Vec<HAPI_PDG
         drained.assume_init()
     };
     assert!(drained >= 0);
-    events.truncate(drained as usize);
-    Ok(events)
+    Ok(&events[..drained as usize])
 }
 
 pub fn get_pdg_context_id(session: &Session, pdg_node: NodeHandle) -> Result<i32> {
