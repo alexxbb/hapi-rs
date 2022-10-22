@@ -115,7 +115,7 @@ pub mod pdg;
 mod errors;
 mod ffi;
 
-pub use errors::{HapiError, Result};
+pub use errors::{HapiError, Result, ErrorContext};
 pub use ffi::enums;
 
 /// Houdini version this library was build upon

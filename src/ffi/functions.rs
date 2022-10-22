@@ -8,13 +8,7 @@ use std::vec;
 use raw::HAPI_PDG_EventInfo;
 
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
-use crate::{
-    errors::{HapiError, Kind, Result},
-    node::{HoudiniNode, NodeHandle},
-    parameter::ParmHandle,
-    session::{Session, SessionOptions},
-    stringhandle::StringArray,
-};
+use crate::{ErrorContext, errors::{HapiError, Kind, Result}, node::{HoudiniNode, NodeHandle}, parameter::ParmHandle, session::{Session, SessionOptions}, stringhandle::StringArray};
 
 use super::raw;
 
@@ -2605,7 +2599,7 @@ pub fn get_image_planes(session: &Session, material: NodeHandle) -> Result<Strin
 
 pub fn cook_pdg(session: &Session, pdg_node: NodeHandle, blocking: bool) -> Result<()> {
     unsafe {
-        raw::HAPI_CookPDG(session.ptr(), pdg_node.0, 0, blocking as i32).check_err(Some(session))
+        raw::HAPI_CookPDG(session.ptr(), pdg_node.0, 0, blocking as i32).check_err(Some(session)).context("Calling HAPI_CookPDG")
     }
 }
 
@@ -2613,7 +2607,7 @@ pub fn get_pdg_contexts(session: &Session) -> Result<(Vec<i32>, Vec<i32>)> {
     let mut num_contexts = uninit!();
     let num_contexts = unsafe {
         raw::HAPI_GetPDGGraphContextsCount(session.ptr(), num_contexts.as_mut_ptr())
-            .check_err(Some(session))?;
+            .check_err(Some(session)).context("Calling HAPI_GetPDGGraphContextsCount")?;
         num_contexts.assume_init()
     };
     let mut contexts = vec![-1; num_contexts as usize];
@@ -2626,7 +2620,7 @@ pub fn get_pdg_contexts(session: &Session) -> Result<(Vec<i32>, Vec<i32>)> {
             0,
             num_contexts,
         )
-        .check_err(Some(session))?;
+        .check_err(Some(session)).context("Calling HAPI_GetPDGGraphContexts")?;
     };
     Ok((contexts, names))
 }
@@ -2643,7 +2637,7 @@ pub fn get_pdg_events<'a>(session: &Session, context_id: i32, events: &'a mut Ve
             drained.as_mut_ptr(),
             leftover.as_mut_ptr(),
         )
-        .check_err(Some(session))?;
+        .check_err(Some(session)).context("Calling HAPI_GetPDGEvents")?;
         drained.assume_init()
     };
     assert!(drained >= 0);
@@ -2660,7 +2654,7 @@ pub fn get_pdg_context_id(session: &Session, pdg_node: NodeHandle) -> Result<i32
 }
 
 pub fn cancel_pdg_cook(session: &Session, pdg_ctx: i32) -> Result<()> {
-    unsafe { raw::HAPI_CancelPDGCook(session.ptr(), pdg_ctx).check_err(Some(session)) }
+    unsafe { raw::HAPI_CancelPDGCook(session.ptr(), pdg_ctx).check_err(Some(session)).context("Calling HAPI_CancelPDGCook") }
 }
 
 pub fn dirty_pdg_node(session: &Session, pdg_node: NodeHandle, clean: bool) -> Result<()> {
@@ -2712,7 +2706,7 @@ pub fn get_workitem_result(
             infos.as_mut_ptr(),
             count as i32,
         )
-        .check_err(Some(session))?;
+        .check_err(Some(session)).context("Calling HAPI_GetWorkitemResultInfo")?;
     }
     Ok(infos)
 }

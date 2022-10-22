@@ -179,7 +179,7 @@ impl AssetLibrary {
             .ok_or_else(|| crate::errors::HapiError {
                 kind: crate::errors::Kind::Other("Library file is empty".to_string()),
                 server_message: None,
-                context_message: None,
+                contexts: Vec::new(),
             })?;
         self.session.create_node(&name, None, None)
     }

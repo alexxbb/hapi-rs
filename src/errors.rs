@@ -2,7 +2,8 @@ use crate::session::Session;
 
 pub use crate::ffi::raw::{HapiResult, StatusType, StatusVerbosity};
 use std::borrow::Cow;
-use std::fmt::Formatter;
+use std::fmt::{Display, Formatter};
+use std::ptr::write;
 
 pub type Result<T> = std::result::Result<T, HapiError>;
 
@@ -10,10 +11,50 @@ pub type Result<T> = std::result::Result<T, HapiError>;
 pub struct HapiError {
     /// A specific error type.
     pub kind: Kind,
-    /// Optional error message some APIs can set.
-    pub context_message: Option<Cow<'static, str>>,
+    /// Context error messages.
+    pub contexts: Vec<Cow<'static, str>>,
     /// Error message retrieved from the server. Server doesn't always return a message.
     pub server_message: Option<String>,
+}
+
+pub trait ErrorContext<T> {
+    fn context<C>(self, context: C) -> Result<T>
+    where
+        C: Into<Cow<'static, str>>;
+
+    fn with_context<C, F>(self, func: F) -> Result<T>
+    where
+        C: Into<Cow<'static, str>>,
+        F: FnOnce() -> C;
+}
+
+impl<T> ErrorContext<T> for Result<T> {
+    fn context<C>(mut self, context: C) -> Result<T>
+    where
+        C: Into<Cow<'static, str>>,
+    {
+        match self {
+            Ok(ok) => Ok(ok),
+            Err(mut error) => {
+                error.contexts.push(context.into());
+                Err(error)
+            }
+        }
+    }
+
+    fn with_context<C, F>(self, func: F) -> Result<T>
+    where
+        C: Into<Cow<'static, str>>,
+        F: FnOnce() -> C,
+    {
+        match self {
+            Ok(ok) => Ok(ok),
+            Err(mut error) => {
+                error.contexts.push(func().into());
+                Err(error)
+            }
+        }
+    }
 }
 
 impl PartialEq for HapiError {
@@ -74,7 +115,7 @@ impl From<HapiResult> for HapiError {
     fn from(r: HapiResult) -> Self {
         HapiError {
             kind: Kind::Hapi(r),
-            context_message: None,
+            contexts: Vec::new(),
             server_message: None,
         }
     }
@@ -83,12 +124,16 @@ impl From<HapiResult> for HapiError {
 impl HapiError {
     pub(crate) fn new(
         kind: Kind,
-        context_message: Option<Cow<'static, str>>,
+        mut context_message: Option<Cow<'static, str>>,
         server_message: Option<String>,
     ) -> HapiError {
+        let mut contexts = vec![];
+        if let Some(m) = context_message.take() {
+            contexts.push(m);
+        }
         HapiError {
             kind,
-            context_message,
+            contexts,
             server_message,
         }
     }
@@ -102,8 +147,11 @@ impl std::fmt::Display for HapiError {
                 if let Some(ref msg) = self.server_message {
                     write!(f, "[Engine Message]: {}", msg)?;
                 }
-                if let Some(ref msg) = self.context_message {
-                    write!(f, "[Context Message]: {}", msg)?;
+                if !self.contexts.is_empty() {
+                    writeln!(f)?;
+                }
+                for (n, msg) in self.contexts.iter().enumerate() {
+                    writeln!(f, "\t{}. {}", n, msg)?;
                 }
                 Ok(())
             }

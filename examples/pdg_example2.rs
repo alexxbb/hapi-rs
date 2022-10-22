@@ -12,10 +12,11 @@ use std::path::Path;
 use tempfile::TempDir;
 use hapi_rs::parameter::ParmBaseTrait;
 use hapi_rs::pdg::TopNode;
+use hapi_rs::{ErrorContext, Result};
 
-type  Result<T> = std::result::Result<T, Box<dyn Error>>;
+// type  Result<T> = std::result::Result<T, Box<dyn Error>>;
 
-fn cook_sync(node: &TopNode) -> Result<()> {
+fn cook_sync(_node: &TopNode) -> Result<()> {
     todo!()
 }
 
@@ -30,7 +31,7 @@ fn cook_async(node: &TopNode) -> Result<()> {
                             let workitem = node.get_workitem(step.event.workitem_id(), step.graph_id)?;
                             let results = workitem.get_results()?;
                             for r in &results {
-                                let file = r.result(&node.node.session).expect("File result");
+                                let file = r.result(&node.node.session).context("Getting result")?;
                                 let tag = r.tag(&node.node.session).expect("File tag");
                                 eprintln!("Tag: {}, File: {}", &tag, &file);
                             }

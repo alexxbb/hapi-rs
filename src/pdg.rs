@@ -1,4 +1,4 @@
-use crate::ffi;
+use crate::{ErrorContext, ffi};
 use crate::ffi::{
     raw::{PdgEventType, PdgState},
     PDGEventInfo, PDGWorkItemInfo, PDGWorkItemResult,
