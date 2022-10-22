@@ -782,6 +782,7 @@ pub fn cleanup_session(session: &Session) -> Result<()> {
 
 pub fn shutdown_session(session: &Session) -> Result<()> {
     if session.session_type() == raw::SessionType::Inprocess {
+        log::debug!("Shutting down in-process session");
         unsafe { raw::HAPI_Shutdown(session.ptr()).check_err(Some(session)) }
     } else {
         Ok(())

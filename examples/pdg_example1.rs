@@ -19,10 +19,9 @@ fn main() -> Result<()> {
     let out_top = node.to_top_node().expect("top node");
     std::thread::spawn(move || {
         out_top
-            .cook(|_info, _ctx_name| {
-                dbg!(_ctx_name);
-                ControlFlow::Continue(())
-                // ControlFlow::Break(true)
+            .cook(|step| {
+                dbg!(step.graph_name);
+                Ok(ControlFlow::Continue(()))
             })
             .unwrap();
     })

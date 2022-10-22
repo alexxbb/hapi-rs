@@ -17,6 +17,7 @@
 pub use crate::ffi::enums::*;
 use log::{debug, error, warn};
 use std::ffi::OsString;
+use std::path::PathBuf;
 use std::{ffi::CString, path::Path, sync::Arc};
 
 use crate::{
@@ -56,6 +57,22 @@ impl EnvVariable for str {
     fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()> {
         let key = CString::new(key.as_ref())?;
         let val = CString::new(val)?;
+        crate::ffi::set_server_env_str(session, &key, &val)
+    }
+}
+
+impl EnvVariable for Path {
+    type Type = Self;
+
+    fn get_value(session: &Session, key: impl AsRef<str>) -> Result<PathBuf> {
+        let key = CString::new(key.as_ref())?;
+        crate::stringhandle::get_string(crate::ffi::get_server_env_str(session, &key)?, session)
+            .map(|s| PathBuf::from(s))
+    }
+
+    fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()> {
+        let key = CString::new(key.as_ref())?;
+        let val = path_to_cstring(val)?;
         crate::ffi::set_server_env_str(session, &key, &val)
     }
 }
@@ -484,7 +501,6 @@ impl Drop for Session {
             debug!("Dropping session");
             if self.is_valid() {
                 if self.inner.options.cleanup {
-                    debug!("Cleaning up session");
                     if let Err(e) = self.cleanup() {
                         error!("Cleanup failed in Drop: {}", e);
                     }
@@ -498,6 +514,7 @@ impl Drop for Session {
             } else {
                 // The server should automatically delete the pipe file when closed successfully,
                 // but we could try a cleanup just in case.
+                warn!("Session is invalid!");
                 if let ConnectionType::ThriftPipe(f) = &self.inner.connection {
                     let _ = std::fs::remove_file(f);
                 }
@@ -579,6 +596,7 @@ pub struct SessionOptions {
     /// Do not error out if session is already initialized
     pub ignore_already_init: bool,
     pub env_files: Option<CString>,
+    pub env_variables: Option<Vec<(String, String)>>,
     pub otl_path: Option<CString>,
     pub dso_path: Option<CString>,
     pub img_dso_path: Option<CString>,
@@ -593,6 +611,7 @@ impl Default for SessionOptions {
             cleanup: false,
             ignore_already_init: true,
             env_files: None,
+            env_variables: None,
             otl_path: None,
             dso_path: None,
             img_dso_path: None,
@@ -607,6 +626,7 @@ pub struct SessionOptionsBuilder {
     threaded: bool,
     cleanup: bool,
     ignore_already_init: bool,
+    env_variables: Option<Vec<(String, String)>>,
     env_files: Option<CString>,
     otl_path: Option<CString>,
     dso_path: Option<CString>,
@@ -623,6 +643,21 @@ impl SessionOptionsBuilder {
         let paths = join_paths(files);
         self.env_files
             .replace(CString::new(paths).expect("Zero byte"));
+        self
+    }
+
+    pub fn env_variables<I, K, V>(mut self, variables: I) -> Self
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<String>,
+        V: Into<String>,
+    {
+        self.env_variables.replace(
+            variables
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
+        );
         self
     }
 
@@ -685,17 +720,44 @@ impl SessionOptionsBuilder {
         self
     }
 
-    pub fn build(self) -> SessionOptions {
+    pub fn cleanup_on_close(mut self, cleanup: bool) -> Self {
+        self.cleanup = cleanup;
+        self
+    }
+
+    pub fn build(mut self) -> SessionOptions {
+        self.write_temp_env_file();
         SessionOptions {
             cook_opt: self.cook_opt,
             threaded: self.threaded,
             cleanup: self.cleanup,
             ignore_already_init: self.cleanup,
             env_files: self.env_files,
+            env_variables: self.env_variables,
             otl_path: self.otl_path,
             dso_path: self.dso_path,
             img_dso_path: self.img_dso_path,
             aud_dso_path: self.aud_dso_path,
+        }
+    }
+    fn write_temp_env_file(&mut self) {
+        use std::io::Write;
+
+        if let Some(ref env) = self.env_variables {
+            let mut file = tempfile::Builder::new().suffix("_hars.env").tempfile().expect("tempfile");
+            for (k, v) in env.iter() {
+                writeln!(file, "{}={}", k, v).unwrap();
+            }
+            let (_, tmp_file) = file.keep().expect("persistent tempfile");
+            let tmp_file = CString::new(tmp_file.to_string_lossy().to_string()).expect("null byte");
+
+            if let Some(old) = &mut self.env_files {
+                let mut bytes = old.as_bytes_with_nul().to_vec();
+                bytes.extend(tmp_file.into_bytes_with_nul());
+                self.env_files.replace(unsafe { CString::from_vec_with_nul_unchecked(bytes)});
+            } else {
+                self.env_files.replace(tmp_file);
+            }
         }
     }
 }
