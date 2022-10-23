@@ -1,4 +1,4 @@
-use crate::{ErrorContext, ffi};
+use crate::ffi;
 use crate::ffi::{
     raw::{PdgEventType, PdgState},
     PDGEventInfo, PDGWorkItemInfo, PDGWorkItemResult,
@@ -26,19 +26,22 @@ impl std::fmt::Debug for PDGWorkItem<'_> {
 }
 
 impl<'session> PDGWorkItem<'session> {
-    pub fn get_results(&self) -> Result<Vec<PDGWorkItemResult>> {
-        ffi::get_workitem_result(
-            &self.node.session,
-            self.node.handle,
-            self.id,
-            self.info.output_file_count(),
-        )
-        .map(|results| {
-            results
-                .into_iter()
-                .map(|result| PDGWorkItemResult { inner: result })
-                .collect()
-        })
+    pub fn get_results(&self) -> Result<Option<Vec<PDGWorkItemResult<'session>>>> {
+        match self.info.output_file_count() {
+            0 => Ok(None),
+            _ => ffi::get_workitem_result(
+                &self.node.session,
+                self.node.handle,
+                self.id,
+                self.info.output_file_count(),
+            )
+            .map(|results| {
+                Some(results
+                    .into_iter()
+                    .map(|result| PDGWorkItemResult { inner: result, session: &self.node.session })
+                    .collect())
+            })
+        }
     }
 }
 
@@ -70,7 +73,7 @@ fn create_events() -> Vec<ffi::raw::HAPI_PDG_EventInfo> {
 }
 
 impl TopNode {
-    pub fn cook<F>(&self, mut func: F) -> Result<()>
+    pub fn cook_async<F>(&self, mut func: F) -> Result<()>
     where
         F: FnMut(CookStep) -> Result<ControlFlow<bool>>,
     {
@@ -109,6 +112,18 @@ impl TopNode {
             }
         }
         Ok(())
+    }
+
+    pub fn cook_blocking(&self) -> Result<Vec<PDGWorkItemResult<'_>>> {
+        ffi::cook_pdg(&self.node.session, self.node.handle, true)?;
+        let mut all_results = Vec::new();
+        for wi in self.get_workitems()? {
+            dbg!(&wi.id);
+            if let Some(results) = wi.get_results()? {
+                all_results.extend(results)
+            }
+        }
+        Ok(all_results)
     }
 
     pub fn get_context_id(&self) -> Result<i32> {

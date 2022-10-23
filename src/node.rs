@@ -220,8 +220,8 @@ impl<'session> HoudiniNode {
     }
 
     pub fn cook(&self, options: Option<&CookOptions>) -> Result<()> {
-        debug!("Cooking node: {}", self.path()?);
         debug_assert!(self.is_valid()?);
+        debug!("Cooking node: {}", self.path()?);
         let opts;
         let opt = match options {
             None => {

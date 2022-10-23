@@ -403,7 +403,7 @@ pub fn get_node_from_path(
 pub fn cook_node(node: &HoudiniNode, options: &CookOptions) -> Result<()> {
     unsafe {
         raw::HAPI_CookNode(node.session.ptr(), node.handle.0, options.ptr())
-            .check_err(Some(&node.session))
+            .check_err(Some(&node.session)).context("Calling HAPI_CookNode")
     }
 }
 
@@ -1501,10 +1501,10 @@ pub fn create_heightfield_input(
     voxel_size: f32,
     sampling: raw::HeightFieldSampling,
 ) -> Result<(i32, i32, i32, i32)> {
-    let heightfield_node = -1;
-    let height_node = -1;
-    let mask_node = -1;
-    let merge_node = -1;
+    let mut heightfield_node = -1;
+    let mut height_node = -1;
+    let mut mask_node = -1;
+    let mut merge_node = -1;
     unsafe {
         raw::HAPI_CreateHeightFieldInput(
             node.session.ptr(),
@@ -1514,10 +1514,10 @@ pub fn create_heightfield_input(
             y_size,
             voxel_size,
             sampling,
-            heightfield_node as *mut _,
-            height_node as *mut _,
-            mask_node as *mut _,
-            merge_node as *mut _,
+            &mut heightfield_node as *mut _,
+            &mut height_node as *mut _,
+            &mut mask_node as *mut _,
+            &mut merge_node as *mut _,
         )
         .check_err(Some(&node.session))?;
     }
@@ -1532,12 +1532,12 @@ pub fn create_heightfield_input_volume(
     ysize: i32,
     size: f32,
 ) -> Result<NodeHandle> {
-    let volume_node = -1;
+    let mut volume_node = -1;
     unsafe {
         raw::HAPI_CreateHeightfieldInputVolumeNode(
             node.session.ptr(),
             parent.unwrap_or(-1),
-            volume_node as *mut _,
+            &mut volume_node as *mut _,
             name.as_ptr(),
             xsize,
             ysize,
@@ -2645,10 +2645,10 @@ pub fn get_pdg_events<'a>(session: &Session, context_id: i32, events: &'a mut Ve
 }
 
 pub fn get_pdg_context_id(session: &Session, pdg_node: NodeHandle) -> Result<i32> {
-    let context_id = -1;
+    let mut context_id = -1;
     unsafe {
-        raw::HAPI_GetPDGGraphContextId(session.ptr(), pdg_node.0, context_id as *mut i32)
-            .check_err(Some(session))?;
+        raw::HAPI_GetPDGGraphContextId(session.ptr(), pdg_node.0, &mut context_id as *mut i32)
+            .check_err(Some(session)).context("Calling HAPI_GetPDGGraphContextId")?;
     }
     Ok(context_id)
 }
@@ -2665,8 +2665,8 @@ pub fn dirty_pdg_node(session: &Session, pdg_node: NodeHandle, clean: bool) -> R
 
 pub fn get_pdg_state(session: &Session, context: i32) -> Result<raw::PdgState> {
     unsafe {
-        let state = -1;
-        raw::HAPI_GetPDGState(session.ptr(), context, state as *mut i32)
+        let mut state = -1;
+        raw::HAPI_GetPDGState(session.ptr(), context, &mut state as *mut i32)
             .check_err(Some(session))?;
         assert_ne!(state, -1);
         Ok(std::mem::transmute::<i32, raw::PdgState>(state))
@@ -2675,13 +2675,13 @@ pub fn get_pdg_state(session: &Session, context: i32) -> Result<raw::PdgState> {
 
 pub fn get_workitem_info(
     session: &Session,
-    context_id: i32,
+    graph_context_id: i32,
     workitem_id: i32,
 ) -> Result<raw::HAPI_PDG_WorkitemInfo> {
     unsafe {
         let mut info = uninit!();
-        raw::HAPI_GetWorkitemInfo(session.ptr(), context_id, workitem_id, info.as_mut_ptr())
-            .check_err(Some(session))?;
+        raw::HAPI_GetWorkitemInfo(session.ptr(), graph_context_id, workitem_id, info.as_mut_ptr())
+            .check_err(Some(session)).context("Calling HAPI_GetWorkitemInfo")?;
         Ok(info.assume_init())
     }
 }
@@ -2715,10 +2715,11 @@ pub fn get_pdg_workitems(session: &Session, pdg_node: NodeHandle) -> Result<Vec<
     unsafe {
         let mut num = -1;
         raw::HAPI_GetNumWorkitems(session.ptr(), pdg_node.0, &mut num as *mut i32)
-            .check_err(Some(session))?;
+            .check_err(Some(session)).context("Calling HAPI_GetNumWorkitems")?;
+        debug_assert!(num > 0);
         let mut array = vec![-1; num as usize];
         raw::HAPI_GetWorkitems(session.ptr(), pdg_node.0, array.as_mut_ptr(), num)
-            .check_err(Some(session))?;
+            .check_err(Some(session)).context("Calling HAPI_GetWorkitems")?;
         Ok(array)
     }
 }

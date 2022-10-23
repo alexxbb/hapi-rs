@@ -717,15 +717,15 @@ impl PDGEventInfo {
     }
 }
 
-pub struct PDGWorkItemResult {
+pub struct PDGWorkItemResult<'session> {
     pub(crate) inner: HAPI_PDG_WorkItemOutputFile,
+    pub(crate) session: &'session Session
 }
 
-wrap! {
-    impl PDGWorkItemResult => HAPI_PDG_WorkItemOutputFile;
-    [get+session] result->filePathSH->[Result<String>];
-    [get+session] tag->tagSH->[Result<String>];
-    [get] sha->hash->[i64];
+impl<'session> PDGWorkItemResult<'session> {
+    get!(result->filePathSH->Result<String>);
+    get!(tag->tagSH->Result<String>);
+    get!(sha->hash->i64);
 }
 
 pub struct PDGWorkItemInfo {

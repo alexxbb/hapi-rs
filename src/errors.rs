@@ -2,8 +2,6 @@ use crate::session::Session;
 
 pub use crate::ffi::raw::{HapiResult, StatusType, StatusVerbosity};
 use std::borrow::Cow;
-use std::fmt::{Display, Formatter};
-use std::ptr::write;
 
 pub type Result<T> = std::result::Result<T, HapiError>;
 
@@ -29,7 +27,7 @@ pub trait ErrorContext<T> {
 }
 
 impl<T> ErrorContext<T> for Result<T> {
-    fn context<C>(mut self, context: C) -> Result<T>
+    fn context<C>(self, context: C) -> Result<T>
     where
         C: Into<Cow<'static, str>>,
     {
@@ -161,7 +159,7 @@ impl std::fmt::Display for HapiError {
 }
 
 impl std::fmt::Debug for HapiError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
     }
 }
