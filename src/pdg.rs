@@ -36,11 +36,16 @@ impl<'session> PDGWorkItem<'session> {
                 self.info.output_file_count(),
             )
             .map(|results| {
-                Some(results
-                    .into_iter()
-                    .map(|result| PDGWorkItemResult { inner: result, session: &self.node.session })
-                    .collect())
-            })
+                Some(
+                    results
+                        .into_iter()
+                        .map(|result| PDGWorkItemResult {
+                            inner: result,
+                            session: &self.node.session,
+                        })
+                        .collect(),
+                )
+            }),
         }
     }
 }
@@ -116,9 +121,28 @@ impl TopNode {
 
     pub fn cook_blocking(&self) -> Result<Vec<PDGWorkItemResult<'_>>> {
         ffi::cook_pdg(&self.node.session, self.node.handle, true)?;
+        let workitems: Vec<PDGWorkItem> = {
+            let context_id = self.get_context_id()?;
+            ffi::get_pdg_workitems(&self.node.session, self.node.handle)?
+                .into_iter()
+                .map(|workitem_id| {
+                    Ok(PDGWorkItem {
+                        info: PDGWorkItemInfo {
+                            inner: ffi::get_workitem_info(
+                                &self.node.session,
+                                context_id,
+                                workitem_id,
+                            )?,
+                        },
+                        id: workitem_id,
+                        context_id,
+                        node: &self.node,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?
+        };
         let mut all_results = Vec::new();
-        for wi in self.get_workitems()? {
-            dbg!(&wi.id);
+        for wi in workitems {
             if let Some(results) = wi.get_results()? {
                 all_results.extend(results)
             }
@@ -156,22 +180,5 @@ impl TopNode {
                 node: &self.node,
             }
         })
-    }
-
-    pub fn get_workitems(&self) -> Result<Vec<PDGWorkItem<'_>>> {
-        let context_id = self.get_context_id()?;
-        ffi::get_pdg_workitems(&self.node.session, self.node.handle)?
-            .into_iter()
-            .map(|workitem_id| {
-                Ok(PDGWorkItem {
-                    info: PDGWorkItemInfo {
-                        inner: ffi::get_workitem_info(&self.node.session, context_id, workitem_id)?,
-                    },
-                    id: workitem_id,
-                    context_id,
-                    node: &self.node,
-                })
-            })
-            .collect()
     }
 }

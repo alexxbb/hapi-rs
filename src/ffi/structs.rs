@@ -717,9 +717,10 @@ impl PDGEventInfo {
     }
 }
 
+#[derive(Debug)]
 pub struct PDGWorkItemResult<'session> {
     pub(crate) inner: HAPI_PDG_WorkItemOutputFile,
-    pub(crate) session: &'session Session
+    pub(crate) session: &'session Session,
 }
 
 impl<'session> PDGWorkItemResult<'session> {

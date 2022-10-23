@@ -17,9 +17,11 @@ use std::ops::ControlFlow;
 use std::path::Path;
 use tempfile::TempDir;
 
-
 fn cook_blocking(node: &TopNode) -> Result<Vec<String>> {
-    node.cook_blocking()?.into_iter().map(|wir|dbg!(wir.result())).collect()
+    node.cook_blocking()?
+        .into_iter()
+        .map(|wir| wir.result())
+        .collect()
 }
 
 fn cook_async(node: &TopNode) -> Result<Vec<String>> {
@@ -65,8 +67,8 @@ fn main() -> Result<()> {
         .threaded(true)
         .env_variables([("JOB", tmpdir.to_string_lossy())])
         .build();
-    let session = quick_session(Some(&options))?;
-    // let session = new_in_process(Some(&options))?;
+    // let session = quick_session(Some(&options))?;
+    let session = new_in_process(Some(&options))?;
     let otl = std::env::current_dir()
         .unwrap()
         .join("otls/pdg_examples.hda");
@@ -84,7 +86,7 @@ fn main() -> Result<()> {
         .find_child_by_name(NODE_TO_COOK, NodeType::Top, false)?
         .expect("TOP node");
     let render = render.to_top_node().expect("top node");
-    let results = cook_blocking(&render)?;
+    let results = cook_async(&render)?;
     for r in results {
         println!("{}", r);
     }

@@ -744,7 +744,10 @@ impl SessionOptionsBuilder {
         use std::io::Write;
 
         if let Some(ref env) = self.env_variables {
-            let mut file = tempfile::Builder::new().suffix("_hars.env").tempfile().expect("tempfile");
+            let mut file = tempfile::Builder::new()
+                .suffix("_hars.env")
+                .tempfile()
+                .expect("tempfile");
             for (k, v) in env.iter() {
                 writeln!(file, "{}={}", k, v).unwrap();
             }
@@ -754,7 +757,8 @@ impl SessionOptionsBuilder {
             if let Some(old) = &mut self.env_files {
                 let mut bytes = old.as_bytes_with_nul().to_vec();
                 bytes.extend(tmp_file.into_bytes_with_nul());
-                self.env_files.replace(unsafe { CString::from_vec_with_nul_unchecked(bytes)});
+                self.env_files
+                    .replace(unsafe { CString::from_vec_with_nul_unchecked(bytes) });
             } else {
                 self.env_files.replace(tmp_file);
             }
