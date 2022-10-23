@@ -2605,11 +2605,21 @@ pub fn get_image_planes(session: &Session, material: NodeHandle) -> Result<Strin
     }
 }
 
-pub fn cook_pdg(session: &Session, pdg_node: NodeHandle, blocking: bool) -> Result<()> {
+pub fn cook_pdg(
+    session: &Session,
+    pdg_node: NodeHandle,
+    generate_only: bool,
+    blocking: bool,
+) -> Result<()> {
     unsafe {
-        raw::HAPI_CookPDG(session.ptr(), pdg_node.0, 0, blocking as i32)
-            .check_err(Some(session))
-            .context("Calling HAPI_CookPDG")
+        raw::HAPI_CookPDG(
+            session.ptr(),
+            pdg_node.0,
+            generate_only as i32,
+            blocking as i32,
+        )
+        .check_err(Some(session))
+        .context("Calling HAPI_CookPDG")
     }
 }
 

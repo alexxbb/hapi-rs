@@ -828,13 +828,11 @@ pub fn start_engine_socket_server(
 /// A quick drop-in session, useful for on-off jobs
 /// It starts a single-threaded pipe server and initialize a session with default options
 pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    use std::time::SystemTime;
-    let mut hash = DefaultHasher::new();
-    SystemTime::now().hash(&mut hash);
-    std::thread::current().id().hash(&mut hash);
-    let file = std::env::temp_dir().join(format!("hars-session-{}", hash.finish()));
+    let file = tempfile::Builder::new()
+        .suffix("-hars.pipe")
+        .tempfile()
+        .expect("new temp file");
+    let (_, file) = file.keep().expect("persistent temp file");
     start_engine_pipe_server(&file, true, 4000.0, StatusVerbosity::Statusverbosity1, None)?;
     connect_to_pipe(file, options)
 }

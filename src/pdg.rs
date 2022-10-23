@@ -83,7 +83,7 @@ impl TopNode {
         F: FnMut(CookStep) -> Result<ControlFlow<bool>>,
     {
         let session = &self.node.session;
-        ffi::cook_pdg(session, self.node.handle, false)?;
+        ffi::cook_pdg(session, self.node.handle, false, false)?;
         let mut events = create_events();
         'main: loop {
             let (graph_ids, graph_names) = ffi::get_pdg_contexts(session)?;
@@ -119,8 +119,12 @@ impl TopNode {
         Ok(())
     }
 
-    pub fn cook_blocking(&self) -> Result<Vec<PDGWorkItemResult<'_>>> {
-        ffi::cook_pdg(&self.node.session, self.node.handle, true)?;
+    // FIXME. Observing some weird behaviour. The output files are intermixed with tags
+    #[allow(dead_code)]
+    #[allow(unreachable_code)]
+    fn cook_blocking(&self) -> Result<Vec<PDGWorkItemResult<'_>>> {
+        unimplemented!();
+        ffi::cook_pdg(&self.node.session, self.node.handle, false, true)?;
         let workitems: Vec<PDGWorkItem> = {
             let context_id = self.get_context_id()?;
             ffi::get_pdg_workitems(&self.node.session, self.node.handle)?
