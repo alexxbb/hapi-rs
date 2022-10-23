@@ -55,8 +55,8 @@ where
 }
 
 pub struct StringMultiArray {
-    pub handles: Vec<i32>,
-    pub sizes: Vec<i32>,
+    pub(crate) handles: Vec<i32>,
+    pub(crate) sizes: Vec<i32>,
     pub(crate) session: crate::session::Session,
 }
 

@@ -19,7 +19,7 @@ pub use crate::ffi::enums::StorageType;
 pub use crate::ffi::AttributeInfo;
 use crate::node::HoudiniNode;
 use crate::stringhandle::StringArray;
-use array::{DataArray, StringMultiArray};
+pub use array::*;
 pub use bindings::AttribAccess;
 use std::any::Any;
 use std::borrow::Cow;
