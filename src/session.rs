@@ -29,7 +29,7 @@ use crate::{
     stringhandle::StringArray,
 };
 
-use crate::node::NodeType;
+use crate::node::{NodeType, Parameter};
 use parking_lot::ReentrantMutex;
 
 impl std::cmp::PartialEq for raw::HAPI_Session {
@@ -270,6 +270,17 @@ impl Session {
         let path = CString::new(path.as_ref())?;
         crate::ffi::get_node_from_path(self, parent, &path)
             .map(|id| NodeHandle(id, ()).to_node(self))?
+    }
+
+    /// Find a parameter by its absolute path
+    pub fn find_parameter_from_path(&self, path: impl AsRef<str>) -> Result<Option<Parameter>> {
+        match path.as_ref().rsplit_once('/') {
+            None => Ok(None),
+            Some((node, parm)) => {
+                let node = self.find_node_from_path(node, None)?;
+                Ok(node.parameter(parm).ok())
+            }
+        }
     }
 
     /// Returns a manager (root) node such as OBJ, TOP, CHOP, etc
