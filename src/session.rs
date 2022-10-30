@@ -67,7 +67,7 @@ impl EnvVariable for Path {
     fn get_value(session: &Session, key: impl AsRef<str>) -> Result<PathBuf> {
         let key = CString::new(key.as_ref())?;
         crate::stringhandle::get_string(crate::ffi::get_server_env_str(session, &key)?, session)
-            .map(|s| PathBuf::from(s))
+            .map(PathBuf::from)
     }
 
     fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()> {
