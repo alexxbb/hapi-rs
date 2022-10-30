@@ -13,14 +13,21 @@ use crate::session::Session;
 pub struct StringHandle(i32);
 
 /// Holds a contiguous array of bytes where each individual string value is null-separated.
+/// You can choose how to iterate over it by calling a corresponding iter_* function.
+/// The `Debug` impl has an alternative `{:#?}` representation, which prints as a vec of strings.
 pub struct StringArray {
     bytes: Vec<u8>,
 }
 
 impl std::fmt::Debug for StringArray {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let count = self.bytes.iter().filter(|v| **v == b'\0').count();
-        write!(f, "StringArray[num_strings = {}]", count)
+        if f.alternate() {
+            let strings = self.iter_str().collect::<Vec<_>>();
+            strings.fmt(f)
+        } else {
+            let count = self.bytes.iter().filter(|v| **v == b'\0').count();
+            write!(f, "StringArray[num_strings = {count}]")
+        }
     }
 }
 

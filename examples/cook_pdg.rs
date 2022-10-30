@@ -3,7 +3,7 @@ use hapi_rs::enums::{PdgEventType, PdgWorkItemState};
 use hapi_rs::node::{NodeType, Parameter};
 use hapi_rs::parameter::ParmBaseTrait;
 use hapi_rs::pdg::TopNode;
-use hapi_rs::session::{new_in_process, SessionOptionsBuilder};
+use hapi_rs::session::{new_in_process, quick_session, SessionOptionsBuilder};
 use hapi_rs::Result;
 use linya::{Bar, Progress};
 use std::ops::ControlFlow;
@@ -61,25 +61,48 @@ fn main() -> Result<()> {
     std::env::set_var("RUST_LOG", "hapi_rs=debug");
     env_logger::init();
 
-    const NODE_TO_COOK: &str = "out";
+    const NODE_TO_COOK: &str = "rbd_sim";
     const SUBNET: &str = "second";
+    const NUM_FRAMES: i32 = 10;
     let otl = std::env::current_dir()
         .unwrap()
         .join("otls/pdg_examples.hda");
 
     let options = SessionOptionsBuilder::default()
         .threaded(false)
-        .env_variables([("JOB", out_dir.to_string_lossy())])
+        // .env_variables([("JOB", out_dir.to_string_lossy())])
         .build();
-    let session = new_in_process(Some(&options))?;
+    let session = quick_session(Some(&options))?;
+    // let session = new_in_process(Some(&options))?;
+    session.set_server_var::<str>("JOB", &out_dir.to_string_lossy())?;
+    session.set_server_var::<str>("FOO", &out_dir.to_string_lossy())?;
     let lib = session.load_asset_file(&otl)?;
     let asset = lib.try_create_first()?;
+    if let Parameter::Float(p) = asset.parameter("num_frames")? {
+        p.set_value(&[NUM_FRAMES as f32])?;
+    }
+
+    // if let Parameter::String(p) = asset.parameter("pdg_workingdir").expect("parm") {
+    //     p.set_value([out_dir.to_string_lossy().to_string()])?;
+    // }
+    if let Parameter::Button(p) = asset.parameter("push")? {
+        p.press_button()?;
+    }
+
+    if let Parameter::String(p) = asset.parameter("var").expect("parm") {
+        dbg!(p.get_value()?);
+    }
+
+    if let Some(Parameter::String(p)) =
+        session.find_parameter_from_path("/obj/pdg_examples1/second/colored_sphere/file1/file")?
+    {
+        dbg!(p.get_value()?);
+    }
+
+    return Ok(());
+
     asset.cook_blocking(None)?;
     let subnet = asset.find_child_by_path(SUBNET)?;
-
-    if let Parameter::String(p) = asset.parameter("pdg_workingdir").expect("parm") {
-        p.set_value([out_dir.to_string_lossy().to_string()])?;
-    }
     let top_net = &subnet.find_top_networks()?[0];
     let top_node = top_net
         .find_child_by_name(NODE_TO_COOK, NodeType::Top, false)?

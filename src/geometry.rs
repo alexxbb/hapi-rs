@@ -326,8 +326,7 @@ impl Geometry {
         name: &str,
     ) -> Result<Option<Attribute>> {
         debug_assert!(self.node.is_valid()?);
-        let _n = name;
-        let name = std::ffi::CString::new(name)?;
+        let name = CString::new(name)?;
         let inner = crate::ffi::get_attribute_info(&self.node, part_id, owner, &name)?;
         let storage = inner.storage;
         if inner.exists < 1 {

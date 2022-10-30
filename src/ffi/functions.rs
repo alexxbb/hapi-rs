@@ -1819,7 +1819,8 @@ pub fn get_attribute_info(
             owner,
             info.as_mut_ptr(),
         )
-        .check_err(Some(&node.session))?;
+        .check_err(Some(&node.session))
+        .context("Calling HAPI_GetAttributeInfo")?;
 
         Ok(info.assume_init())
     }

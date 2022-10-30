@@ -3,11 +3,15 @@
 //! Different parameter types are modeled with a [Parameter] enum, to get to a concrete type,
 //! use pattern matching:
 //!
-//! ```ignore
-//! let node: HoudiniNode;
-//! if let Parameter:String(path) = node.parameter("file") {
-//!     path.get_value();
-//!     path.set_value(&["/path/to/file"]);
+//! ```
+//! use hapi_rs::session::new_in_process;
+//! use hapi_rs::parameter::*;
+//! let session = new_in_process(None).unwrap();
+//! let lib = session.load_asset_file("otls/hapi_parms.hda").unwrap();
+//! let node = lib.try_create_first().unwrap();
+//! if let Parameter::String(p) = node.parameter("single_string").unwrap() {
+//!     assert_eq!(p.get_value().unwrap(), &["hello"]);
+//!     assert!(p.set_value(&["world".to_string()]).is_ok());
 //! }
 //! ```
 use std::ffi::CString;

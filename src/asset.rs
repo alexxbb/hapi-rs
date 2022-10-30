@@ -168,9 +168,12 @@ impl AssetLibrary {
 
     /// Try to create the first available asset in the library.
     /// This is a convenience function for:
-    /// ```ignore
-    /// let names = lib.get_asset_names()?;
-    /// session.create_node(names[0], None, None)?
+    /// ```
+    /// use hapi_rs::session::{new_in_process};
+    /// let session = new_in_process(None).unwrap();
+    /// let lib = session.load_asset_file("otls/hapi_geo.hda").unwrap();
+    /// let names = lib.get_asset_names().unwrap();
+    /// session.create_node(&names[0], None, None).unwrap();
     /// ```
     pub fn try_create_first(&self) -> Result<HoudiniNode> {
         debug_assert!(self.session.is_valid());

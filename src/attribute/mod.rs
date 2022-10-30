@@ -3,12 +3,20 @@
 //! Geometry attributes of different types are represented as trait objects
 //! and need to be downcast to concrete types
 //!
-//! ```ignore
-//! let geo: Geometry;
-//! let attr_p = geo.get_attribute(0, AttributeOwner::Point, "P")?.expect("P exists");
-//! let attr_p = attr_p.downcast::<NumericAttr<f32>>()?;
-//! let dat = attr_p.get(0).expect("read_attribute");
-//! attr_p.set(0, &[0.0, 1.0, 0.0])?;
+//! ```
+//!
+//! use hapi_rs::session::new_in_process;
+//! use hapi_rs::geometry::*;
+//! use hapi_rs::attribute::*;
+//! let session = new_in_process(None).unwrap();
+//! let lib = session.load_asset_file("otls/hapi_geo.hda").unwrap();
+//! let node = lib.try_create_first().unwrap();
+//! node.cook(None).unwrap();
+//! let geo = node.geometry().unwrap().unwrap();
+//! geo.node.cook_blocking(None).unwrap();
+//! let attr_p = geo.get_attribute(0, AttributeOwner::Point, "P").unwrap().expect("P exists");
+//! let attr_p = attr_p.downcast::<NumericAttr<f32>>().unwrap();
+//! attr_p.get(0).expect("read_attribute");
 //!
 //! ```
 mod array;
