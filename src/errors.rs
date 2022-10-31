@@ -15,7 +15,7 @@ pub struct HapiError {
     pub server_message: Option<String>,
 }
 
-pub trait ErrorContext<T> {
+pub(crate) trait ErrorContext<T> {
     fn context<C>(self, context: C) -> Result<T>
     where
         C: Into<Cow<'static, str>>;

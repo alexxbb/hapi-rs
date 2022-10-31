@@ -199,8 +199,8 @@ pub enum HapiResult {
 #[non_exhaustive]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum ErrorCode {
-    Found = 1,
-    Error = 2,
+    DefNotFound = 1,
+    PythonNodeError = 2,
 }
 pub type HAPI_ErrorCodeBits = ::std::os::raw::c_int;
 #[repr(i32)]

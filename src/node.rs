@@ -45,6 +45,7 @@ impl std::fmt::Display for NodeType {
     }
 }
 
+// Helper function to return all child nodes of specified type
 fn get_child_node_list(
     session: &Session,
     parent: impl Into<NodeHandle>,
@@ -58,6 +59,7 @@ fn get_child_node_list(
     Ok(ids.iter().map(|i| NodeHandle(*i, ())).collect())
 }
 
+// Helper function to return all network type nodes.
 fn find_networks_nodes(
     session: &Session,
     types: NodeType,
@@ -72,6 +74,7 @@ fn find_networks_nodes(
 }
 
 #[derive(Debug, Clone)]
+/// Represents a manager node (OBJ, SOP, etc)
 pub struct ManagerNode {
     pub session: Session,
     pub handle: NodeHandle,
@@ -79,6 +82,7 @@ pub struct ManagerNode {
 }
 
 impl ManagerNode {
+    /// Find network nodes of a given type.
     pub fn find_network_nodes(&self, types: NodeType) -> Result<Vec<HoudiniNode>> {
         find_networks_nodes(&self.session, types, self.handle, true)
     }
@@ -97,6 +101,8 @@ impl NodeInfo {
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 /// A lightweight handle to a node. Can not be created manually, use [`HoudiniNode`] instead.
+/// Some APIs return a list of such handles for efficiency, for example [`HoudiniNode::find_children_by_type`].
+/// Once you found the node you're looking for, upgrade it to a "full" node type.
 pub struct NodeHandle(pub(crate) crate::ffi::raw::HAPI_NodeId, pub(crate) ());
 
 impl NodeHandle {
@@ -128,6 +134,7 @@ impl NodeHandle {
         }
     }
 
+    /// If this is a handle to a TOP node, returns a [`TopNode`] type.
     pub fn as_top_node(&self, session: &Session) -> Result<Option<TopNode>> {
         let node = self.to_node(session)?;
         match node.info.node_type() {
@@ -190,17 +197,20 @@ impl<'session> HoudiniNode {
         })
     }
 
-    pub fn to_top_node(&self) -> Option<TopNode> {
+    /// Convert this node instance into [`TopNode`]
+    pub fn to_top_node(self) -> Option<TopNode> {
         match self.info.node_type() {
-            NodeType::Top => Some(TopNode { node: self.clone() }),
+            NodeType::Top => Some(TopNode { node: self }),
             _ => None,
         }
     }
+    /// Delete the node in this session.
     pub fn delete(self) -> Result<()> {
         debug_assert!(self.is_valid()?);
         crate::ffi::delete_node(self)
     }
 
+    /// Checks if the node valid (not deleted).
     pub fn is_valid(&self) -> Result<bool> {
         self.handle.is_valid(&self.session)
     }
@@ -209,16 +219,19 @@ impl<'session> HoudiniNode {
         self.info.name()
     }
 
+    /// Returns node's internal path.
     pub fn path(&self) -> Result<String> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_node_path(&self.session, self.handle, None)
     }
 
+    /// Returns node's path relative to another node.
     pub fn path_relative(&self, to: Option<NodeHandle>) -> Result<String> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_node_path(&self.session, self.handle, to)
     }
 
+    /// Start cooking the node. This is a non-blocking call if the session is async.
     pub fn cook(&self, options: Option<&CookOptions>) -> Result<()> {
         debug_assert!(self.is_valid()?);
         debug!("Cooking node: {}", self.path()?);
@@ -233,6 +246,7 @@ impl<'session> HoudiniNode {
         crate::ffi::cook_node(self, opt)
     }
 
+    /// Start cooking the node and wait until completed.
     /// In sync mode (single threaded), the error will be available in Err(..) while
     /// in threaded cooking mode the status will be in [`CookResult`]
     pub fn cook_blocking(&self, options: Option<&CookOptions>) -> Result<CookResult> {
@@ -241,6 +255,7 @@ impl<'session> HoudiniNode {
         self.session.cook()
     }
 
+    /// How many times the node has been cooked.
     pub fn cook_count(
         &self,
         node_types: NodeType,
@@ -251,6 +266,7 @@ impl<'session> HoudiniNode {
         crate::ffi::get_total_cook_count(self, node_types, node_flags, recurse)
     }
 
+    /// Create a node in the session.
     pub fn create<H: Into<NodeHandle>>(
         name: &str,
         label: Option<&str>,
@@ -259,7 +275,6 @@ impl<'session> HoudiniNode {
         cook: bool,
     ) -> Result<HoudiniNode> {
         debug_assert!(session.is_valid());
-        // assert!(!parent.is_none() && !name.contains('/'));
         debug_assert!(
             parent.is_some() || name.contains('/'),
             "Node name must be fully qualified if parent is not specified"
@@ -280,6 +295,7 @@ impl<'session> HoudiniNode {
         HoudiniNode::new(session, NodeHandle(id, ()), None)
     }
 
+    /// If the node is of Object type, get the information object about it.
     pub fn get_object_info(&self) -> Result<ObjectInfo<'_>> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_object_info(&self.session, self.handle).map(|info| ObjectInfo {
@@ -288,6 +304,7 @@ impl<'session> HoudiniNode {
         })
     }
 
+    /// Returns information objects about this node children.
     pub fn get_objects_info(&self) -> Result<Vec<ObjectInfo>> {
         debug_assert!(self.is_valid()?);
         let parent = match self.info.node_type() {
@@ -344,17 +361,20 @@ impl<'session> HoudiniNode {
             .transpose()
     }
 
+    /// Return the node's parent.
     pub fn parent_node(&self) -> Option<NodeHandle> {
         let handle = self.info.parent_id();
         (handle.0 > -1).then_some(handle)
     }
 
+    /// Find a parameter on the node by name. Err() means parameter not found.
     pub fn parameter(&self, name: &str) -> Result<Parameter> {
         debug_assert!(self.is_valid()?);
         let parm_info = ParmInfo::from_parm_name(name, self)?;
         Ok(Parameter::new(self.handle, parm_info))
     }
 
+    /// Return all node parameters.
     pub fn parameters(&self) -> Result<Vec<Parameter>> {
         debug_assert!(self.is_valid()?);
         let infos = crate::ffi::get_parameters(self)?;
@@ -370,10 +390,12 @@ impl<'session> HoudiniNode {
             .collect())
     }
 
+    /// If node is an HDA, return [`AssetInfo'] about it.
     pub fn asset_info(&'session self) -> Result<AssetInfo<'session>> {
         debug_assert!(self.is_valid()?);
         AssetInfo::new(self)
     }
+    /// Recursively check all nodes for a specific error.
     pub fn check_for_specific_error(&self, error_bits: ErrorCode) -> Result<ErrorCode> {
         debug_assert!(self.is_valid()?);
         crate::ffi::check_for_specific_errors(self, error_bits)

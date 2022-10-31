@@ -24,8 +24,7 @@ fn cook_async(node: &TopNode) -> Result<Vec<String>> {
                     if let Some(results) = workitem.get_results()? {
                         all_results.extend(results.into_iter().filter_map(|wir|
                             // We only interested in rendered images
-                            (wir.tag().unwrap() == "file/image").then(||wir.result().unwrap()))
-                        );
+                            (wir.tag().unwrap() == "file/image").then(||wir.result().unwrap())));
                     }
                     tasks_done += 1;
                 }

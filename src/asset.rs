@@ -118,7 +118,8 @@ impl<'a> AssetParm<'a> {
         }
     }
 
-    /// Returns menu parameter items
+    /// Returns menu parameter items.
+    /// Note, dynamic(script) menus should be queried directly from a node.
     pub fn menu_items(&self) -> Option<&[ParmChoiceInfo]> {
         if let ChoiceListType::None = self.choice_list_type() {
             return None;

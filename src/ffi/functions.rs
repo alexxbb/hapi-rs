@@ -9,12 +9,11 @@ use raw::HAPI_PDG_EventInfo;
 
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
 use crate::{
-    errors::{HapiError, Kind, Result},
+    errors::{ErrorContext, HapiError, Kind, Result},
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
     session::{Session, SessionOptions},
     stringhandle::StringArray,
-    ErrorContext,
 };
 
 use super::raw;
@@ -324,7 +323,8 @@ pub fn get_parm_info_from_name(
             name.as_ptr(),
             info.as_mut_ptr(),
         )
-        .check_err(Some(session))?;
+        .check_err(Some(session))
+        .context("Calling HAPI_GetParmInfoFromName")?;
         Ok(info.assume_init())
     }
 }

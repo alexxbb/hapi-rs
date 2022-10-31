@@ -90,9 +90,7 @@ impl TopNode {
             debug_assert_eq!(graph_ids.len(), graph_names.len());
             for (graph_id, graph_name) in graph_ids.into_iter().zip(graph_names) {
                 for event in ffi::get_pdg_events(session, graph_id, &mut events)? {
-                    let event = PDGEventInfo {
-                        inner: *event,
-                    };
+                    let event = PDGEventInfo { inner: *event };
                     match event.event_type() {
                         PdgEventType::EventCookComplete => break 'main,
                         _ => {

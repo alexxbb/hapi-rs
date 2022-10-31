@@ -330,7 +330,7 @@ impl Session {
         crate::ffi::interrupt(self)
     }
 
-    /// Get session state of a requested [`create::enums::StatusType`]
+    /// Get session state of a requested [`crate::enums::StatusType`]
     pub fn get_status(&self, flag: StatusType) -> Result<State> {
         debug_assert!(self.is_valid());
         crate::ffi::get_status(self, flag)
@@ -595,7 +595,7 @@ where
     buf
 }
 
-/// Session options used in [`Session::initialize`]
+/// Session options passed to session create functions like [`connect_to_pipe`]
 #[derive(Clone, Debug)]
 pub struct SessionOptions {
     /// Session cook options
