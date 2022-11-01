@@ -4,7 +4,7 @@ use crate::ffi::raw::{HAPI_AttributeInfo, StorageType};
 use crate::ffi::AttributeInfo;
 use crate::stringhandle::StringArray;
 use crate::{node::HoudiniNode, Result};
-use duplicate::duplicate;
+use duplicate::duplicate_item;
 use std::ffi::CStr;
 
 pub trait AttribAccess: Sized + 'static {
@@ -47,7 +47,7 @@ pub trait AttribAccess: Sized + 'static {
         [Self]: ToOwned<Owned = Vec<Self>>;
 }
 
-#[duplicate(
+#[duplicate_item(
 [
 _val_type [u8]
 _storage [StorageType::Uint8]
