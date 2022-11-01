@@ -2,8 +2,7 @@
 use hapi_rs::{attribute::*, geometry::*, session::*, Result};
 
 fn main() -> Result<()> {
-    let mut session = quick_session()?;
-    session.initialize(&SessionOptions::default())?;
+    let session = quick_session(None)?;
     let geom = session.create_input_node("Curve")?;
     geom.node.cook_blocking(None)?;
     let part_info = PartInfo::default()

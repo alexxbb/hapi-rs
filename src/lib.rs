@@ -5,7 +5,7 @@
 //!
 //! Check out the [examples](https://github.com/alexxbb/hapi-rs/tree/main/examples):
 //!
-//! `cargo run --examples ...`
+//! `cargo run --example ...`
 //!
 //!
 //! # Building and running
@@ -14,32 +14,34 @@
 //!
 //! For runtime discovery of Houdini libraries there are several options:
 //!
+//! ## Mac & Linux
+//!
 //! **Option 1**
 //!
-//! *Build with RPATH via the RUSTFLAGS variable:*
+//! Build with RPATH via the RUSTFLAGS variable:
 //! ```bash
 //! RUSTFLAGS="-C link-args=-Wl,-rpath,/path/to/hfs/dsolib" cargo build
 //! ```
 //! **Option 2**
 //!
-//! *Add a cargo config file to your project: `.cargo/config`*
-//!```ignore
+//! Add a cargo config file to your project: `.cargo/config`
+//!```text
 //! [target.'cfg(target_os = "linux")']
-//! rustflags = ["-C", "link-arg=-Wl,-rpath=/opt/hfs/19.0.455/dsolib"]
+//! rustflags = ["-C", "link-arg=-Wl,-rpath=/opt/hfs/19.5.368/dsolib"]
 //! [target.x86_64-apple-darwin]
 //! rustflags = ["-C",
 //!     "link-arg=-Wl,-rpath,/Applications/Houdini/Current/Frameworks/Houdini.framework/Versions/Current/Libraries",
 //! ]
-//! [target.x86_64-pc-windows-msvc]
-//! rustflags = ["-C", "link-arg=-Wl,-rpath,C:/Houdini/19.0.455/custom/houdini/dsolib"]
 //!```
 //! **Option 3**
 //!
-//! At runtime via env variables: `$PATH` on windows, `$LD_LIBRARY_PATH` on Linux and `$DYLD_LIBRARY_PATH` on MacOS
+//! At runtime via env variables: `$LD_LIBRARY_PATH` on Linux and `$DYLD_LIBRARY_PATH` on MacOS
+//!
+//! ## Windows
+//!
+//! Add $HFS/bin to the Windows $PATH variable.
 //!
 //! # API Overview
-//!
-//! ```Note: Currently PDG APIs are not yet implemented.```
 //!
 //! This crates tries hard to be nice and easy to use, hiding the inconvenient C API as much as possible
 //! while also trying to keep function names clear and close to original.
@@ -73,8 +75,8 @@
 //!     Max = 2
 //! }
 //! ```
-//! Also some structs, don't provide a direct way of creating them as well as missing setters because while it's possible to create them in C (and in Rust)
-//! it doesn't make sense from a usability point of view, e.g you never need to create and modify a [`node::NodeInfo`] struct.
+//! Some underlying structs don't provide a direct way of creating them or they might not provide methods
+//! for modifying them, due to this crate's attempt for proper data encapsulation and minimizing noise.
 //! Structs that you do need ability to create, implement [Default] and follow the `Builder Pattern` with convenient `with_` and `set_` methods:
 //! ```ignore
 //! let part_info = PartInfo::default()
@@ -85,6 +87,7 @@
 //! # Error type
 //! All API calls return [`HapiError`] ([HAPI_Result](https://www.sidefx.com/docs/hengine/_h_a_p_i___common_8h.html#ac52e921ba2c7fc21a0f245678f76c836))
 //! In case of error, the HapiError struct contains an Option<String> with an error message returned from the Engine.
+//! Additional error context is available in the `context` field of the error type.
 //!
 //!
 //! # Strings
@@ -99,7 +102,7 @@
 //! To aid this situation, the crate provides custom structs which implement different iterators,
 //! which return CString or String. See the [`stringhandle`] module for more info.
 //!
-//!
+
 pub mod asset;
 pub mod attribute;
 pub mod geometry;
@@ -109,6 +112,7 @@ pub mod parameter;
 pub mod session;
 pub mod stringhandle;
 pub mod volume;
+pub mod pdg;
 mod errors;
 mod ffi;
 

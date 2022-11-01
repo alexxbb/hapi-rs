@@ -5,17 +5,15 @@ use hapi_rs::session::{quick_session, SessionOptions};
 use hapi_rs::Result;
 
 fn main() -> Result<()> {
-    let mut session = quick_session()?;
-    let mut opt = SessionOptions::default();
-    opt.threaded = true;
-    session.initialize(&opt)?;
+    let opt = SessionOptions::builder().threaded(true).build();
+    let session = quick_session(Some(&opt))?;
     let lib = session.load_asset_file("otls/sesi/nurbs_curve.hda")?;
     let node = lib.try_create_first()?;
     node.cook_blocking(None)?;
 
     let obj_info = &node.get_objects_info()?[0];
 
-    let children = node.get_children(NodeType::Sop, NodeFlags::Curve, true)?;
+    let children = node.find_children_by_type(NodeType::Sop, NodeFlags::Curve, true)?;
     for node_h in children {
         let node = node_h.to_node(&session)?;
         let geo = node.geometry()?.expect("geometry");

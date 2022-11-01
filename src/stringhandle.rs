@@ -7,15 +7,27 @@ use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
 
+// TODO: Use this in public APIs instead of i32
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug)]
+pub struct StringHandle(i32);
+
 /// Holds a contiguous array of bytes where each individual string value is null-separated.
+/// You can choose how to iterate over it by calling a corresponding iter_* function.
+/// The `Debug` impl has an alternative `{:#?}` representation, which prints as a vec of strings.
 pub struct StringArray {
     bytes: Vec<u8>,
 }
 
 impl std::fmt::Debug for StringArray {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let count = self.bytes.iter().filter(|v| **v == b'\0').count();
-        write!(f, "StringArray[num_strings = {}]", count)
+        if f.alternate() {
+            let strings = self.iter_str().collect::<Vec<_>>();
+            strings.fmt(f)
+        } else {
+            let count = self.bytes.iter().filter(|v| **v == b'\0').count();
+            write!(f, "StringArray[num_strings = {count}]")
+        }
     }
 }
 
@@ -141,7 +153,7 @@ pub(crate) fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>
 }
 
 pub(crate) fn get_string_array(handles: &[i32], session: &Session) -> Result<StringArray> {
-    let _lock = session.handle.1.lock();
+    let _lock = session.lock();
     let length = crate::ffi::get_string_batch_size(handles, session)?;
     let bytes = if length > 0 {
         crate::ffi::get_string_batch(length, session)?
@@ -169,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_string_array() {
-        let session = quick_session().expect("simple session");
+        let session = quick_session(None).expect("simple session");
         session
             .set_server_var::<str>("TEST", "177")
             .expect("could not set var");

@@ -21,7 +21,7 @@ pub mod enums {
         AttributeOwner, AttributeTypeInfo, CacheProperty, ChoiceListType, CurveOrders, CurveType,
         EnvIntType, GeoType, GroupType, HapiResult, HeightFieldSampling, ImageDataFormat,
         ImagePacking, InputType, License, PackedPrimInstancingMode, ParmType, PartType,
-        PdgEventType, PdgState, PdgWorkitemState, Permissions, PresetType, PrmScriptType, RSTOrder,
+        PdgEventType, PdgState, PdgWorkItemState, Permissions, PresetType, PrmScriptType, RSTOrder,
         RampType, SessionEnvIntType, SessionType, State, StatusType, StatusVerbosity, StorageType,
         TransformComponent, VolumeType, VolumeVisualType, XYZOrder,
     };

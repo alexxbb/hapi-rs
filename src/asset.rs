@@ -118,7 +118,8 @@ impl<'a> AssetParm<'a> {
         }
     }
 
-    /// Returns menu parameter items
+    /// Returns menu parameter items.
+    /// Note, dynamic(script) menus should be queried directly from a node.
     pub fn menu_items(&self) -> Option<&[ParmChoiceInfo]> {
         if let ChoiceListType::None = self.choice_list_type() {
             return None;
@@ -138,10 +139,10 @@ pub struct AssetLibrary {
 
 impl AssetLibrary {
     /// Load an asset from file
-    pub fn from_file(session: Session, file: impl AsRef<str>) -> Result<AssetLibrary> {
-        debug!("Loading library: {}", file.as_ref());
+    pub fn from_file(session: Session, file: impl AsRef<std::path::Path>) -> Result<AssetLibrary> {
+        debug!("Loading library: {:?}", file.as_ref());
         debug_assert!(session.is_valid());
-        let cs = CString::new(file.as_ref())?;
+        let cs = CString::new(file.as_ref().as_os_str().to_string_lossy().to_string())?;
         let lib_id = crate::ffi::load_library_from_file(&cs, &session, true)?;
         Ok(AssetLibrary { lib_id, session })
     }
@@ -168,9 +169,12 @@ impl AssetLibrary {
 
     /// Try to create the first available asset in the library.
     /// This is a convenience function for:
-    /// ```ignore
-    /// let names = lib.get_asset_names()?;
-    /// session.create_node(names[0], None, None)?
+    /// ```
+    /// use hapi_rs::session::{new_in_process};
+    /// let session = new_in_process(None).unwrap();
+    /// let lib = session.load_asset_file("otls/hapi_geo.hda").unwrap();
+    /// let names = lib.get_asset_names().unwrap();
+    /// session.create_node(&names[0], None, None).unwrap();
     /// ```
     pub fn try_create_first(&self) -> Result<HoudiniNode> {
         debug_assert!(self.session.is_valid());
@@ -179,7 +183,7 @@ impl AssetLibrary {
             .ok_or_else(|| crate::errors::HapiError {
                 kind: crate::errors::Kind::Other("Library file is empty".to_string()),
                 server_message: None,
-                context_message: None,
+                contexts: Vec::new(),
             })?;
         self.session.create_node(&name, None, None)
     }
@@ -187,7 +191,7 @@ impl AssetLibrary {
     /// Returns a struct holding the asset parameter information and vlaues
     pub fn get_asset_parms(&self, asset: impl AsRef<str>) -> Result<AssetParameters> {
         debug_assert!(self.session.is_valid());
-        let _lock = self.session.handle.1.lock();
+        let _lock = self.session.lock();
         let asset_name = String::from(asset.as_ref());
         log::debug!("Reading asset parameter list of {asset_name}");
         let asset_name = CString::new(asset_name)?;
@@ -312,6 +316,9 @@ mod tests {
                 .map(|p| p.value().unwrap())
                 .collect();
             assert_eq!(menu_values, &["item_1", "item_2", "item_3"]);
+            // Script Menus are not evaluated from asset definition, only from a node instance
+            let parm = parms.find_parameter("script_menu").expect("parm");
+            assert!(parm.menu_items().expect("Script Items").is_empty());
         });
     }
 }

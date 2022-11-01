@@ -6,7 +6,7 @@
 //! and *does not* protect the session with Mutex, although there is a [parking_lot::ReentrantMutex]
 //! private member which is used internally in a few cases where API calls must be sequential.
 //!
-//! When the last instance of the `Session` is about to drop, it'll be cleaned
+//! When the last instance of the `Session` is about to get dropped, it'll be cleaned up
 //! (if [SessionOptions::cleanup] was set) and automatically closed.
 //!
 //! The Engine process (pipe or socket) can be auto-terminated as well if told so when starting the server:
@@ -14,24 +14,22 @@
 //!
 //! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
 //!
-#[rustfmt::skip]
-use std::{
-    ffi::CString,
-    sync::Arc,
-    path::Path,
-};
 pub use crate::ffi::enums::*;
 use log::{debug, error, warn};
+use std::ffi::OsString;
+use std::path::PathBuf;
+use std::{ffi::CString, path::Path, sync::Arc};
 
 use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::raw,
     ffi::{CookOptions, SessionSyncInfo, TimelineOptions, Viewport},
-    node::{HoudiniNode, NodeHandle},
+    node::{HoudiniNode, ManagerNode, NodeHandle},
     stringhandle::StringArray,
 };
 
+use crate::node::{NodeType, Parameter};
 use parking_lot::ReentrantMutex;
 
 impl std::cmp::PartialEq for raw::HAPI_Session {
@@ -63,6 +61,22 @@ impl EnvVariable for str {
     }
 }
 
+impl EnvVariable for Path {
+    type Type = Self;
+
+    fn get_value(session: &Session, key: impl AsRef<str>) -> Result<PathBuf> {
+        let key = CString::new(key.as_ref())?;
+        crate::stringhandle::get_string(crate::ffi::get_server_env_str(session, &key)?, session)
+            .map(PathBuf::from)
+    }
+
+    fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()> {
+        let key = CString::new(key.as_ref())?;
+        let val = path_to_cstring(val)?;
+        crate::ffi::set_server_env_str(session, &key, &val)
+    }
+}
+
 impl EnvVariable for i32 {
     type Type = Self;
 
@@ -87,19 +101,66 @@ pub enum CookResult {
     Errored(String),
 }
 
+/// By which means the session communicates with the server.
+#[derive(Debug, Clone)]
+pub enum ConnectionType {
+    ThriftPipe(OsString),
+    ThriftSocket(std::net::SocketAddrV4),
+    InProcess,
+    Custom,
+}
+
+#[derive(Debug)]
+pub(crate) struct SessionInner {
+    pub(crate) handle: raw::HAPI_Session,
+    pub(crate) options: SessionOptions,
+    pub(crate) connection: ConnectionType,
+    pub(crate) lock: ReentrantMutex<()>,
+}
+
 /// Session represents a unique connection to the Engine instance and all API calls require a valid session.
 /// It implements [`Clone`] and is [`Send`] and [`Sync`]
 #[derive(Debug, Clone)]
 pub struct Session {
-    pub(crate) handle: Arc<(raw::HAPI_Session, ReentrantMutex<()>)>,
-    pub(crate) threaded: bool,
-    cleanup: bool,
+    pub(crate) inner: Arc<SessionInner>,
+}
+
+impl PartialEq for Session {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner.handle.id == other.inner.handle.id
+            && self.inner.handle.type_ == other.inner.handle.type_
+    }
 }
 
 impl Session {
+    fn new(
+        handle: raw::HAPI_Session,
+        connection: ConnectionType,
+        options: SessionOptions,
+    ) -> Session {
+        Session {
+            inner: Arc::new(SessionInner {
+                handle,
+                options,
+                connection,
+                lock: ReentrantMutex::new(()),
+            }),
+        }
+    }
+
+    /// Return [`SessionType`] current session is initialized with.
+    pub fn session_type(&self) -> SessionType {
+        self.inner.handle.type_
+    }
+
+    /// Return enum with extra connection data such as pipe file or socket.
+    pub fn connection_type(&self) -> &ConnectionType {
+        &self.inner.connection
+    }
+
     #[inline]
     pub(crate) fn ptr(&self) -> *const raw::HAPI_Session {
-        &(self.handle.0) as *const _
+        &(self.inner.handle) as *const _
     }
 
     /// Set environment variable on the server
@@ -129,16 +190,15 @@ impl Session {
         crate::stringhandle::get_string_array(&handles, self)
     }
 
-    /// Initialize session with options
-    pub fn initialize(&mut self, opts: &SessionOptions) -> Result<()> {
+    /// Retrieve string data given a handle.
+    pub fn get_string(&self, handle: i32) -> Result<String> {
+        crate::stringhandle::get_string(handle, self)
+    }
+
+    fn initialize(&self) -> Result<()> {
         debug!("Initializing session");
         debug_assert!(self.is_valid());
-        self.threaded = opts.threaded;
-        self.cleanup = opts.cleanup;
-        let res = crate::ffi::initialize_session(self, opts);
-        if !opts.ignore_already_init {
-            return res;
-        }
+        let res = crate::ffi::initialize_session(self, &self.inner.options);
         match res {
             Ok(_) => Ok(()),
             Err(e) => match e {
@@ -168,7 +228,6 @@ impl Session {
         crate::ffi::is_session_initialized(self)
     }
 
-    // TODO: Return a Geometry instead for convenient use
     /// Create an input geometry node which can accept modifications
     pub fn create_input_node(&self, name: &str) -> Result<crate::geometry::Geometry> {
         debug_assert!(self.is_valid());
@@ -201,6 +260,40 @@ impl Session {
         HoudiniNode::create(name.as_ref(), label.into(), parent, self.clone(), false)
     }
 
+    /// Find a node given an absolute path. To find a child node, pass the `parent` node
+    /// or use [`HoudiniNode::find_child_by_path`]
+    pub fn find_node_from_path(
+        &self,
+        path: impl AsRef<str>,
+        parent: Option<NodeHandle>,
+    ) -> Result<HoudiniNode> {
+        let path = CString::new(path.as_ref())?;
+        crate::ffi::get_node_from_path(self, parent, &path)
+            .map(|id| NodeHandle(id, ()).to_node(self))?
+    }
+
+    /// Find a parameter by its absolute path
+    pub fn find_parameter_from_path(&self, path: impl AsRef<str>) -> Result<Option<Parameter>> {
+        match path.as_ref().rsplit_once('/') {
+            None => Ok(None),
+            Some((node, parm)) => {
+                let node = self.find_node_from_path(node, None)?;
+                Ok(node.parameter(parm).ok())
+            }
+        }
+    }
+
+    /// Returns a manager (root) node such as OBJ, TOP, CHOP, etc
+    pub fn get_manager_node(&self, node_type: NodeType) -> Result<ManagerNode> {
+        debug_assert!(self.is_valid());
+        let id = crate::ffi::get_manager_node(self, node_type)?;
+        Ok(ManagerNode {
+            session: self.clone(),
+            handle: NodeHandle(id, ()),
+            node_type,
+        })
+    }
+
     /// Save current session to hip file
     pub fn save_hip(&self, name: &str, lock_nodes: bool) -> Result<()> {
         debug!("Saving hip file: {}", name);
@@ -210,10 +303,10 @@ impl Session {
     }
 
     /// Load a hip file into current session
-    pub fn load_hip(&self, name: &str, cook: bool) -> Result<()> {
-        debug!("Loading hip file: {}", name);
+    pub fn load_hip(&self, path: impl AsRef<Path>, cook: bool) -> Result<()> {
+        debug!("Loading hip file: {:?}", path.as_ref());
         debug_assert!(self.is_valid());
-        let name = CString::new(name)?;
+        let name = path_to_cstring(path)?;
         crate::ffi::load_hip(self, &name, cook)
     }
 
@@ -226,7 +319,7 @@ impl Session {
     }
 
     /// Load an HDA file into current session
-    pub fn load_asset_file(&self, file: impl AsRef<str>) -> Result<AssetLibrary> {
+    pub fn load_asset_file(&self, file: impl AsRef<Path>) -> Result<AssetLibrary> {
         debug_assert!(self.is_valid());
         AssetLibrary::from_file(self.clone(), file)
     }
@@ -237,7 +330,7 @@ impl Session {
         crate::ffi::interrupt(self)
     }
 
-    /// Get session state of a requested [`create::enums::StatusType`]
+    /// Get session state of a requested [`crate::enums::StatusType`]
     pub fn get_status(&self, flag: StatusType) -> Result<State> {
         debug_assert!(self.is_valid());
         crate::ffi::get_status(self, flag)
@@ -252,6 +345,7 @@ impl Session {
         ))
     }
 
+    /// Explicit check if the session is valid. Many APIs do this check in the debug build.
     pub fn is_valid(&self) -> bool {
         crate::ffi::is_session_valid(self)
     }
@@ -288,7 +382,7 @@ impl Session {
     /// See [Documentation](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html)
     pub fn cook(&self) -> Result<CookResult> {
         debug_assert!(self.is_valid());
-        if self.threaded {
+        if self.inner.options.threaded {
             loop {
                 match self.get_status(StatusType::CookState)? {
                     State::Ready => break Ok(CookResult::Succeeded),
@@ -330,7 +424,7 @@ impl Session {
     /// Lock the internal reentrant mutex. Should not be used in general, but may be useful
     /// in certain situations when a series of API calls must be done in sequence
     pub fn lock(&self) -> parking_lot::ReentrantMutexGuard<()> {
-        self.handle.1.lock()
+        self.inner.lock.lock()
     }
 
     /// Set Houdini timeline options
@@ -415,56 +509,74 @@ impl Session {
 
 impl Drop for Session {
     fn drop(&mut self) {
-        if Arc::strong_count(&self.handle) == 1 {
+        if Arc::strong_count(&self.inner) == 1 {
             debug!("Dropping session");
             if self.is_valid() {
-                if self.cleanup {
-                    debug!("Cleaning up session");
+                if self.inner.options.cleanup {
                     if let Err(e) = self.cleanup() {
                         error!("Cleanup failed in Drop: {}", e);
                     }
                 }
+                if let Err(e) = crate::ffi::shutdown_session(self) {
+                    error!("Could not shutdown session in Drop: {}", e);
+                }
                 if let Err(e) = crate::ffi::close_session(self) {
                     error!("Closing session failed in Drop: {}", e);
+                }
+            } else {
+                // The server should automatically delete the pipe file when closed successfully,
+                // but we could try a cleanup just in case.
+                warn!("Session is invalid!");
+                if let ConnectionType::ThriftPipe(f) = &self.inner.connection {
+                    let _ = std::fs::remove_file(f);
                 }
             }
         }
     }
 }
 
-/// Connect to the engine process via a Unix pipe
-pub fn connect_to_pipe(pipe: &str) -> Result<Session> {
-    debug!("Connecting to Thrift session: {}", pipe);
-    let path = CString::new(pipe)?;
-    let session = crate::ffi::new_thrift_piped_session(&path)?;
-    Ok(Session {
-        handle: Arc::new((session, ReentrantMutex::new(()))),
-        threaded: false,
-        cleanup: false,
-    })
+fn path_to_cstring(path: impl AsRef<Path>) -> Result<CString> {
+    let s = path.as_ref().as_os_str().to_string_lossy().to_string();
+    Ok(CString::new(s)?)
+}
+
+/// Connect to the engine process via a pipe file.
+pub fn connect_to_pipe(
+    pipe: impl AsRef<Path>,
+    options: Option<&SessionOptions>,
+) -> Result<Session> {
+    debug!("Connecting to Thrift session: {:?}", pipe.as_ref());
+    let c_str = path_to_cstring(&pipe)?;
+    let pipe = pipe.as_ref().as_os_str().to_os_string();
+    let handle = crate::ffi::new_thrift_piped_session(&c_str)?;
+    let connection = ConnectionType::ThriftPipe(pipe);
+    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
+    session.initialize()?;
+    Ok(session)
 }
 
 /// Connect to the engine process via a Unix socket
-pub fn connect_to_socket(addr: std::net::SocketAddrV4) -> Result<Session> {
+pub fn connect_to_socket(
+    addr: std::net::SocketAddrV4,
+    options: Option<&SessionOptions>,
+) -> Result<Session> {
     debug!("Connecting to socket server: {:?}", addr);
     let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
-    let session = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
-    Ok(Session {
-        handle: Arc::new((session, ReentrantMutex::new(()))),
-        threaded: false,
-        cleanup: false,
-    })
+    let handle = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
+    let connection = ConnectionType::ThriftSocket(addr);
+    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
+    session.initialize()?;
+    Ok(session)
 }
 
 /// Create in-process session
-pub fn new_in_process() -> Result<Session> {
+pub fn new_in_process(options: Option<&SessionOptions>) -> Result<Session> {
     debug!("Creating new in-process session");
-    let session = crate::ffi::create_inprocess_session()?;
-    Ok(Session {
-        handle: Arc::new((session, ReentrantMutex::new(()))),
-        threaded: false,
-        cleanup: false,
-    })
+    let handle = crate::ffi::create_inprocess_session()?;
+    let connection = ConnectionType::InProcess;
+    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
+    session.initialize()?;
+    Ok(session)
 }
 
 /// Join a sequence of paths into a single String
@@ -484,8 +596,8 @@ where
     buf
 }
 
-/// Session options used in [`Session::initialize`]
-// TODO: Add builder
+/// Session options passed to session create functions like [`connect_to_pipe`]
+#[derive(Clone, Debug)]
 pub struct SessionOptions {
     /// Session cook options
     pub cook_opt: CookOptions,
@@ -496,6 +608,7 @@ pub struct SessionOptions {
     /// Do not error out if session is already initialized
     pub ignore_already_init: bool,
     pub env_files: Option<CString>,
+    pub env_variables: Option<Vec<(String, String)>>,
     pub otl_path: Option<CString>,
     pub dso_path: Option<CString>,
     pub img_dso_path: Option<CString>,
@@ -510,6 +623,7 @@ impl Default for SessionOptions {
             cleanup: false,
             ignore_already_init: true,
             env_files: None,
+            env_variables: None,
             otl_path: None,
             dso_path: None,
             img_dso_path: None,
@@ -518,8 +632,24 @@ impl Default for SessionOptions {
     }
 }
 
-impl SessionOptions {
-    pub fn set_houdini_env_files<I>(&mut self, files: I)
+#[derive(Default)]
+/// A build for SessionOptions.
+pub struct SessionOptionsBuilder {
+    cook_opt: CookOptions,
+    threaded: bool,
+    cleanup: bool,
+    ignore_already_init: bool,
+    env_variables: Option<Vec<(String, String)>>,
+    env_files: Option<CString>,
+    otl_path: Option<CString>,
+    dso_path: Option<CString>,
+    img_dso_path: Option<CString>,
+    aud_dso_path: Option<CString>,
+}
+
+impl SessionOptionsBuilder {
+    /// A list of Houdini environment file the Engine will load environment from.
+    pub fn houdini_env_files<I>(mut self, files: I) -> Self
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
@@ -527,9 +657,29 @@ impl SessionOptions {
         let paths = join_paths(files);
         self.env_files
             .replace(CString::new(paths).expect("Zero byte"));
+        self
     }
 
-    pub fn set_otl_search_paths<I>(&mut self, paths: I)
+    /// Set the server environment variables. See also [`Session::set_server_var`].
+    /// The difference is this method writes out a temp file with the variables and
+    /// implicitly pass it to the engine (as if [`Self::houdini_env_files`] was used.
+    pub fn env_variables<I, K, V>(mut self, variables: I) -> Self
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<String>,
+        V: Into<String>,
+    {
+        self.env_variables.replace(
+            variables
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
+        );
+        self
+    }
+
+    /// Add search paths for the Engine to find HDAs.
+    pub fn otl_search_paths<I>(mut self, paths: I) -> Self
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
@@ -537,9 +687,11 @@ impl SessionOptions {
         let paths = join_paths(paths);
         self.otl_path
             .replace(CString::new(paths).expect("Zero byte"));
+        self
     }
 
-    pub fn set_dso_search_paths<P>(&mut self, paths: P)
+    /// Add search paths for the Engine to find DSO plugins.
+    pub fn dso_search_paths<P>(mut self, paths: P) -> Self
     where
         P: IntoIterator,
         P::Item: AsRef<str>,
@@ -547,9 +699,11 @@ impl SessionOptions {
         let paths = join_paths(paths);
         self.dso_path
             .replace(CString::new(paths).expect("Zero byte"));
+        self
     }
 
-    pub fn set_image_search_paths<P>(&mut self, paths: P)
+    /// Add search paths for the Engine to find image plugins.
+    pub fn image_search_paths<P>(mut self, paths: P) -> Self
     where
         P: IntoIterator,
         P::Item: AsRef<str>,
@@ -557,9 +711,11 @@ impl SessionOptions {
         let paths = join_paths(paths);
         self.img_dso_path
             .replace(CString::new(paths).expect("Zero byte"));
+        self
     }
 
-    pub fn set_audio_search_paths<P>(&mut self, paths: P)
+    /// Add search paths for the Engine to find audio files.
+    pub fn audio_search_paths<P>(mut self, paths: P) -> Self
     where
         P: IntoIterator,
         P::Item: AsRef<str>,
@@ -567,6 +723,81 @@ impl SessionOptions {
         let paths = join_paths(paths);
         self.aud_dso_path
             .replace(CString::new(paths).expect("Zero byte"));
+        self
+    }
+
+    /// Do not error when connecting to a server process which has a session already initialized.
+    pub fn ignore_already_init(mut self, ignore: bool) -> Self {
+        self.ignore_already_init = ignore;
+        self
+    }
+
+    /// Pass session [`CookOptions`]
+    pub fn cook_options(mut self, options: CookOptions) -> Self {
+        self.cook_opt = options;
+        self
+    }
+
+    /// Makes the server operate in threaded mode. See the official docs for more info.
+    pub fn threaded(mut self, threaded: bool) -> Self {
+        self.threaded = threaded;
+        self
+    }
+
+    /// Cleanup the server session when the last connection drops.
+    pub fn cleanup_on_close(mut self, cleanup: bool) -> Self {
+        self.cleanup = cleanup;
+        self
+    }
+
+    /// Consume the builder and return the result.
+    pub fn build(mut self) -> SessionOptions {
+        self.write_temp_env_file();
+        SessionOptions {
+            cook_opt: self.cook_opt,
+            threaded: self.threaded,
+            cleanup: self.cleanup,
+            ignore_already_init: self.cleanup,
+            env_files: self.env_files,
+            env_variables: self.env_variables,
+            otl_path: self.otl_path,
+            dso_path: self.dso_path,
+            img_dso_path: self.img_dso_path,
+            aud_dso_path: self.aud_dso_path,
+        }
+    }
+    // Helper function for Self::env_variables
+    fn write_temp_env_file(&mut self) {
+        use std::io::Write;
+
+        if let Some(ref env) = self.env_variables {
+            let mut file = tempfile::Builder::new()
+                .suffix("_hars.env")
+                .tempfile()
+                .expect("tempfile");
+            for (k, v) in env.iter() {
+                writeln!(file, "{}={}", k, v).unwrap();
+            }
+            let (_, tmp_file) = file.keep().expect("persistent tempfile");
+            let tmp_file = CString::new(tmp_file.to_string_lossy().to_string()).expect("null byte");
+
+            if let Some(old) = &mut self.env_files {
+                let mut bytes = old.as_bytes_with_nul().to_vec();
+                bytes.extend(tmp_file.into_bytes_with_nul());
+                self.env_files
+                    // SAFETY: the bytes vec was obtained from the two CString's above.
+                    .replace(unsafe { CString::from_vec_with_nul_unchecked(bytes) });
+            } else {
+                self.env_files.replace(tmp_file);
+            }
+        }
+    }
+}
+
+impl SessionOptions {
+    /// Create a [`SessionOptionsBuilder`]. Same as [`SessionOptionsBuilder::default()`].
+    pub fn builder() -> SessionOptionsBuilder {
+        SessionOptionsBuilder::default()
     }
 }
 
@@ -587,51 +818,63 @@ impl From<i32> for State {
 }
 
 /// Spawn a new pipe Engine process and return its PID
-pub fn start_engine_pipe_server(path: &str, auto_close: bool, timeout: f32) -> Result<u32> {
-    debug!("Starting named pipe server: {}", path);
-    let path = CString::new(path)?;
+pub fn start_engine_pipe_server(
+    path: impl AsRef<Path>,
+    auto_close: bool,
+    timeout: f32,
+    verbosity: StatusVerbosity,
+    log_file: Option<&str>,
+) -> Result<u32> {
+    debug!("Starting named pipe server: {:?}", path.as_ref());
     let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
         autoClose: auto_close as i8,
         timeoutMs: timeout,
+        verbosity,
     };
-    crate::ffi::start_thrift_pipe_server(&path, &opts)
+    let log_file = log_file.map(CString::new).transpose()?;
+    let c_str = path_to_cstring(path)?;
+    crate::ffi::start_thrift_pipe_server(&c_str, &opts, log_file.as_deref())
 }
 
 /// Spawn a new socket Engine server and return its PID
-pub fn start_engine_socket_server(port: u16, auto_close: bool, timeout: i32) -> Result<u32> {
+pub fn start_engine_socket_server(
+    port: u16,
+    auto_close: bool,
+    timeout: i32,
+    verbosity: StatusVerbosity,
+    log_file: Option<&str>,
+) -> Result<u32> {
     debug!("Starting socket server on port: {}", port);
     let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
         autoClose: auto_close as i8,
         timeoutMs: timeout as f32,
+        verbosity,
     };
-    crate::ffi::start_thrift_socket_server(port as i32, &opts)
+    let log_file = log_file.map(CString::new).transpose()?;
+    crate::ffi::start_thrift_socket_server(port as i32, &opts, log_file.as_deref())
 }
 
 /// A quick drop-in session, useful for on-off jobs
 /// It starts a single-threaded pipe server and initialize a session with default options
-pub fn quick_session() -> Result<Session> {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    use std::time::SystemTime;
-    let mut hash = DefaultHasher::new();
-    SystemTime::now().hash(&mut hash);
-    std::thread::current().id().hash(&mut hash);
-    let file = std::env::temp_dir().join(format!("hars-session-{}", hash.finish()));
-    let file = file.to_string_lossy();
-    start_engine_pipe_server(&file, true, 4000.0)?;
-    let mut session = connect_to_pipe(&file)?;
-    session.initialize(&SessionOptions::default())?;
-    Ok(session)
+pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
+    let file = tempfile::Builder::new()
+        .suffix("-hars.pipe")
+        .tempfile()
+        .expect("new temp file");
+    let (_, file) = file.keep().expect("persistent temp file");
+    start_engine_pipe_server(&file, true, 4000.0, StatusVerbosity::Statusverbosity1, None)?;
+    connect_to_pipe(file, options)
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::session::*;
     use once_cell::sync::Lazy;
+    use std::default::Default;
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         env_logger::init();
-        let session = quick_session().expect("Could not create test session");
+        let session = quick_session(None).expect("Could not create test session");
         session
             .load_asset_file("otls/hapi_geo.hda")
             .expect("load asset");
@@ -653,37 +896,40 @@ pub(crate) mod tests {
 
     #[test]
     fn init_and_teardown() {
-        let mut opt = super::SessionOptions::default();
-        opt.set_dso_search_paths(["/path/one", "/path/two"]);
-        opt.set_otl_search_paths(["/path/thee", "/path/four"]);
-        let mut ses = super::quick_session().unwrap();
+        let opt = super::SessionOptions::builder()
+            .dso_search_paths(["/path/one", "/path/two"])
+            .otl_search_paths(["/path/thee", "/path/four"])
+            .build();
+        let ses = super::quick_session(Some(&opt)).unwrap();
+        assert!(matches!(
+            ses.connection_type(),
+            ConnectionType::ThriftPipe(_)
+        ));
         assert!(ses.is_initialized());
         assert!(ses.is_valid());
         assert!(ses.cleanup().is_ok());
         assert!(!ses.is_initialized());
-        ses.initialize(&opt).unwrap();
-        assert!(ses.is_initialized());
     }
 
     #[test]
     fn session_time() {
-        with_session(|session| {
-            let _lock = session.lock();
-            let opt = TimelineOptions::default().with_end_time(5.5);
-            assert!(session.set_timeline_options(opt.clone()).is_ok());
-            let opt2 = session.get_timeline_options().expect("timeline_options");
-            assert!(opt.end_time().eq(&opt2.end_time()));
-            session.set_time(4.12).expect("set_time");
-            assert!(matches!(session.cook(), Ok(CookResult::Succeeded)));
-            assert_eq!(session.get_time().expect("get_time"), 4.12);
-        });
+        // For some reason, this test randomly fails when using shared session
+        let session = quick_session(None).expect("Could not start session");
+        let _lock = session.lock();
+        let opt = TimelineOptions::default().with_end_time(5.5);
+        assert!(session.set_timeline_options(opt.clone()).is_ok());
+        let opt2 = session.get_timeline_options().expect("timeline_options");
+        assert!(opt.end_time().eq(&opt2.end_time()));
+        session.set_time(4.12).expect("set_time");
+        assert!(matches!(session.cook(), Ok(CookResult::Succeeded)));
+        assert_eq!(session.get_time().expect("get_time"), 4.12);
     }
 
     #[test]
     fn server_variables() {
         // Starting a new separate session because getting/setting env variables from multiple
         // clients ( threads ) breaks the server
-        let session = super::quick_session().expect("Could not start session");
+        let session = super::quick_session(None).expect("Could not start session");
         session.set_server_var::<str>("FOO", "foo_string").unwrap();
         assert_eq!(session.get_server_var::<str>("FOO").unwrap(), "foo_string");
         session.set_server_var::<i32>("BAR", &123).unwrap();
@@ -694,9 +940,8 @@ pub(crate) mod tests {
     #[test]
     fn create_node_async() {
         use crate::ffi::raw::{NodeFlags, NodeType};
-        let mut opt = super::SessionOptions::default();
-        opt.threaded = true;
-        let session = super::quick_session().unwrap();
+        let opt = SessionOptions::builder().threaded(true).build();
+        let session = super::quick_session(Some(&opt)).unwrap();
         session
             .load_asset_file("otls/sesi/SideFX_spaceship.hda")
             .unwrap();

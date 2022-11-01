@@ -234,15 +234,16 @@ impl ParmInfo {
     get!(disabled_condition->disabledConditionSH->Result<String>);
 }
 
-#[derive(Clone)]
+// #[derive(Clone)]
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___node_info.html)
 pub struct NodeInfo {
     pub(crate) inner: HAPI_NodeInfo,
+    pub(crate) session: Session,
 }
 
 impl NodeInfo {
-    get!(with_session name->nameSH->Result<String>);
-    get!(with_session internal_path->internalNodePathSH->Result<String>);
+    get!(name->nameSH->Result<String>);
+    get!(internal_path->internalNodePathSH->Result<String>);
     get!(node_type->type_->NodeType);
     get!(is_valid->isValid->bool);
     get!(unique_node_id->uniqueHoudiniNodeId->i32);
@@ -259,13 +260,23 @@ impl NodeInfo {
     get!(parm_choice_count->parmChoiceCount->i32);
     get!(node_handle->id->[handle: NodeHandle]);
     get!(parent_id->parentId->[handle: NodeHandle]);
+
+    pub(crate) fn new(session: &Session, node: NodeHandle) -> Result<Self> {
+        let session = session.clone();
+        let inner = crate::ffi::get_node_info(node, &session)?;
+        Ok(Self { inner, session })
+    }
 }
 
 impl std::fmt::Debug for NodeInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let err = "Error in Debug impl";
         f.debug_struct("NodeInfo")
-            .field("nameSH", &self.inner.nameSH)
-            .field("internalPathSH", &self.inner.internalNodePathSH)
+            .field("name", &self.name().as_deref().unwrap_or(err))
+            .field(
+                "internal_path",
+                &self.internal_path().as_deref().unwrap_or(err),
+            )
             .field("type", &self.node_type())
             .field("is_valid", &self.is_valid())
             .field("time_dependent", &self.is_time_dependent())
@@ -279,7 +290,7 @@ impl std::fmt::Debug for NodeInfo {
 }
 
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___cook_options.html)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CookOptions {
     pub(crate) inner: HAPI_CookOptions,
 }
@@ -297,6 +308,8 @@ wrap!(
     [get|set|with] handle_box_part_types->handleBoxPartTypes->[bool];
     [get|set|with] handle_sphere_part_types->handleSpherePartTypes->[bool];
     [get|set|with] check_part_changes->checkPartChanges->[bool];
+    [get|set|with] cache_mesh_topology->cacheMeshTopology->[bool];
+    [get|set|with] prefer_output_nodes->preferOutputNodes->[bool];
     [get|set|with] packed_prim_instancing_mode->packedPrimInstancingMode->[PackedPrimInstancingMode];
     [get+session] split_attr->splitAttrSH->[Result<String>];
 );
@@ -689,3 +702,46 @@ wrap!(
     [get|set|with] input_method->inputMethod->[InputCurveMethod];
     [get|set|with] breakpoint_parameterization->breakpointParameterization->[InputCurveParameterization];
 );
+
+pub struct PDGEventInfo {
+    pub(crate) inner: HAPI_PDG_EventInfo,
+}
+
+impl PDGEventInfo {
+    get!(node_id->nodeId->[handle: NodeHandle]);
+    get!(workitem_id->workItemId->i32);
+    get!(dependency_id->dependencyId->i32);
+    get!(with_session message->msgSH->Result<String>);
+    pub fn current_state(&self) -> PdgWorkItemState {
+        unsafe { std::mem::transmute::<i32, PdgWorkItemState>(self.inner.currentState) }
+    }
+    pub fn last_state(&self) -> PdgWorkItemState {
+        unsafe { std::mem::transmute::<i32, PdgWorkItemState>(self.inner.lastState) }
+    }
+    pub fn event_type(&self) -> PdgEventType {
+        unsafe { std::mem::transmute::<i32, PdgEventType>(self.inner.eventType) }
+    }
+}
+
+#[derive(Debug)]
+pub struct PDGWorkItemResult<'session> {
+    pub(crate) inner: HAPI_PDG_WorkItemOutputFile,
+    pub(crate) session: &'session Session,
+}
+
+impl<'session> PDGWorkItemResult<'session> {
+    get!(result->filePathSH->Result<String>);
+    get!(tag->tagSH->Result<String>);
+    get!(sha->hash->i64);
+}
+
+pub struct PDGWorkItemInfo {
+    pub(crate) inner: HAPI_PDG_WorkItemInfo,
+}
+
+wrap! {
+    impl PDGWorkItemInfo => HAPI_PDG_WorkItemInfo;
+    [get] index->index->[i32];
+    [get] output_file_count->outputFileCount->[i32];
+    [get+session] name->nameSH->[Result<String>];
+}
