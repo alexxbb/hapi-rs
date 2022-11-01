@@ -1108,7 +1108,7 @@ pub fn query_node_input(node: &HoudiniNode, idx: i32) -> Result<i32> {
 
 pub fn check_for_specific_errors(
     node: &HoudiniNode,
-    error_bits: raw::ErrorCode,
+    error_bits: raw::HAPI_ErrorCodeBits,
 ) -> Result<raw::ErrorCode> {
     unsafe {
         let mut code = uninit!();

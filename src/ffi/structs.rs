@@ -260,6 +260,12 @@ impl NodeInfo {
     get!(parm_choice_count->parmChoiceCount->i32);
     get!(node_handle->id->[handle: NodeHandle]);
     get!(parent_id->parentId->[handle: NodeHandle]);
+
+    pub(crate) fn new(session: &Session, node: NodeHandle) -> Result<Self> {
+        let session = session.clone();
+        let inner = crate::ffi::get_node_info(node, &session)?;
+        Ok(Self { inner, session })
+    }
 }
 
 impl std::fmt::Debug for NodeInfo {

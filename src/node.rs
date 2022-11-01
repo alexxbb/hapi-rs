@@ -82,19 +82,9 @@ pub struct ManagerNode {
 }
 
 impl ManagerNode {
-    /// Find network nodes of a given type.
+    /// Find network nodes of given type.
     pub fn find_network_nodes(&self, types: NodeType) -> Result<Vec<HoudiniNode>> {
         find_networks_nodes(&self.session, types, self.handle, true)
-    }
-}
-
-impl NodeInfo {
-    pub fn new(session: &Session, node: NodeHandle) -> Result<Self> {
-        let info = crate::ffi::get_node_info(node, session)?;
-        Ok(NodeInfo {
-            inner: info,
-            session: session.clone(),
-        })
     }
 }
 
@@ -396,20 +386,23 @@ impl<'session> HoudiniNode {
         AssetInfo::new(self)
     }
     /// Recursively check all nodes for a specific error.
-    pub fn check_for_specific_error(&self, error_bits: ErrorCode) -> Result<ErrorCode> {
+    pub fn check_for_specific_error(&self, error_bits: i32) -> Result<ErrorCode> {
         debug_assert!(self.is_valid()?);
         crate::ffi::check_for_specific_errors(self, error_bits)
     }
 
+    /// Compose the cook result string (errors and warnings).
     pub fn cook_result(&self, verbosity: StatusVerbosity) -> Result<String> {
         debug_assert!(self.is_valid()?);
         unsafe { crate::ffi::get_composed_cook_result(self, verbosity) }
     }
+    /// Resets the simulation cache of the asset.
     pub fn reset_simulation(&self) -> Result<()> {
         debug_assert!(self.is_valid()?);
         crate::ffi::reset_simulation(self)
     }
 
+    /// Return a node connected to given input.
     pub fn input_node(&self, idx: i32) -> Result<Option<HoudiniNode>> {
         debug_assert!(self.is_valid()?);
         crate::ffi::query_node_input(self, idx).map(|idx| {
@@ -421,17 +414,20 @@ impl<'session> HoudiniNode {
         })
     }
 
+    /// Give the node a new name.
     pub fn rename(&self, new_name: impl AsRef<str>) -> Result<()> {
         let name = CString::new(new_name.as_ref())?;
         crate::ffi::rename_node(self, &name)
     }
 
+    /// Saves the node and all its contents to file
     pub fn save_to_file(&self, file: impl AsRef<Path>) -> Result<()> {
         debug_assert!(self.is_valid()?);
         let filename = CString::new(file.as_ref().to_string_lossy().to_string())?;
         crate::ffi::save_node_to_file(self.handle, &self.session, &filename)
     }
 
+    /// Loads and creates a previously saved node and all its contents from given file.
     pub fn load_from_file(
         session: &Session,
         parent: Option<NodeHandle>,
@@ -446,12 +442,14 @@ impl<'session> HoudiniNode {
         NodeHandle(id, ()).to_node(session)
     }
 
+    /// Returns a node preset as bytes.
     pub fn get_preset(&self, name: &str, preset_type: PresetType) -> Result<Vec<i8>> {
         debug_assert!(self.is_valid()?);
         let name = CString::new(name)?;
         crate::ffi::get_preset(&self.session, self.handle, &name, preset_type)
     }
 
+    /// Set the preset data to the node.
     pub fn set_preset(&self, name: &str, preset_type: PresetType, data: &[i8]) -> Result<()> {
         debug_assert!(self.is_valid()?);
         let name = CString::new(name)?;
@@ -483,7 +481,7 @@ impl<'session> HoudiniNode {
         find_networks_nodes(&self.session, NodeType::Top, self, true)
     }
 
-    #[inline]
+    /// How many geometry output nodes there is inside an Object or SOP node.
     pub fn number_of_geo_outputs(&self) -> Result<i32> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_output_geo_count(self)
@@ -506,6 +504,7 @@ impl<'session> HoudiniNode {
         })?
     }
 
+    /// If node is an Object, return it's transform.
     pub fn get_transform(
         &self,
         rst_order: Option<RSTOrder>,
@@ -521,11 +520,13 @@ impl<'session> HoudiniNode {
         .map(|inner| Transform { inner })
     }
 
+    /// Set transform on the Object
     pub fn set_transform(&self, transform: &TransformEuler) -> Result<()> {
         debug_assert!(self.is_valid()?);
         crate::ffi::set_object_transform(&self.session, self.handle, &transform.inner)
     }
 
+    /// Set keyframes animation on the Object.
     pub fn set_transform_anim_curve(
         &self,
         component: TransformComponent,
@@ -537,6 +538,7 @@ impl<'session> HoudiniNode {
         crate::ffi::set_transform_anim_curve(&self.session, self.handle, component, keys)
     }
 
+    /// Connect output of another node into an input on this node.
     pub fn connect_input<H: Into<NodeHandle>>(
         &self,
         input_num: i32,
@@ -553,6 +555,7 @@ impl<'session> HoudiniNode {
         )
     }
 
+    /// Get the nodes currently connected to the given node at the output index.
     pub fn output_connected_nodes(
         &self,
         output_index: i32,
@@ -562,21 +565,25 @@ impl<'session> HoudiniNode {
         crate::ffi::query_node_output_connected_nodes(self, output_index, search_subnets)
     }
 
+    /// Disconnect a given input index.
     pub fn disconnect_input(&self, input_index: i32) -> Result<()> {
         debug_assert!(self.is_valid()?);
         crate::ffi::disconnect_node_input(self, input_index)
     }
 
+    /// Disconnect a given output index.
     pub fn disconnect_outputs(&self, output_index: i32) -> Result<()> {
         debug_assert!(self.is_valid()?);
         crate::ffi::disconnect_node_outputs(self, output_index)
     }
 
+    /// Set display flag on this node.
     pub fn set_display_flag(&self, on: bool) -> Result<()> {
         debug_assert!(self.is_valid()?);
         crate::ffi::set_node_display(&self.session, self.handle, on)
     }
 
+    /// Get the name of a node's input.
     pub fn get_input_name(&self, input_index: i32) -> Result<String> {
         crate::ffi::get_node_input_name(self, input_index)
     }

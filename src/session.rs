@@ -6,7 +6,7 @@
 //! and *does not* protect the session with Mutex, although there is a [parking_lot::ReentrantMutex]
 //! private member which is used internally in a few cases where API calls must be sequential.
 //!
-//! When the last instance of the `Session` is about to drop, it'll be cleaned
+//! When the last instance of the `Session` is about to get dropped, it'll be cleaned up
 //! (if [SessionOptions::cleanup] was set) and automatically closed.
 //!
 //! The Engine process (pipe or socket) can be auto-terminated as well if told so when starting the server:
@@ -345,6 +345,7 @@ impl Session {
         ))
     }
 
+    /// Explicit check if the session is valid. Many APIs do this check in the debug build.
     pub fn is_valid(&self) -> bool {
         crate::ffi::is_session_valid(self)
     }
@@ -539,7 +540,7 @@ fn path_to_cstring(path: impl AsRef<Path>) -> Result<CString> {
     Ok(CString::new(s)?)
 }
 
-/// Connect to the engine process via a Unix pipe
+/// Connect to the engine process via a pipe file.
 pub fn connect_to_pipe(
     pipe: impl AsRef<Path>,
     options: Option<&SessionOptions>,
@@ -632,6 +633,7 @@ impl Default for SessionOptions {
 }
 
 #[derive(Default)]
+/// A build for SessionOptions.
 pub struct SessionOptionsBuilder {
     cook_opt: CookOptions,
     threaded: bool,
@@ -646,6 +648,7 @@ pub struct SessionOptionsBuilder {
 }
 
 impl SessionOptionsBuilder {
+    /// A list of Houdini environment file the Engine will load environment from.
     pub fn houdini_env_files<I>(mut self, files: I) -> Self
     where
         I: IntoIterator,
@@ -657,6 +660,9 @@ impl SessionOptionsBuilder {
         self
     }
 
+    /// Set the server environment variables. See also [`Session::set_server_var`].
+    /// The difference is this method writes out a temp file with the variables and
+    /// implicitly pass it to the engine (as if [`Self::houdini_env_files`] was used.
     pub fn env_variables<I, K, V>(mut self, variables: I) -> Self
     where
         I: IntoIterator<Item = (K, V)>,
@@ -672,6 +678,7 @@ impl SessionOptionsBuilder {
         self
     }
 
+    /// Add search paths for the Engine to find HDAs.
     pub fn otl_search_paths<I>(mut self, paths: I) -> Self
     where
         I: IntoIterator,
@@ -683,6 +690,7 @@ impl SessionOptionsBuilder {
         self
     }
 
+    /// Add search paths for the Engine to find DSO plugins.
     pub fn dso_search_paths<P>(mut self, paths: P) -> Self
     where
         P: IntoIterator,
@@ -694,6 +702,7 @@ impl SessionOptionsBuilder {
         self
     }
 
+    /// Add search paths for the Engine to find image plugins.
     pub fn image_search_paths<P>(mut self, paths: P) -> Self
     where
         P: IntoIterator,
@@ -705,6 +714,7 @@ impl SessionOptionsBuilder {
         self
     }
 
+    /// Add search paths for the Engine to find audio files.
     pub fn audio_search_paths<P>(mut self, paths: P) -> Self
     where
         P: IntoIterator,
@@ -716,26 +726,31 @@ impl SessionOptionsBuilder {
         self
     }
 
+    /// Do not error when connecting to a server process which has a session already initialized.
     pub fn ignore_already_init(mut self, ignore: bool) -> Self {
         self.ignore_already_init = ignore;
         self
     }
 
+    /// Pass session [`CookOptions`]
     pub fn cook_options(mut self, options: CookOptions) -> Self {
         self.cook_opt = options;
         self
     }
 
+    /// Makes the server operate in threaded mode. See the official docs for more info.
     pub fn threaded(mut self, threaded: bool) -> Self {
         self.threaded = threaded;
         self
     }
 
+    /// Cleanup the server session when the last connection drops.
     pub fn cleanup_on_close(mut self, cleanup: bool) -> Self {
         self.cleanup = cleanup;
         self
     }
 
+    /// Consume the builder and return the result.
     pub fn build(mut self) -> SessionOptions {
         self.write_temp_env_file();
         SessionOptions {
@@ -751,6 +766,7 @@ impl SessionOptionsBuilder {
             aud_dso_path: self.aud_dso_path,
         }
     }
+    // Helper function for Self::env_variables
     fn write_temp_env_file(&mut self) {
         use std::io::Write;
 
@@ -769,6 +785,7 @@ impl SessionOptionsBuilder {
                 let mut bytes = old.as_bytes_with_nul().to_vec();
                 bytes.extend(tmp_file.into_bytes_with_nul());
                 self.env_files
+                    // SAFETY: the bytes vec was obtained from the two CString's above.
                     .replace(unsafe { CString::from_vec_with_nul_unchecked(bytes) });
             } else {
                 self.env_files.replace(tmp_file);
@@ -778,6 +795,7 @@ impl SessionOptionsBuilder {
 }
 
 impl SessionOptions {
+    /// Create a [`SessionOptionsBuilder`]. Same as [`SessionOptionsBuilder::default()`].
     pub fn builder() -> SessionOptionsBuilder {
         SessionOptionsBuilder::default()
     }
