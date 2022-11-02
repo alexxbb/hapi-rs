@@ -1,11 +1,9 @@
+name: CI
+
 on:
   push:
     tags:
-      - '*'           # Push events to every tag not containing /
-  workflow_dispatch:
-
-name: publish
-
+      - '*.*.*'
 env:
   HFS: ""
 
@@ -37,4 +35,3 @@ jobs:
         with:
           registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           ignore-unpublished-changes: true
-          dry-run: true
