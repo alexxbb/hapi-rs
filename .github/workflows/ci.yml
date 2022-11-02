@@ -1,11 +1,9 @@
+name: CI
+
 on:
   push:
     tags:
-      - '*'           # Push events to every tag not containing /
-  workflow_dispatch:
-
-name: publish
-
+      - '*'
 env:
   HFS: ""
 
