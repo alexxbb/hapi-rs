@@ -8,7 +8,7 @@ env:
   HFS: ""
 
 jobs:
-  build:
+  check:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -24,6 +24,7 @@ jobs:
 
   publish:
     name: publish
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -33,5 +34,4 @@ jobs:
           override: true
       - uses: katyo/publish-crates@v1
         with:
-          registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-          ignore-unpublished-changes: true
+          registry-token: ${{ secrets.CRATES_TOKEN }}
