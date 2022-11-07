@@ -374,6 +374,7 @@ impl<'session> HoudiniNode {
                 ParmInfo {
                     inner: i,
                     session: self.session.clone(),
+                    name: None,
                 }
                 .into_node_parm(self.handle)
             })

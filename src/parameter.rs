@@ -14,7 +14,8 @@
 //!     assert!(p.set_value(&["world".to_string()]).is_ok());
 //! }
 //! ```
-use std::ffi::CString;
+use std::borrow::{Borrow, Cow};
+use std::ffi::{CStr, CString};
 
 use log::warn;
 
@@ -23,19 +24,35 @@ pub use crate::{
     ffi::ParmInfo,
 };
 
-use crate::{
-    errors::Result,
-    ffi::{KeyFrame, ParmChoiceInfo},
-    node::{HoudiniNode, NodeHandle},
-};
+use crate::{errors::Result, ffi::{KeyFrame, ParmChoiceInfo}, HapiError, node::{HoudiniNode, NodeHandle}};
+
+pub trait AttributeAccess {
+    type Type: ?Sized + ToOwned;
+    fn set<T: Borrow<Self::Type>>(&self, val: T) -> Result<()>;
+    fn get(&self) -> Result<<Self::Type as ToOwned>::Owned>;
+    fn set_array<T: Borrow<Self::Type>>(&self, val: &[T]) -> Result<()>;
+    fn get_array(&self) -> Result<Vec<<Self::Type as ToOwned>::Owned>>;
+    fn set_at_index<T: Borrow<Self::Type>>(&self, val: T, index: i32) -> Result<()>;
+    fn get_at_index(&self, index: i32) -> Result<<Self::Type as ToOwned>::Owned>;
+}
+
+
 
 /// Common trait for parameters
-pub trait ParmBaseTrait {
-    type ValueType;
+pub trait ParmBaseTrait: AttributeAccess {
 
     #[inline]
     fn name(&self) -> Result<String> {
         self.wrap().info.name()
+    }
+
+    #[doc(hidden)]
+    fn c_name(&self) -> Result<Cow<CStr>> {
+        let wrap = self.wrap();
+        match wrap.info.name.as_deref() {
+            None => wrap.info.name_cstr().map(Cow::Owned),
+            Some(name) => Ok(Cow::Borrowed(name))
+        }
     }
     #[inline]
     fn is_menu(&self) -> bool {
@@ -96,20 +113,69 @@ pub trait ParmBaseTrait {
         )
     }
 
-    /// Get parameter value
-    fn get_value(&self) -> Result<Vec<Self::ValueType>>;
-    /// Set parameter value
-    fn set_value<T>(&self, val: T) -> Result<()>
-    where
-        T: AsRef<[Self::ValueType]>;
+}
 
-    /// Set keyframes on the parameter
-    fn set_anim_curve(&self, index: i32, keys: &[KeyFrame]) -> Result<()> {
-        let wrap = self.wrap();
-        debug_assert!(wrap.info.session.is_valid());
-        let keys =
-            unsafe { std::mem::transmute::<&[KeyFrame], &[crate::ffi::raw::HAPI_Keyframe]>(keys) };
-        crate::ffi::set_parm_anim_curve(&wrap.info.session, wrap.node, wrap.info.id(), index, keys)
+impl AttributeAccess for IntParameter {
+    type Type = i32;
+
+    fn set<T: Borrow<Self::Type>>(&self, val: T) -> Result<()> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
+        let name = if let Some(name) = self.wrap.info.name.as_ref() {
+           Cow::Borrowed(name)
+        }else{
+            Cow::Owned(self.wrap.info.name_cstr()?)
+        };
+        crate::ffi::set_parm_int_value(
+            self.wrap.node,
+            session,
+            &name,
+            self.wrap.info.int_values_index(),
+            *val.borrow()
+        )
+    }
+
+    fn get(&self) -> Result<<Self::Type as ToOwned>::Owned> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
+        let name = self.c_name()?;
+        crate::ffi::get_parm_int_value(
+            self.wrap.node,
+            session,
+            &name,
+            self.wrap.info.int_values_index(),
+        )
+    }
+
+    fn set_array<T: Borrow<Self::Type>>(&self, val: &[T]) -> Result<()> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
+        crate::ffi::set_parm_int_values(
+            self.wrap.node,
+            session,
+            self.wrap.info.int_values_index(),
+            self.wrap.info.size(),
+            val.as_ref(),
+        )
+    }
+
+    fn get_array(&self) -> Result<Vec<<Self::Type as ToOwned>::Owned>> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
+        crate::ffi::get_parm_int_values(
+            self.wrap.node,
+            session,
+            self.wrap.info.int_values_index(),
+            self.wrap.info.size(),
+        )
+    }
+
+    fn set_at_index<T: Borrow<Self::Type>>(&self, val: T, index: i32) -> Result<()> {
+        todo!()
+    }
+
+    fn get_at_index(&self, index: i32) -> Result<<Self::Type as ToOwned>::Owned> {
+        todo!()
     }
 }
 
@@ -132,6 +198,7 @@ impl ParmHandle {
         Ok(ParmInfo {
             inner: info,
             session: node.session.clone(),
+            name: None,
         })
     }
 }
@@ -144,6 +211,7 @@ impl ParmInfo {
         info.map(|info| ParmInfo {
             inner: info,
             session: node.session.clone(),
+            name: Some(name)
         })
     }
 
@@ -243,6 +311,7 @@ impl Parameter {
                 Ok(Some(ParmInfo {
                     inner: info,
                     session,
+                    name: None,
                 }))
             }
         }
@@ -260,28 +329,47 @@ impl Parameter {
 }
 
 impl ParmBaseTrait for FloatParameter {
-    type ValueType = f32;
 
     #[doc(hidden)]
     fn wrap(&self) -> &ParmNodeWrap {
         &self.wrap
     }
 
-    fn get_value(&self) -> Result<Vec<Self::ValueType>> {
+}
+
+impl AttributeAccess for FloatParameter {
+    type Type = f32;
+
+    fn set<T: Borrow<Self::Type>>(&self, val: T) -> Result<()> {
         let session = &self.wrap.info.session;
         debug_assert!(self.wrap.node.is_valid(session)?);
-        crate::ffi::get_parm_float_values(
+        let name: Cow<CStr> = self.wrap.info.name.as_deref()
+            .map(Cow::Borrowed)
+            .unwrap_or_else(||Cow::Owned(CString::new("dfd")));
+        crate::ffi::set_parm_float_value(
             self.wrap.node,
             session,
+            &name,
             self.wrap.info.float_values_index(),
-            self.wrap.info.size(),
+            *val.borrow()
         )
     }
 
-    fn set_value<T>(&self, val: T) -> Result<()>
-    where
-        T: AsRef<[Self::ValueType]>,
-    {
+    fn get(&self) -> Result<<Self::Type as ToOwned>::Owned> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
+        let name: Cow<CStr> = self.wrap.info.name.as_deref()
+            .map(Cow::Borrowed)
+            .unwrap_or_else(||Cow::Owned(CString::new("dfd")));
+        crate::ffi::get_parm_float_value(
+            self.wrap.node,
+            session,
+            &name,
+            self.wrap.info.float_values_index(),
+        )
+    }
+
+    fn set_array<T: Borrow<Self::Type>>(&self, val: &[T]) -> Result<()> {
         let session = &self.wrap.info.session;
         debug_assert!(self.wrap.node.is_valid(session)?);
         crate::ffi::set_parm_float_values(
@@ -292,41 +380,33 @@ impl ParmBaseTrait for FloatParameter {
             val.as_ref(),
         )
     }
+
+    fn get_array(&self) -> Result<Vec<<Self::Type as ToOwned>::Owned>> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
+        crate::ffi::get_parm_float_values(
+            self.wrap.node,
+            session,
+            self.wrap.info.float_values_index(),
+            self.wrap.info.size(),
+        )
+    }
+
+    fn set_at_index<T: Borrow<Self::Type>>(&self, val: T, index: i32) -> Result<()> {
+        todo!()
+    }
+
+    fn get_at_index(&self, index: i32) -> Result<<Self::Type as ToOwned>::Owned> {
+        todo!()
+    }
 }
 
 impl ParmBaseTrait for IntParameter {
-    type ValueType = i32;
-
     #[doc(hidden)]
     fn wrap(&self) -> &ParmNodeWrap {
         &self.wrap
     }
 
-    fn get_value(&self) -> Result<Vec<Self::ValueType>> {
-        let session = &self.wrap.info.session;
-        debug_assert!(self.wrap.node.is_valid(session)?);
-        crate::ffi::get_parm_int_values(
-            self.wrap.node,
-            session,
-            self.wrap.info.int_values_index(),
-            self.wrap.info.size(),
-        )
-    }
-
-    fn set_value<T>(&self, val: T) -> Result<()>
-    where
-        T: AsRef<[Self::ValueType]>,
-    {
-        let session = &self.wrap.info.session;
-        debug_assert!(self.wrap.node.is_valid(session)?);
-        crate::ffi::set_parm_int_values(
-            self.wrap.node,
-            session,
-            self.wrap.info.int_values_index(),
-            self.wrap.info.size(),
-            val.as_ref(),
-        )
-    }
 }
 
 impl IntParameter {
@@ -340,35 +420,32 @@ impl IntParameter {
 }
 
 impl ParmBaseTrait for StringParameter {
-    type ValueType = String;
 
     #[doc(hidden)]
     fn wrap(&self) -> &ParmNodeWrap {
         &self.wrap
     }
 
-    fn get_value(&self) -> Result<Vec<String>> {
+}
+
+impl AttributeAccess for StringParameter {
+    type Type = str;
+
+    fn set<T: Borrow<Self::Type>>(&self, val: T) -> Result<()> {
         let session = &self.wrap.info.session;
-        debug_assert!(self.wrap.node.is_valid(session)?);
-        Ok(crate::ffi::get_parm_string_values(
-            self.wrap.node,
-            session,
-            self.wrap.info.string_values_index(),
-            self.wrap.info.size(),
-        )?
-        .into_iter()
-        .collect::<Vec<_>>())
+        let value = CString::new(val.borrow())?;
+        crate::ffi::set_parm_string_value(self.wrap.node, session, &self.wrap.info.id(), self.wrap.info.string_values_index(), &value)
     }
 
-    // TODO Maybe take it out of the trait? AsRef makes it an extra String copy. Consider ToOwned?
-    // What a hell did I mean by that?
-    // Update: 2 month later still can't remember
-    // Update: 3 month later. Still no clue, moving on for now
-    // Update: 1 year past. Meh, maybe later
-    fn set_value<T>(&self, val: T) -> Result<()>
-    where
-        T: AsRef<[Self::ValueType]>,
-    {
+    fn get(&self) -> Result<<Self::Type as ToOwned>::Owned> {
+        let name: Cow<CStr> = self.wrap.info.name.as_deref()
+            .map(Cow::Borrowed)
+            .unwrap_or_else(||Cow::Owned(CString::new("dfd")));
+        let session = &self.wrap.info.session;
+        crate::ffi::get_parm_string_value(self.wrap.node, session, &name, self.wrap.info.string_values_index())
+    }
+
+    fn set_array<T: Borrow<Self::Type>>(&self, val: &[T]) -> Result<()> {
         let c_str: std::result::Result<Vec<CString>, _> = val
             .as_ref()
             .iter()
@@ -377,6 +454,27 @@ impl ParmBaseTrait for StringParameter {
         let session = &self.wrap.info.session;
         debug_assert!(self.wrap.node.is_valid(session)?);
         crate::ffi::set_parm_string_values(self.wrap.node, session, &self.wrap.info.id(), &c_str?)
+    }
+
+    fn get_array(&self) -> Result<Vec<<Self::Type as ToOwned>::Owned>> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
+        Ok(crate::ffi::get_parm_string_values(
+            self.wrap.node,
+            session,
+            self.wrap.info.string_values_index(),
+            self.wrap.info.size(),
+        )?
+            .into_iter()
+            .collect::<Vec<_>>())
+    }
+
+    fn set_at_index<T: Borrow<Self::Type>>(&self, val: T, index: i32) -> Result<()> {
+        todo!()
+    }
+
+    fn get_at_index(&self, index: i32) -> Result<<Self::Type as ToOwned>::Owned> {
+        todo!()
     }
 }
 

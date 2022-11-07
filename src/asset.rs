@@ -206,6 +206,7 @@ impl AssetLibrary {
         .map(|info| ParmInfo {
             inner: info,
             session: self.session.clone(),
+            name: None
         });
         let values =
             crate::ffi::get_asset_def_parm_values(self.lib_id, &asset_name, &self.session, &count)?;

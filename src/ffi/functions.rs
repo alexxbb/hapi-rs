@@ -73,13 +73,13 @@ pub fn get_parm_string_values(
     crate::stringhandle::get_string_array(&handles, session)
 }
 
-pub fn get_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result<f32> {
+pub fn get_parm_float_value(node: NodeHandle, session: &Session, name: &CStr, index: i32) -> Result<f32> {
     let mut value = uninit!();
 
     unsafe {
         raw::HAPI_GetParmFloatValue(
-            node.session.ptr(),
-            node.handle.0,
+            session.ptr(),
+            node.0,
             name.as_ptr(),
             index,
             value.as_mut_ptr(),
@@ -89,13 +89,13 @@ pub fn get_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32) -> Resu
     }
 }
 
-pub fn get_parm_int_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result<i32> {
+pub fn get_parm_int_value(node: NodeHandle, session: &Session, name: &CStr, index: i32) -> Result<i32> {
     let mut value = uninit!();
 
     unsafe {
         raw::HAPI_GetParmIntValue(
-            node.session.ptr(),
-            node.handle.0,
+            session.ptr(),
+            node.0,
             name.as_ptr(),
             index,
             value.as_mut_ptr(),
@@ -105,12 +105,12 @@ pub fn get_parm_int_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result
     }
 }
 
-pub fn get_parm_string_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result<String> {
+pub fn get_parm_string_value(node: NodeHandle, session: &Session, name: &CStr, index: i32) -> Result<String> {
     let mut handle = uninit!();
     let handle = unsafe {
         raw::HAPI_GetParmStringValue(
-            node.session.ptr(),
-            node.handle.0,
+            session.ptr(),
+            node.0,
             name.as_ptr(),
             index,
             1,
@@ -141,11 +141,11 @@ pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<Nod
     }
 }
 
-pub fn set_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32, value: f32) -> Result<()> {
+pub fn set_parm_float_value(node: NodeHandle, session: &Session, name: &CStr, index: i32, value: f32) -> Result<()> {
     unsafe {
         raw::HAPI_SetParmFloatValue(
-            node.session.ptr(),
-            node.handle.0,
+            session.ptr(),
+            node.0,
             name.as_ptr(),
             index,
             value,
