@@ -17,9 +17,9 @@ fn main() -> Result<()> {
     for parm in node.parameters()? {
         let name = parm.name()?;
         let val_str = match parm {
-            Parameter::Int(p) => format!("{:?}", p.get_value()?),
-            Parameter::Float(p) => format!("{:?}", p.get_value()?),
-            Parameter::String(p) => format!("{:?}", p.get_value()?[0]),
+            Parameter::Int(p) => format!("{:?}", p.get()?),
+            Parameter::Float(p) => format!("{:?}", p.get()?),
+            Parameter::String(p) => format!("{:?}", p.get()?),
             _ => continue,
         };
         table.add_row(row![name, val_str]);

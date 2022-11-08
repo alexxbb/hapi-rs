@@ -84,7 +84,7 @@ pub fn get_parm_float_value(node: NodeHandle, session: &Session, name: &CStr, in
             index,
             value.as_mut_ptr(),
         )
-        .check_err(Some(&node.session))?;
+        .check_err(Some(&session))?;
         Ok(value.assume_init())
     }
 }
@@ -100,7 +100,7 @@ pub fn get_parm_int_value(node: NodeHandle, session: &Session, name: &CStr, inde
             index,
             value.as_mut_ptr(),
         )
-        .check_err(Some(&node.session))?;
+        .check_err(Some(session))?;
         Ok(value.assume_init())
     }
 }
@@ -116,10 +116,10 @@ pub fn get_parm_string_value(node: NodeHandle, session: &Session, name: &CStr, i
             1,
             handle.as_mut_ptr(),
         )
-        .check_err(Some(&node.session))?;
+        .check_err(Some(session))?;
         handle.assume_init()
     };
-    crate::stringhandle::get_string(handle, &node.session)
+    crate::stringhandle::get_string(handle, session)
 }
 
 pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<NodeHandle>> {
@@ -150,7 +150,7 @@ pub fn set_parm_float_value(node: NodeHandle, session: &Session, name: &CStr, in
             index,
             value,
         )
-        .check_err(Some(&node.session))
+        .check_err(Some(session))
     }
 }
 
@@ -200,7 +200,7 @@ pub fn set_parm_int_value(
 pub fn set_parm_string_value(
     node: NodeHandle,
     session: &Session,
-    parm: &ParmHandle,
+    parm: ParmHandle,
     index: i32,
     value: &CStr,
 ) -> Result<()> {
@@ -213,7 +213,7 @@ pub fn set_parm_string_value(
 pub fn set_parm_string_values<T>(
     node: NodeHandle,
     session: &Session,
-    parm: &ParmHandle,
+    parm: ParmHandle,
     values: &[T],
 ) -> Result<()>
 where

@@ -70,11 +70,11 @@ fn main() -> Result<()> {
     xform.connect_input(0, &cube, 0)?;
 
     if let Parameter::String(p) = xform.parameter("group").expect("group parm") {
-        p.set_value(&["pointGroup".to_owned()])?;
+        p.set("pointGroup")?;
     }
 
     if let Parameter::Float(p) = xform.parameter("t").expect("t parm") {
-        p.set_value(&[0.0, 1.0, 0.0])?
+        p.set_array([0.0, 1.0, 0.0])?
     }
     xform.cook(None)?;
 

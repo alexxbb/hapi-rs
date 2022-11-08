@@ -14,7 +14,7 @@ fn main() -> Result<()> {
     let lib = ses.load_asset_file("otls/hapi_script.hda")?;
     let node = lib.try_create_first()?;
     if let Parameter::String(parm) = node.parameter("code")? {
-        parm.set_value(&[SCRIPT.to_string()])?;
+        parm.set(SCRIPT)?;
     }
     if let Parameter::Button(run) = node.parameter("run")? {
         run.press_button()?
