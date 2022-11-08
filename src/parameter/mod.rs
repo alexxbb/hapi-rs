@@ -20,12 +20,11 @@
 mod tests;
 mod base;
 mod access;
-use crate::ffi::enums::ParmType;
-use crate::ffi::structs::ParmInfo;
+pub use crate::ffi::enums::ParmType;
+pub use crate::ffi::structs::ParmInfo;
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::Result;
 pub use base::*;
-use std::ffi::CString;
 
 #[derive(Debug, Clone, Copy)]
 /// An internal handle to a parameter
@@ -115,7 +114,7 @@ impl ParmHandle {
     /// Find a parameter handle by name
     pub fn from_name(name: &str, node: &HoudiniNode) -> Result<Self> {
         debug_assert!(node.is_valid()?);
-        let name = CString::new(name)?;
+        let name = std::ffi::CString::new(name)?;
         let id = crate::ffi::get_parm_id_from_name(&name, node.handle, &node.session)?;
         Ok(ParmHandle(id, ()))
     }
@@ -134,7 +133,7 @@ impl ParmHandle {
 impl ParmInfo {
     pub(crate) fn from_parm_name(name: &str, node: &HoudiniNode) -> Result<Self> {
         debug_assert!(node.is_valid()?);
-        let name = CString::new(name)?;
+        let name = std::ffi::CString::new(name)?;
         let info = crate::ffi::get_parm_info_from_name(node.handle, &node.session, &name);
         info.map(|info| ParmInfo {
             inner: info,
