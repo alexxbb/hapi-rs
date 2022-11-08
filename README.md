@@ -31,7 +31,7 @@ fn main() -> Result<()> {
     let node = session.create_node("Object/hapi_geo", None, None)?;
     // Set the "scale" parameter
     if let Parameter::Float(parm) = node.parameter("scale")? {
-        parm.set_value(&[3.0])?;
+        parm.set(0, 3.0)?;
         node.cook(None)?;
     }
     // Get a reference to the node's internal geometry
