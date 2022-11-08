@@ -1,4 +1,10 @@
 # hapi-rs changelog
+## [0.7.0]
+## Changed
+- Reworked parameter APIs
+  - Separate `get/set` and `get_array/set_array` methods
+  - `get/set` now take an index of a parameter tuple.
+  - Eliminate extra String clone for `set_*` string parameters.
 
 ## [0.6.0]
 ### New
