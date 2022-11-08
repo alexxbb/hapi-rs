@@ -1,7 +1,6 @@
-use env_logger;
 use hapi_rs::enums::{PdgEventType, PdgWorkItemState};
 use hapi_rs::node::{NodeType, Parameter};
-use hapi_rs::parameter::ParmBaseTrait;
+
 use hapi_rs::pdg::TopNode;
 use hapi_rs::session::{new_in_process, SessionOptionsBuilder};
 use hapi_rs::Result;
@@ -47,7 +46,7 @@ fn cook_async(node: &TopNode) -> Result<Vec<String>> {
 
 fn main() -> Result<()> {
     env_logger::init();
-    let out_dir = std::env::args().skip(1).next();
+    let out_dir = std::env::args().nth(1);
     let out_dir = if let Some(out_dir) = out_dir {
         let out_dir = std::path::PathBuf::from(out_dir);
         if !out_dir.exists() {

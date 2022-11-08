@@ -188,7 +188,7 @@ impl AssetLibrary {
         self.session.create_node(&name, None, None)
     }
 
-    /// Returns a struct holding the asset parameter information and vlaues
+    /// Returns a struct holding the asset parameter information and values
     pub fn get_asset_parms(&self, asset: impl AsRef<str>) -> Result<AssetParameters> {
         debug_assert!(self.session.is_valid());
         let _lock = self.session.lock();
@@ -206,7 +206,7 @@ impl AssetLibrary {
         .map(|info| ParmInfo {
             inner: info,
             session: self.session.clone(),
-            name: None
+            name: None,
         });
         let values =
             crate::ffi::get_asset_def_parm_values(self.lib_id, &asset_name, &self.session, &count)?;

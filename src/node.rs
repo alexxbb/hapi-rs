@@ -371,12 +371,14 @@ impl<'session> HoudiniNode {
         Ok(infos
             .into_iter()
             .map(|i| {
-                ParmInfo {
-                    inner: i,
-                    session: self.session.clone(),
-                    name: None,
-                }
-                .into_node_parm(self.handle)
+                Parameter::new(
+                    self.handle,
+                    ParmInfo {
+                        inner: i,
+                        session: self.session.clone(),
+                        name: None,
+                    },
+                )
             })
             .collect())
     }
@@ -748,7 +750,7 @@ mod tests {
             match parm {
                 Parameter::Float(parm) => {
                     let val: [f32; 3] = std::array::from_fn(|_| fastrand::f32());
-                    parm.set_array(&val).unwrap()
+                    parm.set_array(val).unwrap()
                 }
                 Parameter::Int(parm) => {
                     let values: Vec<_> = repeat_with(|| fastrand::i32(0..10))

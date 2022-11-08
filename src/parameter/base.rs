@@ -1,34 +1,22 @@
-use std::ffi::{CStr, CString};
-use std::borrow::Cow;
-use crate::ffi::{KeyFrame, ParmInfo, ParmChoiceInfo};
 use crate::ffi::enums::ChoiceListType;
+use crate::ffi::{KeyFrame, ParmChoiceInfo, ParmInfo};
 use crate::node::NodeHandle;
 use crate::Result;
+use std::borrow::Cow;
+use std::ffi::{CStr, CString};
 
 /// Common trait for parameters
 pub trait ParmBaseTrait {
-
     #[inline]
     fn name(&self) -> Result<String> {
         self.wrap().info.name()
     }
 
-    #[doc(hidden)]
-    // If the parameter was obtained by name (node.parameter(..))
-    // we store the name in the info struct, otherwise, call API to get name
-    fn c_name(&self) -> Result<Cow<CStr>> {
-        let wrap = self.wrap();
-        match wrap.info.name.as_deref() {
-            None => wrap.info.name_cstr().map(Cow::Owned),
-            Some(name) => Ok(Cow::Borrowed(name))
-        }
-    }
+    /// If the parameter has choice menu.
     #[inline]
     fn is_menu(&self) -> bool {
         !matches!(self.wrap().info.choice_list_type(), ChoiceListType::None)
     }
-    #[doc(hidden)]
-    fn wrap(&self) -> &ParmNodeWrap;
     /// If parameter is a menu type, return a vec of menu items
     fn menu_items(&self) -> Result<Option<Vec<ParmChoiceInfo>>> {
         if !self.is_menu() {
@@ -91,6 +79,18 @@ pub trait ParmBaseTrait {
         crate::ffi::set_parm_anim_curve(&wrap.info.session, wrap.node, wrap.info.id(), index, keys)
     }
 
+    #[doc(hidden)]
+    // If the parameter was obtained by name (node.parameter(..))
+    // we store the name in the info struct, otherwise, call API to get name
+    fn c_name(&self) -> Result<Cow<CStr>> {
+        let wrap = self.wrap();
+        match wrap.info.name.as_deref() {
+            None => wrap.info.name_cstr().map(Cow::Owned),
+            Some(name) => Ok(Cow::Borrowed(name)),
+        }
+    }
+    #[doc(hidden)]
+    fn wrap(&self) -> &ParmNodeWrap;
 }
 
 #[derive(Debug)]
@@ -106,16 +106,19 @@ pub struct BaseParameter {
     pub(crate) wrap: ParmNodeWrap,
 }
 
+/// Represents float parameters, including `Color` type.
 #[derive(Debug)]
 pub struct FloatParameter {
     pub(crate) wrap: ParmNodeWrap,
 }
 
+/// Represents integer parameters, including `Button` type
 #[derive(Debug)]
 pub struct IntParameter {
     pub(crate) wrap: ParmNodeWrap,
 }
 
+/// Represents string parameters of many different types.
 #[derive(Debug)]
 pub struct StringParameter {
     pub(crate) wrap: ParmNodeWrap,
@@ -133,7 +136,6 @@ impl ParmBaseTrait for IntParameter {
     fn wrap(&self) -> &ParmNodeWrap {
         &self.wrap
     }
-
 }
 
 impl ParmBaseTrait for StringParameter {

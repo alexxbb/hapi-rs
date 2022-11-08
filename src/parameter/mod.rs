@@ -14,18 +14,18 @@
 //!     assert!(p.set(0, "world").is_ok());
 //! }
 //! ```
+//! Extra parameter features are available in [`ParmBaseTrait`]
 
 #[cfg(test)]
 mod tests;
 mod base;
 mod access;
-use std::ffi::{CStr, CString};
-pub use base::*;
 use crate::ffi::enums::ParmType;
-use crate::Result;
-use crate::node::{HoudiniNode, NodeHandle};
 use crate::ffi::structs::ParmInfo;
-
+use crate::node::{HoudiniNode, NodeHandle};
+use crate::Result;
+pub use base::*;
+use std::ffi::CString;
 
 #[derive(Debug, Clone, Copy)]
 /// An internal handle to a parameter
@@ -70,19 +70,19 @@ impl Parameter {
         &self.base().info
     }
 
-    /// Parameter name
+    /// Parameter internal name
     #[inline]
     pub fn name(&self) -> Result<String> {
         self.info().name()
     }
 
-    /// Parameter label
+    /// Parameter UI label
     #[inline]
     pub fn label(&self) -> Result<String> {
         self.info().label()
     }
 
-    /// Parameter parent if any (examples are mutli-parm or Folder type parameters)
+    /// Parameter parent if any (examples are multi-parm or Folder type parameters)
     pub fn parent(&self) -> Result<Option<ParmInfo>> {
         let wrap = self.base();
         debug_assert!(wrap.info.session.is_valid());
@@ -132,18 +132,14 @@ impl ParmHandle {
 }
 
 impl ParmInfo {
-    pub fn from_parm_name(name: &str, node: &HoudiniNode) -> Result<Self> {
+    pub(crate) fn from_parm_name(name: &str, node: &HoudiniNode) -> Result<Self> {
         debug_assert!(node.is_valid()?);
         let name = CString::new(name)?;
         let info = crate::ffi::get_parm_info_from_name(node.handle, &node.session, &name);
         info.map(|info| ParmInfo {
             inner: info,
             session: node.session.clone(),
-            name: Some(name)
+            name: Some(name),
         })
-    }
-
-    pub fn into_node_parm(self, node: NodeHandle) -> Parameter {
-        Parameter::new(node, self)
     }
 }

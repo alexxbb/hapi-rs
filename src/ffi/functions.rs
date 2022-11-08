@@ -73,7 +73,12 @@ pub fn get_parm_string_values(
     crate::stringhandle::get_string_array(&handles, session)
 }
 
-pub fn get_parm_float_value(node: NodeHandle, session: &Session, name: &CStr, index: i32) -> Result<f32> {
+pub fn get_parm_float_value(
+    node: NodeHandle,
+    session: &Session,
+    name: &CStr,
+    index: i32,
+) -> Result<f32> {
     let mut value = uninit!();
 
     unsafe {
@@ -84,12 +89,17 @@ pub fn get_parm_float_value(node: NodeHandle, session: &Session, name: &CStr, in
             index,
             value.as_mut_ptr(),
         )
-        .check_err(Some(&session))?;
+        .check_err(Some(session))?;
         Ok(value.assume_init())
     }
 }
 
-pub fn get_parm_int_value(node: NodeHandle, session: &Session, name: &CStr, index: i32) -> Result<i32> {
+pub fn get_parm_int_value(
+    node: NodeHandle,
+    session: &Session,
+    name: &CStr,
+    index: i32,
+) -> Result<i32> {
     let mut value = uninit!();
 
     unsafe {
@@ -105,7 +115,12 @@ pub fn get_parm_int_value(node: NodeHandle, session: &Session, name: &CStr, inde
     }
 }
 
-pub fn get_parm_string_value(node: NodeHandle, session: &Session, name: &CStr, index: i32) -> Result<String> {
+pub fn get_parm_string_value(
+    node: NodeHandle,
+    session: &Session,
+    name: &CStr,
+    index: i32,
+) -> Result<String> {
     let mut handle = uninit!();
     let handle = unsafe {
         raw::HAPI_GetParmStringValue(
@@ -141,16 +156,16 @@ pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<Nod
     }
 }
 
-pub fn set_parm_float_value(node: NodeHandle, session: &Session, name: &CStr, index: i32, value: f32) -> Result<()> {
+pub fn set_parm_float_value(
+    node: NodeHandle,
+    session: &Session,
+    name: &CStr,
+    index: i32,
+    value: f32,
+) -> Result<()> {
     unsafe {
-        raw::HAPI_SetParmFloatValue(
-            session.ptr(),
-            node.0,
-            name.as_ptr(),
-            index,
-            value,
-        )
-        .check_err(Some(session))
+        raw::HAPI_SetParmFloatValue(session.ptr(), node.0, name.as_ptr(), index, value)
+            .check_err(Some(session))
     }
 }
 

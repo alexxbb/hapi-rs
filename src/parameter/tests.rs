@@ -23,7 +23,7 @@ fn node_parameters() {
         }
 
         if let Parameter::String(p) = node.parameter("multi_string").unwrap() {
-            let mut value = p.get_array().unwrap();
+            let value = p.get_array().unwrap();
             assert_eq!(vec!["foo 1", "bar 2", "baz 3"], value);
             p.set(1, "cheese").unwrap();
             assert_eq!("cheese", p.get(1).unwrap());

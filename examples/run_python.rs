@@ -1,6 +1,6 @@
 // Houdini Engine does not allow execution of Python code directly,
 // but this example uses an otl which runs a provided snippet or a file
-use hapi_rs::parameter::{Parameter, ParmBaseTrait};
+use hapi_rs::parameter::Parameter;
 use hapi_rs::session::quick_session;
 use hapi_rs::Result;
 
