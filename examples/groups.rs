@@ -70,7 +70,7 @@ fn main() -> Result<()> {
     xform.connect_input(0, &cube, 0)?;
 
     if let Parameter::String(p) = xform.parameter("group").expect("group parm") {
-        p.set("pointGroup")?;
+        p.set(0, "pointGroup")?;
     }
 
     if let Parameter::Float(p) = xform.parameter("t").expect("t parm") {

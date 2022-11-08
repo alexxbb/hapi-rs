@@ -19,7 +19,7 @@ fn main() -> Result<()> {
     println!("Material node: {node_path}");
 
     if let Parameter::String(p) = mat_node.parameter("baseColorMap")? {
-        println!("Base color map path: {}", p.get()?);
+        println!("Base color map path: {}", p.get(0)?);
     }
     material.render_texture("baseColorMap")?;
 

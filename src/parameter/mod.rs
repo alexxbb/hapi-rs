@@ -10,8 +10,8 @@
 //! let lib = session.load_asset_file("otls/hapi_parms.hda").unwrap();
 //! let node = lib.try_create_first().unwrap();
 //! if let Parameter::String(p) = node.parameter("single_string").unwrap() {
-//!     assert_eq!(p.get_value().unwrap(), &["hello"]);
-//!     assert!(p.set_value(&["world".to_string()]).is_ok());
+//!     assert_eq!(p.get(0).unwrap(), "hello");
+//!     assert!(p.set(0, "world").is_ok());
 //! }
 //! ```
 

@@ -720,7 +720,7 @@ mod tests {
             .unwrap();
         session.set_time(1.0).unwrap();
         if let Parameter::Float(p) = bone.parameter("ty").unwrap() {
-            assert_eq!(p.get_at_index(1).unwrap(), 5.0);
+            assert_eq!(p.get(1).unwrap(), 5.0);
         }
     }
 
@@ -731,11 +731,11 @@ mod tests {
                 .create_node("Object/null", "get_set_parent", None)
                 .unwrap();
             if let Parameter::Float(p) = node.parameter("scale").unwrap() {
-                assert_eq!(p.get().unwrap(), 1.0);
+                assert_eq!(p.get(0).unwrap(), 1.0);
                 let save = node.get_preset("test", PresetType::Binary).unwrap();
-                p.set(2.0).unwrap();
+                p.set(0, 2.0).unwrap();
                 node.set_preset("test", PresetType::Binary, &save).unwrap();
-                assert_eq!(p.get().unwrap(), 1.0);
+                assert_eq!(p.get(0).unwrap(), 1.0);
             }
         });
     }
@@ -771,13 +771,13 @@ mod tests {
         fn get_parm_value(parm: &Parameter) {
             match parm {
                 Parameter::Float(parm) => {
-                    parm.get().unwrap();
+                    parm.get(0).unwrap();
                 }
                 Parameter::Int(parm) => {
-                    parm.get().unwrap();
+                    parm.get(0).unwrap();
                 }
                 Parameter::String(parm) => {
-                    parm.get().unwrap();
+                    parm.get(0).unwrap();
                 }
                 Parameter::Button(_) => {}
                 Parameter::Other(_) => {}

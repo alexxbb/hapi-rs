@@ -25,13 +25,13 @@ fn node_parameters() {
         if let Parameter::String(p) = node.parameter("multi_string").unwrap() {
             let mut value = p.get_array().unwrap();
             assert_eq!(vec!["foo 1", "bar 2", "baz 3"], value);
-            p.set_at_index("cheese", 1).unwrap();
-            assert_eq!("cheese", p.get_at_index(1).unwrap());
+            p.set(1, "cheese").unwrap();
+            assert_eq!("cheese", p.get(1).unwrap());
         }
 
         if let Parameter::Int(p) = node.parameter("ord_menu").unwrap() {
             assert!(p.is_menu());
-            assert_eq!(p.get().unwrap(), 0);
+            assert_eq!(p.get(0).unwrap(), 0);
             if let Some(items) = p.menu_items().unwrap() {
                 assert_eq!(items[0].value().unwrap(), "foo");
                 assert_eq!(items[0].label().unwrap(), "Foo");
@@ -40,7 +40,7 @@ fn node_parameters() {
 
         if let Parameter::String(p) = node.parameter("script_menu").unwrap() {
             assert!(p.is_menu());
-            assert_eq!(p.get().unwrap(), "rs");
+            assert_eq!(p.get(0).unwrap(), "rs");
             if let Some(items) = p.menu_items().unwrap() {
                 assert_eq!(items[0].value().unwrap(), "rs");
                 assert_eq!(items[0].label().unwrap(), "Rust");
@@ -48,17 +48,17 @@ fn node_parameters() {
         }
 
         if let Parameter::Int(p) = node.parameter("toggle").unwrap() {
-            assert_eq!(p.get().unwrap(), 0);
-            p.set(1).unwrap();
-            assert_eq!(p.get().unwrap(), 1);
+            assert_eq!(p.get(0).unwrap(), 0);
+            p.set(0, 1).unwrap();
+            assert_eq!(p.get(0).unwrap(), 1);
         }
 
         // test button callback
         if let Parameter::Button(ip) = node.parameter("button").unwrap() {
             if let Parameter::String(sp) = node.parameter("single_string").unwrap() {
-                assert_eq!(sp.get().unwrap(), "hello");
+                assert_eq!(sp.get(0).unwrap(), "hello");
                 ip.press_button().unwrap();
-                assert_eq!(sp.get().unwrap(), "set from callback");
+                assert_eq!(sp.get(0).unwrap(), "set from callback");
             }
         }
     });

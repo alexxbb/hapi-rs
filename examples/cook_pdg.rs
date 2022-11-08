@@ -75,10 +75,10 @@ fn main() -> Result<()> {
     let lib = session.load_asset_file(&otl)?;
     let asset = lib.try_create_first()?;
     if let Parameter::Float(p) = asset.parameter("num_frames")? {
-        p.set(NUM_FRAMES as f32)?;
+        p.set(0, NUM_FRAMES as f32)?;
     }
     if let Parameter::String(p) = asset.parameter("pdg_workingdir").expect("parm") {
-        p.set(out_dir.to_string_lossy())?;
+        p.set(0, out_dir.to_string_lossy())?;
     }
 
     asset.cook_blocking(None)?;

@@ -12,14 +12,29 @@ use crate::stringhandle::StringArray;
 
 
 impl IntParameter {
-    #[inline]
-    pub fn set(&self, val: i32) -> Result<()> {
-        self.set_at_index(val, 0)
+    pub fn set(&self, index: i32, value: i32) -> Result<()> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
+        let name = self.c_name()?;
+        crate::ffi::set_parm_int_value(
+            self.wrap.node,
+            session,
+            &name,
+            index,
+            value
+        )
     }
 
-    #[inline]
-    pub fn get(&self) -> Result<i32> {
-        self.get_at_index(0)
+    pub fn get(&self, index: i32) -> Result<i32> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
+        let name = self.c_name()?;
+        crate::ffi::get_parm_int_value(
+            self.wrap.node,
+            session,
+            &name,
+            index,
+        )
     }
 
     pub fn set_array(&self, val: impl AsRef<[i32]>) -> Result<()> {
@@ -45,11 +60,23 @@ impl IntParameter {
         )
     }
 
-    pub fn set_at_index(&self, value: i32, index: i32) -> Result<()> {
+
+    /// Emulates a button press action
+    pub fn press_button(&self) -> Result<()> {
+        if !matches!(self.wrap.info.parm_type(), ParmType::Button) {
+            log::warn!("Parm {} not a Button type", self.wrap.info.name()?);
+        }
+        self.set(0, 1)
+    }
+}
+
+impl FloatParameter {
+
+    pub fn set(&self, index: i32, value: f32) -> Result<()> {
         let session = &self.wrap.info.session;
         debug_assert!(self.wrap.node.is_valid(session)?);
         let name = self.c_name()?;
-        crate::ffi::set_parm_int_value(
+        crate::ffi::set_parm_float_value(
             self.wrap.node,
             session,
             &name,
@@ -58,37 +85,16 @@ impl IntParameter {
         )
     }
 
-    pub fn get_at_index(&self, index: i32) -> Result<i32> {
+    pub fn get(&self, index: i32) -> Result<f32> {
         let session = &self.wrap.info.session;
         debug_assert!(self.wrap.node.is_valid(session)?);
         let name = self.c_name()?;
-        crate::ffi::get_parm_int_value(
+        crate::ffi::get_parm_float_value(
             self.wrap.node,
             session,
             &name,
             index,
         )
-    }
-
-    /// Emulates a button press action
-    pub fn press_button(&self) -> Result<()> {
-        if !matches!(self.wrap.info.parm_type(), ParmType::Button) {
-            log::warn!("Parm {} not a Button type", self.wrap.info.name()?);
-        }
-        self.set(1)
-    }
-}
-
-impl FloatParameter {
-
-    #[inline]
-    pub fn set(&self, val: f32) -> Result<()> {
-        self.set_at_index(val, 0)
-    }
-
-    #[inline]
-    pub fn get(&self) -> Result<f32> {
-        self.get_at_index(0)
     }
 
     pub fn set_array(&self, val: impl AsRef<[f32]>) -> Result<()> {
@@ -114,44 +120,34 @@ impl FloatParameter {
         )
     }
 
-    pub fn set_at_index(&self, value: f32, index: i32) -> Result<()> {
-        let session = &self.wrap.info.session;
-        debug_assert!(self.wrap.node.is_valid(session)?);
-        let name = self.c_name()?;
-        crate::ffi::set_parm_float_value(
-            self.wrap.node,
-            session,
-            &name,
-            index,
-            value
-        )
-    }
-
-    pub fn get_at_index(&self, index: i32) -> Result<f32> {
-        let session = &self.wrap.info.session;
-        debug_assert!(self.wrap.node.is_valid(session)?);
-        let name = self.c_name()?;
-        crate::ffi::get_parm_float_value(
-            self.wrap.node,
-            session,
-            &name,
-            index,
-        )
-    }
 }
 
 impl StringParameter {
 
-    #[inline]
-    pub fn set(&self, val: impl AsRef<str>) -> Result<()> {
-        self.set_at_index(val, 0)
+    pub fn set(&self, index: i32, value: impl AsRef<str>) -> Result<()> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
+        let value = CString::new(value.as_ref())?;
+        crate::ffi::set_parm_string_value(
+            self.wrap.node,
+            session,
+            self.wrap.info.id(),
+            index,
+            &value
+        )
     }
 
-    #[inline]
-    pub fn get(&self) -> Result<String> {
-        self.get_at_index(0)
+    pub fn get(&self, index: i32) -> Result<String> {
+        let session = &self.wrap.info.session;
+        debug_assert!(self.wrap.node.is_valid(session)?);
+        let name = self.c_name()?;
+        crate::ffi::get_parm_string_value(
+            self.wrap.node,
+            session,
+            &name,
+            index,
+        )
     }
-
     pub fn set_array<'a, T: AsRef<str>>(&self, val: impl AsRef<[T]>) -> Result<()> {
         let session = &self.wrap.info.session;
         debug_assert!(self.wrap.node.is_valid(session)?);
@@ -175,28 +171,4 @@ impl StringParameter {
         ).map(|array|array.into())
     }
 
-    pub fn set_at_index(&self, value: impl AsRef<str>, index: i32) -> Result<()> {
-        let session = &self.wrap.info.session;
-        debug_assert!(self.wrap.node.is_valid(session)?);
-        let value = CString::new(value.as_ref())?;
-        crate::ffi::set_parm_string_value(
-            self.wrap.node,
-            session,
-            self.wrap.info.id(),
-            index,
-            &value
-        )
-    }
-
-    pub fn get_at_index(&self, index: i32) -> Result<String> {
-        let session = &self.wrap.info.session;
-        debug_assert!(self.wrap.node.is_valid(session)?);
-        let name = self.c_name()?;
-        crate::ffi::get_parm_string_value(
-            self.wrap.node,
-            session,
-            &name,
-            index,
-        )
-    }
 }
