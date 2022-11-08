@@ -1,4 +1,4 @@
-use hapi_rs::parameter::{Parameter, ParmBaseTrait};
+use hapi_rs::parameter::Parameter;
 use hapi_rs::session::{quick_session, SessionOptions};
 use hapi_rs::Result;
 use prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR as FORMAT;
@@ -17,9 +17,9 @@ fn main() -> Result<()> {
     for parm in node.parameters()? {
         let name = parm.name()?;
         let val_str = match parm {
-            Parameter::Int(p) => format!("{:?}", p.get_value()?),
-            Parameter::Float(p) => format!("{:?}", p.get_value()?),
-            Parameter::String(p) => format!("{:?}", p.get_value()?[0]),
+            Parameter::Int(p) => format!("{:?}", p.get(0)?),
+            Parameter::Float(p) => format!("{:?}", p.get(0)?),
+            Parameter::String(p) => format!("{:?}", p.get(0)?),
             _ => continue,
         };
         table.add_row(row![name, val_str]);

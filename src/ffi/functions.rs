@@ -73,53 +73,68 @@ pub fn get_parm_string_values(
     crate::stringhandle::get_string_array(&handles, session)
 }
 
-pub fn get_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result<f32> {
+pub fn get_parm_float_value(
+    node: NodeHandle,
+    session: &Session,
+    name: &CStr,
+    index: i32,
+) -> Result<f32> {
     let mut value = uninit!();
 
     unsafe {
         raw::HAPI_GetParmFloatValue(
-            node.session.ptr(),
-            node.handle.0,
+            session.ptr(),
+            node.0,
             name.as_ptr(),
             index,
             value.as_mut_ptr(),
         )
-        .check_err(Some(&node.session))?;
+        .check_err(Some(session))?;
         Ok(value.assume_init())
     }
 }
 
-pub fn get_parm_int_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result<i32> {
+pub fn get_parm_int_value(
+    node: NodeHandle,
+    session: &Session,
+    name: &CStr,
+    index: i32,
+) -> Result<i32> {
     let mut value = uninit!();
 
     unsafe {
         raw::HAPI_GetParmIntValue(
-            node.session.ptr(),
-            node.handle.0,
+            session.ptr(),
+            node.0,
             name.as_ptr(),
             index,
             value.as_mut_ptr(),
         )
-        .check_err(Some(&node.session))?;
+        .check_err(Some(session))?;
         Ok(value.assume_init())
     }
 }
 
-pub fn get_parm_string_value(node: &HoudiniNode, name: &CStr, index: i32) -> Result<String> {
+pub fn get_parm_string_value(
+    node: NodeHandle,
+    session: &Session,
+    name: &CStr,
+    index: i32,
+) -> Result<String> {
     let mut handle = uninit!();
     let handle = unsafe {
         raw::HAPI_GetParmStringValue(
-            node.session.ptr(),
-            node.handle.0,
+            session.ptr(),
+            node.0,
             name.as_ptr(),
             index,
             1,
             handle.as_mut_ptr(),
         )
-        .check_err(Some(&node.session))?;
+        .check_err(Some(session))?;
         handle.assume_init()
     };
-    crate::stringhandle::get_string(handle, &node.session)
+    crate::stringhandle::get_string(handle, session)
 }
 
 pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<NodeHandle>> {
@@ -141,16 +156,16 @@ pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<Nod
     }
 }
 
-pub fn set_parm_float_value(node: &HoudiniNode, name: &CStr, index: i32, value: f32) -> Result<()> {
+pub fn set_parm_float_value(
+    node: NodeHandle,
+    session: &Session,
+    name: &CStr,
+    index: i32,
+    value: f32,
+) -> Result<()> {
     unsafe {
-        raw::HAPI_SetParmFloatValue(
-            node.session.ptr(),
-            node.handle.0,
-            name.as_ptr(),
-            index,
-            value,
-        )
-        .check_err(Some(&node.session))
+        raw::HAPI_SetParmFloatValue(session.ptr(), node.0, name.as_ptr(), index, value)
+            .check_err(Some(session))
     }
 }
 
@@ -200,7 +215,7 @@ pub fn set_parm_int_value(
 pub fn set_parm_string_value(
     node: NodeHandle,
     session: &Session,
-    parm: &ParmHandle,
+    parm: ParmHandle,
     index: i32,
     value: &CStr,
 ) -> Result<()> {
@@ -213,7 +228,7 @@ pub fn set_parm_string_value(
 pub fn set_parm_string_values<T>(
     node: NodeHandle,
     session: &Session,
-    parm: &ParmHandle,
+    parm: ParmHandle,
     values: &[T],
 ) -> Result<()>
 where

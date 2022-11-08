@@ -371,11 +371,14 @@ impl<'session> HoudiniNode {
         Ok(infos
             .into_iter()
             .map(|i| {
-                ParmInfo {
-                    inner: i,
-                    session: self.session.clone(),
-                }
-                .into_node_parm(self.handle)
+                Parameter::new(
+                    self.handle,
+                    ParmInfo {
+                        inner: i,
+                        session: self.session.clone(),
+                        name: None,
+                    },
+                )
             })
             .collect())
     }
@@ -719,7 +722,7 @@ mod tests {
             .unwrap();
         session.set_time(1.0).unwrap();
         if let Parameter::Float(p) = bone.parameter("ty").unwrap() {
-            assert_eq!(p.get_value().unwrap(), &[0.0, 5.0, 0.0]);
+            assert_eq!(p.get(1).unwrap(), 5.0);
         }
     }
 
@@ -730,11 +733,11 @@ mod tests {
                 .create_node("Object/null", "get_set_parent", None)
                 .unwrap();
             if let Parameter::Float(p) = node.parameter("scale").unwrap() {
-                assert_eq!(p.get_value().unwrap(), &[1.0]);
+                assert_eq!(p.get(0).unwrap(), 1.0);
                 let save = node.get_preset("test", PresetType::Binary).unwrap();
-                p.set_value(&[2.0]).unwrap();
+                p.set(0, 2.0).unwrap();
                 node.set_preset("test", PresetType::Binary, &save).unwrap();
-                assert_eq!(p.get_value().unwrap(), &[1.0]);
+                assert_eq!(p.get(0).unwrap(), 1.0);
             }
         });
     }
@@ -747,20 +750,20 @@ mod tests {
             match parm {
                 Parameter::Float(parm) => {
                     let val: [f32; 3] = std::array::from_fn(|_| fastrand::f32());
-                    parm.set_value(val).unwrap()
+                    parm.set_array(val).unwrap()
                 }
                 Parameter::Int(parm) => {
-                    let value: Vec<_> = repeat_with(|| fastrand::i32(0..10))
+                    let values: Vec<_> = repeat_with(|| fastrand::i32(0..10))
                         .take(parm.wrap.info.size() as usize)
                         .collect();
-                    parm.set_value(&value).unwrap()
+                    parm.set_array(&values).unwrap()
                 }
                 Parameter::String(parm) => {
-                    let value: Vec<String> = (0..parm.wrap.info.size())
+                    let values: Vec<String> = (0..parm.wrap.info.size())
                         .into_iter()
                         .map(|_| repeat_with(fastrand::alphanumeric).take(10).collect())
                         .collect();
-                    parm.set_value(&value).unwrap()
+                    parm.set_array(values).unwrap()
                 }
                 Parameter::Button(parm) => parm.press_button().unwrap(),
                 Parameter::Other(_) => {}
@@ -770,13 +773,13 @@ mod tests {
         fn get_parm_value(parm: &Parameter) {
             match parm {
                 Parameter::Float(parm) => {
-                    parm.get_value().unwrap();
+                    parm.get(0).unwrap();
                 }
                 Parameter::Int(parm) => {
-                    parm.get_value().unwrap();
+                    parm.get(0).unwrap();
                 }
                 Parameter::String(parm) => {
-                    parm.get_value().unwrap();
+                    parm.get(0).unwrap();
                 }
                 Parameter::Button(_) => {}
                 Parameter::Other(_) => {}

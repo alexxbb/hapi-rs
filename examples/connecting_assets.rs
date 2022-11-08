@@ -43,11 +43,11 @@ fn main() -> Result<()> {
         0, 4, 5, 1
     ];
 
-    geom.set_vertex_list(0, &vertices)?;
-    geom.set_face_counts(0, &[4, 4, 4, 4, 4, 4])?;
+    geom.set_vertex_list(0, vertices)?;
+    geom.set_face_counts(0, [4, 4, 4, 4, 4, 4])?;
     geom.commit()?;
 
-    let subdivide_node = session.create_node("Sop/subdivide", Some("Cube Subdivider"), None)?;
+    let subdivide_node = session.create_node("Sop/subdivide", Some("Cube Subdivide"), None)?;
     subdivide_node.connect_input(0, geom.node, 0)?;
     let hip = std::env::temp_dir().join("connecting_assets.hip");
     session.save_hip(&hip.to_string_lossy(), false)?;

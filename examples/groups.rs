@@ -4,7 +4,7 @@ use hapi_rs::geometry::{
     AttributeInfo, AttributeOwner, GroupType, PartInfo, PartType, StorageType,
 };
 use hapi_rs::node::HoudiniNode;
-use hapi_rs::parameter::{Parameter, ParmBaseTrait};
+use hapi_rs::parameter::Parameter;
 use hapi_rs::session::{quick_session, Session};
 use hapi_rs::Result;
 
@@ -51,13 +51,11 @@ fn create_cube(session: &Session) -> Result<HoudiniNode> {
         5, 4, 6, 7,
         0, 4, 5, 1
     ];
-    geometry.set_vertex_list(0, &vertices)?;
-    geometry.set_face_counts(0, &[4, 4, 4, 4, 4, 4])?;
+    geometry.set_vertex_list(0, vertices)?;
+    geometry.set_face_counts(0, [4, 4, 4, 4, 4, 4])?;
 
     let num_elem = part_info.element_count_by_group(GroupType::Point);
-    let membership: Vec<_> = (0..num_elem)
-        .map(|v| if (v % 2) > 0 { 1 } else { 0 })
-        .collect();
+    let membership: Vec<_> = (0..num_elem).map(|v| v % 2).collect();
     geometry.add_group(0, GroupType::Point, "pointGroup", Some(&membership))?;
     geometry.commit()?;
     Ok(geometry.node)
@@ -70,11 +68,11 @@ fn main() -> Result<()> {
     xform.connect_input(0, &cube, 0)?;
 
     if let Parameter::String(p) = xform.parameter("group").expect("group parm") {
-        p.set_value(&["pointGroup".to_owned()])?;
+        p.set(0, "pointGroup")?;
     }
 
     if let Parameter::Float(p) = xform.parameter("t").expect("t parm") {
-        p.set_value(&[0.0, 1.0, 0.0])?
+        p.set_array([0.0, 1.0, 0.0])?
     }
     xform.cook(None)?;
 

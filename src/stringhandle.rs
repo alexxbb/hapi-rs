@@ -91,6 +91,12 @@ impl<'a> StringArray {
     }
 }
 
+impl From<StringArray> for Vec<String> {
+    fn from(a: StringArray) -> Self {
+        a.into_iter().collect()
+    }
+}
+
 impl<'a> std::iter::Iterator for StringIter<'a> {
     type Item = &'a str;
 
