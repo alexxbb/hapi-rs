@@ -1,6 +1,5 @@
 //! Rendering material textures to memory or disk
 //!
-use crate::ffi::ImageFileFormat;
 use crate::ffi::{raw::HAPI_MaterialInfo, ImageInfo};
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::parameter::ParmHandle;
@@ -73,15 +72,6 @@ impl Material {
         crate::ffi::get_image_planes(&self.session, self.node_handle())
             .map(|a| a.into_iter().collect())
     }
-}
-
-pub fn get_supported_image_formats(session: &Session) -> Result<Vec<ImageFileFormat<'_>>> {
-    debug_assert!(session.is_valid());
-    crate::ffi::get_supported_image_file_formats(session).map(|v| {
-        v.into_iter()
-            .map(|inner| ImageFileFormat { inner, session })
-            .collect()
-    })
 }
 
 pub(crate) fn extract_image_to_file(

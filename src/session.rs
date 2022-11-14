@@ -24,7 +24,7 @@ use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::raw,
-    ffi::{CookOptions, SessionSyncInfo, TimelineOptions, Viewport},
+    ffi::{CookOptions, ImageFileFormat, SessionSyncInfo, TimelineOptions, Viewport},
     node::{HoudiniNode, ManagerNode, NodeHandle},
     stringhandle::StringArray,
 };
@@ -504,6 +504,14 @@ impl Session {
         debug_assert!(cop_node.is_valid(self)?);
         crate::ffi::render_cop_to_image(self, cop_node)?;
         crate::material::extract_image_to_memory(self, cop_node, image_planes, format)
+    }
+    pub fn get_supported_image_formats(&self) -> Result<Vec<ImageFileFormat<'_>>> {
+        debug_assert!(self.is_valid());
+        crate::ffi::get_supported_image_file_formats(&self).map(|v| {
+            v.into_iter()
+                .map(|inner| ImageFileFormat { inner, session: &self })
+                .collect()
+        })
     }
 }
 
