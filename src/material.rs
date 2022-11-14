@@ -120,14 +120,13 @@ pub(crate) fn extract_image_to_memory(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::geometry::Materials;
     use crate::session::tests::with_session;
 
     #[test]
     fn image_file_formats() {
         with_session(|session| {
-            let formats = get_supported_image_formats(session).unwrap();
+            let formats = session.get_supported_image_formats().unwrap();
             assert!(formats.iter().any(|f| f.name().unwrap() == "JPEG"));
             assert!(formats.iter().any(|f| f.extension().unwrap() == "jpg"));
         });

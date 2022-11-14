@@ -185,7 +185,32 @@ impl AssetLibrary {
                 server_message: None,
                 contexts: Vec::new(),
             })?;
-        self.session.create_node(&name, None, None)
+        // Most common HDAs are Object/asset which HAPI can create directly,
+        // but for some assets type like Cop, Top a manager node must be created first
+        let Some((network, operator)) = name.split_once('/') else {
+            panic!("Asset name returned from API expected to be fully qualified, got: \"{name}\"")
+        };
+        let manager = match network {
+            "Cop2" => Some(("/img", "img")),
+            "Chop" => Some(("/ch", "ch")),
+            "Top" => Some(("/tasks", "topnet")),
+            _ => None,
+        };
+
+        let parent = if let Some((manger, network)) = manager {
+            // FIXME: Should use get_manager_node, but due to current bug, search by path
+            let manager = self.session.find_node_from_path(manger, None)?;
+            Some(
+                self.session
+                    .create_node(network, None, Some(manager.handle))?,
+            )
+        } else {
+            None
+        };
+        // If passing a parent, operator name must be stripped of the context name
+        let full_name = if parent.is_some() { operator } else { &name };
+        self.session
+            .create_node(full_name, None, parent.map(|n| n.handle))
     }
 
     /// Returns a struct holding the asset parameter information and values

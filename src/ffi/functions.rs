@@ -937,7 +937,8 @@ pub fn create_node(
             cook as i8,
             id.as_mut_ptr(),
         )
-        .check_err(Some(session))?;
+        .check_err(Some(session))
+        .context("Calling HAPI_CreateNode")?;
         Ok(id.assume_init())
     }
 }
@@ -964,7 +965,8 @@ pub fn get_manager_node(session: &Session, node_type: raw::NodeType) -> Result<r
     unsafe {
         let mut id = uninit!();
         raw::HAPI_GetManagerNodeId(session.ptr(), node_type, id.as_mut_ptr())
-            .check_err(Some(session))?;
+            .check_err(Some(session))
+            .context("Calling HAPI_GetManagerNodeId")?;
         Ok(id.assume_init())
     }
 }
@@ -2537,7 +2539,11 @@ pub fn render_texture_to_image(
 }
 
 pub fn render_cop_to_image(session: &Session, cop_node: NodeHandle) -> Result<()> {
-    unsafe { raw::HAPI_RenderCOPToImage(session.ptr(), cop_node.0).check_err(Some(session)) }
+    unsafe {
+        raw::HAPI_RenderCOPToImage(session.ptr(), cop_node.0)
+            .check_err(Some(session))
+            .context("Calling HAPI_RenderCOPToImage")
+    }
 }
 
 pub fn set_image_info(session: &Session, material: NodeHandle, info: &ImageInfo) -> Result<()> {
@@ -2594,7 +2600,8 @@ pub fn extract_image_to_memory(
             image_planes.as_ptr(),
             size.as_mut_ptr(),
         )
-        .check_err(Some(session))?;
+        .check_err(Some(session))
+        .context("Calling HAPI_ExtractImageToMemory")?;
         let size = size.assume_init() as usize;
         let mut buffer = vec![0; size];
         raw::HAPI_GetImageMemoryBuffer(
@@ -2603,7 +2610,8 @@ pub fn extract_image_to_memory(
             buffer.as_mut_ptr(),
             buffer.len() as i32,
         )
-        .check_err(Some(session))?;
+        .check_err(Some(session))
+        .context("Calling HAPI_GetImageMemoryBuffer")?;
         Ok(buffer)
     }
 }

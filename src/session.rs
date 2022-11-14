@@ -505,11 +505,15 @@ impl Session {
         crate::ffi::render_cop_to_image(self, cop_node)?;
         crate::material::extract_image_to_memory(self, cop_node, image_planes, format)
     }
+
     pub fn get_supported_image_formats(&self) -> Result<Vec<ImageFileFormat<'_>>> {
         debug_assert!(self.is_valid());
-        crate::ffi::get_supported_image_file_formats(&self).map(|v| {
+        crate::ffi::get_supported_image_file_formats(self).map(|v| {
             v.into_iter()
-                .map(|inner| ImageFileFormat { inner, session: &self })
+                .map(|inner| ImageFileFormat {
+                    inner,
+                    session: self,
+                })
                 .collect()
         })
     }
