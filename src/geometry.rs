@@ -238,7 +238,7 @@ impl Geometry {
             if mats[0] == -1 {
                 Ok(None)
             } else {
-                let mat_node = NodeHandle(mats[0], ());
+                let mat_node = NodeHandle(mats[0]);
                 let info = crate::ffi::get_material_info(&self.node.session, mat_node)?;
                 Ok(Some(Materials::Single(Material {
                     session: self.node.session.clone(),
@@ -250,11 +250,9 @@ impl Geometry {
             let mats = mats
                 .into_iter()
                 .map(|id| {
-                    crate::ffi::get_material_info(&session, NodeHandle(id, ())).map(|info| {
-                        Material {
-                            session: session.clone(),
-                            info,
-                        }
+                    crate::ffi::get_material_info(&session, NodeHandle(id)).map(|info| Material {
+                        session: session.clone(),
+                        info,
                     })
                 })
                 .collect::<Result<Vec<_>>>();
@@ -655,7 +653,7 @@ impl Geometry {
 
     pub fn create_heightfield_input(
         &self,
-        parent: Option<NodeHandle>,
+        parent: impl Into<Option<NodeHandle>>,
         volume_name: &str,
         x_size: i32,
         y_size: i32,
@@ -665,7 +663,7 @@ impl Geometry {
         let name = CString::new(volume_name)?;
         let (heightfield, height, mask, merge) = crate::ffi::create_heightfield_input(
             &self.node,
-            parent.map(|h| h.0),
+            parent.into(),
             &name,
             x_size,
             y_size,
@@ -673,16 +671,16 @@ impl Geometry {
             sampling,
         )?;
         Ok(HeightfieldNodes {
-            heightfield: NodeHandle(heightfield, ()).to_node(&self.node.session)?,
-            height: NodeHandle(height, ()).to_node(&self.node.session)?,
-            mask: NodeHandle(mask, ()).to_node(&self.node.session)?,
-            merge: NodeHandle(merge, ()).to_node(&self.node.session)?,
+            heightfield: NodeHandle(heightfield).to_node(&self.node.session)?,
+            height: NodeHandle(height).to_node(&self.node.session)?,
+            mask: NodeHandle(mask).to_node(&self.node.session)?,
+            merge: NodeHandle(merge).to_node(&self.node.session)?,
         })
     }
 
     pub fn create_heightfield_input_volume(
         &self,
-        parent: Option<NodeHandle>,
+        parent: impl Into<Option<NodeHandle>>,
         volume_name: &str,
         x_size: i32,
         y_size: i32,
@@ -691,7 +689,7 @@ impl Geometry {
         let name = CString::new(volume_name)?;
         let handle = crate::ffi::create_heightfield_input_volume(
             &self.node,
-            parent.map(|h| h.0),
+            parent.into(),
             &name,
             x_size,
             y_size,

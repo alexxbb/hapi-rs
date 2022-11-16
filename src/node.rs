@@ -98,7 +98,7 @@ fn get_child_node_list(
     debug_assert!(session.is_valid());
     let ids =
         crate::ffi::get_compose_child_node_list(session, parent.into(), types, flags, recursive)?;
-    Ok(ids.iter().map(|i| NodeHandle(*i, ())).collect())
+    Ok(ids.iter().map(|i| NodeHandle(*i)).collect())
 }
 
 // Helper function to return all network type nodes.
@@ -135,7 +135,13 @@ impl ManagerNode {
 /// A lightweight handle to a node. Can not be created manually, use [`HoudiniNode`] instead.
 /// Some APIs return a list of such handles for efficiency, for example [`HoudiniNode::find_children_by_type`].
 /// Once you found the node you're looking for, upgrade it to a "full" node type.
-pub struct NodeHandle(pub(crate) crate::ffi::raw::HAPI_NodeId, pub(crate) ());
+pub struct NodeHandle(pub(crate) crate::ffi::raw::HAPI_NodeId);
+
+impl From<NodeHandle> for crate::ffi::raw::HAPI_NodeId {
+    fn from(h: NodeHandle) -> Self {
+        h.0
+    }
+}
 
 impl NodeHandle {
     /// Retrieve info about the node this handle belongs to
@@ -206,6 +212,18 @@ impl From<HoudiniNode> for NodeHandle {
     }
 }
 
+impl From<HoudiniNode> for Option<NodeHandle> {
+    fn from(n: HoudiniNode) -> Self {
+        Some(n.handle)
+    }
+}
+
+impl From<&HoudiniNode> for Option<NodeHandle> {
+    fn from(n: &HoudiniNode) -> Self {
+        Some(n.handle)
+    }
+}
+
 impl From<&HoudiniNode> for NodeHandle {
     fn from(n: &HoudiniNode) -> Self {
         n.handle
@@ -258,9 +276,9 @@ impl<'session> HoudiniNode {
     }
 
     /// Returns node's path relative to another node.
-    pub fn path_relative(&self, to: Option<NodeHandle>) -> Result<String> {
+    pub fn path_relative(&self, to: impl Into<Option<NodeHandle>>) -> Result<String> {
         debug_assert!(self.is_valid()?);
-        crate::ffi::get_node_path(&self.session, self.handle, to)
+        crate::ffi::get_node_path(&self.session, self.handle, to.into())
     }
 
     /// Start cooking the node. This is a non-blocking call if the session is async.
@@ -299,15 +317,16 @@ impl<'session> HoudiniNode {
     }
 
     /// Create a node in the session.
-    pub fn create<H: Into<NodeHandle>>(
+    pub fn create<N: Into<Option<NodeHandle>>>(
         name: &str,
         label: Option<&str>,
-        parent: Option<H>,
+        parent: N,
         session: Session,
         cook: bool,
     ) -> Result<HoudiniNode> {
         debug!("Creating node instance: {}", name);
         debug_assert!(session.is_valid());
+        let parent = parent.into();
         debug_assert!(
             parent.is_some() || name.contains('/'),
             "Node name must be fully qualified if parent is not specified"
@@ -318,14 +337,8 @@ impl<'session> HoudiniNode {
         );
         let name = CString::new(name)?;
         let label = label.map(|s| CString::new(s).unwrap());
-        let id = crate::ffi::create_node(
-            &name,
-            label.as_deref(),
-            &session,
-            parent.map(|t| t.into()),
-            cook,
-        )?;
-        HoudiniNode::new(session, NodeHandle(id, ()), None)
+        let id = crate::ffi::create_node(&name, label.as_deref(), &session, parent, cook)?;
+        HoudiniNode::new(session, NodeHandle(id), None)
     }
 
     /// If the node is of Object type, get the information object about it.
@@ -341,8 +354,8 @@ impl<'session> HoudiniNode {
     pub fn get_objects_info(&self) -> Result<Vec<ObjectInfo>> {
         debug_assert!(self.is_valid()?);
         let parent = match self.info.node_type() {
-            NodeType::Obj => NodeHandle(self.info.parent_id().0, ()),
-            _ => NodeHandle(self.handle.0, ()),
+            NodeType::Obj => NodeHandle(self.info.parent_id().0),
+            _ => NodeHandle(self.handle.0),
         };
         let infos = crate::ffi::get_composed_object_list(&self.session, parent)?;
         Ok(infos
@@ -455,7 +468,7 @@ impl<'session> HoudiniNode {
             if idx == -1 {
                 None
             } else {
-                HoudiniNode::new(self.session.clone(), NodeHandle(idx, ()), None).ok()
+                HoudiniNode::new(self.session.clone(), NodeHandle(idx), None).ok()
             }
         })
     }
@@ -476,7 +489,7 @@ impl<'session> HoudiniNode {
     /// Loads and creates a previously saved node and all its contents from given file.
     pub fn load_from_file(
         session: &Session,
-        parent: Option<NodeHandle>,
+        parent: impl Into<Option<NodeHandle>>,
         label: &str,
         cook: bool,
         file: impl AsRef<Path>,
@@ -484,8 +497,8 @@ impl<'session> HoudiniNode {
         debug_assert!(session.is_valid());
         let filename = CString::new(file.as_ref().to_string_lossy().to_string())?;
         let label = CString::new(label)?;
-        let id = crate::ffi::load_node_from_file(parent, session, &label, &filename, cook)?;
-        NodeHandle(id, ()).to_node(session)
+        let id = crate::ffi::load_node_from_file(parent.into(), session, &label, &filename, cook)?;
+        NodeHandle(id).to_node(session)
     }
 
     /// Returns a node preset as bytes.
@@ -539,7 +552,7 @@ impl<'session> HoudiniNode {
         crate::ffi::get_output_geos(self).map(|vec| {
             vec.into_iter()
                 .map(|inner| {
-                    NodeHandle(inner.nodeId, ())
+                    NodeHandle(inner.nodeId)
                         .to_node(&self.session)
                         .map(|node| Geometry {
                             node,
@@ -554,13 +567,13 @@ impl<'session> HoudiniNode {
     pub fn get_transform(
         &self,
         rst_order: Option<RSTOrder>,
-        relative_to: Option<NodeHandle>,
+        relative_to: impl Into<Option<NodeHandle>>,
     ) -> Result<Transform> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_object_transform(
             &self.session,
             self.handle,
-            relative_to,
+            relative_to.into(),
             rst_order.unwrap_or(RSTOrder::Default),
         )
         .map(|inner| Transform { inner })

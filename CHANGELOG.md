@@ -2,10 +2,11 @@
 ## [0.7.1]
 ## Changed
 - AssetLibrary::try_create_first() can now crate nodes other than of Object type.
+- Functions taking optional parent (`Option<NodeHandle>`) are now generic and can take `HoudiniNode` too.
 - Improve the error type handling and printing.
 
 ## New
-- `ManagerType` enum represents a network root node
+- `ManagerType` enum represents a network root node.
 
 ## [0.7.0]
 ## Changed

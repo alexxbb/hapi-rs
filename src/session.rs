@@ -234,7 +234,7 @@ impl Session {
         debug!("Creating input node: {}", name);
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_node(self, &name)?;
-        let node = HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)?;
+        let node = HoudiniNode::new(self.clone(), NodeHandle(id), None)?;
         let info = crate::geometry::GeoInfo::from_node(&node)?;
         Ok(crate::geometry::Geometry { node, info })
     }
@@ -245,7 +245,7 @@ impl Session {
         debug!("Creating input curve node: {}", name);
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_curve_node(self, &name)?;
-        let node = HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)?;
+        let node = HoudiniNode::new(self.clone(), NodeHandle(id), None)?;
         let info = crate::geometry::GeoInfo::from_node(&node)?;
         Ok(crate::geometry::Geometry { node, info })
     }
@@ -256,7 +256,7 @@ impl Session {
         &self,
         name: impl AsRef<str>,
         label: impl Into<Option<&'a str>>,
-        parent: Option<NodeHandle>,
+        parent: impl Into<Option<NodeHandle>>,
     ) -> Result<HoudiniNode> {
         debug_assert!(self.is_valid());
         HoudiniNode::create(name.as_ref(), label.into(), parent, self.clone(), false)
@@ -267,13 +267,13 @@ impl Session {
     pub fn find_node_from_path(
         &self,
         path: impl AsRef<str>,
-        parent: Option<NodeHandle>,
+        parent: impl Into<Option<NodeHandle>>,
     ) -> Result<HoudiniNode> {
         debug_assert!(self.is_valid());
         debug!("Searching node at path: {}", path.as_ref());
         let path = CString::new(path.as_ref())?;
-        crate::ffi::get_node_from_path(self, parent, &path)
-            .map(|id| NodeHandle(id, ()).to_node(self))?
+        crate::ffi::get_node_from_path(self, parent.into(), &path)
+            .map(|id| NodeHandle(id).to_node(self))?
     }
 
     /// Find a parameter by its absolute path
@@ -304,7 +304,7 @@ impl Session {
         };
         Ok(ManagerNode {
             session: self.clone(),
-            handle: NodeHandle(handle, ()),
+            handle: NodeHandle(handle),
             node_type: manager,
         })
     }

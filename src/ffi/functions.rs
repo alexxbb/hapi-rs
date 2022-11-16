@@ -148,11 +148,7 @@ pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<Nod
         )
         .check_err(Some(&node.session))?;
         let id = id.assume_init();
-        Ok(if id == -1 {
-            None
-        } else {
-            Some(NodeHandle(id, ()))
-        })
+        Ok(if id == -1 { None } else { Some(NodeHandle(id)) })
     }
 }
 
@@ -1105,7 +1101,7 @@ pub fn query_node_output_connected_nodes(
             count,
         )
         .check_err(Some(&node.session))?;
-        Ok(handles.into_iter().map(|h| NodeHandle(h, ())).collect())
+        Ok(handles.into_iter().map(|h| NodeHandle(h)).collect())
     }
 }
 
@@ -1521,7 +1517,7 @@ pub fn get_volume_bounds(node: &HoudiniNode, id: i32) -> Result<crate::volume::V
 
 pub fn create_heightfield_input(
     node: &HoudiniNode,
-    parent: Option<i32>,
+    parent: Option<NodeHandle>,
     name: &CStr,
     x_size: i32,
     y_size: i32,
@@ -1535,7 +1531,7 @@ pub fn create_heightfield_input(
     unsafe {
         raw::HAPI_CreateHeightFieldInput(
             node.session.ptr(),
-            parent.unwrap_or(-1),
+            parent.map(|h| h.0).unwrap_or(-1),
             name.as_ptr(),
             x_size,
             y_size,
@@ -1553,7 +1549,7 @@ pub fn create_heightfield_input(
 
 pub fn create_heightfield_input_volume(
     node: &HoudiniNode,
-    parent: Option<i32>,
+    parent: Option<NodeHandle>,
     name: &CStr,
     xsize: i32,
     ysize: i32,
@@ -1563,7 +1559,7 @@ pub fn create_heightfield_input_volume(
     unsafe {
         raw::HAPI_CreateHeightfieldInputVolumeNode(
             node.session.ptr(),
-            parent.unwrap_or(-1),
+            parent.map(|h| h.0).unwrap_or(-1),
             &mut volume_node as *mut _,
             name.as_ptr(),
             xsize,
@@ -1573,7 +1569,7 @@ pub fn create_heightfield_input_volume(
         .check_err(Some(&node.session))?;
     }
 
-    Ok(NodeHandle(volume_node, ()))
+    Ok(NodeHandle(volume_node))
 }
 
 pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {

@@ -23,7 +23,7 @@ impl Material {
 
     #[inline]
     fn node_handle(&self) -> NodeHandle {
-        NodeHandle(self.info.nodeId, ())
+        NodeHandle(self.info.nodeId)
     }
 
     #[inline]
@@ -35,7 +35,7 @@ impl Material {
         debug_assert!(self.session.is_valid());
         let name = CString::new(parm_name)?;
         let id = crate::ffi::get_parm_id_from_name(&name, self.node_handle(), &self.session)?;
-        crate::ffi::render_texture_to_image(&self.session, self.node_handle(), ParmHandle(id, ()))
+        crate::ffi::render_texture_to_image(&self.session, self.node_handle(), ParmHandle(id))
     }
 
     pub fn extract_image_to_file(
