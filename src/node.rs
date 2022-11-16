@@ -8,6 +8,7 @@
 //!
 //! HoudiniNode is [`Sync`] and [`Send`]
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::{ffi::CString, fmt::Formatter};
 
@@ -45,6 +46,47 @@ impl std::fmt::Display for NodeType {
     }
 }
 
+/// Types of Houdini manager nodes (contexts).
+#[derive(Debug, Copy, Clone)]
+#[non_exhaustive]
+pub enum ManagerType {
+    Obj,
+    Chop,
+    Cop,
+    Rop,
+    Top,
+}
+
+impl FromStr for ManagerType {
+    type Err = crate::HapiError;
+
+    fn from_str(val: &str) -> Result<Self> {
+        match val {
+            "Cop2" => Ok(Self::Cop),
+            "Chop" => Ok(Self::Chop),
+            "Top" => Ok(Self::Top),
+            "Object" => Ok(Self::Obj),
+            "Driver" => Ok(Self::Rop),
+            v => Err(crate::HapiError::internal(format!(
+                "Unknown NetworkType: {v}"
+            ))),
+        }
+    }
+}
+
+impl From<ManagerType> for NodeType {
+    fn from(value: ManagerType) -> Self {
+        use ManagerType::*;
+        match value {
+            Obj => NodeType::Obj,
+            Chop => NodeType::Chop,
+            Cop => NodeType::Cop,
+            Rop => NodeType::Rop,
+            Top => NodeType::Top,
+        }
+    }
+}
+
 // Helper function to return all child nodes of specified type
 fn get_child_node_list(
     session: &Session,
@@ -78,7 +120,7 @@ fn find_networks_nodes(
 pub struct ManagerNode {
     pub session: Session,
     pub handle: NodeHandle,
-    pub node_type: NodeType,
+    pub node_type: ManagerType,
 }
 
 impl ManagerNode {
@@ -264,6 +306,7 @@ impl<'session> HoudiniNode {
         session: Session,
         cook: bool,
     ) -> Result<HoudiniNode> {
+        debug!("Creating node instance: {}", name);
         debug_assert!(session.is_valid());
         debug_assert!(
             parent.is_some() || name.contains('/'),

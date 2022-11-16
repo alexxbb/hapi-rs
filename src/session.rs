@@ -16,7 +16,7 @@
 //!
 pub use crate::ffi::enums::*;
 use log::{debug, error, warn};
-use std::ffi::OsString;
+use std::ffi::{CStr, OsString};
 use std::path::PathBuf;
 use std::{ffi::CString, path::Path, sync::Arc};
 
@@ -25,7 +25,7 @@ use crate::{
     errors::*,
     ffi::raw,
     ffi::{CookOptions, ImageFileFormat, SessionSyncInfo, TimelineOptions, Viewport},
-    node::{HoudiniNode, ManagerNode, NodeHandle},
+    node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle},
     stringhandle::StringArray,
 };
 
@@ -231,6 +231,7 @@ impl Session {
     /// Create an input geometry node which can accept modifications
     pub fn create_input_node(&self, name: &str) -> Result<crate::geometry::Geometry> {
         debug_assert!(self.is_valid());
+        debug!("Creating input node: {}", name);
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_node(self, &name)?;
         let node = HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)?;
@@ -241,6 +242,7 @@ impl Session {
     /// Create an input geometry node with [`crate::enums::PartType`] set to `Curve`
     pub fn create_input_curve_node(&self, name: &str) -> Result<crate::geometry::Geometry> {
         debug_assert!(self.is_valid());
+        debug!("Creating input curve node: {}", name);
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_curve_node(self, &name)?;
         let node = HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)?;
@@ -267,6 +269,8 @@ impl Session {
         path: impl AsRef<str>,
         parent: Option<NodeHandle>,
     ) -> Result<HoudiniNode> {
+        debug_assert!(self.is_valid());
+        debug!("Searching node at path: {}", path.as_ref());
         let path = CString::new(path.as_ref())?;
         crate::ffi::get_node_from_path(self, parent, &path)
             .map(|id| NodeHandle(id, ()).to_node(self))?
@@ -274,6 +278,8 @@ impl Session {
 
     /// Find a parameter by its absolute path
     pub fn find_parameter_from_path(&self, path: impl AsRef<str>) -> Result<Option<Parameter>> {
+        debug_assert!(self.is_valid());
+        debug!("Searching parameter at path: {}", path.as_ref());
         match path.as_ref().rsplit_once('/') {
             None => Ok(None),
             Some((node, parm)) => {
@@ -284,13 +290,22 @@ impl Session {
     }
 
     /// Returns a manager (root) node such as OBJ, TOP, CHOP, etc
-    pub fn get_manager_node(&self, node_type: NodeType) -> Result<ManagerNode> {
+    pub fn get_manager_node(&self, manager: ManagerType) -> Result<ManagerNode> {
         debug_assert!(self.is_valid());
-        let id = crate::ffi::get_manager_node(self, node_type)?;
+        debug!("Getting Manager node of type: {:?}", manager);
+        let node_type = NodeType::from(manager);
+        // There seem to be a bug where Top network node fails with get_manager_node(..)
+        let handle = match manager {
+            ManagerType::Top => {
+                let path = unsafe { CStr::from_bytes_with_nul_unchecked(b"/tasks\0") };
+                crate::ffi::get_node_from_path(self, None, path)?
+            }
+            _ => crate::ffi::get_manager_node(self, node_type)?,
+        };
         Ok(ManagerNode {
             session: self.clone(),
-            handle: NodeHandle(id, ()),
-            node_type,
+            handle: NodeHandle(handle, ()),
+            node_type: manager,
         })
     }
 
@@ -490,6 +505,8 @@ impl Session {
         let cop_node = cop_node.into();
         debug_assert!(cop_node.is_valid(self)?);
         crate::ffi::render_cop_to_image(self, cop_node)?;
+        let info = crate::ffi::get_image_info(self, cop_node)?;
+        dbg!(info);
         crate::material::extract_image_to_file(self, cop_node, image_planes, path)
     }
 
@@ -1002,5 +1019,16 @@ pub(crate) mod tests {
             assert!(info.sync_viewport());
             assert!(info.cook_using_houdini_time());
         });
+    }
+
+    #[test]
+    fn manager_nodes() {
+        with_session(|session| {
+            session.get_manager_node(ManagerType::Obj).unwrap();
+            session.get_manager_node(ManagerType::Chop).unwrap();
+            session.get_manager_node(ManagerType::Cop).unwrap();
+            session.get_manager_node(ManagerType::Rop).unwrap();
+            session.get_manager_node(ManagerType::Top).unwrap();
+        })
     }
 }

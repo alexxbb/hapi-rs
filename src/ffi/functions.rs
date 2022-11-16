@@ -417,7 +417,8 @@ pub fn get_node_from_path(
     };
     unsafe {
         raw::HAPI_GetNodeFromPath(session.ptr(), parent_node, path.as_ptr(), node.as_mut_ptr())
-            .check_err(Some(session))?;
+            .check_err(Some(session))
+            .context("Calling HAPI_GetNodeFromPath")?;
         Ok(node.assume_init())
     }
 }
@@ -439,7 +440,8 @@ pub fn load_library_from_file(path: &CStr, session: &Session, _override: bool) -
             _override as i8,
             lib_id.as_mut_ptr(),
         )
-        .check_err(Some(session))?;
+        .check_err(Some(session))
+        .context("Calling HAPI_LoadAssetLibraryFromFile")?;
         Ok(lib_id.assume_init())
     }
 }
@@ -642,7 +644,7 @@ pub fn create_inprocess_session() -> Result<raw::HAPI_Session> {
             err @ raw::HapiResult::Failure => Err(HapiError::new(
                 Kind::Hapi(err),
                 None,
-                get_connection_error(true).ok(),
+                get_connection_error(true).ok().map(std::borrow::Cow::Owned),
             )),
             _ => Ok(ses.assume_init()),
         }
@@ -2580,7 +2582,8 @@ pub fn extract_image_to_file(
             dest_file.as_ptr(),
             handle.as_mut_ptr(),
         )
-        .check_err(Some(session))?;
+        .check_err(Some(session))
+        .context("Calling HAPI_ExtractImageToFile")?;
         crate::stringhandle::get_string(handle.assume_init(), session)
     }
 }

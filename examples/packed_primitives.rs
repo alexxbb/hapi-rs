@@ -37,15 +37,10 @@ fn main() -> Result<()> {
             );
             for part in geo.partitions()? {
                 println!(
-                    "Part {}\n   Point Count = {}\n   Type = {}",
+                    "Part {}\n   Point Count = {}\n   Type = {:?}",
                     part.part_id(),
                     part.point_count(),
-                    match part.part_type() {
-                        PartType::Mesh => "Mesh",
-                        PartType::Curve => "Curve",
-                        PartType::Instancer => "Instancer",
-                        p => "oops",
-                    }
+                    part.part_type(),
                 );
             }
         }

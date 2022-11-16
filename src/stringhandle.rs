@@ -154,8 +154,7 @@ pub(crate) fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
 
 pub(crate) fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>> {
     let length = crate::ffi::get_string_buff_len(session, handle)?;
-    let buffer = crate::ffi::get_string(session, handle, length)?;
-    Ok(buffer)
+    crate::ffi::get_string(session, handle, length)
 }
 
 pub(crate) fn get_string_array(handles: &[i32], session: &Session) -> Result<StringArray> {

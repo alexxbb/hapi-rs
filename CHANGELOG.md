@@ -1,4 +1,12 @@
 # hapi-rs changelog
+## [0.7.1]
+## Changed
+- AssetLibrary::try_create_first() can now crate nodes other than of Object type.
+- Improve the error type handling and printing.
+
+## New
+- `ManagerType` enum represents a network root node
+
 ## [0.7.0]
 ## Changed
 - Reworked parameter APIs

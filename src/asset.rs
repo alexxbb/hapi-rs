@@ -2,6 +2,7 @@
 //! [Documentation](https://www.sidefx.com/docs/hengine/_h_a_p_i__assets.html)
 use crate::ffi::raw as ffi;
 use crate::ffi::raw::{ChoiceListType, ParmType};
+use crate::node::ManagerType;
 use crate::{
     errors::Result,
     ffi::ParmChoiceInfo,
@@ -11,6 +12,7 @@ use crate::{
 };
 use log::debug;
 use std::ffi::CString;
+use std::path::PathBuf;
 
 struct AssetParmValues {
     int: Vec<i32>,
@@ -135,16 +137,22 @@ impl<'a> AssetParm<'a> {
 pub struct AssetLibrary {
     lib_id: ffi::HAPI_AssetLibraryId,
     session: Session,
+    pub file: PathBuf,
 }
 
 impl AssetLibrary {
     /// Load an asset from file
     pub fn from_file(session: Session, file: impl AsRef<std::path::Path>) -> Result<AssetLibrary> {
-        debug!("Loading library: {:?}", file.as_ref());
+        let file = file.as_ref().to_path_buf();
+        debug!("Loading library: {:?}", file);
         debug_assert!(session.is_valid());
-        let cs = CString::new(file.as_ref().as_os_str().to_string_lossy().to_string())?;
+        let cs = CString::new(file.as_os_str().to_string_lossy().to_string())?;
         let lib_id = crate::ffi::load_library_from_file(&cs, &session, true)?;
-        Ok(AssetLibrary { lib_id, session })
+        Ok(AssetLibrary {
+            lib_id,
+            session,
+            file,
+        })
     }
 
     /// Get number of assets defined in the current library
@@ -156,6 +164,7 @@ impl AssetLibrary {
     /// Get asset names this library contains
     pub fn get_asset_names(&self) -> Result<Vec<String>> {
         debug_assert!(self.session.is_valid());
+        debug!("Retrieving asset names from: {:?}", self.file);
         let num_assets = self.get_asset_count()?;
         crate::ffi::get_asset_names(self.lib_id, num_assets, &self.session)
             .map(|a| a.into_iter().collect())
@@ -167,7 +176,7 @@ impl AssetLibrary {
         self.get_asset_names().map(|names| names.first().cloned())
     }
 
-    /// Try to create the first available asset in the library.
+    /// Try to create the first found asset in the library.
     /// This is a convenience function for:
     /// ```
     /// use hapi_rs::session::{new_in_process};
@@ -176,36 +185,42 @@ impl AssetLibrary {
     /// let names = lib.get_asset_names().unwrap();
     /// session.create_node(&names[0], None, None).unwrap();
     /// ```
+    /// Except that it also handles non Object level assets, e.g. Cop network HDA.
     pub fn try_create_first(&self) -> Result<HoudiniNode> {
         debug_assert!(self.session.is_valid());
         let name = self
             .get_first_name()?
-            .ok_or_else(|| crate::errors::HapiError {
-                kind: crate::errors::Kind::Other("Library file is empty".to_string()),
-                server_message: None,
-                contexts: Vec::new(),
-            })?;
-        // Most common HDAs are Object/asset which HAPI can create directly,
+            .ok_or_else(|| crate::errors::HapiError::internal("Library file is empty"))?;
+        // Most common HDAs are Object/asset which HAPI can create directly in /obj,
         // but for some assets type like Cop, Top a manager node must be created first
-        let Some((network, operator)) = name.split_once('/') else {
+        debug!("Trying to create node for asset: {}", &name);
+        let Some((context, operator)) = name.split_once('/') else {
             panic!("Asset name returned from API expected to be fully qualified, got: \"{name}\"")
         };
-        let manager = match network {
-            "Cop2" => Some(("/img", "img")),
-            "Chop" => Some(("/ch", "ch")),
-            "Top" => Some(("/tasks", "topnet")),
+        // Strip operator namespace if present
+        let context = if let Some((_, context)) = context.split_once("::") {
+            context
+        } else {
+            context
+        };
+        let context: ManagerType = context.parse()?;
+        let subnet = match context {
+            ManagerType::Cop => Some("img"),
+            ManagerType::Chop => Some("ch"),
+            ManagerType::Top => Some("topnet"),
             _ => None,
         };
 
-        let parent = if let Some((manger, network)) = manager {
-            // FIXME: Should use get_manager_node, but due to current bug, search by path
-            let manager = self.session.find_node_from_path(manger, None)?;
-            Some(
-                self.session
-                    .create_node(network, None, Some(manager.handle))?,
-            )
-        } else {
-            None
+        // If subnet is Some, we get the manager node for this context and use it as parent.
+        let parent = match subnet {
+            Some(subnet) => {
+                let manager = self.session.get_manager_node(context)?;
+                Some(
+                    self.session
+                        .create_node(subnet, None, Some(manager.handle))?,
+                )
+            }
+            None => None,
         };
         // If passing a parent, operator name must be stripped of the context name
         let full_name = if parent.is_some() { operator } else { &name };
