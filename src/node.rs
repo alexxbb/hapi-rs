@@ -10,9 +10,9 @@
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::{ffi::CString, fmt::Formatter};
+use std::{ffi::CString, ffi::OsStr, fmt::Formatter};
 
-use log::{debug, warn};
+use log::debug;
 
 use crate::pdg::TopNode;
 pub use crate::{
@@ -201,7 +201,10 @@ impl std::fmt::Debug for HoudiniNode {
         f.debug_struct("HoudiniNode")
             .field("id", &self.handle.0)
             .field("type", &self.info.node_type())
-            .field("path", &self.path().unwrap())
+            .field(
+                "path",
+                &self.path().expect("[HoudiniNode::Debug] node path"),
+            )
             .finish()
     }
 }
@@ -336,7 +339,7 @@ impl<'session> HoudiniNode {
             "Cannot use fully qualified node name with parent"
         );
         let name = CString::new(name)?;
-        let label = label.map(|s| CString::new(s).unwrap());
+        let label = label.map(CString::new).transpose()?;
         let id = crate::ffi::create_node(&name, label.as_deref(), &session, parent, cook)?;
         HoudiniNode::new(session, NodeHandle(id), None)
     }
@@ -378,33 +381,32 @@ impl<'session> HoudiniNode {
     }
 
     /// Get a child node by path.
-    pub fn find_child_by_path(&self, relative_path: &str) -> Result<HoudiniNode> {
+    pub fn get_child_by_path(&self, relative_path: &str) -> Result<Option<HoudiniNode>> {
         self.session
-            .find_node_from_path(relative_path, Some(self.handle))
+            .get_node_from_path(relative_path, Some(self.handle))
     }
 
     /// *Search* for child node by name.
-    pub fn find_child_by_name(
+    pub fn find_child_node(
         &self,
         name: impl AsRef<str>,
-        node_type: NodeType,
         recursive: bool,
     ) -> Result<Option<HoudiniNode>> {
         debug_assert!(self.is_valid()?);
-        let nodes = self.find_children_by_type(node_type, NodeFlags::Any, recursive)?;
-        // TODO: Shortcut if "recursive" is false, search directly by path
-        let handle = nodes
-            .iter()
-            .find(|handle| match handle.info(&self.session) {
-                Ok(info) => info.name().expect("oops") == name.as_ref(),
-                Err(_) => {
-                    warn!("Failed to get NodeInfo");
-                    false
-                }
-            });
-        handle
-            .map(|handle| handle.to_node(&self.session))
-            .transpose()
+        if !recursive {
+            return self.get_child_by_path(name.as_ref());
+        }
+        for handle in self.find_children_by_type(NodeType::Any, NodeFlags::Any, recursive)? {
+            let info = handle.info(&self.session)?;
+            if info.name()? == name.as_ref() {
+                return Ok(Some(HoudiniNode::new(
+                    self.session.clone(),
+                    handle,
+                    Some(info),
+                )?));
+            }
+        }
+        Ok(None)
     }
 
     /// Return the node's parent.
@@ -442,7 +444,10 @@ impl<'session> HoudiniNode {
     /// If node is an HDA, return [`AssetInfo'] about it.
     pub fn asset_info(&'session self) -> Result<AssetInfo<'session>> {
         debug_assert!(self.is_valid()?);
-        AssetInfo::new(self)
+        Ok(AssetInfo {
+            inner: crate::ffi::get_asset_info(self)?,
+            session: &self.session,
+        })
     }
     /// Recursively check all nodes for a specific error.
     pub fn check_for_specific_error(&self, error_bits: i32) -> Result<ErrorCode> {
@@ -475,6 +480,7 @@ impl<'session> HoudiniNode {
 
     /// Give the node a new name.
     pub fn rename(&self, new_name: impl AsRef<str>) -> Result<()> {
+        debug_assert!(self.is_valid()?);
         let name = CString::new(new_name.as_ref())?;
         crate::ffi::rename_node(self, &name)
     }
@@ -492,9 +498,10 @@ impl<'session> HoudiniNode {
         parent: impl Into<Option<NodeHandle>>,
         label: &str,
         cook: bool,
-        file: impl AsRef<Path>,
+        file: impl AsRef<OsStr>,
     ) -> Result<HoudiniNode> {
         debug_assert!(session.is_valid());
+        debug!("Loading node from file {:?}", file.as_ref());
         let filename = CString::new(file.as_ref().to_string_lossy().to_string())?;
         let label = CString::new(label)?;
         let id = crate::ffi::load_node_from_file(parent.into(), session, &label, &filename, cook)?;
@@ -682,7 +689,10 @@ mod tests {
             }
             let outputs = geo.node.output_connected_nodes(0, false).unwrap();
             assert!(outputs.is_empty());
-            let n = node.find_child_by_path("geo/point_attr").unwrap();
+            let n = node
+                .get_child_by_path("geo/point_attr")
+                .unwrap()
+                .expect("child node");
             assert_eq!(
                 n.get_input_name(0).unwrap(),
                 "Geometry to Process with Wrangle"
@@ -693,20 +703,21 @@ mod tests {
     #[test]
     fn node_find_siblings() {
         let session = crate::session::quick_session(None).unwrap();
-        let node = session.create_node("Object/hapi_geo", None, None).unwrap();
-        let geo = node.geometry().unwrap().unwrap();
-        dbg!(&geo.node);
+        let asset = session.create_node("Object/hapi_geo", None, None).unwrap();
+        let nope = asset.get_child_by_path("bla").unwrap();
+        assert!(nope.is_none());
+        let geo = asset.geometry().unwrap().unwrap();
         let child = geo
             .node
             .parent_node()
             .unwrap()
             .to_node(&session)
             .unwrap()
-            .find_child_by_name("add_color", NodeType::Sop, false)
+            .find_child_node("add_color", false)
             .unwrap();
         assert!(child.is_some());
-        let child = node.find_child_by_path("geo/add_color");
-        assert!(child.is_ok());
+        let child = asset.get_child_by_path("geo/add_color").unwrap();
+        assert!(child.is_some());
     }
 
     #[test]

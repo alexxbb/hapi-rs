@@ -701,7 +701,7 @@ pub fn start_thrift_pipe_server(
             options as *const _,
             file.as_ptr(),
             pid.as_mut_ptr(),
-            log_file.map(|s| s.as_ptr()).unwrap_or(std::ptr::null()),
+            log_file.map(CStr::as_ptr).unwrap_or(null()),
         )
         .error_message("Calling HAPI_StartThriftNamedPipeServer: failed")?;
         Ok(pid.assume_init())
@@ -719,7 +719,7 @@ pub fn start_thrift_socket_server(
             options as *const _,
             port,
             pid.as_mut_ptr(),
-            log_file.map(|s| s.as_ptr()).unwrap_or(std::ptr::null()),
+            log_file.map_or(null(), CStr::as_ptr),
         )
         .error_message("Calling HAPI_StartThriftSocketServer: failed")?;
         Ok(pid.assume_init())
@@ -929,7 +929,7 @@ pub fn create_node(
             session.ptr(),
             parent.map_or(-1, |h| h.0),
             name.as_ptr(),
-            label.map_or(null(), |v| v.as_ptr()),
+            label.map_or(null(), CStr::as_ptr),
             cook as i8,
             id.as_mut_ptr(),
         )
@@ -1101,7 +1101,7 @@ pub fn query_node_output_connected_nodes(
         .check_err(&node.session, || {
             "Calling HAPI_QueryNodeOutputConnectedNodes"
         })?;
-        Ok(handles.into_iter().map(|h| NodeHandle(h)).collect())
+        Ok(handles.into_iter().map(NodeHandle).collect())
     }
 }
 

@@ -99,7 +99,7 @@ impl FloatParameter {
             session,
             self.wrap.info.float_values_index(),
             size as i32,
-            values.as_ref(),
+            values,
         )
     }
 

@@ -4,11 +4,7 @@ use crate::ffi::raw as ffi;
 use crate::ffi::raw::{ChoiceListType, ParmType};
 use crate::node::ManagerType;
 use crate::{
-    errors::Result,
-    ffi::ParmChoiceInfo,
-    ffi::{AssetInfo, ParmInfo},
-    node::HoudiniNode,
-    session::Session,
+    errors::Result, ffi::ParmChoiceInfo, ffi::ParmInfo, node::HoudiniNode, session::Session,
 };
 use log::debug;
 use std::ffi::CString;
@@ -144,7 +140,7 @@ impl AssetLibrary {
     /// Load an asset from file
     pub fn from_file(session: Session, file: impl AsRef<std::path::Path>) -> Result<AssetLibrary> {
         let file = file.as_ref().to_path_buf();
-        debug!("Loading library: {:?}", file);
+        debug!("Loading library file: {:?}", file);
         debug_assert!(session.is_valid());
         let cs = CString::new(file.as_os_str().to_string_lossy().to_string())?;
         let lib_id = crate::ffi::load_library_from_file(&cs, &session, true)?;
@@ -190,7 +186,7 @@ impl AssetLibrary {
         debug_assert!(self.session.is_valid());
         let name = self
             .get_first_name()?
-            .ok_or_else(|| crate::errors::HapiError::internal("Library file is empty"))?;
+            .ok_or_else(|| crate::HapiError::internal("Library file is empty"))?;
         // Most common HDAs are Object/asset which HAPI can create directly in /obj,
         // but for some assets type like Cop, Top a manager node must be created first
         debug!("Trying to create node for asset: {}", &name);
@@ -232,9 +228,8 @@ impl AssetLibrary {
     pub fn get_asset_parms(&self, asset: impl AsRef<str>) -> Result<AssetParameters> {
         debug_assert!(self.session.is_valid());
         let _lock = self.session.lock();
-        let asset_name = String::from(asset.as_ref());
-        log::debug!("Reading asset parameter list of {asset_name}");
-        let asset_name = CString::new(asset_name)?;
+        log::debug!("Reading asset parameter list of {}", asset.as_ref());
+        let asset_name = CString::new(asset.as_ref())?;
         let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &asset_name, &self.session)?;
         let infos = crate::ffi::get_asset_def_parm_info(
             self.lib_id,
@@ -263,15 +258,6 @@ impl AssetLibrary {
         Ok(AssetParameters {
             infos: infos.collect(),
             values,
-        })
-    }
-}
-
-impl<'node> AssetInfo<'node> {
-    pub(crate) fn new(node: &'node HoudiniNode) -> Result<AssetInfo<'_>> {
-        Ok(AssetInfo {
-            inner: crate::ffi::get_asset_info(node)?,
-            session: &node.session,
         })
     }
 }

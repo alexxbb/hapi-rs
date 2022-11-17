@@ -17,6 +17,7 @@
 pub use crate::ffi::enums::*;
 use log::{debug, error, warn};
 use std::ffi::{CStr, OsString};
+use std::fmt::Debug;
 use std::path::PathBuf;
 use std::{ffi::CString, path::Path, sync::Arc};
 
@@ -40,7 +41,7 @@ impl std::cmp::PartialEq for raw::HAPI_Session {
 
 /// Trait bound for [`Session::get_server_var()`] and [`Session::set_server_var()`]
 pub trait EnvVariable {
-    type Type: ?Sized + ToOwned;
+    type Type: ?Sized + ToOwned + Debug;
     fn get_value(session: &Session, key: impl AsRef<str>)
         -> Result<<Self::Type as ToOwned>::Owned>;
     fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()>;
@@ -170,6 +171,7 @@ impl Session {
         value: &T::Type,
     ) -> Result<()> {
         debug_assert!(self.is_valid());
+        debug!("Setting server variable {key}={value:?}");
         T::set_value(self, key, value)
     }
 
@@ -230,8 +232,8 @@ impl Session {
 
     /// Create an input geometry node which can accept modifications
     pub fn create_input_node(&self, name: &str) -> Result<crate::geometry::Geometry> {
-        debug_assert!(self.is_valid());
         debug!("Creating input node: {}", name);
+        debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_node(self, &name)?;
         let node = HoudiniNode::new(self.clone(), NodeHandle(id), None)?;
@@ -241,8 +243,8 @@ impl Session {
 
     /// Create an input geometry node with [`crate::enums::PartType`] set to `Curve`
     pub fn create_input_curve_node(&self, name: &str) -> Result<crate::geometry::Geometry> {
-        debug_assert!(self.is_valid());
         debug!("Creating input curve node: {}", name);
+        debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_curve_node(self, &name)?;
         let node = HoudiniNode::new(self.clone(), NodeHandle(id), None)?;
@@ -264,29 +266,36 @@ impl Session {
 
     /// Find a node given an absolute path. To find a child node, pass the `parent` node
     /// or use [`HoudiniNode::find_child_by_path`]
-    pub fn find_node_from_path(
+    pub fn get_node_from_path(
         &self,
         path: impl AsRef<str>,
         parent: impl Into<Option<NodeHandle>>,
-    ) -> Result<HoudiniNode> {
+    ) -> Result<Option<HoudiniNode>> {
         debug_assert!(self.is_valid());
         debug!("Searching node at path: {}", path.as_ref());
         let path = CString::new(path.as_ref())?;
-        crate::ffi::get_node_from_path(self, parent.into(), &path)
-            .map(|id| NodeHandle(id).to_node(self))?
+        match crate::ffi::get_node_from_path(self, parent.into(), &path) {
+            Ok(handle) => Ok(NodeHandle(handle).to_node(self).ok()),
+            Err(HapiError {
+                kind: Kind::Hapi(HapiResult::InvalidArgument),
+                ..
+            }) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     /// Find a parameter by its absolute path
     pub fn find_parameter_from_path(&self, path: impl AsRef<str>) -> Result<Option<Parameter>> {
         debug_assert!(self.is_valid());
         debug!("Searching parameter at path: {}", path.as_ref());
-        match path.as_ref().rsplit_once('/') {
-            None => Ok(None),
-            Some((node, parm)) => {
-                let node = self.find_node_from_path(node, None)?;
-                Ok(node.parameter(parm).ok())
-            }
-        }
+        let Some((path, parm)) = path.as_ref().rsplit_once('/') else {
+            return Ok(None)
+        };
+        let Some(node) = self.get_node_from_path(path, None)? else {
+            debug!("Node {} not found", path);
+            return Ok(None)
+        };
+        Ok(node.parameter(parm).ok())
     }
 
     /// Returns a manager (root) node such as OBJ, TOP, CHOP, etc
@@ -805,7 +814,7 @@ impl SessionOptionsBuilder {
                 .tempfile()
                 .expect("tempfile");
             for (k, v) in env.iter() {
-                writeln!(file, "{}={}", k, v).unwrap();
+                writeln!(file, "{}={}", k, v).expect("write to .env file");
             }
             let (_, tmp_file) = file.keep().expect("persistent tempfile");
             let tmp_file = CString::new(tmp_file.to_string_lossy().to_string()).expect("null byte");

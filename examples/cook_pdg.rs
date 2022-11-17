@@ -1,5 +1,5 @@
 use hapi_rs::enums::{PdgEventType, PdgWorkItemState};
-use hapi_rs::node::{NodeType, Parameter};
+use hapi_rs::node::Parameter;
 
 use hapi_rs::pdg::TopNode;
 use hapi_rs::session::{new_in_process, SessionOptionsBuilder};
@@ -82,10 +82,10 @@ fn main() -> Result<()> {
 
     asset.cook_blocking(None)?;
 
-    let subnet = asset.find_child_by_path(SUBNET)?;
+    let subnet = asset.get_child_by_path(SUBNET)?.expect("child node");
     let top_net = &subnet.find_top_networks()?[0];
     let top_node = top_net
-        .find_child_by_name(NODE_TO_COOK, NodeType::Top, false)?
+        .find_child_node(NODE_TO_COOK, false)?
         .expect("TOP node");
     let top_node = top_node.to_top_node().expect("top node");
     for output in cook_async(&top_node)? {
