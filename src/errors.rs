@@ -12,7 +12,7 @@ pub struct HapiError {
     pub kind: Kind,
     /// Context error messages.
     pub contexts: Vec<Cow<'static, str>>,
-    /// Error message from HAPI.
+    /// Error message from server or static if server couldn't respond.
     pub server_message: Option<Cow<'static, str>>,
 }
 
@@ -121,13 +121,23 @@ impl From<HapiResult> for HapiError {
 }
 
 impl HapiError {
+    pub(crate) fn new_hapi_with_server_message(
+        result: HapiResult,
+        server_message: Cow<'static, str>,
+    ) -> Self {
+        HapiError {
+            kind: Kind::Hapi(result),
+            contexts: vec![],
+            server_message: Some(server_message),
+        }
+    }
     pub(crate) fn new(
         kind: Kind,
-        mut context_message: Option<Cow<'static, str>>,
+        mut static_message: Option<Cow<'static, str>>,
         server_message: Option<Cow<'static, str>>,
     ) -> HapiError {
         let mut contexts = vec![];
-        if let Some(m) = context_message.take() {
+        if let Some(m) = static_message.take() {
             contexts.push(m);
         }
         HapiError {
@@ -200,40 +210,39 @@ impl From<std::string::FromUtf8Error> for HapiError {
 impl std::error::Error for HapiError {}
 
 impl HapiResult {
-    fn _into_result<R: Default>(
-        self,
-        session: Option<&Session>,
-        context_msg: Option<Cow<'static, str>>,
-    ) -> Result<R> {
+    pub(crate) fn check_err<R: Default, F, M>(self, session: &Session, context: F) -> Result<R>
+    where
+        M: Into<Cow<'static, str>>,
+        F: FnOnce() -> M,
+    {
         match self {
             HapiResult::Success => Ok(R::default()),
-            err => {
-                let mut server_msg = None;
-                if let Some(session) = session {
-                    let err_msg = session
-                        .get_status_string(StatusType::CallResult, StatusVerbosity::All)
-                        .unwrap_or_else(|_| String::from("could not retrieve error message"));
-                    server_msg.replace(err_msg);
-                }
-                Err(HapiError::new(
-                    Kind::Hapi(err),
-                    context_msg,
-                    server_msg.map(Cow::Owned),
-                ))
+            _err => {
+                let server_message = session
+                    .get_status_string(StatusType::CallResult, StatusVerbosity::All)
+                    .unwrap_or_else(|_| String::from("Could not retrieve error message"));
+                let mut err =
+                    HapiError::new_hapi_with_server_message(self, Cow::Owned(server_message));
+                err.contexts.push(context().into());
+                Err(err)
             }
         }
     }
 
-    #[inline]
-    pub(crate) fn check_err<R: Default>(self, session: Option<&Session>) -> Result<R> {
-        self._into_result(session, None)
-    }
-
-    #[inline]
     pub(crate) fn error_message<I: Into<Cow<'static, str>>, R: Default>(
         self,
         message: I,
     ) -> Result<R> {
-        self._into_result(None, Some(message.into()))
+        match self {
+            HapiResult::Success => Ok(R::default()),
+            _err => {
+                let mut err = HapiError::new_hapi_with_server_message(
+                    self,
+                    Cow::Borrowed("Server error message unavailable"),
+                );
+                err.contexts.push(message.into());
+                Err(err)
+            }
+        }
     }
 }
