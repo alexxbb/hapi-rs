@@ -169,15 +169,11 @@ pub fn set_parm_float_values(
     node: NodeHandle,
     session: &Session,
     start: i32,
-    length: i32,
+    size: i32,
     values: &[f32],
 ) -> Result<()> {
-    if values.len() as i32 > length {
-        log::warn!("Array length is greater than parm length: {:?}", values);
-    }
-    let length = values.len().min(length as usize);
     unsafe {
-        raw::HAPI_SetParmFloatValues(session.ptr(), node.0, values.as_ptr(), start, length as i32)
+        raw::HAPI_SetParmFloatValues(session.ptr(), node.0, values.as_ptr(), start, size as i32)
             .check_err(session, || "Calling HAPI_SetParmFloatValues")
     }
 }
@@ -796,7 +792,6 @@ pub fn cleanup_session(session: &Session) -> Result<()> {
 
 pub fn shutdown_session(session: &Session) -> Result<()> {
     if session.session_type() == raw::SessionType::Inprocess {
-        log::debug!("Shutting down in-process session");
         unsafe { raw::HAPI_Shutdown(session.ptr()).check_err(session, || "Calling HAPI_Shutdown") }
     } else {
         Ok(())
@@ -2296,7 +2291,8 @@ pub fn session_get_license_type(session: &Session) -> Result<raw::License> {
 pub fn get_environment_int(_type: raw::EnvIntType) -> Result<i32> {
     unsafe {
         let mut ret = uninit!();
-        raw::HAPI_GetEnvInt(_type, ret.as_mut_ptr()).error_message("Calling HAPI_GetEvnInt: failed")?;
+        raw::HAPI_GetEnvInt(_type, ret.as_mut_ptr())
+            .error_message("Calling HAPI_GetEvnInt: failed")?;
         Ok(ret.assume_init())
     }
 }
