@@ -4,6 +4,8 @@
 - AssetLibrary::try_create_first() can now crate nodes other than of Object type.
 - Functions taking optional parent (`Option<NodeHandle>`) are now generic and can take `HoudiniNode` too.
 - Improve the error type handling and printing.
+- Remove `CookOptions` arg from `HoudiniNode::cook`, instead there's new `HoudiniNode::cook_with_options`.
+- Add lots of `debug_assert!` for input validation.
 
 ## New
 - `ManagerType` enum represents a network root node.

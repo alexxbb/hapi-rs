@@ -10,7 +10,7 @@ fn main() -> Result<()> {
     let session = quick_session(Some(&opt))?;
     let lib = session.load_asset_file("otls/sesi/SideFX_spaceship.hda")?;
     let node = lib.try_create_first()?;
-    node.cook_blocking(None)?;
+    node.cook_blocking()?;
 
     let mut table = prettytable::Table::new();
     table.set_format(*FORMAT);

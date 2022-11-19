@@ -80,7 +80,7 @@ fn main() -> Result<()> {
         p.set(0, out_dir.to_string_lossy())?;
     }
 
-    asset.cook_blocking(None)?;
+    asset.cook_blocking()?;
 
     let subnet = asset.get_child_by_path(SUBNET)?.expect("child node");
     let top_net = &subnet.find_top_networks()?[0];

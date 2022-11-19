@@ -405,6 +405,7 @@ impl Session {
     /// In threaded mode wait for Session finishes cooking. In single-thread mode, immediately return
     /// See [Documentation](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html)
     pub fn cook(&self) -> Result<CookResult> {
+        debug!("Cooking session..");
         debug_assert!(self.is_valid());
         if self.inner.options.threaded {
             loop {
@@ -989,7 +990,7 @@ pub(crate) mod tests {
                 .unwrap(),
             0
         );
-        node.cook(None).unwrap(); // in threaded mode always successful
+        node.cook().unwrap(); // in threaded mode always successful
         assert_eq!(
             node.cook_count(NodeType::None, NodeFlags::None, true)
                 .unwrap(),

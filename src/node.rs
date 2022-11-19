@@ -95,7 +95,6 @@ fn get_child_node_list(
     flags: NodeFlags,
     recursive: bool,
 ) -> Result<Vec<NodeHandle>> {
-    debug_assert!(session.is_valid());
     let ids =
         crate::ffi::get_compose_child_node_list(session, parent.into(), types, flags, recursive)?;
     Ok(ids.iter().map(|i| NodeHandle(*i)).collect())
@@ -108,6 +107,7 @@ fn find_networks_nodes(
     parent: impl Into<NodeHandle>,
     recursive: bool,
 ) -> Result<Vec<HoudiniNode>> {
+    debug_assert!(session.is_valid());
     get_child_node_list(session, parent, types, NodeFlags::Network, recursive).map(|vec| {
         vec.into_iter()
             .map(|handle| handle.to_node(session))
@@ -259,7 +259,7 @@ impl<'session> HoudiniNode {
     }
     /// Delete the node in this session.
     pub fn delete(self) -> Result<()> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::delete_node(self)
     }
 
@@ -274,41 +274,46 @@ impl<'session> HoudiniNode {
 
     /// Returns node's internal path.
     pub fn path(&self) -> Result<String> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_node_path(&self.session, self.handle, None)
     }
 
     /// Returns node's path relative to another node.
     pub fn path_relative(&self, to: impl Into<Option<NodeHandle>>) -> Result<String> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_node_path(&self.session, self.handle, to.into())
     }
 
     /// Start cooking the node. This is a non-blocking call if the session is async.
-    pub fn cook(&self, options: Option<&CookOptions>) -> Result<()> {
+    pub fn cook(&self) -> Result<()> {
+        debug!("Start cooking node: {}", self.path()?);
         debug_assert!(self.is_valid()?);
-        debug!("Cooking node: {}", self.path()?);
-        let opts;
-        let opt = match options {
-            None => {
-                opts = CookOptions::default();
-                &opts
-            }
-            Some(o) => o,
-        };
-        crate::ffi::cook_node(self, opt)
+        crate::ffi::cook_node(self, &CookOptions::default())
     }
 
     /// Start cooking the node and wait until completed.
     /// In sync mode (single threaded), the error will be available in Err(..) while
     /// in threaded cooking mode the status will be in [`CookResult`]
-    pub fn cook_blocking(&self, options: Option<&CookOptions>) -> Result<CookResult> {
+    pub fn cook_blocking(&self) -> Result<CookResult> {
+        debug!("Start cooking node: {}", self.path()?);
         debug_assert!(self.is_valid()?);
-        self.cook(options)?;
+        crate::ffi::cook_node(self, &CookOptions::default())?;
         self.session.cook()
     }
 
-    /// How many times the node has been cooked.
+    /// Start cooking with options and wait for result if blocking = true.
+    pub fn cook_with_options(&self, options: &CookOptions, blocking: bool) -> Result<CookResult> {
+        debug!("Start cooking node: {}", self.path()?);
+        debug_assert!(self.is_valid()?);
+        crate::ffi::cook_node(self, options)?;
+        if blocking {
+            self.session.cook()
+        } else {
+            Ok(CookResult::Succeeded)
+        }
+    }
+
+    /// How many times this node has been cooked.
     pub fn cook_count(
         &self,
         node_types: NodeType,
@@ -346,16 +351,22 @@ impl<'session> HoudiniNode {
 
     /// If the node is of Object type, get the information object about it.
     pub fn get_object_info(&self) -> Result<ObjectInfo<'_>> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_object_info(&self.session, self.handle).map(|info| ObjectInfo {
             inner: info,
             session: &self.session,
         })
     }
 
+    /// Get a new NodeInfo even for this node.
+    pub fn get_info(&self) -> Result<NodeInfo> {
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
+        self.handle.info(&self.session)
+    }
+
     /// Returns information objects about this node children.
     pub fn get_objects_info(&self) -> Result<Vec<ObjectInfo>> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         let parent = match self.info.node_type() {
             NodeType::Obj => NodeHandle(self.info.parent_id().0),
             _ => NodeHandle(self.handle.0),
@@ -377,6 +388,7 @@ impl<'session> HoudiniNode {
         flags: NodeFlags,
         recursive: bool,
     ) -> Result<Vec<NodeHandle>> {
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         get_child_node_list(&self.session, self, types, flags, recursive)
     }
 
@@ -417,14 +429,14 @@ impl<'session> HoudiniNode {
 
     /// Find a parameter on the node by name. Err() means parameter not found.
     pub fn parameter(&self, name: &str) -> Result<Parameter> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         let parm_info = ParmInfo::from_parm_name(name, self)?;
         Ok(Parameter::new(self.handle, parm_info))
     }
 
     /// Return all node parameters.
     pub fn parameters(&self) -> Result<Vec<Parameter>> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         let infos = crate::ffi::get_parameters(self)?;
         Ok(infos
             .into_iter()
@@ -443,7 +455,7 @@ impl<'session> HoudiniNode {
 
     /// If node is an HDA, return [`AssetInfo'] about it.
     pub fn asset_info(&'session self) -> Result<AssetInfo<'session>> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         Ok(AssetInfo {
             inner: crate::ffi::get_asset_info(self)?,
             session: &self.session,
@@ -451,24 +463,24 @@ impl<'session> HoudiniNode {
     }
     /// Recursively check all nodes for a specific error.
     pub fn check_for_specific_error(&self, error_bits: i32) -> Result<ErrorCode> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::check_for_specific_errors(self, error_bits)
     }
 
     /// Compose the cook result string (errors and warnings).
     pub fn cook_result(&self, verbosity: StatusVerbosity) -> Result<String> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         unsafe { crate::ffi::get_composed_cook_result(self, verbosity) }
     }
     /// Resets the simulation cache of the asset.
     pub fn reset_simulation(&self) -> Result<()> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::reset_simulation(self)
     }
 
     /// Return a node connected to given input.
     pub fn input_node(&self, idx: i32) -> Result<Option<HoudiniNode>> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::query_node_input(self, idx).map(|idx| {
             if idx == -1 {
                 None
@@ -480,14 +492,14 @@ impl<'session> HoudiniNode {
 
     /// Give the node a new name.
     pub fn rename(&self, new_name: impl AsRef<str>) -> Result<()> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         let name = CString::new(new_name.as_ref())?;
         crate::ffi::rename_node(self, &name)
     }
 
     /// Saves the node and all its contents to file
     pub fn save_to_file(&self, file: impl AsRef<Path>) -> Result<()> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         let filename = CString::new(file.as_ref().to_string_lossy().to_string())?;
         crate::ffi::save_node_to_file(self.handle, &self.session, &filename)
     }
@@ -510,14 +522,14 @@ impl<'session> HoudiniNode {
 
     /// Returns a node preset as bytes.
     pub fn get_preset(&self, name: &str, preset_type: PresetType) -> Result<Vec<i8>> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         let name = CString::new(name)?;
         crate::ffi::get_preset(&self.session, self.handle, &name, preset_type)
     }
 
     /// Set the preset data to the node.
     pub fn set_preset(&self, name: &str, preset_type: PresetType, data: &[i8]) -> Result<()> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         let name = CString::new(name)?;
         crate::ffi::set_preset(&self.session, self.handle, &name, preset_type, data)
     }
@@ -525,7 +537,7 @@ impl<'session> HoudiniNode {
     /// Return Geometry for this node if it's a SOP node,
     /// otherwise find a child SOP node with display flag and return.
     pub fn geometry(&self) -> Result<Option<Geometry>> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         match self.info.node_type() {
             NodeType::Sop => Ok(Some(Geometry {
                 node: self.clone(),
@@ -549,13 +561,13 @@ impl<'session> HoudiniNode {
 
     /// How many geometry output nodes there is inside an Object or SOP node.
     pub fn number_of_geo_outputs(&self) -> Result<i32> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_output_geo_count(self)
     }
 
     /// Return all output nodes as Geometry.
     pub fn geometry_outputs(&self) -> Result<Vec<Geometry>> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_output_geos(self).map(|vec| {
             vec.into_iter()
                 .map(|inner| {
@@ -576,7 +588,7 @@ impl<'session> HoudiniNode {
         rst_order: Option<RSTOrder>,
         relative_to: impl Into<Option<NodeHandle>>,
     ) -> Result<Transform> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_object_transform(
             &self.session,
             self.handle,
@@ -588,7 +600,7 @@ impl<'session> HoudiniNode {
 
     /// Set transform on the Object
     pub fn set_transform(&self, transform: &TransformEuler) -> Result<()> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::set_object_transform(&self.session, self.handle, &transform.inner)
     }
 
@@ -598,7 +610,7 @@ impl<'session> HoudiniNode {
         component: TransformComponent,
         keys: &[KeyFrame],
     ) -> Result<()> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         let keys =
             unsafe { std::mem::transmute::<&[KeyFrame], &[crate::ffi::raw::HAPI_Keyframe]>(keys) };
         crate::ffi::set_transform_anim_curve(&self.session, self.handle, component, keys)
@@ -611,7 +623,7 @@ impl<'session> HoudiniNode {
         source: H,
         output_num: i32,
     ) -> Result<()> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::connect_node_input(
             &self.session,
             self.handle,
@@ -627,30 +639,31 @@ impl<'session> HoudiniNode {
         output_index: i32,
         search_subnets: bool,
     ) -> Result<Vec<NodeHandle>> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::query_node_output_connected_nodes(self, output_index, search_subnets)
     }
 
     /// Disconnect a given input index.
     pub fn disconnect_input(&self, input_index: i32) -> Result<()> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::disconnect_node_input(self, input_index)
     }
 
     /// Disconnect a given output index.
     pub fn disconnect_outputs(&self, output_index: i32) -> Result<()> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::disconnect_node_outputs(self, output_index)
     }
 
     /// Set display flag on this node.
     pub fn set_display_flag(&self, on: bool) -> Result<()> {
-        debug_assert!(self.is_valid()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::set_node_display(&self.session, self.handle, on)
     }
 
     /// Get the name of a node's input.
     pub fn get_input_name(&self, input_index: i32) -> Result<String> {
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_node_input_name(self, input_index)
     }
 }
@@ -736,7 +749,7 @@ mod tests {
                     .with_rotation([45.0, 0.0, 0.0]),
             )
             .unwrap();
-            obj.cook(None).unwrap();
+            obj.cook().unwrap();
             assert!(obj.get_object_info().unwrap().has_transform_changed());
             let t = obj.get_transform(None, None).unwrap();
             assert_eq!(t.position(), [0.0, 1.0, 0.0]);
@@ -861,7 +874,7 @@ mod tests {
             .load_asset_file("otls/hapi_parms.hda")
             .expect("loaded asset");
         let node = lib.try_create_first().expect("hapi_parm node");
-        node.cook_blocking(None).unwrap();
+        node.cook_blocking().unwrap();
         let parameters = node.parameters().expect("parameters");
         std::thread::scope(|scope| {
             for _ in 0..3 {
@@ -871,10 +884,10 @@ mod tests {
                         let parm = &parameters[i];
                         if fastrand::bool() {
                             set_parm_value(parm);
-                            node.cook(None).unwrap();
+                            node.cook().unwrap();
                         } else {
                             get_parm_value(parm);
-                            node.cook(None).unwrap();
+                            node.cook().unwrap();
                         }
                     }
                 });

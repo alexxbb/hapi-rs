@@ -93,7 +93,7 @@ impl<'a, T> Iterator for ArrayIter<'a, T> {
                 self.cursor = end;
                 // SAFETY: The data and the sizes arrays are both provided by HAPI
                 // are expected to match. Also bounds are checked in debug build.
-                Some(unsafe {self.data.get_unchecked(start..end)})
+                Some(unsafe { self.data.get_unchecked(start..end) })
             }
         }
     }
@@ -109,9 +109,9 @@ impl<'a, T> Iterator for ArrayIterMut<'a, T> {
                 let start = self.cursor;
                 let end = self.cursor + (*size as usize);
                 self.cursor = end;
-                // SAFETY: The data does not overlap
-                let slice = unsafe { &mut *(self.data[start..end].as_mut() as *mut [T]) };
-                Some(slice)
+                // SAFETY: Compiler can't know that we're never return overlapping references
+                // so we "erase" the lifetime by casting to pointer and back.
+                Some(unsafe { &mut *(self.data.get_unchecked_mut(start..end) as *mut [T]) })
             }
         }
     }
