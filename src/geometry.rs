@@ -13,19 +13,8 @@ use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::session::Session;
 use crate::stringhandle::StringArray;
+use crate::utils::unwrap_or_create;
 use crate::volume::{Tile, VolumeBounds, VolumeStorage};
-
-macro_rules! unwrap_or_create {
-    ($out:ident, $opt:expr, $default:expr) => {
-        match $opt {
-            None => {
-                $out = $default;
-                &$out
-            }
-            Some(v) => v,
-        }
-    };
-}
 
 #[derive(Debug, Clone)]
 /// Represents a SOP node with methods for manipulating geometry.
@@ -51,11 +40,13 @@ pub enum Materials {
 }
 
 impl GeoFormat {
-    fn as_c_literal(&self) -> &'static [u8] {
-        match *self {
-            GeoFormat::Geo => b".geo\0",
-            GeoFormat::Bgeo => b".bgeo\0",
-            GeoFormat::Obj => b".obj\0",
+    fn as_cstr(&self) -> &'static CStr {
+        unsafe {
+            CStr::from_bytes_with_nul_unchecked(match *self {
+                GeoFormat::Geo => b".geo\0",
+                GeoFormat::Bgeo => b".bgeo\0",
+                GeoFormat::Obj => b".obj\0",
+            })
         }
     }
 }
@@ -302,6 +293,7 @@ impl Geometry {
         }
     }
 
+    /// Get geometry group names by type.
     pub fn get_group_names(&self, group_type: GroupType) -> Result<StringArray> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
@@ -328,6 +320,27 @@ impl Geometry {
             &group,
             part_id,
         )
+    }
+    /// Get num geometry elements by type (points, prims, vertices).
+    pub fn get_element_count_by_owner(
+        &self,
+        part: Option<&PartInfo>,
+        owner: AttributeOwner,
+    ) -> Result<i32> {
+        let tmp;
+        let part = unwrap_or_create!(tmp, part, self.part_info(0)?);
+        crate::ffi::get_element_count_by_attribute_owner(part, owner)
+    }
+
+    /// Get number of attributes by type.
+    pub fn get_attribute_count_by_owner(
+        &self,
+        part: Option<&PartInfo>,
+        owner: AttributeOwner,
+    ) -> Result<i32> {
+        let tmp;
+        let part = unwrap_or_create!(tmp, part, self.part_info(0)?);
+        crate::ffi::get_attribute_count_by_owner(part, owner)
     }
 
     pub fn get_attribute_names(
@@ -671,14 +684,17 @@ impl Geometry {
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let format = unsafe { CStr::from_bytes_with_nul_unchecked(format.as_c_literal()) };
-        crate::ffi::save_geo_to_memory(&self.node.session, self.node.handle, format)
+        crate::ffi::save_geo_to_memory(&self.node.session, self.node.handle, format.as_cstr())
     }
 
     pub fn load_from_memory(&self, data: &[i8], format: GeoFormat) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
-        let format = unsafe { CStr::from_bytes_with_nul_unchecked(format.as_c_literal()) };
-        crate::ffi::load_geo_from_memory(&self.node.session, self.node.handle, data, format)
+        crate::ffi::load_geo_from_memory(
+            &self.node.session,
+            self.node.handle,
+            data,
+            format.as_cstr(),
+        )
     }
 
     pub fn read_volume_tile<T: VolumeStorage>(
@@ -867,6 +883,26 @@ mod tests {
     }
 
     #[test]
+    fn attribute_names() {
+        with_session(|session| {
+            let node = session.create_node("Object/hapi_geo", None, None).unwrap();
+            node.cook_blocking().unwrap();
+            let geo = node.geometry().unwrap().expect("geometry");
+            let iter = geo
+                .get_attribute_names(AttributeOwner::Point, None)
+                .unwrap();
+            let names: Vec<_> = iter.iter_str().collect();
+            assert!(names.contains(&"Cd"));
+            assert!(names.contains(&"my_float_array"));
+            assert!(names.contains(&"pscale"));
+            let iter = geo.get_attribute_names(AttributeOwner::Prim, None).unwrap();
+            let names: Vec<_> = iter.iter_str().collect();
+            assert!(names.contains(&"primname"));
+            assert!(names.contains(&"shop_materialpath"));
+        })
+    }
+
+    #[test]
     fn numeric_attributes() {
         with_session(|session| {
             let geo = session.create_input_node("test").unwrap();
@@ -1006,6 +1042,46 @@ mod tests {
             assert_eq!(geo.part_info(0).unwrap().point_count(), 0);
             geo.node.delete().unwrap();
         });
+    }
+
+    #[test]
+    fn geometry_elements() {
+        with_session(|ses| {
+            let node = ses.create_node("Object/hapi_geo", None, None).unwrap();
+            node.cook_blocking().unwrap();
+            let geo = node.geometry().unwrap().expect("Geometry");
+            let part = geo.part_info(0).unwrap();
+            // Cube
+            let points = geo
+                .get_element_count_by_owner(Some(&part), AttributeOwner::Point)
+                .unwrap();
+            assert_eq!(points, 8);
+            assert_eq!(points, part.point_count());
+            let prims = geo
+                .get_element_count_by_owner(Some(&part), AttributeOwner::Prim)
+                .unwrap();
+            assert_eq!(prims, 6);
+            assert_eq!(prims, part.face_count());
+            let vtx = geo
+                .get_element_count_by_owner(Some(&part), AttributeOwner::Vertex)
+                .unwrap();
+            assert_eq!(vtx, 24);
+            assert_eq!(vtx, part.vertex_count());
+            let num_pt = geo
+                .get_attribute_count_by_owner(Some(&part), AttributeOwner::Point)
+                .unwrap();
+            assert_eq!(num_pt, 7);
+            let num_pr = geo
+                .get_attribute_count_by_owner(Some(&part), AttributeOwner::Prim)
+                .unwrap();
+            assert_eq!(num_pr, 3);
+            let pr_groups = geo.get_group_names(GroupType::Prim).unwrap();
+            let pt_groups = geo.get_group_names(GroupType::Point).unwrap();
+            let pr_groups = pr_groups.iter_str().collect::<Vec<_>>();
+            let pt_groups = pt_groups.iter_str().collect::<Vec<_>>();
+            assert!(pr_groups.contains(&"group_A"));
+            assert!(pt_groups.contains(&"group_B"));
+        })
     }
 
     #[test]

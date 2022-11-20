@@ -14,7 +14,6 @@
 //!
 //! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
 //!
-pub use crate::ffi::enums::*;
 use log::{debug, error, warn};
 use std::ffi::{CStr, OsString};
 use std::fmt::Debug;
@@ -24,10 +23,12 @@ use std::{ffi::CString, path::Path, sync::Arc};
 use crate::{
     asset::AssetLibrary,
     errors::*,
-    ffi::raw,
-    ffi::{CookOptions, ImageFileFormat, SessionSyncInfo, TimelineOptions, Viewport},
+    ffi::{
+        enums::*, raw, CookOptions, ImageFileFormat, SessionSyncInfo, TimelineOptions, Viewport,
+    },
     node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle},
     stringhandle::StringArray,
+    utils,
 };
 
 use crate::node::{NodeType, Parameter};
@@ -306,8 +307,8 @@ impl Session {
         // There seem to be a bug where Top network node fails with get_manager_node(..)
         let handle = match manager {
             ManagerType::Top => {
-                let path = unsafe { CStr::from_bytes_with_nul_unchecked(b"/tasks\0") };
-                crate::ffi::get_node_from_path(self, None, path)?
+                use crate::utils::cstr;
+                crate::ffi::get_node_from_path(self, None, cstr!(b"/tasks\0"))?
             }
             _ => crate::ffi::get_manager_node(self, node_type)?,
         };
@@ -512,11 +513,10 @@ impl Session {
         image_planes: impl AsRef<str>,
         path: impl AsRef<Path>,
     ) -> Result<String> {
+        debug!("Start rendering COP to image.");
         let cop_node = cop_node.into();
         debug_assert!(cop_node.is_valid(self)?);
         crate::ffi::render_cop_to_image(self, cop_node)?;
-        let info = crate::ffi::get_image_info(self, cop_node)?;
-        dbg!(info);
         crate::material::extract_image_to_file(self, cop_node, image_planes, path)
     }
 
@@ -527,6 +527,7 @@ impl Session {
         image_planes: impl AsRef<str>,
         format: impl AsRef<str>,
     ) -> Result<Vec<i8>> {
+        debug!("Start rendering COP to memory.");
         let cop_node = cop_node.into();
         debug_assert!(cop_node.is_valid(self)?);
         crate::ffi::render_cop_to_image(self, cop_node)?;
@@ -618,23 +619,6 @@ pub fn new_in_process(options: Option<&SessionOptions>) -> Result<Session> {
     Ok(session)
 }
 
-/// Join a sequence of paths into a single String
-fn join_paths<I>(files: I) -> String
-where
-    I: IntoIterator,
-    I::Item: AsRef<str>,
-{
-    let mut buf = String::new();
-    let mut iter = files.into_iter().peekable();
-    while let Some(n) = iter.next() {
-        buf.push_str(n.as_ref());
-        if iter.peek().is_some() {
-            buf.push(':');
-        }
-    }
-    buf
-}
-
 /// Session options passed to session create functions like [`connect_to_pipe`]
 #[derive(Clone, Debug)]
 pub struct SessionOptions {
@@ -693,7 +677,7 @@ impl SessionOptionsBuilder {
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        let paths = join_paths(files);
+        let paths = utils::join_paths(files);
         self.env_files
             .replace(CString::new(paths).expect("Zero byte"));
         self
@@ -723,7 +707,7 @@ impl SessionOptionsBuilder {
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        let paths = join_paths(paths);
+        let paths = utils::join_paths(paths);
         self.otl_path
             .replace(CString::new(paths).expect("Zero byte"));
         self
@@ -735,7 +719,7 @@ impl SessionOptionsBuilder {
         P: IntoIterator,
         P::Item: AsRef<str>,
     {
-        let paths = join_paths(paths);
+        let paths = utils::join_paths(paths);
         self.dso_path
             .replace(CString::new(paths).expect("Zero byte"));
         self
@@ -747,7 +731,7 @@ impl SessionOptionsBuilder {
         P: IntoIterator,
         P::Item: AsRef<str>,
     {
-        let paths = join_paths(paths);
+        let paths = utils::join_paths(paths);
         self.img_dso_path
             .replace(CString::new(paths).expect("Zero byte"));
         self
@@ -759,7 +743,7 @@ impl SessionOptionsBuilder {
         P: IntoIterator,
         P::Item: AsRef<str>,
     {
-        let paths = join_paths(paths);
+        let paths = utils::join_paths(paths);
         self.aud_dso_path
             .replace(CString::new(paths).expect("Zero byte"));
         self

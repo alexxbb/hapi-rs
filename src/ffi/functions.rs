@@ -1258,6 +1258,29 @@ pub fn get_group_count_by_type(geo_info: &GeoInfo, group_type: raw::GroupType) -
     unsafe { raw::HAPI_GeoInfo_GetGroupCountByType(ptr, group_type) }
 }
 
+pub fn get_element_count_by_attribute_owner(
+    part: &PartInfo,
+    owner: raw::AttributeOwner,
+) -> Result<i32> {
+    unsafe {
+        // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
+        // actually shouldn't?
+        let ptr = (&part.inner as *const _) as *mut raw::HAPI_PartInfo;
+        Ok(raw::HAPI_PartInfo_GetElementCountByAttributeOwner(
+            ptr, owner,
+        ))
+    }
+}
+
+pub fn get_attribute_count_by_owner(part: &PartInfo, owner: raw::AttributeOwner) -> Result<i32> {
+    unsafe {
+        // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
+        // actually shouldn't?
+        let ptr = (&part.inner as *const _) as *mut raw::HAPI_PartInfo;
+        Ok(raw::HAPI_PartInfo_GetAttributeCountByOwner(ptr, owner))
+    }
+}
+
 pub fn get_edge_count_of_edge_group(
     session: &Session,
     node: NodeHandle,

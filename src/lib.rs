@@ -116,6 +116,7 @@ pub mod stringhandle;
 pub mod volume;
 pub mod pdg;
 mod errors;
+mod utils;
 mod ffi;
 
 pub use errors::{HapiError, Result};

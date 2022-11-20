@@ -1,5 +1,5 @@
 # hapi-rs changelog
-## [0.7.1]
+## [0.8.0]
 ## Changed
 - AssetLibrary::try_create_first() can now crate nodes other than of Object type.
 - Functions taking optional parent (`Option<NodeHandle>`) are now generic and can take `HoudiniNode` too.
@@ -9,6 +9,7 @@
 
 ## New
 - `ManagerType` enum represents a network root node.
+- Add several missing geometry APIs.
 
 ## [0.7.0]
 ## Changed
