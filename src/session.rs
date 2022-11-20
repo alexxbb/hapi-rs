@@ -14,19 +14,21 @@
 //!
 //! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
 //!
-pub use crate::ffi::enums::*;
 use log::{debug, error, warn};
-use std::ffi::OsString;
+use std::ffi::{CStr, OsString};
+use std::fmt::Debug;
 use std::path::PathBuf;
 use std::{ffi::CString, path::Path, sync::Arc};
 
 use crate::{
     asset::AssetLibrary,
     errors::*,
-    ffi::raw,
-    ffi::{CookOptions, SessionSyncInfo, TimelineOptions, Viewport},
-    node::{HoudiniNode, ManagerNode, NodeHandle},
+    ffi::{
+        enums::*, raw, CookOptions, ImageFileFormat, SessionSyncInfo, TimelineOptions, Viewport,
+    },
+    node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle},
     stringhandle::StringArray,
+    utils,
 };
 
 use crate::node::{NodeType, Parameter};
@@ -40,7 +42,7 @@ impl std::cmp::PartialEq for raw::HAPI_Session {
 
 /// Trait bound for [`Session::get_server_var()`] and [`Session::set_server_var()`]
 pub trait EnvVariable {
-    type Type: ?Sized + ToOwned;
+    type Type: ?Sized + ToOwned + Debug;
     fn get_value(session: &Session, key: impl AsRef<str>)
         -> Result<<Self::Type as ToOwned>::Owned>;
     fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()>;
@@ -170,6 +172,7 @@ impl Session {
         value: &T::Type,
     ) -> Result<()> {
         debug_assert!(self.is_valid());
+        debug!("Setting server variable {key}={value:?}");
         T::set_value(self, key, value)
     }
 
@@ -230,20 +233,22 @@ impl Session {
 
     /// Create an input geometry node which can accept modifications
     pub fn create_input_node(&self, name: &str) -> Result<crate::geometry::Geometry> {
+        debug!("Creating input node: {}", name);
         debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_node(self, &name)?;
-        let node = HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)?;
+        let node = HoudiniNode::new(self.clone(), NodeHandle(id), None)?;
         let info = crate::geometry::GeoInfo::from_node(&node)?;
         Ok(crate::geometry::Geometry { node, info })
     }
 
     /// Create an input geometry node with [`crate::enums::PartType`] set to `Curve`
     pub fn create_input_curve_node(&self, name: &str) -> Result<crate::geometry::Geometry> {
+        debug!("Creating input curve node: {}", name);
         debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_curve_node(self, &name)?;
-        let node = HoudiniNode::new(self.clone(), NodeHandle(id, ()), None)?;
+        let node = HoudiniNode::new(self.clone(), NodeHandle(id), None)?;
         let info = crate::geometry::GeoInfo::from_node(&node)?;
         Ok(crate::geometry::Geometry { node, info })
     }
@@ -254,7 +259,7 @@ impl Session {
         &self,
         name: impl AsRef<str>,
         label: impl Into<Option<&'a str>>,
-        parent: Option<NodeHandle>,
+        parent: impl Into<Option<NodeHandle>>,
     ) -> Result<HoudiniNode> {
         debug_assert!(self.is_valid());
         HoudiniNode::create(name.as_ref(), label.into(), parent, self.clone(), false)
@@ -262,35 +267,55 @@ impl Session {
 
     /// Find a node given an absolute path. To find a child node, pass the `parent` node
     /// or use [`HoudiniNode::find_child_by_path`]
-    pub fn find_node_from_path(
+    pub fn get_node_from_path(
         &self,
         path: impl AsRef<str>,
-        parent: Option<NodeHandle>,
-    ) -> Result<HoudiniNode> {
+        parent: impl Into<Option<NodeHandle>>,
+    ) -> Result<Option<HoudiniNode>> {
+        debug_assert!(self.is_valid());
+        debug!("Searching node at path: {}", path.as_ref());
         let path = CString::new(path.as_ref())?;
-        crate::ffi::get_node_from_path(self, parent, &path)
-            .map(|id| NodeHandle(id, ()).to_node(self))?
+        match crate::ffi::get_node_from_path(self, parent.into(), &path) {
+            Ok(handle) => Ok(NodeHandle(handle).to_node(self).ok()),
+            Err(HapiError {
+                kind: Kind::Hapi(HapiResult::InvalidArgument),
+                ..
+            }) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     /// Find a parameter by its absolute path
     pub fn find_parameter_from_path(&self, path: impl AsRef<str>) -> Result<Option<Parameter>> {
-        match path.as_ref().rsplit_once('/') {
-            None => Ok(None),
-            Some((node, parm)) => {
-                let node = self.find_node_from_path(node, None)?;
-                Ok(node.parameter(parm).ok())
-            }
-        }
+        debug_assert!(self.is_valid());
+        debug!("Searching parameter at path: {}", path.as_ref());
+        let Some((path, parm)) = path.as_ref().rsplit_once('/') else {
+            return Ok(None)
+        };
+        let Some(node) = self.get_node_from_path(path, None)? else {
+            debug!("Node {} not found", path);
+            return Ok(None)
+        };
+        Ok(node.parameter(parm).ok())
     }
 
     /// Returns a manager (root) node such as OBJ, TOP, CHOP, etc
-    pub fn get_manager_node(&self, node_type: NodeType) -> Result<ManagerNode> {
+    pub fn get_manager_node(&self, manager: ManagerType) -> Result<ManagerNode> {
         debug_assert!(self.is_valid());
-        let id = crate::ffi::get_manager_node(self, node_type)?;
+        debug!("Getting Manager node of type: {:?}", manager);
+        let node_type = NodeType::from(manager);
+        // There seem to be a bug where Top network node fails with get_manager_node(..)
+        let handle = match manager {
+            ManagerType::Top => {
+                use crate::utils::cstr;
+                crate::ffi::get_node_from_path(self, None, cstr!(b"/tasks\0"))?
+            }
+            _ => crate::ffi::get_manager_node(self, node_type)?,
+        };
         Ok(ManagerNode {
             session: self.clone(),
-            handle: NodeHandle(id, ()),
-            node_type,
+            handle: NodeHandle(handle),
+            node_type: manager,
         })
     }
 
@@ -381,6 +406,7 @@ impl Session {
     /// In threaded mode wait for Session finishes cooking. In single-thread mode, immediately return
     /// See [Documentation](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html)
     pub fn cook(&self) -> Result<CookResult> {
+        debug!("Cooking session..");
         debug_assert!(self.is_valid());
         if self.inner.options.threaded {
             loop {
@@ -487,6 +513,7 @@ impl Session {
         image_planes: impl AsRef<str>,
         path: impl AsRef<Path>,
     ) -> Result<String> {
+        debug!("Start rendering COP to image.");
         let cop_node = cop_node.into();
         debug_assert!(cop_node.is_valid(self)?);
         crate::ffi::render_cop_to_image(self, cop_node)?;
@@ -500,10 +527,23 @@ impl Session {
         image_planes: impl AsRef<str>,
         format: impl AsRef<str>,
     ) -> Result<Vec<i8>> {
+        debug!("Start rendering COP to memory.");
         let cop_node = cop_node.into();
         debug_assert!(cop_node.is_valid(self)?);
         crate::ffi::render_cop_to_image(self, cop_node)?;
         crate::material::extract_image_to_memory(self, cop_node, image_planes, format)
+    }
+
+    pub fn get_supported_image_formats(&self) -> Result<Vec<ImageFileFormat<'_>>> {
+        debug_assert!(self.is_valid());
+        crate::ffi::get_supported_image_file_formats(self).map(|v| {
+            v.into_iter()
+                .map(|inner| ImageFileFormat {
+                    inner,
+                    session: self,
+                })
+                .collect()
+        })
     }
 }
 
@@ -579,23 +619,6 @@ pub fn new_in_process(options: Option<&SessionOptions>) -> Result<Session> {
     Ok(session)
 }
 
-/// Join a sequence of paths into a single String
-fn join_paths<I>(files: I) -> String
-where
-    I: IntoIterator,
-    I::Item: AsRef<str>,
-{
-    let mut buf = String::new();
-    let mut iter = files.into_iter().peekable();
-    while let Some(n) = iter.next() {
-        buf.push_str(n.as_ref());
-        if iter.peek().is_some() {
-            buf.push(':');
-        }
-    }
-    buf
-}
-
 /// Session options passed to session create functions like [`connect_to_pipe`]
 #[derive(Clone, Debug)]
 pub struct SessionOptions {
@@ -654,7 +677,7 @@ impl SessionOptionsBuilder {
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        let paths = join_paths(files);
+        let paths = utils::join_paths(files);
         self.env_files
             .replace(CString::new(paths).expect("Zero byte"));
         self
@@ -684,7 +707,7 @@ impl SessionOptionsBuilder {
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        let paths = join_paths(paths);
+        let paths = utils::join_paths(paths);
         self.otl_path
             .replace(CString::new(paths).expect("Zero byte"));
         self
@@ -696,7 +719,7 @@ impl SessionOptionsBuilder {
         P: IntoIterator,
         P::Item: AsRef<str>,
     {
-        let paths = join_paths(paths);
+        let paths = utils::join_paths(paths);
         self.dso_path
             .replace(CString::new(paths).expect("Zero byte"));
         self
@@ -708,7 +731,7 @@ impl SessionOptionsBuilder {
         P: IntoIterator,
         P::Item: AsRef<str>,
     {
-        let paths = join_paths(paths);
+        let paths = utils::join_paths(paths);
         self.img_dso_path
             .replace(CString::new(paths).expect("Zero byte"));
         self
@@ -720,7 +743,7 @@ impl SessionOptionsBuilder {
         P: IntoIterator,
         P::Item: AsRef<str>,
     {
-        let paths = join_paths(paths);
+        let paths = utils::join_paths(paths);
         self.aud_dso_path
             .replace(CString::new(paths).expect("Zero byte"));
         self
@@ -776,7 +799,7 @@ impl SessionOptionsBuilder {
                 .tempfile()
                 .expect("tempfile");
             for (k, v) in env.iter() {
-                writeln!(file, "{}={}", k, v).unwrap();
+                writeln!(file, "{}={}", k, v).expect("write to .env file");
             }
             let (_, tmp_file) = file.keep().expect("persistent tempfile");
             let tmp_file = CString::new(tmp_file.to_string_lossy().to_string()).expect("null byte");
@@ -951,7 +974,7 @@ pub(crate) mod tests {
                 .unwrap(),
             0
         );
-        node.cook(None).unwrap(); // in threaded mode always successful
+        node.cook().unwrap(); // in threaded mode always successful
         assert_eq!(
             node.cook_count(NodeType::None, NodeFlags::None, true)
                 .unwrap(),
@@ -990,5 +1013,16 @@ pub(crate) mod tests {
             assert!(info.sync_viewport());
             assert!(info.cook_using_houdini_time());
         });
+    }
+
+    #[test]
+    fn manager_nodes() {
+        with_session(|session| {
+            session.get_manager_node(ManagerType::Obj).unwrap();
+            session.get_manager_node(ManagerType::Chop).unwrap();
+            session.get_manager_node(ManagerType::Cop).unwrap();
+            session.get_manager_node(ManagerType::Rop).unwrap();
+            session.get_manager_node(ManagerType::Top).unwrap();
+        })
     }
 }

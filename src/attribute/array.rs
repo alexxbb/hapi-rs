@@ -13,16 +13,18 @@ impl<'a, T> DataArray<'a, T>
 where
     [T]: ToOwned<Owned = Vec<T>>,
 {
-    pub fn new(dat: &'a [T], sizes: &'a [i32]) -> DataArray<'a, T> {
+    pub fn new(data: &'a [T], sizes: &'a [i32]) -> DataArray<'a, T> {
+        debug_assert_eq!(sizes.iter().sum::<i32>() as usize, data.len());
         DataArray {
-            data: Cow::Borrowed(dat),
+            data: Cow::Borrowed(data),
             sizes: Cow::Borrowed(sizes),
         }
     }
 
-    pub(crate) fn new_owned(dat: Vec<T>, sizes: Vec<i32>) -> DataArray<'static, T> {
+    pub(crate) fn new_owned(data: Vec<T>, sizes: Vec<i32>) -> DataArray<'static, T> {
+        debug_assert_eq!(sizes.iter().sum::<i32>() as usize, data.len());
         DataArray {
-            data: Cow::Owned(dat),
+            data: Cow::Owned(data),
             sizes: Cow::Owned(sizes),
         }
     }
@@ -89,8 +91,9 @@ impl<'a, T> Iterator for ArrayIter<'a, T> {
                 let start = self.cursor;
                 let end = self.cursor + (*size as usize);
                 self.cursor = end;
-                // TODO: We know the data size, it can be rewritten to use unsafe unchecked
-                Some(&self.data[start..end])
+                // SAFETY: The data and the sizes arrays are both provided by HAPI
+                // are expected to match. Also bounds are checked in debug build.
+                Some(unsafe { self.data.get_unchecked(start..end) })
             }
         }
     }
@@ -106,9 +109,9 @@ impl<'a, T> Iterator for ArrayIterMut<'a, T> {
                 let start = self.cursor;
                 let end = self.cursor + (*size as usize);
                 self.cursor = end;
-                // SAFETY: The data does not overlap
-                let slice = unsafe { &mut *(self.data[start..end].as_mut() as *mut [T]) };
-                Some(slice)
+                // SAFETY: Compiler can't know that we're never return overlapping references
+                // so we "erase" the lifetime by casting to pointer and back.
+                Some(unsafe { &mut *(self.data.get_unchecked_mut(start..end) as *mut [T]) })
             }
         }
     }

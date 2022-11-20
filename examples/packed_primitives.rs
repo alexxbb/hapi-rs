@@ -23,12 +23,12 @@ fn main() -> Result<()> {
             }
         );
         co.set_packed_prim_instancing_mode(mode);
-        asset.cook_blocking(Some(&co))?;
+        asset.cook_with_options(&co, true)?;
 
         let nodes = asset.find_children_by_type(NodeType::Sop, NodeFlags::Any, false)?;
         for handle in nodes {
             let node = handle.to_node(&session)?;
-            node.cook_blocking(Some(&co))?;
+            node.cook_with_options(&co, true)?;
             let geo = node.geometry()?.expect("geometry");
             println!(
                 "Part count for node {:?}: {}",
@@ -37,15 +37,10 @@ fn main() -> Result<()> {
             );
             for part in geo.partitions()? {
                 println!(
-                    "Part {}\n   Point Count = {}\n   Type = {}",
+                    "Part {}\n   Point Count = {}\n   Type = {:?}",
                     part.part_id(),
                     part.point_count(),
-                    match part.part_type() {
-                        PartType::Mesh => "Mesh",
-                        PartType::Curve => "Curve",
-                        PartType::Instancer => "Instancer",
-                        p => "oops",
-                    }
+                    part.part_type(),
                 );
             }
         }

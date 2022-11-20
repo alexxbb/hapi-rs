@@ -10,7 +10,7 @@ use hapi_rs::Result;
 
 fn create_cube(session: &Session) -> Result<HoudiniNode> {
     let geometry = session.create_input_node("Cube")?;
-    geometry.node.cook(None)?;
+    geometry.node.cook()?;
 
     let part_info = PartInfo::default()
         .with_part_type(PartType::Mesh)
@@ -74,7 +74,7 @@ fn main() -> Result<()> {
     if let Parameter::Float(p) = xform.parameter("t").expect("t parm") {
         p.set_array([0.0, 1.0, 0.0])?
     }
-    xform.cook(None)?;
+    xform.cook()?;
 
     let geo = xform.geometry()?.unwrap();
     let num_groups = geo.group_count_by_type(GroupType::Point, None)?;

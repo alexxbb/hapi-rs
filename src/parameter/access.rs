@@ -78,15 +78,28 @@ impl FloatParameter {
     }
 
     /// Set all parameter tuple values
-    pub fn set_array(&self, val: impl AsRef<[f32]>) -> Result<()> {
+    pub fn set_array(&self, values: impl AsRef<[f32]>) -> Result<()> {
         let session = &self.wrap.info.session;
         debug_assert!(self.wrap.node.is_valid(session)?);
+        let mut size = self.wrap.info.size() as usize;
+        let values = values.as_ref();
+        match values.len() {
+            len if len > size => {
+                log::warn!("Array length is greater than parm length: {size}");
+                size = values.len().min(size);
+            }
+            len if len == 0 => {
+                log::warn!("Parameter::set_array got empty array");
+                return Ok(());
+            }
+            _ => {}
+        }
         crate::ffi::set_parm_float_values(
             self.wrap.node,
             session,
             self.wrap.info.float_values_index(),
-            self.wrap.info.size(),
-            val.as_ref(),
+            size as i32,
+            values,
         )
     }
 
