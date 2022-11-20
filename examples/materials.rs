@@ -8,7 +8,7 @@ fn main() -> Result<()> {
     let session = quick_session(None)?;
     let lib = session.load_asset_file("otls/sesi/SideFX_spaceship.hda")?;
     let node = lib.try_create_first()?;
-    node.cook(None)?;
+    node.cook()?;
     let geo = node.geometry()?.unwrap();
     let material = match geo.get_materials(None)?.unwrap() {
         Materials::Single(mat) => mat,

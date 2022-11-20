@@ -4,7 +4,7 @@ use hapi_rs::{attribute::*, geometry::*, session::*, Result};
 fn main() -> Result<()> {
     let session = quick_session(None)?;
     let geom = session.create_input_node("Curve")?;
-    geom.node.cook_blocking(None)?;
+    geom.node.cook_blocking()?;
     let part_info = PartInfo::default()
         .with_part_type(PartType::Curve)
         .with_face_count(1)

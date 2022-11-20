@@ -6,13 +6,14 @@ use std::borrow::Cow;
 pub type Result<T> = std::result::Result<T, HapiError>;
 
 /// Error type returned by all APIs
+// TODO: This should really be an Enum.
 pub struct HapiError {
     /// A specific error type.
     pub kind: Kind,
     /// Context error messages.
     pub contexts: Vec<Cow<'static, str>>,
-    /// Error message retrieved from the server. Server doesn't always return a message.
-    pub server_message: Option<String>,
+    /// Error message from server or static if server couldn't respond.
+    pub server_message: Option<Cow<'static, str>>,
 }
 
 pub(crate) trait ErrorContext<T> {
@@ -67,11 +68,11 @@ pub enum Kind {
     /// Error returned by ffi calls
     Hapi(HapiResult),
     /// CString contains null byte
-    NullByte,
+    NullByte(std::ffi::NulError),
     /// String is not a valid utf-8
-    Utf8Error,
-    /// Any other error
-    Other(String),
+    Utf8Error(std::string::FromUtf8Error),
+    /// Misc error message from this crate.
+    Internal(Cow<'static, str>),
 }
 
 impl Kind {
@@ -102,9 +103,9 @@ impl Kind {
             Kind::Hapi(NodeInvalid) => "NODE_INVALID",
             Kind::Hapi(UserInterrupted) => "USER_INTERRUPTED",
             Kind::Hapi(InvalidSession) => "INVALID_SESSION",
-            Kind::NullByte => "String contains null byte!",
-            Kind::Utf8Error => "String is not UTF-8!",
-            Kind::Other(s) => s,
+            Kind::NullByte(_) => "String contains null byte!",
+            Kind::Utf8Error(_) => "String is not UTF-8!",
+            Kind::Internal(s) => s,
         }
     }
 }
@@ -120,19 +121,36 @@ impl From<HapiResult> for HapiError {
 }
 
 impl HapiError {
+    pub(crate) fn new_hapi_with_server_message(
+        result: HapiResult,
+        server_message: Cow<'static, str>,
+    ) -> Self {
+        HapiError {
+            kind: Kind::Hapi(result),
+            contexts: vec![],
+            server_message: Some(server_message),
+        }
+    }
     pub(crate) fn new(
         kind: Kind,
-        mut context_message: Option<Cow<'static, str>>,
-        server_message: Option<String>,
+        mut static_message: Option<Cow<'static, str>>,
+        server_message: Option<Cow<'static, str>>,
     ) -> HapiError {
         let mut contexts = vec![];
-        if let Some(m) = context_message.take() {
+        if let Some(m) = static_message.take() {
             contexts.push(m);
         }
         HapiError {
             kind,
             contexts,
             server_message,
+        }
+    }
+    pub(crate) fn internal<M: Into<Cow<'static, str>>>(message: M) -> Self {
+        HapiError {
+            kind: Kind::Internal(message.into()),
+            server_message: None,
+            contexts: vec![],
         }
     }
 }
@@ -146,14 +164,27 @@ impl std::fmt::Display for HapiError {
                     write!(f, "[Engine Message]: {}", msg)?;
                 }
                 if !self.contexts.is_empty() {
-                    writeln!(f)?;
+                    writeln!(f)?; // blank line
                 }
                 for (n, msg) in self.contexts.iter().enumerate() {
                     writeln!(f, "\t{}. {}", n, msg)?;
                 }
                 Ok(())
             }
-            e => unreachable!("Unhandled error kind: {:?}", &e),
+            Kind::NullByte(e) => unsafe {
+                let text = e.clone().into_vec();
+                // SAFETY: We don't care about utf8 for error reporting I think
+                let text = std::str::from_utf8_unchecked(&text);
+                write!(f, "{e} in string \"{}\"", text)
+            },
+            Kind::Utf8Error(e) => unsafe {
+                // SAFETY: We don't care about utf8 for error reporting I think
+                let text = std::str::from_utf8_unchecked(e.as_bytes());
+                write!(f, "{e} in string \"{}\"", text)
+            },
+            Kind::Internal(e) => {
+                write!(f, "[Internal Error]: {e}")
+            }
         }
     }
 }
@@ -165,50 +196,53 @@ impl std::fmt::Debug for HapiError {
 }
 
 impl From<std::ffi::NulError> for HapiError {
-    fn from(_: std::ffi::NulError) -> Self {
-        HapiError::new(Kind::NullByte, None, None)
+    fn from(e: std::ffi::NulError) -> Self {
+        HapiError::new(Kind::NullByte(e), None, None)
     }
 }
 
 impl From<std::string::FromUtf8Error> for HapiError {
-    fn from(_: std::string::FromUtf8Error) -> Self {
-        HapiError::new(Kind::Utf8Error, None, None)
+    fn from(e: std::string::FromUtf8Error) -> Self {
+        HapiError::new(Kind::Utf8Error(e), None, None)
     }
 }
 
 impl std::error::Error for HapiError {}
 
 impl HapiResult {
-    fn _into_result<R: Default>(
-        self,
-        session: Option<&Session>,
-        context_msg: Option<Cow<'static, str>>,
-    ) -> Result<R> {
+    pub(crate) fn check_err<R: Default, F, M>(self, session: &Session, context: F) -> Result<R>
+    where
+        M: Into<Cow<'static, str>>,
+        F: FnOnce() -> M,
+    {
         match self {
             HapiResult::Success => Ok(R::default()),
-            err => {
-                let mut server_msg = None;
-                if let Some(session) = session {
-                    let err_msg = session
-                        .get_status_string(StatusType::CallResult, StatusVerbosity::All)
-                        .unwrap_or_else(|_| String::from("could not retrieve error message"));
-                    server_msg.replace(err_msg);
-                }
-                Err(HapiError::new(Kind::Hapi(err), context_msg, server_msg))
+            _err => {
+                let server_message = session
+                    .get_status_string(StatusType::CallResult, StatusVerbosity::All)
+                    .unwrap_or_else(|_| String::from("Could not retrieve error message"));
+                let mut err =
+                    HapiError::new_hapi_with_server_message(self, Cow::Owned(server_message));
+                err.contexts.push(context().into());
+                Err(err)
             }
         }
     }
 
-    #[inline]
-    pub(crate) fn check_err<R: Default>(self, session: Option<&Session>) -> Result<R> {
-        self._into_result(session, None)
-    }
-
-    #[inline]
     pub(crate) fn error_message<I: Into<Cow<'static, str>>, R: Default>(
         self,
         message: I,
     ) -> Result<R> {
-        self._into_result(None, Some(message.into()))
+        match self {
+            HapiResult::Success => Ok(R::default()),
+            _err => {
+                let mut err = HapiError::new_hapi_with_server_message(
+                    self,
+                    Cow::Borrowed("Server error message unavailable"),
+                );
+                err.contexts.push(message.into());
+                Err(err)
+            }
+        }
     }
 }

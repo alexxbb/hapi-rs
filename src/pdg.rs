@@ -99,6 +99,8 @@ impl TopNode {
         F: FnMut(CookStep) -> Result<ControlFlow<bool>>,
     {
         let session = &self.node.session;
+        log::debug!("Start cooking PDG node: {}", self.node.path()?);
+        debug_assert!(session.is_valid());
         ffi::cook_pdg(session, self.node.handle, false, false)?;
         let mut events = create_events();
         'main: loop {
@@ -175,12 +177,14 @@ impl TopNode {
 
     /// Cancel cooking.
     pub fn cancel_cook(&self) -> Result<()> {
+        log::debug!("Cancel PDG cooking {}", self.node.path()?);
         let context = self.get_context_id()?;
         ffi::cancel_pdg_cook(&self.node.session, context)
     }
 
     /// Dirty the node, forcing the work items to regenerate.
     pub fn dirty_node(&self, clean_results: bool) -> Result<()> {
+        log::debug!("Set PDG node dirty {}", self.node.path()?);
         ffi::dirty_pdg_node(&self.node.session, self.node.handle, clean_results)
     }
 

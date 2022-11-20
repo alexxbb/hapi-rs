@@ -28,7 +28,7 @@ pub use base::*;
 
 #[derive(Debug, Clone, Copy)]
 /// An internal handle to a parameter
-pub struct ParmHandle(pub crate::ffi::raw::HAPI_ParmId, pub(crate) ());
+pub struct ParmHandle(pub crate::ffi::raw::HAPI_ParmId);
 
 #[derive(Debug)]
 /// Enum of different parameter types.
@@ -86,7 +86,7 @@ impl Parameter {
         let wrap = self.base();
         debug_assert!(wrap.info.session.is_valid());
         match wrap.info.parent_id() {
-            ParmHandle(-1, ()) => Ok(None),
+            ParmHandle(-1) => Ok(None),
             handle => {
                 let session = wrap.info.session.clone();
                 let info = crate::ffi::get_parm_info(wrap.node, &session, handle)?;
@@ -116,7 +116,7 @@ impl ParmHandle {
         debug_assert!(node.is_valid()?);
         let name = std::ffi::CString::new(name)?;
         let id = crate::ffi::get_parm_id_from_name(&name, node.handle, &node.session)?;
-        Ok(ParmHandle(id, ()))
+        Ok(ParmHandle(id))
     }
     /// Retrieve parameter information from of the handle
     pub fn info(&self, node: &HoudiniNode) -> Result<ParmInfo> {

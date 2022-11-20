@@ -137,7 +137,7 @@ impl AttribAccess for _val_type {
                 start,
                 len,
             )
-            .check_err(Some(&node.session))?;
+            .check_err(&node.session, || stringify!(Calling _get))?;
             Ok(data_array)
         }
     }
@@ -162,7 +162,7 @@ impl AttribAccess for _val_type {
                 start,
                 len,
             )
-            .check_err(Some(&node.session))
+            .check_err(&node.session, || stringify!(Calling _set))
         }
     }
     fn get_array(
@@ -190,7 +190,7 @@ impl AttribAccess for _val_type {
                 0,
                 info.inner.count as i32,
             )
-            .check_err(Some(&node.session))?;
+            .check_err(&node.session, || stringify!(Calling _get_array))?;
         }
 
         Ok(DataArray::new_owned(data, sizes))
@@ -220,7 +220,7 @@ impl AttribAccess for _val_type {
                 0,
                 info.inner.count as i32,
             )
-            .check_err(Some(&node.session))?;
+            .check_err(&node.session, || stringify!(Calling _set_array))?;
         }
 
         Ok(())
@@ -251,7 +251,7 @@ pub(crate) fn get_attribute_string_data(
             0,
             count,
         )
-        .check_err(Some(&node.session))?;
+        .check_err(&node.session, || "Calling HAPI_GetAttributeStringData")?;
         crate::stringhandle::get_string_array(&handles, &node.session)
     }
 }
@@ -276,7 +276,7 @@ pub fn set_attribute_string_data(
             0,
             array.len() as i32,
         )
-        .check_err(Some(&node.session))
+        .check_err(&node.session, || "Calling HAPI_SetAttributeStringData")
     }
 }
 
@@ -302,7 +302,7 @@ pub fn get_attribute_string_array_data(
             0,
             info.count,
         )
-        .check_err(Some(&node.session))?;
+        .check_err(&node.session, || "Calling HAPI_GetAttributeStringArrayData")?;
 
         Ok(StringMultiArray {
             handles: data_array,
@@ -335,6 +335,6 @@ pub fn set_attribute_string_array_data(
             0,
             info.count,
         )
-        .check_err(Some(&node.session))
+        .check_err(&node.session, || "Calling HAPI_SetAttributeStringArrayData")
     }
 }

@@ -21,7 +21,7 @@ macro_rules! get {
     ($method:ident->$field:ident->[handle: $hdl:ident]) => {
         #[inline]
         pub fn $method(&self) -> $hdl {
-            $hdl(self.inner.$field, ())
+            $hdl(self.inner.$field)
         }
     };
 

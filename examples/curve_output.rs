@@ -9,7 +9,7 @@ fn main() -> Result<()> {
     let session = quick_session(Some(&opt))?;
     let lib = session.load_asset_file("otls/sesi/nurbs_curve.hda")?;
     let node = lib.try_create_first()?;
-    node.cook_blocking(None)?;
+    node.cook_blocking()?;
 
     let obj_info = &node.get_objects_info()?[0];
 

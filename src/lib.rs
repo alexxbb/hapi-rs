@@ -103,6 +103,8 @@
 //! which return CString or String. See the [`stringhandle`] module for more info.
 //!
 
+extern crate core;
+
 pub mod asset;
 pub mod attribute;
 pub mod geometry;
@@ -114,6 +116,7 @@ pub mod stringhandle;
 pub mod volume;
 pub mod pdg;
 mod errors;
+mod utils;
 mod ffi;
 
 pub use errors::{HapiError, Result};

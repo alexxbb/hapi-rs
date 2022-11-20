@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     print_child_node(&session, &children)?;
 
     // Create a new node and connect one of the child to it
-    let box_node = session.create_node("geo", Some("ProgrammaticBox"), Some(asset.handle))?;
+    let box_node = session.create_node("geo", Some("ProgrammaticBox"), &asset)?;
     box_node.connect_input(0, children[0], 0)?;
     // Verify connection
     box_node.input_node(0)?.expect("Connection");
@@ -37,7 +37,7 @@ fn print_child_node(session: &Session, ids: &[NodeHandle]) -> Result<()> {
     for handle in ids {
         let info = handle.info(session)?;
         #[rustfmt::skip]
-        println!("\t{:?} - {}", handle, info.created_post_asset_load().then(|| "NEW").unwrap_or("EXISTING"));
+        println!("\t{:?} - {}", handle, if info.created_post_asset_load() {"NEW"} else {"EXISTING"});
     }
 
     Ok(())

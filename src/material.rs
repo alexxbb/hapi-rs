@@ -23,7 +23,7 @@ impl Material {
 
     #[inline]
     fn node_handle(&self) -> NodeHandle {
-        NodeHandle(self.info.nodeId, ())
+        NodeHandle(self.info.nodeId)
     }
 
     #[inline]
@@ -35,7 +35,7 @@ impl Material {
         debug_assert!(self.session.is_valid());
         let name = CString::new(parm_name)?;
         let id = crate::ffi::get_parm_id_from_name(&name, self.node_handle(), &self.session)?;
-        crate::ffi::render_texture_to_image(&self.session, self.node_handle(), ParmHandle(id, ()))
+        crate::ffi::render_texture_to_image(&self.session, self.node_handle(), ParmHandle(id))
     }
 
     pub fn extract_image_to_file(
@@ -120,14 +120,13 @@ pub(crate) fn extract_image_to_memory(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::geometry::Materials;
     use crate::session::tests::with_session;
 
     #[test]
     fn image_file_formats() {
         with_session(|session| {
-            let formats = get_supported_image_formats(session).unwrap();
+            let formats = session.get_supported_image_formats().unwrap();
             assert!(formats.iter().any(|f| f.name().unwrap() == "JPEG"));
             assert!(formats.iter().any(|f| f.extension().unwrap() == "jpg"));
         });
@@ -137,7 +136,7 @@ mod tests {
     fn extract_image() {
         with_session(|session| {
             let node = session.create_node("Object/spaceship", None, None).unwrap();
-            node.cook(None).unwrap();
+            node.cook().unwrap();
             let geo = node.geometry().expect("geometry").unwrap();
             let mats = geo.get_materials(None).expect("materials");
             if let Some(Materials::Single(mat)) = mats {

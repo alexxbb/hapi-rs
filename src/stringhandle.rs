@@ -7,11 +7,6 @@ use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
 
-// TODO: Use this in public APIs instead of i32
-#[repr(transparent)]
-#[derive(Copy, Clone, Debug)]
-pub struct StringHandle(i32);
-
 /// Holds a contiguous array of bytes where each individual string value is null-separated.
 /// You can choose how to iterate over it by calling a corresponding iter_* function.
 /// The `Debug` impl has an alternative `{:#?}` representation, which prints as a vec of strings.
@@ -154,8 +149,7 @@ pub(crate) fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
 
 pub(crate) fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>> {
     let length = crate::ffi::get_string_buff_len(session, handle)?;
-    let buffer = crate::ffi::get_string(session, handle, length)?;
-    Ok(buffer)
+    crate::ffi::get_string(session, handle, length)
 }
 
 pub(crate) fn get_string_array(handles: &[i32], session: &Session) -> Result<StringArray> {
@@ -171,10 +165,11 @@ pub(crate) fn get_string_array(handles: &[i32], session: &Session) -> Result<Str
 
 #[cfg(test)]
 mod tests {
+    use super::StringArray;
     use crate::ffi;
     use crate::session::quick_session;
     use crate::session::tests::with_session;
-    use std::ffi::{CStr, CString};
+    use std::ffi::CString;
 
     #[test]
     fn test_get_string() {
@@ -199,8 +194,18 @@ mod tests {
         assert!(array.iter_str().any(|s| s == "TEST=177"));
         assert!(array
             .iter_cstr()
-            .any(|s| s == unsafe { CStr::from_bytes_with_nul_unchecked(b"TEST=177\0") }));
+            .any(|s| s.to_bytes_with_nul() == b"TEST=177\0"));
         let mut owned: super::OwnedStringIter = array.into_iter();
         assert!(owned.any(|s| s == "TEST=177"));
+    }
+
+    #[test]
+    fn c_str_array() {
+        let arr = StringArray {
+            bytes: b"One\0Two\0Three\0".to_vec(),
+        };
+        let v: Vec<_> = arr.iter_cstr().collect();
+        assert_eq!(v[0].to_bytes_with_nul(), b"One\0");
+        assert_eq!(v[2].to_bytes_with_nul(), b"Three\0");
     }
 }
