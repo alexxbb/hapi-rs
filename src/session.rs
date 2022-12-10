@@ -15,7 +15,7 @@
 //! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
 //!
 use log::{debug, error, warn};
-use std::ffi::{CStr, OsString};
+use std::ffi::OsString;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::{ffi::CString, path::Path, sync::Arc};
@@ -304,14 +304,7 @@ impl Session {
         debug_assert!(self.is_valid());
         debug!("Getting Manager node of type: {:?}", manager);
         let node_type = NodeType::from(manager);
-        // There seem to be a bug where Top network node fails with get_manager_node(..)
-        let handle = match manager {
-            ManagerType::Top => {
-                use crate::utils::cstr;
-                crate::ffi::get_node_from_path(self, None, cstr!(b"/tasks\0"))?
-            }
-            _ => crate::ffi::get_manager_node(self, node_type)?,
-        };
+        let handle = crate::ffi::get_manager_node(self, node_type)?;
         Ok(ManagerNode {
             session: self.clone(),
             handle: NodeHandle(handle),
@@ -524,14 +517,15 @@ impl Session {
     pub fn render_cop_to_memory(
         &self,
         cop_node: impl Into<NodeHandle>,
+        buffer: &mut Vec<u8>,
         image_planes: impl AsRef<str>,
         format: impl AsRef<str>,
-    ) -> Result<Vec<i8>> {
+    ) -> Result<()> {
         debug!("Start rendering COP to memory.");
         let cop_node = cop_node.into();
         debug_assert!(cop_node.is_valid(self)?);
         crate::ffi::render_cop_to_image(self, cop_node)?;
-        crate::material::extract_image_to_memory(self, cop_node, image_planes, format)
+        crate::material::extract_image_to_memory(self, cop_node, buffer, image_planes, format)
     }
 
     pub fn get_supported_image_formats(&self) -> Result<Vec<ImageFileFormat<'_>>> {

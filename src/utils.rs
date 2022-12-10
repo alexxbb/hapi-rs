@@ -1,3 +1,4 @@
+#[allow(unused)]
 macro_rules! cstr {
     ($($bytes:tt)*) => {
         CStr::from_bytes_with_nul($($bytes)*).expect("CStr with null")
@@ -16,6 +17,7 @@ macro_rules! unwrap_or_create {
     };
 }
 
+#[allow(unused)]
 pub(crate) use cstr;
 pub(crate) use unwrap_or_create;
 

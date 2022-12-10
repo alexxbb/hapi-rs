@@ -2642,29 +2642,33 @@ pub fn extract_image_to_file(
 pub fn extract_image_to_memory(
     session: &Session,
     material: NodeHandle,
+    buffer: &mut Vec<u8>,
     file_format: &CStr,
     image_planes: &CStr,
-) -> Result<Vec<i8>> {
+) -> Result<()> {
     unsafe {
-        let mut size = uninit!();
+        let mut size = -1;
         raw::HAPI_ExtractImageToMemory(
             session.ptr(),
             material.0,
             file_format.as_ptr(),
             image_planes.as_ptr(),
-            size.as_mut_ptr(),
+            &mut size as *mut _,
         )
         .check_err(session, || "Calling HAPI_ExtractImageToMemory")?;
-        let size = size.assume_init() as usize;
-        let mut buffer = vec![0; size];
+        if size <= 0 {
+            log::warn!("HAPI_ExtractImageToMemory: image size is 0");
+            return Ok(());
+        }
+        buffer.resize(size as usize, 0);
         raw::HAPI_GetImageMemoryBuffer(
             session.ptr(),
             material.0,
-            buffer.as_mut_ptr(),
+            buffer.as_mut_ptr() as *mut i8,
             buffer.len() as i32,
         )
         .check_err(session, || "Calling HAPI_ExtractImageToMemory")?;
-        Ok(buffer)
+        Ok(())
     }
 }
 
