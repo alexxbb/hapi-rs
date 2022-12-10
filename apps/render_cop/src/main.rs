@@ -47,7 +47,7 @@ fn setup_houdini() -> Result<HoudiniNode> {
     Ok(asset)
 }
 
-fn render_image(asset: &HoudiniNode, offset: f32, noise: Noise) -> (Vec<u8>, u128) {
+fn render_noise(asset: &HoudiniNode, offset: f32, noise: Noise) -> (Vec<u8>, u128) {
     let Parameter::Float(offset_parm) = asset.parameter("offset").expect("Offset Parm") else {
         panic!("Parameter offset not found");
     };
@@ -68,7 +68,7 @@ impl Sandbox for App {
     fn new() -> Self {
         fn _setup() -> Result<App> {
             let asset = setup_houdini()?;
-            let (img, ms) = render_image(&asset, 0.0, Noise::Aligator);
+            let (img, ms) = render_noise(&asset, 0.0, Noise::Aligator);
             Ok(App {
                 offset: 0.0,
                 asset,
@@ -93,7 +93,7 @@ impl Sandbox for App {
             }
             Message::NoiseSelected(noise) => {self.noise = Some(noise)}
         }
-        let (image, ms) = render_image(&self.asset, self.offset, self.noise.unwrap());
+        let (image, ms) = render_noise(&self.asset, self.offset, self.noise.unwrap());
         self.num_cooks += 1;
         self.render_time = ms;
         self.image = image::Handle::from_memory(image);
