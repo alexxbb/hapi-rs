@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 #![allow(unused)]
 
+use std::collections::HashMap;
 use std::default::Default;
 use std::fmt::{Display, Formatter};
 use std::time::Duration;
 use hapi_rs::{
-    session::{Session, connect_to_pipe, new_in_process, SessionOptionsBuilder},
+    session::{Session, connect_to_pipe, new_in_process, quick_session, SessionOptionsBuilder},
     parameter::*
 };
 use iced::{Alignment, Element, Length, Sandbox, Settings};
@@ -19,8 +20,8 @@ use iced::keyboard::KeyCode::Space;
 use iced::widget::pane_grid::Axis::Horizontal;
 
 struct App {
-    offset: f32,
-    asset: HoudiniNode,
+    input: f32,
+    asset_map: HashMap<Noise, HoudiniNode>,
     image: image::Handle,
     buffer: Vec<u8>,
     noise: Option<Noise>,
@@ -30,35 +31,32 @@ struct App {
 
 #[derive(Debug, Copy, Clone)]
 enum Message {
-    Offset(f32),
+    InputChanged(f32),
     NoiseSelected(Noise)
 }
 
 static TITLE: &str = "Render Houdini COP with Rust/Iced";
 
-fn setup_houdini() -> Result<HoudiniNode> {
+fn create_nodes() -> Result<HashMap<Noise, HoudiniNode>> {
     let cwd = std::env::current_dir()?;
     let cwd = cwd.resolve();
     let opt = SessionOptionsBuilder::default().threaded(false).build();
     let session = new_in_process(Some(&opt)).unwrap();
     let lib = session.load_asset_file(cwd.join("cop_render.hda"))?;
-    let asset = lib.try_create_first()?;
-    asset.cook_blocking()?;
-    Ok(asset)
+    let mut map = HashMap::new();
+    map.insert(Noise::Voronoi, lib.create_node("hapi::Cop2/voronoi")?);
+    map.insert(Noise::Alligator, lib.create_node("hapi::Cop2/alligator")?);
+    Ok(map)
 }
 
-fn render_noise(asset: &HoudiniNode, offset: f32, noise: Noise) -> (Vec<u8>, u128) {
-    let Parameter::Float(offset_parm) = asset.parameter("offset").expect("Offset Parm") else {
-        panic!("Parameter offset not found");
+fn render_node(node: &HoudiniNode, input: f32) -> (Vec<u8>, u128) {
+    let Parameter::Float(parm) = node.parameter("input").expect("Input Parm") else {
+        panic!("Parameter input not found");
     };
-    let Parameter::Int(noise_parm) = asset.parameter("noise").expect("Noise Parm") else {
-        panic!("Parameter noise not found");
-    };
-    offset_parm.set(0, offset).unwrap();
-    noise_parm.set(0, match noise {Noise::Aligator => 0, Noise::Voronoi => 1}).unwrap();
+    parm.set(0, input).unwrap();
     let mut buffer = Vec::new();
     let _start = std::time::Instant::now();
-    asset.session.render_cop_to_memory(asset, &mut buffer,"C", "PNG").expect("COP Render");
+    node.session.render_cop_to_memory(node, &mut buffer,"C", "PNG").expect("COP Render");
     (buffer, _start.elapsed().as_millis())
 }
 
@@ -67,14 +65,14 @@ impl Sandbox for App {
 
     fn new() -> Self {
         fn _setup() -> Result<App> {
-            let asset = setup_houdini()?;
-            let (img, ms) = render_noise(&asset, 0.0, Noise::Aligator);
+            let asset_map = create_nodes()?;
+            let (img, ms) = render_node(&asset_map[&Noise::Alligator], 0.0);
             Ok(App {
-                offset: 0.0,
-                asset,
+                input: 0.0,
+                asset_map,
                 image: image::Handle::from_memory(img),
                 buffer: vec![],
-                noise: Some(Noise::Aligator),
+                noise: Some(Noise::Alligator),
                 num_cooks: 1,
                 render_time: ms
             })
@@ -88,28 +86,29 @@ impl Sandbox for App {
 
     fn update(&mut self, message: Self::Message) {
         match message {
-            Message::Offset(val) => {
-                self.offset = val;
+            Message::InputChanged(val) => {
+                self.input = val;
             }
             Message::NoiseSelected(noise) => {self.noise = Some(noise)}
         }
-        let (image, ms) = render_noise(&self.asset, self.offset, self.noise.unwrap());
+        let node = &self.asset_map[self.noise.as_ref().unwrap()];
+        let (image, ms) = render_node(node, self.input);
         self.num_cooks += 1;
         self.render_time = ms;
         self.image = image::Handle::from_memory(image);
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        let slider = slider(0.0..=1.0, self.offset, Message::Offset).step(0.05).width(Length::Units(300));
-        let noise = pick_list(&[Noise::Aligator, Noise::Voronoi][..], self.noise, Message::NoiseSelected);
+        let slider = slider(0.0..=1.0, self.input, Message::Offset).step(0.05).width(Length::Units(300));
+        let noise = pick_list(&[Noise::Alligator, Noise::Voronoi][..], self.noise, Message::NoiseSelected);
 
         let parms = row![
             noise,
-            text("Offset"),
+            text("Input"),
             slider
         ].spacing(10).align_items(Alignment::Center);
         let stat = row![
-            text(format!("Engine time: {}ms", self.render_time)),
+            text(format!("Render time: {}ms", self.render_time)),
             text(format!("Node cook count: {}", self.num_cooks))
         ].spacing(20);
         let col = Column::new().spacing(10)
@@ -123,9 +122,9 @@ impl Sandbox for App {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 enum Noise {
-    Aligator,
+    Alligator,
     Voronoi
 }
 
@@ -133,7 +132,7 @@ impl Display for Noise {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}",
             match self {
-                Noise::Aligator => "Aligator",
+                Noise::Alligator => "Alligator",
                 Noise::Voronoi => "Voronoi",
             }
         )
