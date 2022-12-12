@@ -47,20 +47,20 @@ pub enum Parameter {
 
 impl Parameter {
     pub(crate) fn new(node: NodeHandle, info: ParmInfo) -> Parameter {
-        let base = ParmNodeWrap { info, node };
-        match base.info.parm_type() {
+        let wrap = ParmInfoWrap { info, node };
+        match wrap.info.parm_type() {
             ParmType::Int | ParmType::Toggle | ParmType::Multiparmlist => {
-                Parameter::Int(IntParameter { wrap: base })
+                Parameter::Int(IntParameter(wrap))
             }
-            ParmType::Button => Parameter::Button(IntParameter { wrap: base }),
-            ParmType::Float | ParmType::Color => Parameter::Float(FloatParameter { wrap: base }),
+            ParmType::Button => Parameter::Button(IntParameter(wrap)),
+            ParmType::Float | ParmType::Color => Parameter::Float(FloatParameter(wrap)),
             ParmType::String
             | ParmType::Node
             | ParmType::PathFile
             | ParmType::PathFileDir
             | ParmType::PathFileGeo
-            | ParmType::PathFileImage => Parameter::String(StringParameter { wrap: base }),
-            _ => Parameter::Other(BaseParameter { wrap: base }),
+            | ParmType::PathFileImage => Parameter::String(StringParameter(wrap)),
+            _ => Parameter::Other(BaseParameter(wrap)),
         }
     }
     /// Information about the parameter
@@ -99,13 +99,13 @@ impl Parameter {
         }
     }
 
-    pub(crate) fn base(&self) -> &ParmNodeWrap {
+    pub(crate) fn base(&self) -> &ParmInfoWrap {
         match self {
-            Parameter::Float(p) => &p.wrap,
-            Parameter::Int(p) => &p.wrap,
-            Parameter::Button(p) => &p.wrap,
-            Parameter::String(p) => &p.wrap,
-            Parameter::Other(p) => &p.wrap,
+            Parameter::Float(p) => &p.0,
+            Parameter::Int(p) => &p.0,
+            Parameter::Button(p) => &p.0,
+            Parameter::String(p) => &p.0,
+            Parameter::Other(p) => &p.0,
         }
     }
 }

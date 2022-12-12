@@ -253,7 +253,8 @@ impl Session {
         Ok(crate::geometry::Geometry { node, info })
     }
 
-    /// Create a node. `name` must start with a network category, e.g, "Object/geo", "Sop/box"
+    /// Create a node. `name` must start with a network category, e.g, "Object/geo", "Sop/box",
+    /// in operator namespace was used, the full name may look like this: namespace::Object/mynode
     /// New node will not be cooked.
     pub fn create_node<'a>(
         &self,

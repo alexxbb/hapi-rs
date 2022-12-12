@@ -5,6 +5,7 @@ use crate::ffi::raw::{ChoiceListType, ParmType};
 use crate::node::ManagerType;
 use crate::{
     errors::Result, ffi::ParmChoiceInfo, ffi::ParmInfo, node::HoudiniNode, session::Session,
+    HapiError,
 };
 use log::debug;
 use std::ffi::CString;
@@ -172,26 +173,14 @@ impl AssetLibrary {
         self.get_asset_names().map(|names| names.first().cloned())
     }
 
-    /// Try to create the first found asset in the library.
-    /// This is a convenience function for:
-    /// ```
-    /// use hapi_rs::session::{new_in_process};
-    /// let session = new_in_process(None).unwrap();
-    /// let lib = session.load_asset_file("otls/hapi_geo.hda").unwrap();
-    /// let names = lib.get_asset_names().unwrap();
-    /// session.create_node(&names[0], None, None).unwrap();
-    /// ```
-    /// Except that it also handles non Object level assets, e.g. Cop network HDA.
-    pub fn try_create_first(&self) -> Result<HoudiniNode> {
-        debug_assert!(self.session.is_valid());
-        let name = self
-            .get_first_name()?
-            .ok_or_else(|| crate::HapiError::internal("Library file is empty"))?;
+    /// Instantiate a node. This function is more convenient than [`Session::create_node`]
+    /// as it makes sure that a correct parent network node is also created.
+    pub fn create_node(&self, name: impl AsRef<str>) -> Result<HoudiniNode> {
         // Most common HDAs are Object/asset which HAPI can create directly in /obj,
         // but for some assets type like Cop, Top a manager node must be created first
-        debug!("Trying to create node for asset: {}", &name);
-        let Some((context, operator)) = name.split_once('/') else {
-            panic!("Asset name returned from API expected to be fully qualified, got: \"{name}\"")
+        debug!("Trying to create a node for operator: {}", name.as_ref());
+        let Some((context, operator)) = name.as_ref().split_once('/') else {
+            return Err(HapiError::internal("Node name must be fully qualified"))
         };
         // Strip operator namespace if present
         let context = if let Some((_, context)) = context.split_once("::") {
@@ -219,9 +208,31 @@ impl AssetLibrary {
             None => None,
         };
         // If passing a parent, operator name must be stripped of the context name
-        let full_name = if parent.is_some() { operator } else { &name };
+        let full_name = if parent.is_some() {
+            operator
+        } else {
+            name.as_ref()
+        };
         self.session
             .create_node(full_name, None, parent.map(|n| n.handle))
+    }
+
+    /// Try to create the first found asset in the library.
+    /// This is a convenience function for:
+    /// ```
+    /// use hapi_rs::session::{new_in_process};
+    /// let session = new_in_process(None).unwrap();
+    /// let lib = session.load_asset_file("otls/hapi_geo.hda").unwrap();
+    /// let names = lib.get_asset_names().unwrap();
+    /// session.create_node(&names[0], None, None).unwrap();
+    /// ```
+    /// Except that it also handles non Object level assets, e.g. Cop network HDA.
+    pub fn try_create_first(&self) -> Result<HoudiniNode> {
+        debug_assert!(self.session.is_valid());
+        let name = self
+            .get_first_name()?
+            .ok_or_else(|| crate::HapiError::internal("Library file is empty"))?;
+        self.create_node(name)
     }
 
     /// Returns a struct holding the asset parameter information and values

@@ -834,12 +834,12 @@ mod tests {
                 }
                 Parameter::Int(parm) => {
                     let values: Vec<_> = repeat_with(|| fastrand::i32(0..10))
-                        .take(parm.wrap.info.size() as usize)
+                        .take(parm.size() as usize)
                         .collect();
                     parm.set_array(&values).unwrap()
                 }
                 Parameter::String(parm) => {
-                    let values: Vec<String> = (0..parm.wrap.info.size())
+                    let values: Vec<String> = (0..parm.size())
                         .into_iter()
                         .map(|_| repeat_with(fastrand::alphanumeric).take(10).collect())
                         .collect();
