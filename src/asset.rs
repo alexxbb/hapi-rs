@@ -176,7 +176,7 @@ impl AssetLibrary {
     /// Instantiate a node. This function is more convenient than [`Session::create_node`]
     /// as it makes sure that a correct parent network node is also created.
     pub fn create_node(&self, name: impl AsRef<str>) -> Result<HoudiniNode> {
-        // Most common HDAs are Object/asset which HAPI can create directly in /obj,
+        // Most common HDAs are Object/asset and Sop/asset which HAPI can create directly in /obj,
         // but for some assets type like Cop, Top a manager node must be created first
         debug!("Trying to create a node for operator: {}", name.as_ref());
         let Some((context, operator)) = name.as_ref().split_once('/') else {
@@ -188,21 +188,28 @@ impl AssetLibrary {
         } else {
             context
         };
-        let context: ManagerType = context.parse()?;
-        let subnet = match context {
-            ManagerType::Cop => Some("img"),
-            ManagerType::Chop => Some("ch"),
-            ManagerType::Top => Some("topnet"),
-            _ => None,
+        // There's no root network manager for Sop node types.
+        let (manager, subnet) = if context == "Sop" {
+            (None, None)
+        } else {
+            let manager_type = context.parse::<ManagerType>()?;
+            let subnet = match manager_type {
+                ManagerType::Cop => Some("img"),
+                ManagerType::Chop => Some("ch"),
+                ManagerType::Top => Some("topnet"),
+                _ => None,
+            };
+            (Some(manager_type), subnet)
         };
 
         // If subnet is Some, we get the manager node for this context and use it as parent.
         let parent = match subnet {
             Some(subnet) => {
-                let manager = self.session.get_manager_node(context)?;
+                // manager is always Some if subnet is Some
+                let parent = self.session.get_manager_node(manager.unwrap())?;
                 Some(
                     self.session
-                        .create_node(subnet, None, Some(manager.handle))?,
+                        .create_node(subnet, None, Some(parent.handle))?,
                 )
             }
             None => None,
@@ -312,8 +319,8 @@ mod tests {
         with_session(|session| {
             let lib = _parms_asset(session);
             assert_eq!(
-                lib.get_first_name(),
-                Ok(Some(String::from("Object/hapi_parms")))
+                lib.get_first_name().unwrap(),
+                Some(String::from("Object/hapi_parms"))
             );
         });
     }

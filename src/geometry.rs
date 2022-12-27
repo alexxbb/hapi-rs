@@ -864,7 +864,7 @@ mod tests {
         geo.node.cook_blocking().unwrap();
     }
 
-    fn _load_test_geometry(session: &Session) -> super::Result<Geometry> {
+    fn _load_test_geometry(session: &Session) -> Result<Geometry> {
         let node = session.create_node("Object/hapi_geo", None, None)?;
         node.cook().unwrap();
         node.geometry()
@@ -1016,14 +1016,14 @@ mod tests {
             let src_geo = session.create_input_node("source").unwrap();
             _create_triangle(&src_geo);
             let blob = src_geo
-                .save_to_memory(super::GeoFormat::Geo)
+                .save_to_memory(GeoFormat::Geo)
                 .expect("save_geo_to_memory");
             src_geo.node.delete().unwrap();
 
             let dest_geo = session.create_input_node("dest").unwrap();
             _create_triangle(&dest_geo);
             dest_geo
-                .load_from_memory(&blob, super::GeoFormat::Geo)
+                .load_from_memory(&blob, GeoFormat::Geo)
                 .expect("load_from_memory");
             dest_geo.node.delete().unwrap();
         });
@@ -1077,10 +1077,13 @@ mod tests {
             assert_eq!(num_pr, 3);
             let pr_groups = geo.get_group_names(GroupType::Prim).unwrap();
             let pt_groups = geo.get_group_names(GroupType::Point).unwrap();
-            let pr_groups = pr_groups.iter_str().collect::<Vec<_>>();
-            let pt_groups = pt_groups.iter_str().collect::<Vec<_>>();
-            assert!(pr_groups.contains(&"group_A"));
-            assert!(pt_groups.contains(&"group_B"));
+            #[allow(clippy::needless_collect)]
+            {
+                let pr_groups = pr_groups.iter_str().collect::<Vec<_>>();
+                let pt_groups = pt_groups.iter_str().collect::<Vec<_>>();
+                assert!(pr_groups.contains(&"group_A"));
+                assert!(pt_groups.contains(&"group_B"));
+            }
         })
     }
 
@@ -1094,14 +1097,15 @@ mod tests {
             geo.commit().unwrap();
             geo.node.cook_blocking().unwrap();
             assert_eq!(
-                geo.group_count_by_type(GroupType::Point, geo.geo_info().as_ref().ok()),
-                Ok(1)
+                geo.group_count_by_type(GroupType::Point, geo.geo_info().as_ref().ok())
+                    .unwrap(),
+                1
             );
 
             geo.delete_group(0, GroupType::Point, "test").unwrap();
             geo.commit().unwrap();
             geo.node.cook_blocking().unwrap();
-            assert_eq!(geo.group_count_by_type(GroupType::Point, None), Ok(0));
+            assert_eq!(geo.group_count_by_type(GroupType::Point, None).unwrap(), 0);
             geo.node.delete().unwrap();
         });
     }

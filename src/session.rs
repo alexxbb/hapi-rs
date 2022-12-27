@@ -15,12 +15,10 @@
 //! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
 //!
 use log::{debug, error, warn};
-use std::cell::RefCell;
 use std::ffi::OsString;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::process::Child;
-use std::rc::Rc;
 use std::time::Duration;
 use std::{ffi::CString, path::Path, sync::Arc};
 
@@ -112,7 +110,6 @@ pub enum CookResult {
 pub enum ConnectionType {
     ThriftPipe(OsString),
     ThriftSocket(std::net::SocketAddrV4),
-    Houdini(Rc<RefCell<std::process::Child>>),
     InProcess,
     Custom,
 }
@@ -581,44 +578,33 @@ fn path_to_cstring(path: impl AsRef<Path>) -> Result<CString> {
 }
 
 /// Connect to the engine process via a pipe file.
+/// In [timeout] is Some, function will try to connect to
+/// the server multiple times every 100ms until timeout is reached.
 pub fn connect_to_pipe(
     pipe: impl AsRef<Path>,
     options: Option<&SessionOptions>,
+    timeout: Option<Duration>,
 ) -> Result<Session> {
     debug!("Connecting to Thrift session: {:?}", pipe.as_ref());
     let c_str = path_to_cstring(&pipe)?;
     let pipe = pipe.as_ref().as_os_str().to_os_string();
-    let handle = crate::ffi::new_thrift_piped_session(&c_str)?;
-    let connection = ConnectionType::ThriftPipe(pipe);
-    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
-    session.initialize()?;
-    Ok(session)
-}
-
-/// Connect to the engine process via a pipe file.
-pub fn connect_to_pipe_with_timeout(
-    pipe: impl AsRef<Path>,
-    options: Option<&SessionOptions>,
-    timeout: Duration,
-) -> Result<Session> {
-    debug!("Connecting to Thrift session: {:?}", pipe.as_ref());
-    let c_str = path_to_cstring(&pipe)?;
-    let pipe = pipe.as_ref().as_os_str().to_os_string();
+    let timeout = timeout.unwrap_or_default();
     let mut waited = Duration::from_secs(0);
     let wait_ms = Duration::from_millis(100);
     let handle = loop {
-        if waited > timeout {
-            return Err(HapiError::internal(
-                "Time out while trying to connect to pipe",
-            ));
-        }
+        let mut last_error = None;
+        debug!("Trying to connect to pipe server");
         match crate::ffi::new_thrift_piped_session(&c_str) {
             Ok(handle) => break handle,
             Err(e) => {
-                debug!("Trying to connect to pipe server");
+                last_error.replace(e);
                 std::thread::sleep(wait_ms);
                 waited += wait_ms;
             }
+        }
+        if waited > timeout {
+            // last_error is guarantied to be Some().
+            return Err(last_error.unwrap());
         }
     };
     let connection = ConnectionType::ThriftPipe(pipe);
@@ -909,17 +895,15 @@ pub fn start_engine_socket_server(
     crate::ffi::start_thrift_socket_server(port as i32, &opts, log_file.as_deref())
 }
 
-/// Start a live Houdini session
-#[cfg(any(windows, unix))]
-pub fn start_houdini_server(pipe: impl AsRef<Path>) -> Result<Child> {
-    let hfs = std::env::var_os("HFS").ok_or(HapiError::internal("HFS variable must be set"))?;
-    let file = pipe.as_ref().as_os_str().to_string_lossy();
-    let houdini_exec = Path::new(&hfs).join("bin/houdini");
-    let child = std::process::Command::new(houdini_exec)
-        .arg(format!("-hess=pipe:{}", file))
+/// Start a interactive Houdini session with engine server embedded.
+pub fn start_houdini_server(
+    pipe_name: impl AsRef<str>,
+    houdini_executable: impl AsRef<Path>,
+) -> Result<Child> {
+    std::process::Command::new(houdini_executable.as_ref())
+        .arg(format!("-hess=pipe:{}", pipe_name.as_ref()))
         .spawn()
-        .map_err(|e| HapiError::internal(format!("Could not launch houdini: {:?}", e)))?;
-    Ok(child)
+        .map_err(HapiError::from)
 }
 
 /// A quick drop-in session, useful for on-off jobs
@@ -931,7 +915,7 @@ pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
         .expect("new temp file");
     let (_, file) = file.keep().expect("persistent temp file");
     start_engine_pipe_server(&file, true, 4000.0, StatusVerbosity::Statusverbosity1, None)?;
-    connect_to_pipe(file, options)
+    connect_to_pipe(file, options, None)
 }
 
 #[cfg(test)]

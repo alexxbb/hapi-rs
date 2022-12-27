@@ -173,7 +173,7 @@ pub fn set_parm_float_values(
     values: &[f32],
 ) -> Result<()> {
     unsafe {
-        raw::HAPI_SetParmFloatValues(session.ptr(), node.0, values.as_ptr(), start, size as i32)
+        raw::HAPI_SetParmFloatValues(session.ptr(), node.0, values.as_ptr(), start, size)
             .check_err(session, || "Calling HAPI_SetParmFloatValues")
     }
 }
@@ -577,7 +577,7 @@ pub fn get_string_batch_size(handles: &[i32], session: &Session) -> Result<i32> 
 pub fn get_string_batch(length: i32, session: &Session) -> Result<Vec<u8>> {
     let mut buffer = vec![0u8; length as usize];
     unsafe {
-        raw::HAPI_GetStringBatch(session.ptr(), buffer.as_mut_ptr() as *mut _, length as i32)
+        raw::HAPI_GetStringBatch(session.ptr(), buffer.as_mut_ptr() as *mut _, length)
             .check_err(session, || "Calling HAPI_GetStringBatch")?;
     }
     buffer.truncate(length as usize);
@@ -1130,7 +1130,7 @@ pub fn check_for_specific_errors(
         raw::HAPI_CheckForSpecificErrors(
             node.session.ptr(),
             node.handle.0,
-            error_bits as i32,
+            error_bits,
             code.as_mut_ptr(),
         )
         .check_err(&node.session, || "Calling HAPI_CheckForSpecificErrors")?;
@@ -2816,7 +2816,7 @@ pub fn get_workitem_result(
             pdg_node.0,
             workitem_id,
             infos.as_mut_ptr(),
-            count as i32,
+            count,
         )
         .check_err(session, || "Calling HAPI_GetWorkitemResultInfo")?;
     }

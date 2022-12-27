@@ -68,7 +68,7 @@ impl FromStr for ManagerType {
             "Object" => Ok(Self::Obj),
             "Driver" => Ok(Self::Rop),
             v => Err(crate::HapiError::internal(format!(
-                "Unknown NetworkType: {v}"
+                "Unknown ManagerType::{v}"
             ))),
         }
     }
@@ -774,7 +774,7 @@ mod tests {
     fn number_of_geo_outputs() {
         with_session(|session| {
             let node = session.create_node("Object/hapi_geo", None, None).unwrap();
-            assert_eq!(node.number_of_geo_outputs(), Ok(2));
+            assert_eq!(node.number_of_geo_outputs().unwrap(), 2);
             let infos = node.geometry_outputs().unwrap();
             assert_eq!(infos.len(), 2);
         });
@@ -836,7 +836,7 @@ mod tests {
                     let values: Vec<_> = repeat_with(|| fastrand::i32(0..10))
                         .take(parm.size() as usize)
                         .collect();
-                    parm.set_array(&values).unwrap()
+                    parm.set_array(values).unwrap()
                 }
                 Parameter::String(parm) => {
                     let values: Vec<String> = (0..parm.size())

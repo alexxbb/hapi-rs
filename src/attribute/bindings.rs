@@ -188,7 +188,7 @@ impl AttribAccess for _val_type {
                 info.inner.totalArrayElements as i32,
                 sizes.as_mut_ptr(),
                 0,
-                info.inner.count as i32,
+                info.inner.count,
             )
             .check_err(&node.session, || stringify!(Calling _get_array))?;
         }
@@ -218,7 +218,7 @@ impl AttribAccess for _val_type {
                 info.inner.totalArrayElements as i32,
                 sizes.as_ptr(),
                 0,
-                info.inner.count as i32,
+                info.inner.count,
             )
             .check_err(&node.session, || stringify!(Calling _set_array))?;
         }
