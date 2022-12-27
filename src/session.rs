@@ -15,9 +15,13 @@
 //! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
 //!
 use log::{debug, error, warn};
+use std::cell::RefCell;
 use std::ffi::OsString;
 use std::fmt::Debug;
 use std::path::PathBuf;
+use std::process::Child;
+use std::rc::Rc;
+use std::time::Duration;
 use std::{ffi::CString, path::Path, sync::Arc};
 
 use crate::{
@@ -108,6 +112,7 @@ pub enum CookResult {
 pub enum ConnectionType {
     ThriftPipe(OsString),
     ThriftSocket(std::net::SocketAddrV4),
+    Houdini(Rc<RefCell<std::process::Child>>),
     InProcess,
     Custom,
 }
@@ -590,6 +595,38 @@ pub fn connect_to_pipe(
     Ok(session)
 }
 
+/// Connect to the engine process via a pipe file.
+pub fn connect_to_pipe_with_timeout(
+    pipe: impl AsRef<Path>,
+    options: Option<&SessionOptions>,
+    timeout: Duration,
+) -> Result<Session> {
+    debug!("Connecting to Thrift session: {:?}", pipe.as_ref());
+    let c_str = path_to_cstring(&pipe)?;
+    let pipe = pipe.as_ref().as_os_str().to_os_string();
+    let mut waited = Duration::from_secs(0);
+    let wait_ms = Duration::from_millis(100);
+    let handle = loop {
+        if waited > timeout {
+            return Err(HapiError::internal(
+                "Time out while trying to connect to pipe",
+            ));
+        }
+        match crate::ffi::new_thrift_piped_session(&c_str) {
+            Ok(handle) => break handle,
+            Err(e) => {
+                debug!("Trying to connect to pipe server");
+                std::thread::sleep(wait_ms);
+                waited += wait_ms;
+            }
+        }
+    };
+    let connection = ConnectionType::ThriftPipe(pipe);
+    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
+    session.initialize()?;
+    Ok(session)
+}
+
 /// Connect to the engine process via a Unix socket
 pub fn connect_to_socket(
     addr: std::net::SocketAddrV4,
@@ -870,6 +907,19 @@ pub fn start_engine_socket_server(
     };
     let log_file = log_file.map(CString::new).transpose()?;
     crate::ffi::start_thrift_socket_server(port as i32, &opts, log_file.as_deref())
+}
+
+/// Start a live Houdini session
+#[cfg(any(windows, unix))]
+pub fn start_houdini_server(pipe: impl AsRef<Path>) -> Result<Child> {
+    let hfs = std::env::var_os("HFS").ok_or(HapiError::internal("HFS variable must be set"))?;
+    let file = pipe.as_ref().as_os_str().to_string_lossy();
+    let houdini_exec = Path::new(&hfs).join("bin/houdini");
+    let child = std::process::Command::new(houdini_exec)
+        .arg(format!("-hess=pipe:{}", file))
+        .spawn()
+        .map_err(|e| HapiError::internal(format!("Could not launch houdini: {:?}", e)))?;
+    Ok(child)
 }
 
 /// A quick drop-in session, useful for on-off jobs
