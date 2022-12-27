@@ -1,6 +1,6 @@
+use hapi_rs::{attribute::*, geometry::*, session::*};
 // connecting_assets.cpp
 use hapi_rs::Result;
-use hapi_rs::{attribute::*, geometry::*, session::*};
 
 fn main() -> Result<()> {
     let session = quick_session(None)?;
@@ -47,7 +47,8 @@ fn main() -> Result<()> {
     geom.set_face_counts(0, [4, 4, 4, 4, 4, 4])?;
     geom.commit()?;
 
-    let subdivide_node = session.create_node("Sop/subdivide", Some("Cube Subdivide"), None)?;
+    let subdivide_node =
+        session.create_node_with("Sop/subdivide", Some("Cube Subdivide"), None, false)?;
     subdivide_node.connect_input(0, geom.node, 0)?;
     let hip = std::env::temp_dir().join("connecting_assets.hip");
     session.save_hip(&hip.to_string_lossy(), false)?;

@@ -143,8 +143,8 @@ mod tests {
     #[test]
     fn extract_image() {
         with_session(|session| {
-            let node = session.create_node("Object/spaceship", None, None).unwrap();
-            node.cook().unwrap();
+            let node = session.create_node("Object/spaceship").unwrap();
+            node.cook_blocking().unwrap();
             let geo = node.geometry().expect("geometry").unwrap();
             let mats = geo.get_materials(None).expect("materials");
             if let Some(Materials::Single(mat)) = mats {

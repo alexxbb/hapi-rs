@@ -865,8 +865,8 @@ mod tests {
     }
 
     fn _load_test_geometry(session: &Session) -> Result<Geometry> {
-        let node = session.create_node("Object/hapi_geo", None, None)?;
-        node.cook().unwrap();
+        let node = session.create_node("Object/hapi_geo")?;
+        node.cook_blocking().unwrap();
         node.geometry()
             .map(|some| some.expect("must have geometry"))
     }
@@ -885,7 +885,7 @@ mod tests {
     #[test]
     fn attribute_names() {
         with_session(|session| {
-            let node = session.create_node("Object/hapi_geo", None, None).unwrap();
+            let node = session.create_node("Object/hapi_geo").unwrap();
             node.cook_blocking().unwrap();
             let geo = node.geometry().unwrap().expect("geometry");
             let iter = geo
@@ -1047,7 +1047,7 @@ mod tests {
     #[test]
     fn geometry_elements() {
         with_session(|ses| {
-            let node = ses.create_node("Object/hapi_geo", None, None).unwrap();
+            let node = ses.create_node("Object/hapi_geo").unwrap();
             node.cook_blocking().unwrap();
             let geo = node.geometry().unwrap().expect("Geometry");
             let part = geo.part_info(0).unwrap();
@@ -1113,7 +1113,8 @@ mod tests {
     #[test]
     fn basic_instancing() {
         with_session(|session| {
-            let node = session.create_node("Object/hapi_geo", None, None).unwrap();
+            let node = session.create_node("Object/hapi_geo").unwrap();
+            node.cook_blocking().unwrap();
             let opt = CookOptions::default()
                 .with_packed_prim_instancing_mode(PackedPrimInstancingMode::Flat);
             node.cook_with_options(&opt, true).unwrap();
@@ -1140,8 +1141,8 @@ mod tests {
     #[test]
     fn get_face_materials() {
         with_session(|session| {
-            let node = session.create_node("Object/spaceship", None, None).unwrap();
-            node.cook().unwrap();
+            let node = session.create_node("Object/spaceship").unwrap();
+            node.cook_blocking().unwrap();
             let geo = node.geometry().expect("geometry").unwrap();
             let mats = geo.get_materials(None).expect("materials");
             assert!(matches!(mats, Some(Materials::Single(_))));
@@ -1163,7 +1164,7 @@ mod tests {
     #[test]
     fn read_write_volume() {
         with_session(|session| {
-            let node = session.create_node("Object/hapi_vol", None, None).unwrap();
+            let node = session.create_node("Object/hapi_vol").unwrap();
             node.cook_blocking().unwrap();
             let source = node.geometry().unwrap().unwrap();
             let source_part = source.part_info(0).unwrap();

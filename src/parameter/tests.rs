@@ -5,7 +5,7 @@ use crate::session::tests::with_session;
 fn node_parameters() {
     with_session(|session| {
         let node = session
-            .create_node("Object/hapi_parms", None, None)
+            .create_node("Object/hapi_parms")
             .expect("create_node");
         for p in node.parameters().unwrap() {
             assert!(p.name().is_ok());
@@ -69,9 +69,7 @@ fn set_anim_curve() {
     use crate::ffi::KeyFrame;
 
     with_session(|session| {
-        let node = session
-            .create_node("Object/null", "set_anim_curve", None)
-            .unwrap();
+        let node = session.create_node("Object/null").unwrap();
 
         if let Ok(Parameter::Float(p)) = node.parameter("scale") {
             let keys = vec![

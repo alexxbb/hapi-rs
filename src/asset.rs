@@ -175,7 +175,7 @@ impl AssetLibrary {
 
     /// Instantiate a node. This function is more convenient than [`Session::create_node`]
     /// as it makes sure that a correct parent network node is also created.
-    pub fn create_node(&self, name: impl AsRef<str>) -> Result<HoudiniNode> {
+    pub fn create_asset_for_node(&self, name: impl AsRef<str>, cook: bool) -> Result<HoudiniNode> {
         // Most common HDAs are Object/asset and Sop/asset which HAPI can create directly in /obj,
         // but for some assets type like Cop, Top a manager node must be created first
         debug!("Trying to create a node for operator: {}", name.as_ref());
@@ -209,7 +209,7 @@ impl AssetLibrary {
                 let parent = self.session.get_manager_node(manager.unwrap())?;
                 Some(
                     self.session
-                        .create_node(subnet, None, Some(parent.handle))?,
+                        .create_node_with(subnet, None, Some(parent.handle), false)?,
                 )
             }
             None => None,
@@ -221,7 +221,7 @@ impl AssetLibrary {
             name.as_ref()
         };
         self.session
-            .create_node(full_name, None, parent.map(|n| n.handle))
+            .create_node_with(full_name, None, parent.map(|n| n.handle), cook)
     }
 
     /// Try to create the first found asset in the library.
@@ -231,7 +231,7 @@ impl AssetLibrary {
     /// let session = new_in_process(None).unwrap();
     /// let lib = session.load_asset_file("otls/hapi_geo.hda").unwrap();
     /// let names = lib.get_asset_names().unwrap();
-    /// session.create_node(&names[0], None, None).unwrap();
+    /// session.create_node(&names[0]).unwrap();
     /// ```
     /// Except that it also handles non Object level assets, e.g. Cop network HDA.
     pub fn try_create_first(&self) -> Result<HoudiniNode> {
@@ -239,7 +239,7 @@ impl AssetLibrary {
         let name = self
             .get_first_name()?
             .ok_or_else(|| crate::HapiError::internal("Library file is empty"))?;
-        self.create_node(name)
+        self.create_asset_for_node(name, false)
     }
 
     /// Returns a struct holding the asset parameter information and values

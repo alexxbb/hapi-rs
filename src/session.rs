@@ -257,15 +257,34 @@ impl Session {
 
     /// Create a node. `name` must start with a network category, e.g, "Object/geo", "Sop/box",
     /// in operator namespace was used, the full name may look like this: namespace::Object/mynode
-    /// New node will not be cooked.
-    pub fn create_node<'a>(
+    /// New node will *not* be cooked.
+    pub fn create_node(&self, name: impl AsRef<str>) -> Result<HoudiniNode> {
+        self.create_node_with(name, None, None, false)
+    }
+
+    /// Create a node with extra parameters.
+    pub fn create_node_with<'a>(
         &self,
         name: impl AsRef<str>,
         label: impl Into<Option<&'a str>>,
         parent: impl Into<Option<NodeHandle>>,
+        cook: bool,
     ) -> Result<HoudiniNode> {
         debug_assert!(self.is_valid());
-        HoudiniNode::create(name.as_ref(), label.into(), parent, self.clone(), false)
+        debug!("Creating node instance: {}", name.as_ref());
+        let parent = parent.into();
+        debug_assert!(
+            parent.is_some() || name.as_ref().contains('/'),
+            "Node name must be fully qualified if parent is not specified"
+        );
+        debug_assert!(
+            !(parent.is_some() && name.as_ref().contains('/')),
+            "Cannot use fully qualified node name with parent"
+        );
+        let name = CString::new(name.as_ref())?;
+        let label = label.into().map(CString::new).transpose()?;
+        let id = crate::ffi::create_node(&name, label.as_deref(), self, parent, cook)?;
+        HoudiniNode::new(self.clone(), NodeHandle(id), None)
     }
 
     /// Find a node given an absolute path. To find a child node, pass the `parent` node
@@ -578,8 +597,8 @@ fn path_to_cstring(path: impl AsRef<Path>) -> Result<CString> {
 }
 
 /// Connect to the engine process via a pipe file.
-/// In [timeout] is Some, function will try to connect to
-/// the server multiple times every 100ms until timeout is reached.
+/// If `timeout` is Some, function will try to connect to
+/// the server multiple times every 100ms until `timeout` is reached.
 pub fn connect_to_pipe(
     pipe: impl AsRef<Path>,
     options: Option<&SessionOptions>,
@@ -604,7 +623,7 @@ pub fn connect_to_pipe(
         }
         if waited > timeout {
             // last_error is guarantied to be Some().
-            return Err(last_error.unwrap());
+            return Err(last_error.unwrap()).context("Connection timeout");
         }
     };
     let connection = ConnectionType::ThriftPipe(pipe);
@@ -997,7 +1016,7 @@ pub(crate) mod tests {
         session
             .load_asset_file("otls/sesi/SideFX_spaceship.hda")
             .unwrap();
-        let node = session.create_node("Object/spaceship", None, None).unwrap();
+        let node = session.create_node("Object/spaceship").unwrap();
         assert_eq!(
             node.cook_count(NodeType::None, NodeFlags::None, true)
                 .unwrap(),

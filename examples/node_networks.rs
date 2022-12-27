@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     print_child_node(&session, &children)?;
 
     // Create a new node and connect one of the child to it
-    let box_node = session.create_node("geo", Some("ProgrammaticBox"), &asset)?;
+    let box_node = session.create_node_with("geo", Some("ProgrammaticBox"), &asset, false)?;
     box_node.connect_input(0, children[0], 0)?;
     // Verify connection
     box_node.input_node(0)?.expect("Connection");

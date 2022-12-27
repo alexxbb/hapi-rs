@@ -3,10 +3,9 @@
 //! Any Houdini nodes is represented as [`HoudiniNode`] struct and all node-related functions are exposed as
 //! methods on that struct. It has a public `info` filed with [`NodeInfo`] with details about the node.
 //!
-//! Nodes can be created directly with [`HoudiniNode::create()`] functions but a recommended way is
-//! through the session object: [`Session::create_node`]
+//! Nodes can be created with [`Session::create_node`]
 //!
-//! HoudiniNode is [`Sync`] and [`Send`]
+//! HoudiniNode is ['Clone'], [`Sync`] and [`Send`]
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -322,31 +321,6 @@ impl<'session> HoudiniNode {
     ) -> Result<i32> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_total_cook_count(self, node_types, node_flags, recurse)
-    }
-
-    /// Create a node in the session.
-    pub fn create<N: Into<Option<NodeHandle>>>(
-        name: &str,
-        label: Option<&str>,
-        parent: N,
-        session: Session,
-        cook: bool,
-    ) -> Result<HoudiniNode> {
-        debug!("Creating node instance: {}", name);
-        debug_assert!(session.is_valid());
-        let parent = parent.into();
-        debug_assert!(
-            parent.is_some() || name.contains('/'),
-            "Node name must be fully qualified if parent is not specified"
-        );
-        debug_assert!(
-            !(parent.is_some() && name.contains('/')),
-            "Cannot use fully qualified node name with parent"
-        );
-        let name = CString::new(name)?;
-        let label = label.map(CString::new).transpose()?;
-        let id = crate::ffi::create_node(&name, label.as_deref(), &session, parent, cook)?;
-        HoudiniNode::new(session, NodeHandle(id), None)
     }
 
     /// If the node is of Object type, get the information object about it.
@@ -678,11 +652,13 @@ mod tests {
     #[test]
     fn node_flags() {
         with_session(|session| {
-            let sop = session.create_node("Object/geo", None, None).unwrap();
+            let sop = session.create_node("Object/geo").unwrap();
             let sphere = session
-                .create_node("sphere", None, Some(sop.handle))
+                .create_node_with("sphere", None, Some(sop.handle), false)
                 .unwrap();
-            let _box = session.create_node("box", None, Some(sop.handle)).unwrap();
+            let _box = session
+                .create_node_with("box", None, Some(sop.handle), false)
+                .unwrap();
             _box.set_display_flag(true).unwrap();
             assert!(!sphere.geometry().unwrap().unwrap().info.is_display_geo());
             sphere.set_display_flag(true).unwrap();
@@ -693,7 +669,7 @@ mod tests {
     #[test]
     fn node_inputs_and_outputs() {
         with_session(|session| {
-            let node = session.create_node("Object/hapi_geo", None, None).unwrap();
+            let node = session.create_node("Object/hapi_geo").unwrap();
             let geo = node.geometry().unwrap().unwrap();
             let mut input = geo.node.input_node(0).unwrap();
             while let Some(ref n) = input {
@@ -716,7 +692,7 @@ mod tests {
     #[test]
     fn node_find_siblings() {
         let session = crate::session::quick_session(None).unwrap();
-        let asset = session.create_node("Object/hapi_geo", None, None).unwrap();
+        let asset = session.create_node("Object/hapi_geo").unwrap();
         let nope = asset.get_child_by_path("bla").unwrap();
         assert!(nope.is_none());
         let geo = asset.geometry().unwrap().unwrap();
@@ -737,7 +713,7 @@ mod tests {
     fn node_transform() {
         with_session(|session| {
             let obj = session
-                .create_node("Object/null", "node_transform", None)
+                .create_node_with("Object/null", "node_transform", None, false)
                 .unwrap();
             let t = obj.get_transform(None, None).unwrap();
             assert_eq!(t.position(), [0.0, 0.0, 0.0]);
@@ -759,7 +735,7 @@ mod tests {
     #[test]
     fn save_and_load() {
         with_session(|session| {
-            let cam = session.create_node("Object/cam", "ToSave", None).unwrap();
+            let cam = session.create_node("Object/cam").unwrap();
             let tmp = std::env::temp_dir().join("node");
             cam.save_to_file(&tmp).expect("save_to_file");
             let new = HoudiniNode::load_from_file(session, None, "loaded_cam", true, &tmp)
@@ -773,7 +749,7 @@ mod tests {
     #[test]
     fn number_of_geo_outputs() {
         with_session(|session| {
-            let node = session.create_node("Object/hapi_geo", None, None).unwrap();
+            let node = session.create_node("Object/hapi_geo").unwrap();
             assert_eq!(node.number_of_geo_outputs().unwrap(), 2);
             let infos = node.geometry_outputs().unwrap();
             assert_eq!(infos.len(), 2);
@@ -783,7 +759,7 @@ mod tests {
     #[test]
     fn set_transform_anim() {
         let session = crate::session::quick_session(None).unwrap();
-        let bone = session.create_node("Object/bone", None, None).unwrap();
+        let bone = session.create_node("Object/bone").unwrap();
         let ty = [
             KeyFrame {
                 time: 0.0,
@@ -810,7 +786,7 @@ mod tests {
     fn get_set_preset() {
         with_session(|session| {
             let node = session
-                .create_node("Object/null", "get_set_parent", None)
+                .create_node_with("Object/null", "get_set_parent", None, false)
                 .unwrap();
             if let Parameter::Float(p) = node.parameter("scale").unwrap() {
                 assert_eq!(p.get(0).unwrap(), 1.0);
