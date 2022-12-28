@@ -15,6 +15,7 @@
 //! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
 //!
 use log::{debug, error, warn};
+use parking_lot::ReentrantMutex;
 use std::ffi::OsString;
 use std::fmt::Debug;
 use std::path::PathBuf;
@@ -22,21 +23,58 @@ use std::process::Child;
 use std::time::Duration;
 use std::{ffi::CString, path::Path, sync::Arc};
 
-use crate::{
+pub use crate::{
     asset::AssetLibrary,
     errors::*,
-    ffi::{
-        enums::*, raw, CookOptions, ImageFileFormat, SessionSyncInfo, TimelineOptions, Viewport,
-    },
-    node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle},
+    ffi::{enums::*, CookOptions, ImageFileFormat, SessionSyncInfo, TimelineOptions, Viewport},
+    node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType},
+    parameter::Parameter,
     stringhandle::StringArray,
-    utils,
 };
+use crate::{ffi::raw, utils};
 
-use crate::node::{NodeType, Parameter};
-use parking_lot::ReentrantMutex;
+/// Builder struct for [`Session::node_builder`] API
+pub struct NodeBuilder<'s> {
+    session: &'s Session,
+    name: String,
+    label: Option<String>,
+    parent: Option<NodeHandle>,
+    cook: bool,
+}
 
-impl std::cmp::PartialEq for raw::HAPI_Session {
+impl<'s> NodeBuilder<'s> {
+    /// Give new node a label
+    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    /// Create new node as child of a parent node.
+    pub fn with_parent<H: AsRef<NodeHandle>>(mut self, parent: H) -> Self {
+        self.parent.replace(*parent.as_ref());
+        self
+    }
+
+    /// Cook node after creation.
+    pub fn cook(mut self, cook: bool) -> Self {
+        self.cook = cook;
+        self
+    }
+
+    /// Consume the builder and create the node
+    pub fn create(self) -> Result<HoudiniNode> {
+        let NodeBuilder {
+            session,
+            name,
+            label,
+            parent,
+            cook,
+        } = self;
+        session.create_node_with(&name, parent, label.as_deref(), cook)
+    }
+}
+
+impl PartialEq for raw::HAPI_Session {
     fn eq(&self, other: &Self) -> bool {
         self.type_ == other.type_ && self.id == other.id
     }
@@ -257,32 +295,47 @@ impl Session {
 
     /// Create a node. `name` must start with a network category, e.g, "Object/geo", "Sop/box",
     /// in operator namespace was used, the full name may look like this: namespace::Object/mynode
+    /// If you need more creating options, see the [`node_builder`] API.
     /// New node will *not* be cooked.
     pub fn create_node(&self, name: impl AsRef<str>) -> Result<HoudiniNode> {
-        self.create_node_with(name, None, None, false)
+        self.create_node_with(name.as_ref(), None, None, false)
     }
 
-    /// Create a node with extra parameters.
-    pub fn create_node_with<'a>(
+    /// A builder pattern for creating a node with more options.
+    pub fn node_builder(&self, node_name: impl Into<String>) -> NodeBuilder {
+        NodeBuilder {
+            session: self,
+            name: node_name.into(),
+            label: None,
+            parent: None,
+            cook: false,
+        }
+    }
+
+    // Internal function for creating nodes
+    pub(crate) fn create_node_with<P>(
         &self,
-        name: impl AsRef<str>,
-        label: impl Into<Option<&'a str>>,
-        parent: impl Into<Option<NodeHandle>>,
+        name: &str,
+        parent: P,
+        label: Option<&str>,
         cook: bool,
-    ) -> Result<HoudiniNode> {
-        debug_assert!(self.is_valid());
-        debug!("Creating node instance: {}", name.as_ref());
+    ) -> Result<HoudiniNode>
+    where
+        P: Into<Option<NodeHandle>>,
+    {
         let parent = parent.into();
+        debug!("Creating node instance: {}", name);
+        debug_assert!(self.is_valid());
         debug_assert!(
-            parent.is_some() || name.as_ref().contains('/'),
+            parent.is_some() || name.contains('/'),
             "Node name must be fully qualified if parent is not specified"
         );
         debug_assert!(
-            !(parent.is_some() && name.as_ref().contains('/')),
+            !(parent.is_some() && name.contains('/')),
             "Cannot use fully qualified node name with parent"
         );
-        let name = CString::new(name.as_ref())?;
-        let label = label.into().map(CString::new).transpose()?;
+        let name = CString::new(name)?;
+        let label = label.map(CString::new).transpose()?;
         let id = crate::ffi::create_node(&name, label.as_deref(), self, parent, cook)?;
         HoudiniNode::new(self.clone(), NodeHandle(id), None)
     }

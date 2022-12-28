@@ -142,6 +142,12 @@ impl From<NodeHandle> for crate::ffi::raw::HAPI_NodeId {
     }
 }
 
+impl AsRef<NodeHandle> for HoudiniNode {
+    fn as_ref(&self) -> &NodeHandle {
+        &self.handle
+    }
+}
+
 impl NodeHandle {
     /// Retrieve info about the node this handle belongs to
     pub fn info(&self, session: &Session) -> Result<NodeInfo> {
@@ -654,10 +660,14 @@ mod tests {
         with_session(|session| {
             let sop = session.create_node("Object/geo").unwrap();
             let sphere = session
-                .create_node_with("sphere", None, Some(sop.handle), false)
+                .node_builder("sphere")
+                .with_parent(&sop)
+                .create()
                 .unwrap();
             let _box = session
-                .create_node_with("box", None, Some(sop.handle), false)
+                .node_builder("box")
+                .with_parent(&sop)
+                .create()
                 .unwrap();
             _box.set_display_flag(true).unwrap();
             assert!(!sphere.geometry().unwrap().unwrap().info.is_display_geo());
@@ -712,9 +722,7 @@ mod tests {
     #[test]
     fn node_transform() {
         with_session(|session| {
-            let obj = session
-                .create_node_with("Object/null", "node_transform", None, false)
-                .unwrap();
+            let obj = session.create_node("Object/null").unwrap();
             let t = obj.get_transform(None, None).unwrap();
             assert_eq!(t.position(), [0.0, 0.0, 0.0]);
             assert_eq!(t.scale(), [1.0, 1.0, 1.0]);
@@ -785,9 +793,7 @@ mod tests {
     #[test]
     fn get_set_preset() {
         with_session(|session| {
-            let node = session
-                .create_node_with("Object/null", "get_set_parent", None, false)
-                .unwrap();
+            let node = session.create_node("Object/null").unwrap();
             if let Parameter::Float(p) = node.parameter("scale").unwrap() {
                 assert_eq!(p.get(0).unwrap(), 1.0);
                 let save = node.get_preset("test", PresetType::Binary).unwrap();

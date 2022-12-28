@@ -121,6 +121,7 @@ mod ffi;
 
 pub use errors::{HapiError, Result};
 pub use ffi::enums;
+pub use ffi::structs::Viewport;
 
 /// Houdini version this library was build upon
 #[derive(Debug)]
