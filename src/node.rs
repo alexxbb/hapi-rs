@@ -127,6 +127,17 @@ impl ManagerNode {
     pub fn find_network_nodes(&self, types: NodeType) -> Result<Vec<HoudiniNode>> {
         find_networks_nodes(&self.session, types, self.handle, true)
     }
+
+    /// Return children nodes of this network.
+    pub fn get_children(&self) -> Result<Vec<NodeHandle>> {
+        get_child_node_list(
+            &self.session,
+            self.handle,
+            NodeType::from(self.node_type),
+            NodeFlags::Any,
+            false,
+        )
+    }
 }
 
 #[repr(transparent)]
@@ -265,7 +276,7 @@ impl<'session> HoudiniNode {
     /// Delete the node in this session.
     pub fn delete(self) -> Result<()> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        crate::ffi::delete_node(self)
+        crate::ffi::delete_node(self.handle, &self.session)
     }
 
     /// Checks if the node valid (not deleted).

@@ -372,10 +372,9 @@ pub fn is_node_valid(session: &Session, info: &raw::HAPI_NodeInfo) -> Result<boo
     }
 }
 
-pub fn delete_node(node: HoudiniNode) -> Result<()> {
+pub fn delete_node(node: NodeHandle, session: &Session) -> Result<()> {
     unsafe {
-        raw::HAPI_DeleteNode(node.session.ptr(), node.handle.0)
-            .check_err(&node.session, || "Calling HAPI_DeleteNode")
+        raw::HAPI_DeleteNode(session.ptr(), node.0).check_err(session, || "Calling HAPI_DeleteNode")
     }
 }
 

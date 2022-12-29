@@ -340,6 +340,11 @@ impl Session {
         HoudiniNode::new(self.clone(), NodeHandle(id), None)
     }
 
+    /// Delete the node from the session. See also [`HoudiniNode::delete`]
+    pub fn delete_node<H: Into<NodeHandle>>(&self, node: H) -> Result<()> {
+        crate::ffi::delete_node(node.into(), self)
+    }
+
     /// Find a node given an absolute path. To find a child node, pass the `parent` node
     /// or use [`HoudiniNode::find_child_by_path`]
     pub fn get_node_from_path(
