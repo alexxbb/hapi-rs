@@ -980,7 +980,7 @@ pub fn start_houdini_server(
 ) -> Result<Child> {
     std::process::Command::new(houdini_executable.as_ref())
         .arg(format!("-hess=pipe:{}", pipe_name.as_ref()))
-        .arg(if fx_license { "-fx" } else { "-core" })
+        .arg(if fx_license { "-force-fx-license" } else { "-core" })
         .spawn()
         .map_err(HapiError::from)
 }

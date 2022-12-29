@@ -1,5 +1,6 @@
 /// This example starts an interactive Houdini session first time you run it,
-/// and consecutive calls will connect to it and reuse.
+/// and consecutive calls will connect to it and use it instead.
+/// Check --help for command options.
 use std::path::Path;
 use std::time::Duration;
 
@@ -40,6 +41,7 @@ fn main() -> Result<()> {
             let hfs = std::env::var_os("HFS").ok_or_else(|| anyhow!("Missing HFS"))?;
             let executable = Path::new(&hfs).join("bin").join("houdini");
             start_houdini_server(PIPE, executable, true)?;
+            // While trying to connect, it will print some errors, these can be ignored.
             connect_to_pipe(PIPE, None, Some(Duration::from_secs(30)))?
         }
     };

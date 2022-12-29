@@ -76,7 +76,7 @@ fn main() -> Result<()> {
     if let Parameter::Float(p) = asset.parameter("num_frames")? {
         p.set(0, NUM_FRAMES as f32)?;
     }
-    if let Parameter::String(p) = asset.parameter("pdg_workingdir").expect("parm") {
+    if let Parameter::String(p) = asset.parameter("pdg_workingdir")? {
         p.set(0, out_dir.to_string_lossy())?;
     }
 

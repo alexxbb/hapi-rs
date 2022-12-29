@@ -46,11 +46,11 @@ fn create_nodes() -> Result<HashMap<Noise, HoudiniNode>> {
     let mut map = HashMap::new();
     map.insert(
         Noise::Voronoi,
-        lib.create_asset_for_node("hapi::Cop2/voronoi")?,
+        lib.create_asset_for_node("hapi::Cop2/voronoi", None)?,
     );
     map.insert(
         Noise::Alligator,
-        lib.create_asset_for_node("hapi::Cop2/alligator")?,
+        lib.create_asset_for_node("hapi::Cop2/alligator", None)?,
     );
     Ok(map)
 }
@@ -107,7 +107,7 @@ impl Sandbox for App {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        let slider = slider(0.0..=1.0, self.input, Message::Offset)
+        let slider = slider(0.0..=1.0, self.input, Message::InputChanged)
             .step(0.05)
             .width(Length::Units(300));
         let noise = pick_list(

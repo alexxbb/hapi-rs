@@ -81,6 +81,12 @@ impl Parameter {
         self.info().label()
     }
 
+    /// Number or elements in the parameter
+    #[inline]
+    pub fn size(&self) -> i32 {
+        self.info().size()
+    }
+
     /// Parameter parent if any (examples are multi-parm or Folder type parameters)
     pub fn parent(&self) -> Result<Option<ParmInfo>> {
         let wrap = self.base();
