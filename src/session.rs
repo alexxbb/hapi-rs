@@ -976,9 +976,11 @@ pub fn start_engine_socket_server(
 pub fn start_houdini_server(
     pipe_name: impl AsRef<str>,
     houdini_executable: impl AsRef<Path>,
+    fx_license: bool,
 ) -> Result<Child> {
     std::process::Command::new(houdini_executable.as_ref())
         .arg(format!("-hess=pipe:{}", pipe_name.as_ref()))
+        .arg(if fx_license { "-fx" } else { "-core" })
         .spawn()
         .map_err(HapiError::from)
 }
