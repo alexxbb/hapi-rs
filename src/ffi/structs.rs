@@ -334,12 +334,12 @@ wrap!(
 
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___asset_info.html)
 #[derive(Debug)]
-pub struct AssetInfo<'session> {
+pub struct AssetInfo {
     pub(crate) inner: HAPI_AssetInfo,
-    pub session: &'session Session,
+    pub session: Session,
 }
 
-impl<'s> AssetInfo<'s> {
+impl AssetInfo {
     get!(node_id->nodeId->[handle: NodeHandle]);
     get!(object_node_id->objectNodeId->[handle: NodeHandle]);
     get!(has_ever_cooked->hasEverCooked->bool);

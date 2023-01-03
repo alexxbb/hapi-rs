@@ -249,7 +249,7 @@ impl From<&HoudiniNode> for NodeHandle {
     }
 }
 
-impl<'session> HoudiniNode {
+impl HoudiniNode {
     pub(crate) fn new(
         session: Session,
         handle: NodeHandle,
@@ -290,7 +290,7 @@ impl<'session> HoudiniNode {
 
     /// Returns node's internal path.
     pub fn path(&self) -> Result<String> {
-        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.name()?);
         crate::ffi::get_node_path(&self.session, self.handle, None)
     }
 
@@ -445,11 +445,11 @@ impl<'session> HoudiniNode {
     }
 
     /// If node is an HDA, return [`AssetInfo'] about it.
-    pub fn asset_info(&'session self) -> Result<AssetInfo<'session>> {
+    pub fn asset_info(&self) -> Result<AssetInfo> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         Ok(AssetInfo {
             inner: crate::ffi::get_asset_info(self)?,
-            session: &self.session,
+            session: self.session.clone(),
         })
     }
     /// Recursively check all nodes for a specific error.

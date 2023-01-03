@@ -200,7 +200,7 @@ impl Session {
         &self.inner.connection
     }
 
-    #[inline]
+    #[inline(always)]
     pub(crate) fn ptr(&self) -> *const raw::HAPI_Session {
         &(self.inner.handle) as *const _
     }
@@ -244,16 +244,14 @@ impl Session {
         let res = crate::ffi::initialize_session(self, &self.inner.options);
         match res {
             Ok(_) => Ok(()),
-            Err(e) => match e {
-                HapiError {
-                    kind: Kind::Hapi(HapiResult::AlreadyInitialized),
-                    ..
-                } => {
-                    warn!("Session already initialized, skipping");
-                    Ok(())
-                }
-                e => Err(e),
-            },
+            Err(HapiError {
+                kind: Kind::Hapi(HapiResult::AlreadyInitialized),
+                ..
+            }) => {
+                warn!("Session already initialized, skipping");
+                Ok(())
+            }
+            Err(e) => Err(e),
         }
     }
 
@@ -444,6 +442,7 @@ impl Session {
     }
 
     /// Explicit check if the session is valid. Many APIs do this check in the debug build.
+    #[inline(always)]
     pub fn is_valid(&self) -> bool {
         crate::ffi::is_session_valid(self)
     }
@@ -980,7 +979,11 @@ pub fn start_houdini_server(
 ) -> Result<Child> {
     std::process::Command::new(houdini_executable.as_ref())
         .arg(format!("-hess=pipe:{}", pipe_name.as_ref()))
-        .arg(if fx_license { "-force-fx-license" } else { "-core" })
+        .arg(if fx_license {
+            "-force-fx-license"
+        } else {
+            "-core"
+        })
         .spawn()
         .map_err(HapiError::from)
 }
