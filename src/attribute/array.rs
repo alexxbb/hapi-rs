@@ -2,6 +2,7 @@ use crate::errors::Result;
 use crate::stringhandle::StringArray;
 use std::borrow::Cow;
 
+// TODO: Documentation
 pub struct DataArray<'a, T>
 where
     [T]: ToOwned<Owned = Vec<T>>,

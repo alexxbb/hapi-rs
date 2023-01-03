@@ -31,6 +31,9 @@ pub use crate::{
     parameter::Parameter,
     stringhandle::StringArray,
 };
+
+pub type SessionState = crate::ffi::enums::State;
+
 use crate::{ffi::raw, utils};
 
 /// Builder struct for [`Session::node_builder`] API
@@ -427,7 +430,7 @@ impl Session {
     }
 
     /// Get session state of a requested [`crate::enums::StatusType`]
-    pub fn get_status(&self, flag: StatusType) -> Result<State> {
+    pub fn get_status(&self, flag: StatusType) -> Result<SessionState> {
         debug_assert!(self.is_valid());
         crate::ffi::get_status(self, flag)
     }
@@ -437,7 +440,7 @@ impl Session {
         debug_assert!(self.is_valid());
         Ok(matches!(
             self.get_status(StatusType::CookState)?,
-            State::Cooking
+            SessionState::Cooking
         ))
     }
 
@@ -483,13 +486,13 @@ impl Session {
         if self.inner.options.threaded {
             loop {
                 match self.get_status(StatusType::CookState)? {
-                    State::Ready => break Ok(CookResult::Succeeded),
-                    State::ReadyWithFatalErrors => {
+                    SessionState::Ready => break Ok(CookResult::Succeeded),
+                    SessionState::ReadyWithFatalErrors => {
                         self.interrupt()?;
                         let err = self.get_cook_result_string(StatusVerbosity::Errors)?;
                         break Ok(CookResult::Errored(err));
                     }
-                    State::ReadyWithCookErrors => break Ok(CookResult::Warnings),
+                    SessionState::ReadyWithCookErrors => break Ok(CookResult::Warnings),
                     // Continue polling
                     _ => {}
                 }
@@ -918,17 +921,17 @@ impl SessionOptions {
     }
 }
 
-impl From<i32> for State {
+impl From<i32> for SessionState {
     fn from(s: i32) -> Self {
         match s {
-            0 => State::Ready,
-            1 => State::ReadyWithFatalErrors,
-            2 => State::ReadyWithCookErrors,
-            3 => State::StartingCook,
-            4 => State::Cooking,
-            5 => State::StartingLoad,
-            6 => State::Loading,
-            7 => State::Max,
+            0 => SessionState::Ready,
+            1 => SessionState::ReadyWithFatalErrors,
+            2 => SessionState::ReadyWithCookErrors,
+            3 => SessionState::StartingCook,
+            4 => SessionState::Cooking,
+            5 => SessionState::StartingLoad,
+            6 => SessionState::Loading,
+            7 => SessionState::Max,
             _ => unreachable!(),
         }
     }
@@ -1004,9 +1007,8 @@ pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
 pub(crate) mod tests {
     use crate::session::*;
     use once_cell::sync::Lazy;
-    use std::default::Default;
 
-    static SESSION: Lazy<Session> = Lazy::new(|| {
+    pub(crate) static SESSION: Lazy<Session> = Lazy::new(|| {
         env_logger::init();
         let session = quick_session(None).expect("Could not create test session");
         session
@@ -1026,114 +1028,5 @@ pub(crate) mod tests {
 
     pub(crate) fn with_session(func: impl FnOnce(&Lazy<Session>)) {
         func(&SESSION);
-    }
-
-    #[test]
-    fn init_and_teardown() {
-        let opt = super::SessionOptions::builder()
-            .dso_search_paths(["/path/one", "/path/two"])
-            .otl_search_paths(["/path/thee", "/path/four"])
-            .build();
-        let ses = super::quick_session(Some(&opt)).unwrap();
-        assert!(matches!(
-            ses.connection_type(),
-            ConnectionType::ThriftPipe(_)
-        ));
-        assert!(ses.is_initialized());
-        assert!(ses.is_valid());
-        assert!(ses.cleanup().is_ok());
-        assert!(!ses.is_initialized());
-    }
-
-    #[test]
-    fn session_time() {
-        // For some reason, this test randomly fails when using shared session
-        let session = quick_session(None).expect("Could not start session");
-        let _lock = session.lock();
-        let opt = TimelineOptions::default().with_end_time(5.5);
-        assert!(session.set_timeline_options(opt.clone()).is_ok());
-        let opt2 = session.get_timeline_options().expect("timeline_options");
-        assert!(opt.end_time().eq(&opt2.end_time()));
-        session.set_time(4.12).expect("set_time");
-        assert!(matches!(session.cook(), Ok(CookResult::Succeeded)));
-        assert_eq!(session.get_time().expect("get_time"), 4.12);
-    }
-
-    #[test]
-    fn server_variables() {
-        // Starting a new separate session because getting/setting env variables from multiple
-        // clients ( threads ) breaks the server
-        let session = super::quick_session(None).expect("Could not start session");
-        session.set_server_var::<str>("FOO", "foo_string").unwrap();
-        assert_eq!(session.get_server_var::<str>("FOO").unwrap(), "foo_string");
-        session.set_server_var::<i32>("BAR", &123).unwrap();
-        assert_eq!(session.get_server_var::<i32>("BAR").unwrap(), 123);
-        assert!(!session.get_server_variables().unwrap().is_empty());
-    }
-
-    #[test]
-    fn create_node_async() {
-        use crate::ffi::raw::{NodeFlags, NodeType};
-        let opt = SessionOptions::builder().threaded(true).build();
-        let session = super::quick_session(Some(&opt)).unwrap();
-        session
-            .load_asset_file("otls/sesi/SideFX_spaceship.hda")
-            .unwrap();
-        let node = session.create_node("Object/spaceship").unwrap();
-        assert_eq!(
-            node.cook_count(NodeType::None, NodeFlags::None, true)
-                .unwrap(),
-            0
-        );
-        node.cook().unwrap(); // in threaded mode always successful
-        assert_eq!(
-            node.cook_count(NodeType::None, NodeFlags::None, true)
-                .unwrap(),
-            1
-        );
-        assert!(matches!(
-            session.cook().unwrap(),
-            super::CookResult::Succeeded
-        ));
-    }
-
-    #[test]
-    fn viewport() {
-        with_session(|session| {
-            let vp = Viewport::default()
-                .with_rotation([0.7, 0.7, 0.7, 0.7])
-                .with_position([0.0, 1.0, 0.0])
-                .with_offset(3.5);
-            session.set_viewport(&vp).expect("set_viewport");
-            let vp2 = session.get_viewport().expect("get_viewport");
-            assert_eq!(vp.position(), vp2.position());
-            assert_eq!(vp.rotation(), vp2.rotation());
-            assert_eq!(vp.offset(), vp2.offset());
-        });
-    }
-
-    #[test]
-    fn sync_session() {
-        with_session(|session| {
-            let info = SessionSyncInfo::default()
-                .with_sync_viewport(true)
-                .with_cook_using_houdini_time(true);
-            session.set_sync_info(&info).unwrap();
-            session.cook().unwrap();
-            let info = session.get_sync_info().unwrap();
-            assert!(info.sync_viewport());
-            assert!(info.cook_using_houdini_time());
-        });
-    }
-
-    #[test]
-    fn manager_nodes() {
-        with_session(|session| {
-            session.get_manager_node(ManagerType::Obj).unwrap();
-            session.get_manager_node(ManagerType::Chop).unwrap();
-            session.get_manager_node(ManagerType::Cop).unwrap();
-            session.get_manager_node(ManagerType::Rop).unwrap();
-            session.get_manager_node(ManagerType::Top).unwrap();
-        })
     }
 }
