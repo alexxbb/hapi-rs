@@ -324,7 +324,7 @@ wrap!(
     Default AttributeInfo [HAPI_AttributeInfo_Create => HAPI_AttributeInfo];
     [get] exists->exists->[bool];
     [get] original_owner->originalOwner->[AttributeOwner];
-    [get] total_array_elements->totalArrayElements->[i64];
+    [get|set|with] total_array_elements->totalArrayElements->[i64];
     [get|set|with] owner->owner->[AttributeOwner];
     [get|set|with] storage->storage->[StorageType];
     [get|set|with] tuple_size->tupleSize->[i32];

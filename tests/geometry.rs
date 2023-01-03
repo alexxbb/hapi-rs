@@ -119,7 +119,7 @@ fn geometry_create_string_attrib() {
 }
 
 #[test]
-fn geometry_array_attributes() {
+fn geometry_read_array_attributes() {
     let geo = _load_test_geometry(&SESSION).expect("geometry");
 
     let attr = geo
@@ -142,6 +142,46 @@ fn geometry_array_attributes() {
     assert_eq!(data.iter().count(), attr.info().count() as usize);
     assert_eq!(data.iter().next().unwrap(), &[0.0, 0.0, 0.0]);
     assert_eq!(data.iter().last().unwrap(), &[7.0, 14.0, 21.0]);
+}
+
+#[test]
+fn geometry_create_and_set_array_attributes() {
+    let input = SESSION.create_input_node("test").unwrap();
+    let part = PartInfo::default()
+        .with_part_type(PartType::Mesh)
+        .with_face_count(0)
+        .with_vertex_count(0)
+        .with_point_count(2);
+    input.set_part_info(&part).unwrap();
+
+    let p_info = AttributeInfo::default()
+        .with_count(2)
+        .with_tuple_size(3)
+        .with_storage(StorageType::Float)
+        .with_owner(AttributeOwner::Point);
+    let p_attrib = input.add_numeric_attribute::<f32>("P", 0, p_info).unwrap();
+
+    p_attrib.set(0, &[-1.0, 0.0, 0.0, 1.0, 0.0, 0.0]).unwrap();
+
+    let attr_info = AttributeInfo::default()
+        .with_owner(AttributeOwner::Point)
+        .with_storage(StorageType::Array)
+        .with_total_array_elements(5) // == to # values in DataArray
+        .with_count(2)
+        .with_tuple_size(2);
+    /// FIXME: Is this a bug? tuple_size is dynamic and should be provided as sizes array,
+    /// however not setting it in AttributeInfo crashes the engine.
+    let array_attr = input
+        .add_numeric_array_attribute::<i32>("int_array", 0, attr_info)
+        .expect("attribute");
+    array_attr
+        .set(0, &DataArray::new(&[1, 2, 3, 4], &[2, 2]))
+        .unwrap();
+    input.commit().expect("new geometry");
+    input.node.cook_blocking().unwrap();
+    SESSION.save_hip("c:/Temp/foo.hip", true).unwrap();
+    // let value = array_attr.get(0).expect("array attribute");
+    // assert_eq!(value.data(), &[-7, 0, 0, -7]);
 }
 
 #[test]

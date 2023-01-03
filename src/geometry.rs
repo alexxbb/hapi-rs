@@ -451,7 +451,7 @@ impl Geometry {
         T: AttribAccess,
         [T]: ToOwned<Owned = Vec<T>>,
     {
-        debug_assert_eq!(info.storage(), T::storage());
+        debug_assert_eq!(info.storage(), T::storage_array());
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(NumericArrayAttr::<T>::new(name, info, self.node.clone()))

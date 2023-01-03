@@ -92,6 +92,16 @@ where
     }
     pub fn set(&self, part_id: i32, values: &DataArray<T>) -> Result<()> {
         debug_assert!(self.0.info.storage().type_matches(T::storage()));
+        debug_assert_eq!(
+            self.0.info.count(),
+            values.sizes().len() as i32,
+            "sizes array must be the same as AttributeInfo::count"
+        );
+        debug_assert_eq!(
+            self.0.info.total_array_elements(),
+            values.data().len() as i64,
+            "data array must be the same as AttributeInfo::total_array_elements"
+        );
         T::set_array(
             &self.0.name,
             &self.0.node,
