@@ -146,7 +146,9 @@ fn geometry_read_array_attributes() {
 
 #[test]
 fn geometry_create_and_set_array_attributes() {
-    let input = SESSION.create_input_node("test").unwrap();
+    let session =
+        hapi_rs::session::connect_to_socket("127.0.0.1:9090".parse().unwrap(), None).unwrap();
+    let input = session.create_input_node("test").unwrap();
     let part = PartInfo::default()
         .with_part_type(PartType::Mesh)
         .with_face_count(0)
@@ -163,25 +165,23 @@ fn geometry_create_and_set_array_attributes() {
 
     p_attrib.set(0, &[-1.0, 0.0, 0.0, 1.0, 0.0, 0.0]).unwrap();
 
+    let data_arr = [1, 2, 3, 4, 5];
     let attr_info = AttributeInfo::default()
         .with_owner(AttributeOwner::Point)
         .with_storage(StorageType::Array)
-        .with_total_array_elements(5) // == to # values in DataArray
+        .with_total_array_elements(data_arr.len() as i64) // == to # values in DataArray
         .with_count(2)
-        .with_tuple_size(2);
-    /// FIXME: Is this a bug? tuple_size is dynamic and should be provided as sizes array,
-    /// however not setting it in AttributeInfo crashes the engine.
+        .with_tuple_size(1);
     let array_attr = input
         .add_numeric_array_attribute::<i32>("int_array", 0, attr_info)
         .expect("attribute");
     array_attr
-        .set(0, &DataArray::new(&[1, 2, 3, 4], &[2, 2]))
+        .set(0, &DataArray::new(&data_arr, &[2, 3]))
         .unwrap();
     input.commit().expect("new geometry");
     input.node.cook_blocking().unwrap();
-    SESSION.save_hip("c:/Temp/foo.hip", true).unwrap();
-    // let value = array_attr.get(0).expect("array attribute");
-    // assert_eq!(value.data(), &[-7, 0, 0, -7]);
+    let value = array_attr.get(0).expect("array attribute");
+    assert_eq!(value.data(), &data_arr);
 }
 
 #[test]

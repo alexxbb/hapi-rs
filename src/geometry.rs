@@ -23,6 +23,7 @@ pub struct Geometry {
     pub(crate) info: GeoInfo,
 }
 
+/// In-memory geometry format
 #[derive(Debug)]
 pub enum GeoFormat {
     Geo,
@@ -52,13 +53,6 @@ impl GeoFormat {
 }
 
 impl Geometry {
-    pub fn from_info(info: GeoInfo, session: &Session) -> Result<Self> {
-        Ok(Self {
-            node: info.node_id().to_node(session)?,
-            info,
-        })
-    }
-
     pub fn part_info(&self, part_id: i32) -> Result<PartInfo> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
@@ -368,6 +362,7 @@ impl Geometry {
         crate::ffi::get_attribute_names(&self.node, part.part_id(), count, owner)
     }
 
+    /// Convenient method for getting the P attribute
     pub fn get_position_attribute(&self, part_id: i32) -> Result<NumericAttr<f32>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
@@ -387,6 +382,7 @@ impl Geometry {
         ))
     }
 
+    /// Get geometry attribute by name and owner.
     pub fn get_attribute(
         &self,
         part_id: i32,
@@ -429,6 +425,7 @@ impl Geometry {
         Ok(Some(Attribute::new(attr_obj)))
     }
 
+    /// Add a new numeric attribute to geometry.
     pub fn add_numeric_attribute<T: AttribAccess>(
         &self,
         name: &str,
@@ -441,6 +438,7 @@ impl Geometry {
         Ok(NumericAttr::<T>::new(name, info, self.node.clone()))
     }
 
+    /// Add a new numeric array attribute to geometry.
     pub fn add_numeric_array_attribute<T>(
         &self,
         name: &str,
@@ -452,11 +450,17 @@ impl Geometry {
         [T]: ToOwned<Owned = Vec<T>>,
     {
         debug_assert_eq!(info.storage(), T::storage_array());
+        debug_assert_eq!(
+            info.tuple_size(),
+            1,
+            "AttributeInfo::tuple_size must be 1 for array attributes"
+        );
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(NumericArrayAttr::<T>::new(name, info, self.node.clone()))
     }
 
+    /// Add a new string attribute to geometry
     pub fn add_string_attribute(
         &self,
         name: &str,
@@ -472,6 +476,7 @@ impl Geometry {
         Ok(StringAttr::new(name, info, self.node.clone()))
     }
 
+    /// Add a new string array attribute to geometry.
     pub fn add_string_array_attribute(
         &self,
         name: &str,
@@ -484,6 +489,7 @@ impl Geometry {
         Ok(StringArrayAttr::new(name, info, self.node.clone()))
     }
 
+    /// Create a new geometry group .
     pub fn add_group(
         &self,
         part_id: i32,
@@ -513,6 +519,7 @@ impl Geometry {
         }
     }
 
+    /// Delete a geometry group.
     pub fn delete_group(
         &self,
         part_id: i32,
@@ -530,6 +537,7 @@ impl Geometry {
         )
     }
 
+    /// Set element membership for a group.
     pub fn set_group_membership(
         &self,
         part_id: i32,
@@ -549,6 +557,7 @@ impl Geometry {
         )
     }
 
+    /// Get element membership for a group.
     pub fn get_group_membership(
         &self,
         part_info: Option<&PartInfo>,
@@ -572,6 +581,7 @@ impl Geometry {
         )
     }
 
+    /// Number of geometry groups by type.
     pub fn group_count_by_type(
         &self,
         group_type: GroupType,
@@ -756,6 +766,7 @@ impl Geometry {
         T::write_voxel(&self.node, part, x_index, y_index, z_index, values)
     }
 
+    /// Iterate over volume tiles and apply a function to each tile.
     pub fn foreach_volume_tile(
         &self,
         part: i32,
@@ -818,6 +829,8 @@ impl Geometry {
     }
 }
 
+/// Holds HoudiniNode handles to a heightfield SOP
+/// Used with [`Geometry::create_heightfield_input`]
 pub struct HeightfieldNodes {
     pub heightfield: HoudiniNode,
     pub height: HoudiniNode,
