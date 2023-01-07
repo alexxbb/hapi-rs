@@ -84,3 +84,11 @@ fn asset_menu_parameters() {
     // Script Menus are not evaluated from asset definition, only from a node instance
     assert!(parm.menu_items().expect("Script Items").is_empty());
 }
+
+#[test]
+fn asset_create_node() {
+    LIB.create_asset_for_node("Object/hapi_parms", None)
+        .unwrap();
+    LIB.create_asset_for_node("Cop2/color", None).unwrap();
+    LIB.create_asset_for_node("Top/invoke", None).unwrap();
+}

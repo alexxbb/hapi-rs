@@ -146,9 +146,7 @@ fn geometry_read_array_attributes() {
 
 #[test]
 fn geometry_create_and_set_array_attributes() {
-    let session =
-        hapi_rs::session::connect_to_socket("127.0.0.1:9090".parse().unwrap(), None).unwrap();
-    let input = session.create_input_node("test").unwrap();
+    let input = SESSION.create_input_node("test").unwrap();
     let part = PartInfo::default()
         .with_part_type(PartType::Mesh)
         .with_face_count(0)

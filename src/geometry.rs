@@ -11,7 +11,6 @@ pub use crate::ffi::{
 };
 use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
-use crate::session::Session;
 use crate::stringhandle::StringArray;
 use crate::utils::unwrap_or_create;
 use crate::volume::{Tile, VolumeBounds, VolumeStorage};

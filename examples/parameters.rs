@@ -1,9 +1,9 @@
-use hapi_rs::parameter::{Parameter, ParmType};
-use hapi_rs::session::{quick_session, SessionOptions};
-use hapi_rs::Result;
 use prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR as FORMAT;
 use prettytable::*;
 
+use hapi_rs::parameter::{Parameter, ParmType};
+use hapi_rs::session::{quick_session, SessionOptions};
+use hapi_rs::Result;
 
 fn main() -> Result<()> {
     env_logger::init();
