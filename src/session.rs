@@ -1025,8 +1025,4 @@ pub(crate) mod tests {
             .expect("load asset");
         session
     });
-
-    pub(crate) fn with_session(func: impl FnOnce(&Lazy<Session>)) {
-        func(&SESSION);
-    }
 }

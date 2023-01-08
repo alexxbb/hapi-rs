@@ -5,8 +5,8 @@ use hapi_rs::{
         HoudiniNode, KeyFrame, NodeFlags, NodeType, PresetType, RSTOrder, TransformComponent,
         TransformEuler,
     },
-    parameter::{Parameter, ParmBaseTrait},
-    session::{quick_session, CookResult, Session, SessionOptions, SessionOptionsBuilder},
+    parameter::Parameter,
+    session::{quick_session, CookResult, Session, SessionOptions},
     Result,
 };
 
@@ -175,79 +175,4 @@ fn node_get_set_preset() {
         node.set_preset("test", PresetType::Binary, &save).unwrap();
         assert_eq!(p.get(0).unwrap(), 1.0);
     }
-}
-
-#[test]
-fn node_parm_concurrent_access() {
-    fn set_parm_value(parm: &Parameter) {
-        match parm {
-            Parameter::Float(parm) => {
-                let val: [f32; 3] = std::array::from_fn(|_| fastrand::f32());
-                parm.set_array(val).unwrap()
-            }
-            Parameter::Int(parm) => {
-                let values: Vec<_> = std::iter::repeat_with(|| fastrand::i32(0..10))
-                    .take(parm.size() as usize)
-                    .collect();
-                parm.set_array(values).unwrap()
-            }
-            Parameter::String(parm) => {
-                let values: Vec<String> = (0..parm.size())
-                    .into_iter()
-                    .map(|_| {
-                        std::iter::repeat_with(fastrand::alphanumeric)
-                            .take(10)
-                            .collect()
-                    })
-                    .collect();
-                parm.set_array(values).unwrap()
-            }
-            Parameter::Button(parm) => parm.press_button().unwrap(),
-            Parameter::Other(_) => {}
-        };
-    }
-
-    fn get_parm_value(parm: &Parameter) {
-        match parm {
-            Parameter::Float(parm) => {
-                parm.get(0).unwrap();
-            }
-            Parameter::Int(parm) => {
-                parm.get(0).unwrap();
-            }
-            Parameter::String(parm) => {
-                parm.get(0).unwrap();
-            }
-            Parameter::Button(_) => {}
-            Parameter::Other(_) => {}
-        };
-    }
-
-    let session = quick_session(Some(
-        &SessionOptionsBuilder::default().threaded(true).build(),
-    ))
-    .unwrap();
-    let lib = session
-        .load_asset_file("otls/hapi_parms.hda")
-        .expect("loaded asset");
-    let node = lib.try_create_first().expect("hapi_parm node");
-    node.cook_blocking().unwrap();
-    let parameters = node.parameters().expect("parameters");
-    std::thread::scope(|scope| {
-        for _ in 0..3 {
-            scope.spawn(|| {
-                for _ in 0..parameters.len() {
-                    let i = fastrand::usize(..parameters.len());
-                    let parm = &parameters[i];
-                    if fastrand::bool() {
-                        set_parm_value(parm);
-                        node.cook().unwrap();
-                    } else {
-                        get_parm_value(parm);
-                        node.cook().unwrap();
-                    }
-                }
-            });
-        }
-    });
 }

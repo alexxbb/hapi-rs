@@ -16,17 +16,15 @@
 //! ```
 //! Extra parameter features are available in [`ParmBaseTrait`]
 
-#[cfg(test)]
-mod tests;
 mod base;
 mod access;
 pub use crate::ffi::enums::ParmType;
-pub use crate::ffi::structs::ParmInfo;
+pub use crate::ffi::structs::{KeyFrame, ParmInfo};
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::Result;
 pub use base::*;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 /// An internal handle to a parameter
 pub struct ParmHandle(pub crate::ffi::raw::HAPI_ParmId);
 

@@ -10,12 +10,12 @@ use std::ffi::{CStr, CString};
 pub trait ParmBaseTrait {
     #[inline]
     fn name(&self) -> Result<String> {
-        self.inner().info.name()
+        self.info().name()
     }
 
     #[inline]
     fn session(&self) -> &Session {
-        &self.inner().info.session
+        &self.info().session
     }
 
     #[inline]
@@ -25,13 +25,18 @@ pub trait ParmBaseTrait {
 
     #[inline]
     fn size(&self) -> i32 {
-        self.inner().info.size()
+        self.info().size()
+    }
+
+    #[inline]
+    fn info(&self) -> &ParmInfo {
+        &self.inner().info
     }
 
     /// If the parameter has choice menu.
     #[inline]
     fn is_menu(&self) -> bool {
-        !matches!(self.inner().info.choice_list_type(), ChoiceListType::None)
+        !matches!(self.info().choice_list_type(), ChoiceListType::None)
     }
     /// If parameter is a menu type, return a vec of menu items
     fn menu_items(&self) -> Result<Option<Vec<ParmChoiceInfo>>> {
@@ -66,33 +71,46 @@ pub trait ParmBaseTrait {
 
     /// Checks if parameter has an expression
     fn has_expression(&self, index: i32) -> Result<bool> {
-        let wrap = self.inner();
-        debug_assert!(wrap.info.session.is_valid());
+        let inner = self.inner();
+        debug_assert!(inner.info.session.is_valid());
         let name = self.c_name()?;
-        crate::ffi::parm_has_expression(wrap.node, &wrap.info.session, &name, index)
+        crate::ffi::parm_has_expression(inner.node, &inner.info.session, &name, index)
     }
 
     /// Set parameter expression
     fn set_expression(&self, value: &str, index: i32) -> Result<()> {
-        let wrap = self.inner();
-        debug_assert!(wrap.info.session.is_valid());
+        let inner = self.inner();
+        debug_assert!(inner.info.session.is_valid());
         let value = CString::new(value)?;
         crate::ffi::set_parm_expression(
-            wrap.node,
-            &wrap.info.session,
-            wrap.info.id(),
+            inner.node,
+            &inner.info.session,
+            inner.info.id(),
             &value,
             index,
         )
     }
 
+    /// Remove parameter expression
+    fn remove_expression(&self, index: i32) -> Result<()> {
+        let inner = self.inner();
+        debug_assert!(inner.info.session.is_valid());
+        crate::ffi::remove_parm_expression(inner.node, &inner.info.session, inner.info.id(), index)
+    }
+
     /// Set keyframes on the parameter
     fn set_anim_curve(&self, index: i32, keys: &[KeyFrame]) -> Result<()> {
-        let wrap = self.inner();
-        debug_assert!(wrap.info.session.is_valid());
+        let inner = self.inner();
+        debug_assert!(inner.info.session.is_valid());
         let keys =
             unsafe { std::mem::transmute::<&[KeyFrame], &[crate::ffi::raw::HAPI_Keyframe]>(keys) };
-        crate::ffi::set_parm_anim_curve(&wrap.info.session, wrap.node, wrap.info.id(), index, keys)
+        crate::ffi::set_parm_anim_curve(
+            &inner.info.session,
+            inner.node,
+            inner.info.id(),
+            index,
+            keys,
+        )
     }
 
     #[doc(hidden)]

@@ -266,7 +266,10 @@ pub fn get_parm_expression(
     };
     match handle {
         0 => Ok(None),
-        _ => Ok(Some(crate::stringhandle::get_string(handle, session)?)),
+        _ => Ok(match crate::stringhandle::get_string(handle, session)? {
+            s if s.is_empty() => None,
+            s => Some(s),
+        }),
     }
 }
 
@@ -301,6 +304,18 @@ pub fn set_parm_expression(
     unsafe {
         raw::HAPI_SetParmExpression(session.ptr(), node.0, value.as_ptr(), parm.0, index)
             .check_err(session, || "Calling HAPI_SetParmExpression")
+    }
+}
+
+pub fn remove_parm_expression(
+    node: NodeHandle,
+    session: &Session,
+    parm: ParmHandle,
+    index: i32,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_RemoveParmExpression(session.ptr(), node.0, parm.0, index)
+            .check_err(session, || "Calling HAPI_RemoveParmExpression")
     }
 }
 
