@@ -322,7 +322,7 @@ fn geometry_basic_instancing() {
     let opt =
         CookOptions::default().with_packed_prim_instancing_mode(PackedPrimInstancingMode::Flat);
     node.cook_with_options(&opt, true).unwrap();
-    let outputs = node.geometry_outputs().unwrap();
+    let outputs = node.geometry_output_nodes().unwrap();
     let instancer = outputs.get(1).unwrap();
     let ids = instancer.get_instanced_part_ids(None).unwrap();
     assert_eq!(ids.len(), 1);

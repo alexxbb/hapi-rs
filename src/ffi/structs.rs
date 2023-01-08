@@ -594,7 +594,7 @@ pub struct ImageInfo {
 }
 
 wrap!(
-    impl ImageInfo => HAPI_ImageInfo;
+    Default ImageInfo [HAPI_ImageInfo_Create => HAPI_ImageInfo];
     [get|set|with] x_res->xRes->[i32];
     [get|set|with] y_res->yRes->[i32];
     [get|set|with] gamma->gamma->[f64];

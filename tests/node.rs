@@ -136,8 +136,21 @@ fn node_save_and_load() {
 fn node_number_of_geo_outputs() {
     let node = SESSION.create_node("Object/hapi_geo").unwrap();
     assert_eq!(node.number_of_geo_outputs().unwrap(), 2);
-    let infos = node.geometry_outputs().unwrap();
+    let infos = node.geometry_output_nodes().unwrap();
     assert_eq!(infos.len(), 2);
+}
+
+#[test]
+fn node_output_names() {
+    let node = SESSION.create_node("Object/hapi_parms").unwrap();
+    let outputs = node.get_output_names().unwrap();
+    assert_eq!(outputs[0], "nothing");
+}
+
+#[test]
+fn node_get_parm_with_tag() {
+    let node = SESSION.create_node("Object/hapi_parms").unwrap();
+    assert!(node.parameter_with_tag("my_tag").unwrap().is_some());
 }
 
 #[test]

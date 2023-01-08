@@ -7,6 +7,7 @@ use std::vec;
 
 use raw::HAPI_PDG_EventInfo;
 
+use crate::ffi::raw::HAPI_ParmId;
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
 use crate::{
     errors::{HapiError, Kind, Result},
@@ -364,6 +365,20 @@ pub fn get_parm_id_from_name(name: &CStr, node: NodeHandle, session: &Session) -
     }
 }
 
+pub fn get_parm_with_tag(node: &HoudiniNode, tag_name: &CStr) -> Result<HAPI_ParmId> {
+    unsafe {
+        let mut parm = uninit!();
+        raw::HAPI_GetParmWithTag(
+            node.session.ptr(),
+            node.handle.0,
+            tag_name.as_ptr(),
+            parm.as_mut_ptr(),
+        )
+        .check_err(&node.session, || "Calling HAPI_GetParmWithTag")?;
+        Ok(parm.assume_init())
+    }
+}
+
 pub fn get_node_info(node: NodeHandle, session: &Session) -> Result<raw::HAPI_NodeInfo> {
     unsafe {
         let mut info = uninit!();
@@ -445,6 +460,21 @@ pub fn load_library_from_file(path: &CStr, session: &Session, _override: bool) -
             lib_id.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_LoadAssetLibraryFromFile")?;
+        Ok(lib_id.assume_init())
+    }
+}
+
+pub fn load_library_from_memory(session: &Session, data: &[i8], _override: bool) -> Result<i32> {
+    unsafe {
+        let mut lib_id = uninit!();
+        raw::HAPI_LoadAssetLibraryFromMemory(
+            session.ptr(),
+            data.as_ptr(),
+            data.len() as i32,
+            _override as i8,
+            lib_id.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_LoadAssetLibraryFromMemory")?;
         Ok(lib_id.assume_init())
     }
 }
@@ -1038,6 +1068,18 @@ pub fn get_parameters(node: &HoudiniNode) -> Result<Vec<raw::HAPI_ParmInfo>> {
     }
 }
 
+pub fn revert_parameter_to_default(
+    node: NodeHandle,
+    session: &Session,
+    parm_name: &CStr,
+    index: i32,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_RevertParmToDefault(session.ptr(), node.0, parm_name.as_ptr(), index)
+            .check_err(session, || "Calling HAPI_RevertParmToDefault")
+    }
+}
+
 pub fn connect_node_input(
     session: &Session,
     node_id: NodeHandle,
@@ -1208,6 +1250,15 @@ pub fn set_use_houdini_time(session: &Session, do_use: bool) -> Result<()> {
     }
 }
 
+pub fn get_use_houdini_time(session: &Session) -> Result<bool> {
+    unsafe {
+        let mut do_use: i8 = 0;
+        raw::HAPI_GetUseHoudiniTime(session.ptr(), &mut do_use as *mut _)
+            .check_err(session, || "Calling HAPI_SetUseHoudiniTime")?;
+        Ok(do_use > 0)
+    }
+}
+
 pub fn reset_simulation(node: &HoudiniNode) -> Result<()> {
     unsafe {
         raw::HAPI_ResetSimulation(node.session.ptr(), node.handle.0)
@@ -1248,6 +1299,27 @@ pub fn get_output_geo_count(node: &HoudiniNode) -> Result<i32> {
             .check_err(&node.session, || "Calling HAPI_GetOutputGeoCount")?;
         Ok(count.assume_init())
     }
+}
+
+pub fn get_output_names(node: &HoudiniNode) -> Result<Vec<String>> {
+    let mut names = Vec::new();
+    for output_idx in 0..node.info.output_count() {
+        let mut handle = uninit!();
+        unsafe {
+            raw::HAPI_GetNodeOutputName(
+                node.session.ptr(),
+                node.handle.0,
+                output_idx,
+                handle.as_mut_ptr(),
+            )
+            .check_err(&node.session, || "Calling HAPI_GetNodeOutputName")?;
+            names.push(crate::stringhandle::get_string(
+                handle.assume_init(),
+                &node.session,
+            )?)
+        }
+    }
+    Ok(names)
 }
 
 pub fn get_output_geos(node: &HoudiniNode) -> Result<Vec<raw::HAPI_GeoInfo>> {

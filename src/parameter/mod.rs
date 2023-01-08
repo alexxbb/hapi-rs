@@ -145,4 +145,13 @@ impl ParmInfo {
             name: Some(name),
         })
     }
+
+    pub(crate) fn from_parm_handle(handle: ParmHandle, node: &HoudiniNode) -> Result<Self> {
+        let parm_info = crate::ffi::get_parm_info(node.handle, &node.session, handle)?;
+        Ok(ParmInfo {
+            inner: parm_info,
+            session: node.session.clone(),
+            name: None,
+        })
+    }
 }

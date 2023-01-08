@@ -425,6 +425,18 @@ impl HoudiniNode {
         Ok(Parameter::new(self.handle, parm_info))
     }
 
+    /// Find a parameter with a specific tag
+    pub fn parameter_with_tag(&self, tag: &str) -> Result<Option<Parameter>> {
+        let tag = CString::new(tag)?;
+        match crate::ffi::get_parm_with_tag(self, &tag)? {
+            -1 => Ok(None),
+            h => {
+                let parm_info = ParmInfo::from_parm_handle(ParmHandle(h), self)?;
+                Ok(Some(Parameter::new(self.handle, parm_info)))
+            }
+        }
+    }
+
     /// Return all node parameters.
     pub fn parameters(&self) -> Result<Vec<Parameter>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
@@ -556,8 +568,13 @@ impl HoudiniNode {
         crate::ffi::get_output_geo_count(self)
     }
 
+    pub fn get_output_names(&self) -> Result<Vec<String>> {
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
+        crate::ffi::get_output_names(self)
+    }
+
     /// Return all output nodes as Geometry.
-    pub fn geometry_outputs(&self) -> Result<Vec<Geometry>> {
+    pub fn geometry_output_nodes(&self) -> Result<Vec<Geometry>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_output_geos(self).map(|vec| {
             vec.into_iter()

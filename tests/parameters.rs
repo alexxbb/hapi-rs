@@ -116,6 +116,20 @@ fn parameters_set_anim_expression() {
 }
 
 #[test]
+fn parameters_reset_to_default() {
+    let node = SESSION
+        .create_node("Object/hapi_parms")
+        .expect("create_node");
+    let parm = node.parameter("single_float").unwrap();
+    if let Parameter::Float(p) = parm {
+        let default = p.get(0).unwrap();
+        p.set(0, 0.01).unwrap();
+        p.revert_to_default(0).unwrap();
+        assert_eq!(p.get(0).unwrap(), default);
+    }
+}
+
+#[test]
 fn parameters_concurrent_access() -> Result<()> {
     fn set_parm_value(parm: &Parameter) -> Result<()> {
         match parm {

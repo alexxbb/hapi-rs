@@ -546,6 +546,12 @@ impl Session {
         crate::ffi::set_use_houdini_time(self, do_use)
     }
 
+    /// Check if session uses Houdini time
+    pub fn get_use_houdini_time(&self) -> Result<bool> {
+        debug_assert!(self.is_valid());
+        crate::ffi::get_use_houdini_time(self)
+    }
+
     /// Get the viewport(camera) position
     pub fn get_viewport(&self) -> Result<Viewport> {
         debug_assert!(self.is_valid());

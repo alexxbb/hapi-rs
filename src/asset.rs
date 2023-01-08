@@ -134,7 +134,7 @@ impl<'a> AssetParm<'a> {
 pub struct AssetLibrary {
     lib_id: ffi::HAPI_AssetLibraryId,
     session: Session,
-    pub file: PathBuf,
+    pub file: Option<PathBuf>,
 }
 
 impl AssetLibrary {
@@ -148,7 +148,20 @@ impl AssetLibrary {
         Ok(AssetLibrary {
             lib_id,
             session,
-            file,
+            file: Some(file),
+        })
+    }
+
+    /// Load asset library from memory
+    pub fn from_memory(session: Session, data: &[u8]) -> Result<AssetLibrary> {
+        debug!("Loading library from memory");
+        debug_assert!(session.is_valid());
+        let data: &[i8] = unsafe { std::mem::transmute(data) };
+        let lib_id = crate::ffi::load_library_from_memory(&session, data, true)?;
+        Ok(AssetLibrary {
+            lib_id,
+            session,
+            file: None,
         })
     }
 

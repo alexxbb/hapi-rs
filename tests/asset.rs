@@ -35,6 +35,12 @@ fn asset_get_count() {
 }
 
 #[test]
+fn asset_load_from_memory() {
+    let mem = std::fs::read("otls/hapi_geo.hda").unwrap();
+    AssetLibrary::from_memory(SESSION.clone(), &mem).unwrap();
+}
+
+#[test]
 fn asset_get_names() {
     assert!(LIB
         .get_asset_names()
