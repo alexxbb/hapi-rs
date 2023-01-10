@@ -49,6 +49,16 @@ fn _create_triangle(geo: &Geometry) {
         .unwrap();
     geo.set_vertex_list(0, [0, 1, 2]).unwrap();
     geo.set_face_counts(0, [3]).unwrap();
+    let info = AttributeInfo::default()
+        .with_count(part.point_count())
+        .with_tuple_size(1)
+        .with_owner(AttributeOwner::Point)
+        .with_storage(StorageType::Int);
+    let id_attr = geo
+        .add_numeric_attribute::<i32>("id", part.part_id(), info)
+        .unwrap();
+    id_attr.set(0, &[1, 2, 3]).unwrap();
+
     geo.commit().expect("commit");
     geo.node.cook_blocking().unwrap();
 }
@@ -292,6 +302,23 @@ fn geometry_elements() {
         assert!(pr_groups.contains(&"group_A"));
         assert!(pt_groups.contains(&"group_B"));
     }
+}
+
+#[test]
+fn geometry_delete_attribute() {
+    let geo = SESSION.create_input_node("input").unwrap();
+    _create_triangle(&geo);
+    let id_attr = geo
+        .get_attribute(0, AttributeOwner::Point, "id")
+        .unwrap()
+        .unwrap();
+    id_attr.delete(0).unwrap();
+    geo.commit().unwrap();
+    geo.node.cook_blocking().unwrap();
+    assert!(geo
+        .get_attribute(0, AttributeOwner::Point, "id")
+        .unwrap()
+        .is_none());
 }
 
 #[test]

@@ -117,7 +117,7 @@ impl EnvVariable for Path {
 
     fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()> {
         let key = CString::new(key.as_ref())?;
-        let val = path_to_cstring(val)?;
+        let val = utils::path_to_cstring(val)?;
         crate::ffi::set_server_env_str(session, &key, &val)
     }
 }
@@ -405,7 +405,7 @@ impl Session {
     pub fn load_hip(&self, path: impl AsRef<Path>, cook: bool) -> Result<()> {
         debug!("Loading hip file: {:?}", path.as_ref());
         debug_assert!(self.is_valid());
-        let name = path_to_cstring(path)?;
+        let name = utils::path_to_cstring(path)?;
         crate::ffi::load_hip(self, &name, cook)
     }
 
@@ -415,6 +415,12 @@ impl Session {
         debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         crate::ffi::merge_hip(self, &name, cook)
+    }
+
+    /// Get node ids created by merging [`merge_hip`] a hip file.
+    pub fn get_hip_file_nodes(&self, hip_id: i32) -> Result<Vec<NodeHandle>> {
+        crate::ffi::get_hipfile_node_ids(self, hip_id)
+            .map(|handles| handles.into_iter().map(NodeHandle).collect())
     }
 
     /// Load an HDA file into current session
@@ -657,11 +663,6 @@ impl Drop for Session {
     }
 }
 
-fn path_to_cstring(path: impl AsRef<Path>) -> Result<CString> {
-    let s = path.as_ref().as_os_str().to_string_lossy().to_string();
-    Ok(CString::new(s)?)
-}
-
 /// Connect to the engine process via a pipe file.
 /// If `timeout` is Some, function will try to connect to
 /// the server multiple times every 100ms until `timeout` is reached.
@@ -671,7 +672,7 @@ pub fn connect_to_pipe(
     timeout: Option<Duration>,
 ) -> Result<Session> {
     debug!("Connecting to Thrift session: {:?}", pipe.as_ref());
-    let c_str = path_to_cstring(&pipe)?;
+    let c_str = utils::path_to_cstring(&pipe)?;
     let pipe = pipe.as_ref().as_os_str().to_os_string();
     let timeout = timeout.unwrap_or_default();
     let mut waited = Duration::from_secs(0);
@@ -958,7 +959,7 @@ pub fn start_engine_pipe_server(
         verbosity,
     };
     let log_file = log_file.map(CString::new).transpose()?;
-    let c_str = path_to_cstring(path)?;
+    let c_str = utils::path_to_cstring(path)?;
     crate::ffi::start_thrift_pipe_server(&c_str, &opts, log_file.as_deref())
 }
 

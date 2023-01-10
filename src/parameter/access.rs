@@ -156,4 +156,23 @@ impl StringParameter {
         )
         .map(|array| array.into())
     }
+
+    /// Save/Download a file referenced in this parameter to a given file.
+    /// [filename] should include the desired extension to work properly.
+    pub fn save_parm_file(&self, destination_dir: &std::path::Path, filename: &str) -> Result<()> {
+        log::debug!(
+            "Saving parameter file to: {:?}/{}",
+            destination_dir,
+            filename
+        );
+        let dest_dir = crate::utils::path_to_cstring(destination_dir)?;
+        let dest_file = CString::new(filename)?;
+        crate::ffi::get_file_parm(
+            &self.0.info.session,
+            self.0.node,
+            &self.c_name()?,
+            &dest_dir,
+            &dest_file,
+        )
+    }
 }

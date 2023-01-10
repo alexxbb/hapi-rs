@@ -130,6 +130,23 @@ fn parameters_reset_to_default() {
 }
 
 #[test]
+fn parameters_save_parm_file() {
+    let node = SESSION
+        .create_node("Object/hapi_parms")
+        .expect("create_node");
+
+    if let Parameter::String(geo_parm) = node.parameter("geo_file").unwrap() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let dir = dir.into_path();
+        let filename = "geo.bgeo.sc";
+        geo_parm.save_parm_file(&dir, filename).unwrap();
+        let filesize = std::fs::metadata(dir.join(filename)).unwrap().len();
+        assert!(filesize > 1024);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+#[test]
 fn parameters_concurrent_access() -> Result<()> {
     fn set_parm_value(parm: &Parameter) -> Result<()> {
         match parm {

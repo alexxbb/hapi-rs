@@ -124,6 +124,11 @@ impl Geometry {
         crate::ffi::set_input_curve_info(&self.node, part_id, info)
     }
 
+    pub fn get_input_curve_info(&self, part_id: i32) -> Result<InputCurveInfo> {
+        debug_assert!(self.node.is_valid()?);
+        crate::ffi::get_input_curve_info(&self.node, part_id).map(|inner| InputCurveInfo { inner })
+    }
+
     pub fn set_input_curve_positions(&self, part_id: i32, positions: &[f32]) -> Result<()> {
         crate::ffi::set_input_curve_positions(
             &self.node,

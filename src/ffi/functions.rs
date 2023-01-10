@@ -7,7 +7,7 @@ use std::vec;
 
 use raw::HAPI_PDG_EventInfo;
 
-use crate::ffi::raw::HAPI_ParmId;
+use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
 use crate::{
     errors::{HapiError, Kind, Result},
@@ -1269,8 +1269,24 @@ pub fn reset_simulation(node: &HoudiniNode) -> Result<()> {
 pub fn get_hipfile_node_count(session: &Session, hip_file_id: i32) -> Result<u32> {
     unsafe {
         let mut count = uninit!();
-        raw::HAPI_GetHIPFileNodeCount(session.ptr(), hip_file_id, count.as_mut_ptr());
+        raw::HAPI_GetHIPFileNodeCount(session.ptr(), hip_file_id, count.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_GetHIPFileNodeCount")?;
         Ok(count.assume_init() as u32)
+    }
+}
+
+pub fn get_hipfile_node_ids(session: &Session, hip_file_id: i32) -> Result<Vec<HAPI_NodeId>> {
+    let node_count = get_hipfile_node_count(session, hip_file_id)?;
+    unsafe {
+        let mut nodes = vec![-1; node_count as usize];
+        raw::HAPI_GetHIPFileNodeIds(
+            session.ptr(),
+            hip_file_id,
+            nodes.as_mut_ptr(),
+            node_count as i32,
+        )
+        .check_err(session, || "Calling HAPI_GetHIPFileNodeIds")?;
+        Ok(nodes)
     }
 }
 
@@ -1717,6 +1733,20 @@ pub fn set_input_curve_info(node: &HoudiniNode, part_id: i32, info: &InputCurveI
     }
 }
 
+pub fn get_input_curve_info(node: &HoudiniNode, part_id: i32) -> Result<HAPI_InputCurveInfo> {
+    unsafe {
+        let mut info = uninit!();
+        raw::HAPI_GetInputCurveInfo(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            info.as_mut_ptr(),
+        )
+        .check_err(&node.session, || "Calling HAPI_GetInputCurveInfo")?;
+        Ok(info.assume_init())
+    }
+}
+
 pub fn set_input_curve_positions(
     node: &HoudiniNode,
     part_id: i32,
@@ -1977,6 +2007,43 @@ pub fn add_attribute(
             attr_info,
         )
         .check_err(&node.session, || "Calling HAPI_AddAttribute")
+    }
+}
+
+pub fn delete_attribute(
+    node: &HoudiniNode,
+    part_id: i32,
+    name: &CStr,
+    attr_info: &raw::HAPI_AttributeInfo,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_DeleteAttribute(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            attr_info,
+        )
+        .check_err(&node.session, || "Calling HAPI_DeleteAttribute")
+    }
+}
+
+pub fn get_file_parm(
+    session: &Session,
+    node: NodeHandle,
+    parm_name: &CStr,
+    destination_dir: &CStr,
+    destination_file_name: &CStr,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_GetParmFile(
+            session.ptr(),
+            node.0,
+            parm_name.as_ptr(),
+            destination_dir.as_ptr(),
+            destination_file_name.as_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetParmFile")
     }
 }
 
