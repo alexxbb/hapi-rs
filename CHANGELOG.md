@@ -1,13 +1,41 @@
 # hapi-rs changelog
+## [0.9.0]
+### New
+- New builder pattern for creating nodes.
+- New `start_houdini_server` function will launch Houdini application
+  with engine server running in it. See _live_session.rs_ example.
+- Add many missing library functions.
+- Find parameter with tags: `Node::parameter_with_tag`
+- Interactive GUI app example that renders the COP network and displays as image.
+- Assets can be loaded from memory
+- Can now revert parameter values to default.
+- Can now remove parameter expressions.
+- New `Parameter::save_parm_file` to save the file from the parameter to disk.
+- Can now delete geometry attributes.
+
+
+### Changed
+- Simplified `Session::create_node` only take node name now. Use builder pattern for
+  more options.
+- `connect_to_pipe` now take an optional timeout parameter, and will try to connect multiple times
+  until connected or timeout runs out.
+- `State` enum renamed to `SessionState`
+- Move all tests from modules to _/tests/.._
+- Improved image extraction APIs.
+- Add support for creating nodes for more asset types with less boilerplate code.
+- Fixed setting of array geometry attributes.
+
+
+
 ## [0.8.0]
-## Changed
+### Changed
 - AssetLibrary::try_create_first() can now crate nodes other than of Object type.
 - Functions taking optional parent (`Option<NodeHandle>`) are now generic and can take `HoudiniNode` too.
 - Improve the error type handling and printing.
 - Remove `CookOptions` arg from `HoudiniNode::cook`, instead there's new `HoudiniNode::cook_with_options`.
 - Add lots of `debug_assert!` for input validation.
 
-## New
+### New
 - `ManagerType` enum represents a network root node.
 - Add several missing geometry APIs.
 
@@ -25,7 +53,7 @@
 - Builder pattern for `SessionOption`
 - Example of event-based cooking of PDG network.
 
-## Changed
+### Changed
 - Make `DataArray` types public.
 - Session creation APIs now require `SessionOptions` argument.
 - Add new metadata to `Session` handle with extra information about connection.

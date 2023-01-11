@@ -254,6 +254,7 @@ impl Geometry {
         )
     }
 
+    /// Return material nodes applied to geometry.
     pub fn get_materials(&self, part: Option<&PartInfo>) -> Result<Option<Materials>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
@@ -361,7 +362,7 @@ impl Geometry {
             AttributeOwner::Point => counts[1],
             AttributeOwner::Prim => counts[2],
             AttributeOwner::Detail => counts[3],
-            AttributeOwner::Max => unreachable!(),
+            AttributeOwner::Max => panic!("Invalid AttributeOwner"),
         };
         crate::ffi::get_attribute_names(&self.node, part.part_id(), count, owner)
     }

@@ -2,7 +2,8 @@ use crate::errors::Result;
 use crate::stringhandle::StringArray;
 use std::borrow::Cow;
 
-// TODO: Documentation
+/// Groups _data_ and _sizes_ arrays for working with geometry attributes.
+/// See [`crate::attribute::NumericArrayAttr::get`].
 pub struct DataArray<'a, T>
 where
     [T]: ToOwned<Owned = Vec<T>>,
@@ -14,6 +15,7 @@ impl<'a, T> DataArray<'a, T>
 where
     [T]: ToOwned<Owned = Vec<T>>,
 {
+    /// Create a new data array
     pub fn new(data: &'a [T], sizes: &'a [i32]) -> DataArray<'a, T> {
         debug_assert_eq!(sizes.iter().sum::<i32>() as usize, data.len());
         DataArray {
@@ -22,6 +24,7 @@ where
         }
     }
 
+    // Owned variant returned by APIs
     pub(crate) fn new_owned(data: Vec<T>, sizes: Vec<i32>) -> DataArray<'static, T> {
         debug_assert_eq!(sizes.iter().sum::<i32>() as usize, data.len());
         DataArray {
@@ -30,17 +33,23 @@ where
         }
     }
 
+    /// Get reference to the data buffer.
     pub fn data(&self) -> &[T] {
         self.data.as_ref()
+    }
+    /// Get reference to the sizes array.
+    pub fn sizes(&self) -> &[i32] {
+        self.sizes.as_ref()
     }
 
     pub fn data_mut(&mut self) -> &mut [T] {
         self.data.to_mut().as_mut()
     }
-    pub fn sizes(&self) -> &[i32] {
-        self.sizes.as_ref()
+    pub fn sizes_mut(&mut self) -> &mut [i32] {
+        self.sizes.to_mut().as_mut()
     }
 
+    /// Create an iterator over the data .
     pub fn iter(&'a self) -> ArrayIter<'a, T> {
         ArrayIter {
             sizes: self.sizes.iter(),
@@ -48,6 +57,7 @@ where
             cursor: 0,
         }
     }
+    /// Create an mutable iterator over the data .
     pub fn iter_mut(&'a mut self) -> ArrayIterMut<'a, T> {
         ArrayIterMut {
             sizes: self.sizes.to_mut().iter_mut(),
@@ -57,18 +67,21 @@ where
     }
 }
 
+/// Represents multi-array string data. Returned by [`crate::attribute::StringArrayAttr::get`]
 pub struct StringMultiArray {
     pub(crate) handles: Vec<i32>,
     pub(crate) sizes: Vec<i32>,
     pub(crate) session: crate::session::Session,
 }
 
+/// Returned by [`DataArray::iter`]
 pub struct ArrayIter<'a, T> {
     data: &'a [T],
     sizes: std::slice::Iter<'a, i32>,
     cursor: usize,
 }
 
+/// Returned by [`DataArray::iter_mut`]
 pub struct ArrayIterMut<'a, T> {
     data: &'a mut [T],
     sizes: std::slice::IterMut<'a, i32>,
