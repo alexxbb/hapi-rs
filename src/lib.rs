@@ -103,6 +103,7 @@
 //! which return CString or String. See the [`stringhandle`] module for more info.
 //!
 
+extern crate alloc;
 extern crate core;
 
 pub mod asset;
@@ -121,6 +122,7 @@ mod ffi;
 
 pub use errors::{HapiError, Result};
 pub use ffi::enums;
+pub use ffi::structs::Viewport;
 
 /// Houdini version this library was build upon
 #[derive(Debug)]

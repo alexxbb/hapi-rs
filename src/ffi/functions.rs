@@ -7,6 +7,7 @@ use std::vec;
 
 use raw::HAPI_PDG_EventInfo;
 
+use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
 use crate::{
     errors::{HapiError, Kind, Result},
@@ -173,7 +174,7 @@ pub fn set_parm_float_values(
     values: &[f32],
 ) -> Result<()> {
     unsafe {
-        raw::HAPI_SetParmFloatValues(session.ptr(), node.0, values.as_ptr(), start, size as i32)
+        raw::HAPI_SetParmFloatValues(session.ptr(), node.0, values.as_ptr(), start, size)
             .check_err(session, || "Calling HAPI_SetParmFloatValues")
     }
 }
@@ -266,7 +267,10 @@ pub fn get_parm_expression(
     };
     match handle {
         0 => Ok(None),
-        _ => Ok(Some(crate::stringhandle::get_string(handle, session)?)),
+        _ => Ok(match crate::stringhandle::get_string(handle, session)? {
+            s if s.is_empty() => None,
+            s => Some(s),
+        }),
     }
 }
 
@@ -301,6 +305,18 @@ pub fn set_parm_expression(
     unsafe {
         raw::HAPI_SetParmExpression(session.ptr(), node.0, value.as_ptr(), parm.0, index)
             .check_err(session, || "Calling HAPI_SetParmExpression")
+    }
+}
+
+pub fn remove_parm_expression(
+    node: NodeHandle,
+    session: &Session,
+    parm: ParmHandle,
+    index: i32,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_RemoveParmExpression(session.ptr(), node.0, parm.0, index)
+            .check_err(session, || "Calling HAPI_RemoveParmExpression")
     }
 }
 
@@ -349,6 +365,20 @@ pub fn get_parm_id_from_name(name: &CStr, node: NodeHandle, session: &Session) -
     }
 }
 
+pub fn get_parm_with_tag(node: &HoudiniNode, tag_name: &CStr) -> Result<HAPI_ParmId> {
+    unsafe {
+        let mut parm = uninit!();
+        raw::HAPI_GetParmWithTag(
+            node.session.ptr(),
+            node.handle.0,
+            tag_name.as_ptr(),
+            parm.as_mut_ptr(),
+        )
+        .check_err(&node.session, || "Calling HAPI_GetParmWithTag")?;
+        Ok(parm.assume_init())
+    }
+}
+
 pub fn get_node_info(node: NodeHandle, session: &Session) -> Result<raw::HAPI_NodeInfo> {
     unsafe {
         let mut info = uninit!();
@@ -372,10 +402,9 @@ pub fn is_node_valid(session: &Session, info: &raw::HAPI_NodeInfo) -> Result<boo
     }
 }
 
-pub fn delete_node(node: HoudiniNode) -> Result<()> {
+pub fn delete_node(node: NodeHandle, session: &Session) -> Result<()> {
     unsafe {
-        raw::HAPI_DeleteNode(node.session.ptr(), node.handle.0)
-            .check_err(&node.session, || "Calling HAPI_DeleteNode")
+        raw::HAPI_DeleteNode(session.ptr(), node.0).check_err(session, || "Calling HAPI_DeleteNode")
     }
 }
 
@@ -431,6 +460,21 @@ pub fn load_library_from_file(path: &CStr, session: &Session, _override: bool) -
             lib_id.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_LoadAssetLibraryFromFile")?;
+        Ok(lib_id.assume_init())
+    }
+}
+
+pub fn load_library_from_memory(session: &Session, data: &[i8], _override: bool) -> Result<i32> {
+    unsafe {
+        let mut lib_id = uninit!();
+        raw::HAPI_LoadAssetLibraryFromMemory(
+            session.ptr(),
+            data.as_ptr(),
+            data.len() as i32,
+            _override as i8,
+            lib_id.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_LoadAssetLibraryFromMemory")?;
         Ok(lib_id.assume_init())
     }
 }
@@ -577,7 +621,7 @@ pub fn get_string_batch_size(handles: &[i32], session: &Session) -> Result<i32> 
 pub fn get_string_batch(length: i32, session: &Session) -> Result<Vec<u8>> {
     let mut buffer = vec![0u8; length as usize];
     unsafe {
-        raw::HAPI_GetStringBatch(session.ptr(), buffer.as_mut_ptr() as *mut _, length as i32)
+        raw::HAPI_GetStringBatch(session.ptr(), buffer.as_mut_ptr() as *mut _, length)
             .check_err(session, || "Calling HAPI_GetStringBatch")?;
     }
     buffer.truncate(length as usize);
@@ -1024,6 +1068,18 @@ pub fn get_parameters(node: &HoudiniNode) -> Result<Vec<raw::HAPI_ParmInfo>> {
     }
 }
 
+pub fn revert_parameter_to_default(
+    node: NodeHandle,
+    session: &Session,
+    parm_name: &CStr,
+    index: i32,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_RevertParmToDefault(session.ptr(), node.0, parm_name.as_ptr(), index)
+            .check_err(session, || "Calling HAPI_RevertParmToDefault")
+    }
+}
+
 pub fn connect_node_input(
     session: &Session,
     node_id: NodeHandle,
@@ -1130,7 +1186,7 @@ pub fn check_for_specific_errors(
         raw::HAPI_CheckForSpecificErrors(
             node.session.ptr(),
             node.handle.0,
-            error_bits as i32,
+            error_bits,
             code.as_mut_ptr(),
         )
         .check_err(&node.session, || "Calling HAPI_CheckForSpecificErrors")?;
@@ -1194,6 +1250,15 @@ pub fn set_use_houdini_time(session: &Session, do_use: bool) -> Result<()> {
     }
 }
 
+pub fn get_use_houdini_time(session: &Session) -> Result<bool> {
+    unsafe {
+        let mut do_use: i8 = 0;
+        raw::HAPI_GetUseHoudiniTime(session.ptr(), &mut do_use as *mut _)
+            .check_err(session, || "Calling HAPI_SetUseHoudiniTime")?;
+        Ok(do_use > 0)
+    }
+}
+
 pub fn reset_simulation(node: &HoudiniNode) -> Result<()> {
     unsafe {
         raw::HAPI_ResetSimulation(node.session.ptr(), node.handle.0)
@@ -1204,8 +1269,24 @@ pub fn reset_simulation(node: &HoudiniNode) -> Result<()> {
 pub fn get_hipfile_node_count(session: &Session, hip_file_id: i32) -> Result<u32> {
     unsafe {
         let mut count = uninit!();
-        raw::HAPI_GetHIPFileNodeCount(session.ptr(), hip_file_id, count.as_mut_ptr());
+        raw::HAPI_GetHIPFileNodeCount(session.ptr(), hip_file_id, count.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_GetHIPFileNodeCount")?;
         Ok(count.assume_init() as u32)
+    }
+}
+
+pub fn get_hipfile_node_ids(session: &Session, hip_file_id: i32) -> Result<Vec<HAPI_NodeId>> {
+    let node_count = get_hipfile_node_count(session, hip_file_id)?;
+    unsafe {
+        let mut nodes = vec![-1; node_count as usize];
+        raw::HAPI_GetHIPFileNodeIds(
+            session.ptr(),
+            hip_file_id,
+            nodes.as_mut_ptr(),
+            node_count as i32,
+        )
+        .check_err(session, || "Calling HAPI_GetHIPFileNodeIds")?;
+        Ok(nodes)
     }
 }
 
@@ -1234,6 +1315,27 @@ pub fn get_output_geo_count(node: &HoudiniNode) -> Result<i32> {
             .check_err(&node.session, || "Calling HAPI_GetOutputGeoCount")?;
         Ok(count.assume_init())
     }
+}
+
+pub fn get_output_names(node: &HoudiniNode) -> Result<Vec<String>> {
+    let mut names = Vec::new();
+    for output_idx in 0..node.info.output_count() {
+        let mut handle = uninit!();
+        unsafe {
+            raw::HAPI_GetNodeOutputName(
+                node.session.ptr(),
+                node.handle.0,
+                output_idx,
+                handle.as_mut_ptr(),
+            )
+            .check_err(&node.session, || "Calling HAPI_GetNodeOutputName")?;
+            names.push(crate::stringhandle::get_string(
+                handle.assume_init(),
+                &node.session,
+            )?)
+        }
+    }
+    Ok(names)
 }
 
 pub fn get_output_geos(node: &HoudiniNode) -> Result<Vec<raw::HAPI_GeoInfo>> {
@@ -1631,6 +1733,20 @@ pub fn set_input_curve_info(node: &HoudiniNode, part_id: i32, info: &InputCurveI
     }
 }
 
+pub fn get_input_curve_info(node: &HoudiniNode, part_id: i32) -> Result<HAPI_InputCurveInfo> {
+    unsafe {
+        let mut info = uninit!();
+        raw::HAPI_GetInputCurveInfo(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            info.as_mut_ptr(),
+        )
+        .check_err(&node.session, || "Calling HAPI_GetInputCurveInfo")?;
+        Ok(info.assume_init())
+    }
+}
+
 pub fn set_input_curve_positions(
     node: &HoudiniNode,
     part_id: i32,
@@ -1891,6 +2007,43 @@ pub fn add_attribute(
             attr_info,
         )
         .check_err(&node.session, || "Calling HAPI_AddAttribute")
+    }
+}
+
+pub fn delete_attribute(
+    node: &HoudiniNode,
+    part_id: i32,
+    name: &CStr,
+    attr_info: &raw::HAPI_AttributeInfo,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_DeleteAttribute(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            attr_info,
+        )
+        .check_err(&node.session, || "Calling HAPI_DeleteAttribute")
+    }
+}
+
+pub fn get_file_parm(
+    session: &Session,
+    node: NodeHandle,
+    parm_name: &CStr,
+    destination_dir: &CStr,
+    destination_file_name: &CStr,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_GetParmFile(
+            session.ptr(),
+            node.0,
+            parm_name.as_ptr(),
+            destination_dir.as_ptr(),
+            destination_file_name.as_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetParmFile")
     }
 }
 
@@ -2642,29 +2795,33 @@ pub fn extract_image_to_file(
 pub fn extract_image_to_memory(
     session: &Session,
     material: NodeHandle,
+    buffer: &mut Vec<u8>,
     file_format: &CStr,
     image_planes: &CStr,
-) -> Result<Vec<i8>> {
+) -> Result<()> {
     unsafe {
-        let mut size = uninit!();
+        let mut size = -1;
         raw::HAPI_ExtractImageToMemory(
             session.ptr(),
             material.0,
             file_format.as_ptr(),
             image_planes.as_ptr(),
-            size.as_mut_ptr(),
+            &mut size as *mut _,
         )
         .check_err(session, || "Calling HAPI_ExtractImageToMemory")?;
-        let size = size.assume_init() as usize;
-        let mut buffer = vec![0; size];
+        if size <= 0 {
+            log::warn!("HAPI_ExtractImageToMemory: image size is 0");
+            return Ok(());
+        }
+        buffer.resize(size as usize, 0);
         raw::HAPI_GetImageMemoryBuffer(
             session.ptr(),
             material.0,
-            buffer.as_mut_ptr(),
+            buffer.as_mut_ptr() as *mut i8,
             buffer.len() as i32,
         )
         .check_err(session, || "Calling HAPI_ExtractImageToMemory")?;
-        Ok(buffer)
+        Ok(())
     }
 }
 
@@ -2812,7 +2969,7 @@ pub fn get_workitem_result(
             pdg_node.0,
             workitem_id,
             infos.as_mut_ptr(),
-            count as i32,
+            count,
         )
         .check_err(session, || "Calling HAPI_GetWorkitemResultInfo")?;
     }

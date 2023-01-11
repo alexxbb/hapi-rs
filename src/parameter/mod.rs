@@ -16,17 +16,15 @@
 //! ```
 //! Extra parameter features are available in [`ParmBaseTrait`]
 
-#[cfg(test)]
-mod tests;
 mod base;
 mod access;
 pub use crate::ffi::enums::ParmType;
-pub use crate::ffi::structs::ParmInfo;
+pub use crate::ffi::structs::{KeyFrame, ParmInfo};
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::Result;
 pub use base::*;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 /// An internal handle to a parameter
 pub struct ParmHandle(pub crate::ffi::raw::HAPI_ParmId);
 
@@ -47,20 +45,20 @@ pub enum Parameter {
 
 impl Parameter {
     pub(crate) fn new(node: NodeHandle, info: ParmInfo) -> Parameter {
-        let base = ParmNodeWrap { info, node };
-        match base.info.parm_type() {
+        let wrap = ParmInfoWrap { info, node };
+        match wrap.info.parm_type() {
             ParmType::Int | ParmType::Toggle | ParmType::Multiparmlist => {
-                Parameter::Int(IntParameter { wrap: base })
+                Parameter::Int(IntParameter(wrap))
             }
-            ParmType::Button => Parameter::Button(IntParameter { wrap: base }),
-            ParmType::Float | ParmType::Color => Parameter::Float(FloatParameter { wrap: base }),
+            ParmType::Button => Parameter::Button(IntParameter(wrap)),
+            ParmType::Float | ParmType::Color => Parameter::Float(FloatParameter(wrap)),
             ParmType::String
             | ParmType::Node
             | ParmType::PathFile
             | ParmType::PathFileDir
             | ParmType::PathFileGeo
-            | ParmType::PathFileImage => Parameter::String(StringParameter { wrap: base }),
-            _ => Parameter::Other(BaseParameter { wrap: base }),
+            | ParmType::PathFileImage => Parameter::String(StringParameter(wrap)),
+            _ => Parameter::Other(BaseParameter(wrap)),
         }
     }
     /// Information about the parameter
@@ -81,6 +79,12 @@ impl Parameter {
         self.info().label()
     }
 
+    /// Number or elements in the parameter
+    #[inline]
+    pub fn size(&self) -> i32 {
+        self.info().size()
+    }
+
     /// Parameter parent if any (examples are multi-parm or Folder type parameters)
     pub fn parent(&self) -> Result<Option<ParmInfo>> {
         let wrap = self.base();
@@ -99,13 +103,13 @@ impl Parameter {
         }
     }
 
-    pub(crate) fn base(&self) -> &ParmNodeWrap {
+    pub(crate) fn base(&self) -> &ParmInfoWrap {
         match self {
-            Parameter::Float(p) => &p.wrap,
-            Parameter::Int(p) => &p.wrap,
-            Parameter::Button(p) => &p.wrap,
-            Parameter::String(p) => &p.wrap,
-            Parameter::Other(p) => &p.wrap,
+            Parameter::Float(p) => &p.0,
+            Parameter::Int(p) => &p.0,
+            Parameter::Button(p) => &p.0,
+            Parameter::String(p) => &p.0,
+            Parameter::Other(p) => &p.0,
         }
     }
 }
@@ -139,6 +143,15 @@ impl ParmInfo {
             inner: info,
             session: node.session.clone(),
             name: Some(name),
+        })
+    }
+
+    pub(crate) fn from_parm_handle(handle: ParmHandle, node: &HoudiniNode) -> Result<Self> {
+        let parm_info = crate::ffi::get_parm_info(node.handle, &node.session, handle)?;
+        Ok(ParmInfo {
+            inner: parm_info,
+            session: node.session.clone(),
+            name: None,
         })
     }
 }

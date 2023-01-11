@@ -5,6 +5,7 @@ use crate::ffi::raw::{ChoiceListType, ParmType};
 use crate::node::ManagerType;
 use crate::{
     errors::Result, ffi::ParmChoiceInfo, ffi::ParmInfo, node::HoudiniNode, session::Session,
+    HapiError,
 };
 use log::debug;
 use std::ffi::CString;
@@ -133,7 +134,7 @@ impl<'a> AssetParm<'a> {
 pub struct AssetLibrary {
     lib_id: ffi::HAPI_AssetLibraryId,
     session: Session,
-    pub file: PathBuf,
+    pub file: Option<PathBuf>,
 }
 
 impl AssetLibrary {
@@ -147,7 +148,20 @@ impl AssetLibrary {
         Ok(AssetLibrary {
             lib_id,
             session,
-            file,
+            file: Some(file),
+        })
+    }
+
+    /// Load asset library from memory
+    pub fn from_memory(session: Session, data: &[u8]) -> Result<AssetLibrary> {
+        debug!("Loading library from memory");
+        debug_assert!(session.is_valid());
+        let data: &[i8] = unsafe { std::mem::transmute(data) };
+        let lib_id = crate::ffi::load_library_from_memory(&session, data, true)?;
+        Ok(AssetLibrary {
+            lib_id,
+            session,
+            file: None,
         })
     }
 
@@ -172,26 +186,19 @@ impl AssetLibrary {
         self.get_asset_names().map(|names| names.first().cloned())
     }
 
-    /// Try to create the first found asset in the library.
-    /// This is a convenience function for:
-    /// ```
-    /// use hapi_rs::session::{new_in_process};
-    /// let session = new_in_process(None).unwrap();
-    /// let lib = session.load_asset_file("otls/hapi_geo.hda").unwrap();
-    /// let names = lib.get_asset_names().unwrap();
-    /// session.create_node(&names[0], None, None).unwrap();
-    /// ```
-    /// Except that it also handles non Object level assets, e.g. Cop network HDA.
-    pub fn try_create_first(&self) -> Result<HoudiniNode> {
-        debug_assert!(self.session.is_valid());
-        let name = self
-            .get_first_name()?
-            .ok_or_else(|| crate::HapiError::internal("Library file is empty"))?;
-        // Most common HDAs are Object/asset which HAPI can create directly in /obj,
+    /// Create a node for an asset. This function is a convenient form of [`Session::create_node`]
+    /// in a way that it makes sure that a correct parent network node is also created for
+    /// assets other than Object level such as Cop, Top, etc.
+    pub fn create_asset_for_node<T: AsRef<str>>(
+        &self,
+        name: T,
+        label: Option<T>,
+    ) -> Result<HoudiniNode> {
+        // Most common HDAs are Object/asset and Sop/asset which HAPI can create directly in /obj,
         // but for some assets type like Cop, Top a manager node must be created first
-        debug!("Trying to create node for asset: {}", &name);
-        let Some((context, operator)) = name.split_once('/') else {
-            panic!("Asset name returned from API expected to be fully qualified, got: \"{name}\"")
+        debug!("Trying to create a node for operator: {}", name.as_ref());
+        let Some((context, operator)) = name.as_ref().split_once('/') else {
+            return Err(HapiError::internal("Node name must be fully qualified"))
         };
         // Strip operator namespace if present
         let context = if let Some((_, context)) = context.split_once("::") {
@@ -199,29 +206,59 @@ impl AssetLibrary {
         } else {
             context
         };
-        let context: ManagerType = context.parse()?;
-        let subnet = match context {
-            ManagerType::Cop => Some("img"),
-            ManagerType::Chop => Some("ch"),
-            ManagerType::Top => Some("topnet"),
-            _ => None,
+        // There's no root network manager for Sop node types.
+        let (manager, subnet) = if context == "Sop" {
+            (None, None)
+        } else {
+            let manager_type = context.parse::<ManagerType>()?;
+            let subnet = match manager_type {
+                ManagerType::Cop => Some("img"),
+                ManagerType::Chop => Some("ch"),
+                ManagerType::Top => Some("topnet"),
+                _ => None,
+            };
+            (Some(manager_type), subnet)
         };
 
         // If subnet is Some, we get the manager node for this context and use it as parent.
         let parent = match subnet {
             Some(subnet) => {
-                let manager = self.session.get_manager_node(context)?;
+                // manager is always Some if subnet is Some
+                let parent = self.session.get_manager_node(manager.unwrap())?;
                 Some(
                     self.session
-                        .create_node(subnet, None, Some(manager.handle))?,
+                        .create_node_with(subnet, parent.handle, None, false)?
+                        .handle,
                 )
             }
             None => None,
         };
         // If passing a parent, operator name must be stripped of the context name
-        let full_name = if parent.is_some() { operator } else { &name };
+        let full_name = if parent.is_some() {
+            operator
+        } else {
+            name.as_ref()
+        };
         self.session
-            .create_node(full_name, None, parent.map(|n| n.handle))
+            .create_node_with(full_name, parent, label.as_ref().map(|v| v.as_ref()), false)
+    }
+
+    /// Try to create the first found asset in the library.
+    /// This is a convenience function for:
+    /// ```
+    /// use hapi_rs::session::{new_in_process};
+    /// let session = new_in_process(None).unwrap();
+    /// let lib = session.load_asset_file("otls/hapi_geo.hda").unwrap();
+    /// let names = lib.get_asset_names().unwrap();
+    /// session.create_node(&names[0]).unwrap();
+    /// ```
+    /// Except that it also handles non Object level assets, e.g. Cop network HDA.
+    pub fn try_create_first(&self) -> Result<HoudiniNode> {
+        debug_assert!(self.session.is_valid());
+        let name = self
+            .get_first_name()?
+            .ok_or_else(|| crate::HapiError::internal("Library file is empty"))?;
+        self.create_asset_for_node(name, None)
     }
 
     /// Returns a struct holding the asset parameter information and values
@@ -259,93 +296,5 @@ impl AssetLibrary {
             infos: infos.collect(),
             values,
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::AssetLibrary;
-    use crate::session::tests::with_session;
-    use once_cell::sync::OnceCell;
-
-    fn _parms_asset(session: &super::Session) -> &'static AssetLibrary {
-        static _LIB: OnceCell<AssetLibrary> = OnceCell::new();
-        _LIB.get_or_init(|| {
-            session
-                .load_asset_file("otls/hapi_parms.hda")
-                .expect("load_asset_file")
-        })
-    }
-
-    #[test]
-    fn get_asset_count() {
-        with_session(|session| {
-            let lib = _parms_asset(session);
-            assert_eq!(lib.get_asset_count().expect("get_asset_count"), 1);
-        });
-    }
-
-    #[test]
-    fn get_asset_names() {
-        with_session(|session| {
-            let lib = _parms_asset(session);
-            assert!(lib
-                .get_asset_names()
-                .expect("get_asset_name")
-                .contains(&"Object/hapi_parms".to_string()));
-        });
-    }
-
-    #[test]
-    fn get_first_name() {
-        with_session(|session| {
-            let lib = _parms_asset(session);
-            assert_eq!(
-                lib.get_first_name(),
-                Ok(Some(String::from("Object/hapi_parms")))
-            );
-        });
-    }
-
-    #[test]
-    fn asset_parameters() {
-        use super::ParmValue;
-        with_session(|session| {
-            let lib = _parms_asset(session);
-            let parms = lib.get_asset_parms("Object/hapi_parms").unwrap();
-
-            let parm = parms.find_parameter("single_string").expect("parm");
-            if let ParmValue::String([val]) = parm.default_value() {
-                assert_eq!(val, "hello");
-            } else {
-                panic!("parm is not a string");
-            }
-            let parm = parms.find_parameter("float3").expect("parm");
-            if let ParmValue::Float(val) = parm.default_value() {
-                assert_eq!(val, &[0.1, 0.2, 0.3]);
-            } else {
-                panic!("parm is not a float3");
-            }
-        });
-    }
-
-    #[test]
-    fn asset_menu_parameters() {
-        with_session(|session| {
-            let lib = _parms_asset(session);
-            let parms = lib.get_asset_parms("Object/hapi_parms").unwrap();
-
-            let parm = parms.find_parameter("string_menu").expect("parm");
-            let menu_values: Vec<_> = parm
-                .menu_items()
-                .expect("Menu items")
-                .iter()
-                .map(|p| p.value().unwrap())
-                .collect();
-            assert_eq!(menu_values, &["item_1", "item_2", "item_3"]);
-            // Script Menus are not evaluated from asset definition, only from a node instance
-            let parm = parms.find_parameter("script_menu").expect("parm");
-            assert!(parm.menu_items().expect("Script Items").is_empty());
-        });
     }
 }

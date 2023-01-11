@@ -3,10 +3,9 @@
 //! Any Houdini nodes is represented as [`HoudiniNode`] struct and all node-related functions are exposed as
 //! methods on that struct. It has a public `info` filed with [`NodeInfo`] with details about the node.
 //!
-//! Nodes can be created directly with [`HoudiniNode::create()`] functions but a recommended way is
-//! through the session object: [`Session::create_node`]
+//! Nodes can be created with [`Session::create_node`]
 //!
-//! HoudiniNode is [`Sync`] and [`Send`]
+//! HoudiniNode is ['Clone'], [`Sync`] and [`Send`]
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -68,7 +67,7 @@ impl FromStr for ManagerType {
             "Object" => Ok(Self::Obj),
             "Driver" => Ok(Self::Rop),
             v => Err(crate::HapiError::internal(format!(
-                "Unknown NetworkType: {v}"
+                "Unknown ManagerType::{v}"
             ))),
         }
     }
@@ -128,6 +127,17 @@ impl ManagerNode {
     pub fn find_network_nodes(&self, types: NodeType) -> Result<Vec<HoudiniNode>> {
         find_networks_nodes(&self.session, types, self.handle, true)
     }
+
+    /// Return children nodes of this network.
+    pub fn get_children(&self) -> Result<Vec<NodeHandle>> {
+        get_child_node_list(
+            &self.session,
+            self.handle,
+            NodeType::from(self.node_type),
+            NodeFlags::Any,
+            false,
+        )
+    }
 }
 
 #[repr(transparent)]
@@ -140,6 +150,12 @@ pub struct NodeHandle(pub(crate) crate::ffi::raw::HAPI_NodeId);
 impl From<NodeHandle> for crate::ffi::raw::HAPI_NodeId {
     fn from(h: NodeHandle) -> Self {
         h.0
+    }
+}
+
+impl AsRef<NodeHandle> for HoudiniNode {
+    fn as_ref(&self) -> &NodeHandle {
+        &self.handle
     }
 }
 
@@ -233,7 +249,7 @@ impl From<&HoudiniNode> for NodeHandle {
     }
 }
 
-impl<'session> HoudiniNode {
+impl HoudiniNode {
     pub(crate) fn new(
         session: Session,
         handle: NodeHandle,
@@ -260,7 +276,7 @@ impl<'session> HoudiniNode {
     /// Delete the node in this session.
     pub fn delete(self) -> Result<()> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        crate::ffi::delete_node(self)
+        crate::ffi::delete_node(self.handle, &self.session)
     }
 
     /// Checks if the node valid (not deleted).
@@ -274,7 +290,7 @@ impl<'session> HoudiniNode {
 
     /// Returns node's internal path.
     pub fn path(&self) -> Result<String> {
-        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.name()?);
         crate::ffi::get_node_path(&self.session, self.handle, None)
     }
 
@@ -322,31 +338,6 @@ impl<'session> HoudiniNode {
     ) -> Result<i32> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_total_cook_count(self, node_types, node_flags, recurse)
-    }
-
-    /// Create a node in the session.
-    pub fn create<N: Into<Option<NodeHandle>>>(
-        name: &str,
-        label: Option<&str>,
-        parent: N,
-        session: Session,
-        cook: bool,
-    ) -> Result<HoudiniNode> {
-        debug!("Creating node instance: {}", name);
-        debug_assert!(session.is_valid());
-        let parent = parent.into();
-        debug_assert!(
-            parent.is_some() || name.contains('/'),
-            "Node name must be fully qualified if parent is not specified"
-        );
-        debug_assert!(
-            !(parent.is_some() && name.contains('/')),
-            "Cannot use fully qualified node name with parent"
-        );
-        let name = CString::new(name)?;
-        let label = label.map(CString::new).transpose()?;
-        let id = crate::ffi::create_node(&name, label.as_deref(), &session, parent, cook)?;
-        HoudiniNode::new(session, NodeHandle(id), None)
     }
 
     /// If the node is of Object type, get the information object about it.
@@ -434,6 +425,18 @@ impl<'session> HoudiniNode {
         Ok(Parameter::new(self.handle, parm_info))
     }
 
+    /// Find a parameter with a specific tag
+    pub fn parameter_with_tag(&self, tag: &str) -> Result<Option<Parameter>> {
+        let tag = CString::new(tag)?;
+        match crate::ffi::get_parm_with_tag(self, &tag)? {
+            -1 => Ok(None),
+            h => {
+                let parm_info = ParmInfo::from_parm_handle(ParmHandle(h), self)?;
+                Ok(Some(Parameter::new(self.handle, parm_info)))
+            }
+        }
+    }
+
     /// Return all node parameters.
     pub fn parameters(&self) -> Result<Vec<Parameter>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
@@ -454,11 +457,11 @@ impl<'session> HoudiniNode {
     }
 
     /// If node is an HDA, return [`AssetInfo'] about it.
-    pub fn asset_info(&'session self) -> Result<AssetInfo<'session>> {
+    pub fn asset_info(&self) -> Result<AssetInfo> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         Ok(AssetInfo {
             inner: crate::ffi::get_asset_info(self)?,
-            session: &self.session,
+            session: self.session.clone(),
         })
     }
     /// Recursively check all nodes for a specific error.
@@ -565,8 +568,13 @@ impl<'session> HoudiniNode {
         crate::ffi::get_output_geo_count(self)
     }
 
+    pub fn get_output_names(&self) -> Result<Vec<String>> {
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
+        crate::ffi::get_output_names(self)
+    }
+
     /// Return all output nodes as Geometry.
-    pub fn geometry_outputs(&self) -> Result<Vec<Geometry>> {
+    pub fn geometry_output_nodes(&self) -> Result<Vec<Geometry>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_output_geos(self).map(|vec| {
             vec.into_iter()
@@ -665,233 +673,5 @@ impl<'session> HoudiniNode {
     pub fn get_input_name(&self, input_index: i32) -> Result<String> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_node_input_name(self, input_index)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::session::tests::with_session;
-    use std::iter::repeat_with;
-
-    use super::*;
-
-    #[test]
-    fn node_flags() {
-        with_session(|session| {
-            let sop = session.create_node("Object/geo", None, None).unwrap();
-            let sphere = session
-                .create_node("sphere", None, Some(sop.handle))
-                .unwrap();
-            let _box = session.create_node("box", None, Some(sop.handle)).unwrap();
-            _box.set_display_flag(true).unwrap();
-            assert!(!sphere.geometry().unwrap().unwrap().info.is_display_geo());
-            sphere.set_display_flag(true).unwrap();
-            assert!(!_box.geometry().unwrap().unwrap().info.is_display_geo());
-        });
-    }
-
-    #[test]
-    fn node_inputs_and_outputs() {
-        with_session(|session| {
-            let node = session.create_node("Object/hapi_geo", None, None).unwrap();
-            let geo = node.geometry().unwrap().unwrap();
-            let mut input = geo.node.input_node(0).unwrap();
-            while let Some(ref n) = input {
-                assert!(n.is_valid().unwrap());
-                input = n.input_node(0).unwrap();
-            }
-            let outputs = geo.node.output_connected_nodes(0, false).unwrap();
-            assert!(outputs.is_empty());
-            let n = node
-                .get_child_by_path("geo/point_attr")
-                .unwrap()
-                .expect("child node");
-            assert_eq!(
-                n.get_input_name(0).unwrap(),
-                "Geometry to Process with Wrangle"
-            );
-        })
-    }
-
-    #[test]
-    fn node_find_siblings() {
-        let session = crate::session::quick_session(None).unwrap();
-        let asset = session.create_node("Object/hapi_geo", None, None).unwrap();
-        let nope = asset.get_child_by_path("bla").unwrap();
-        assert!(nope.is_none());
-        let geo = asset.geometry().unwrap().unwrap();
-        let child = geo
-            .node
-            .parent_node()
-            .unwrap()
-            .to_node(&session)
-            .unwrap()
-            .find_child_node("add_color", false)
-            .unwrap();
-        assert!(child.is_some());
-        let child = asset.get_child_by_path("geo/add_color").unwrap();
-        assert!(child.is_some());
-    }
-
-    #[test]
-    fn node_transform() {
-        with_session(|session| {
-            let obj = session
-                .create_node("Object/null", "node_transform", None)
-                .unwrap();
-            let t = obj.get_transform(None, None).unwrap();
-            assert_eq!(t.position(), [0.0, 0.0, 0.0]);
-            assert_eq!(t.scale(), [1.0, 1.0, 1.0]);
-            assert_eq!(t.rst_order(), RSTOrder::Default);
-            obj.set_transform(
-                &TransformEuler::default()
-                    .with_position([0.0, 1.0, 0.0])
-                    .with_rotation([45.0, 0.0, 0.0]),
-            )
-            .unwrap();
-            obj.cook().unwrap();
-            assert!(obj.get_object_info().unwrap().has_transform_changed());
-            let t = obj.get_transform(None, None).unwrap();
-            assert_eq!(t.position(), [0.0, 1.0, 0.0]);
-        });
-    }
-
-    #[test]
-    fn save_and_load() {
-        with_session(|session| {
-            let cam = session.create_node("Object/cam", "ToSave", None).unwrap();
-            let tmp = std::env::temp_dir().join("node");
-            cam.save_to_file(&tmp).expect("save_to_file");
-            let new = HoudiniNode::load_from_file(session, None, "loaded_cam", true, &tmp)
-                .expect("load_from_file");
-            std::fs::remove_file(&tmp).unwrap();
-            cam.delete().unwrap();
-            new.delete().unwrap();
-        });
-    }
-
-    #[test]
-    fn number_of_geo_outputs() {
-        with_session(|session| {
-            let node = session.create_node("Object/hapi_geo", None, None).unwrap();
-            assert_eq!(node.number_of_geo_outputs(), Ok(2));
-            let infos = node.geometry_outputs().unwrap();
-            assert_eq!(infos.len(), 2);
-        });
-    }
-
-    #[test]
-    fn set_transform_anim() {
-        let session = crate::session::quick_session(None).unwrap();
-        let bone = session.create_node("Object/bone", None, None).unwrap();
-        let ty = [
-            KeyFrame {
-                time: 0.0,
-                value: 0.0,
-                in_tangent: 0.0,
-                out_tangent: 0.0,
-            },
-            KeyFrame {
-                time: 1.0,
-                value: 5.0,
-                in_tangent: 0.0,
-                out_tangent: 0.0,
-            },
-        ];
-        bone.set_transform_anim_curve(TransformComponent::Ty, &ty)
-            .unwrap();
-        session.set_time(1.0).unwrap();
-        if let Parameter::Float(p) = bone.parameter("ty").unwrap() {
-            assert_eq!(p.get(1).unwrap(), 5.0);
-        }
-    }
-
-    #[test]
-    fn get_set_preset() {
-        with_session(|session| {
-            let node = session
-                .create_node("Object/null", "get_set_parent", None)
-                .unwrap();
-            if let Parameter::Float(p) = node.parameter("scale").unwrap() {
-                assert_eq!(p.get(0).unwrap(), 1.0);
-                let save = node.get_preset("test", PresetType::Binary).unwrap();
-                p.set(0, 2.0).unwrap();
-                node.set_preset("test", PresetType::Binary, &save).unwrap();
-                assert_eq!(p.get(0).unwrap(), 1.0);
-            }
-        });
-    }
-
-    #[test]
-    fn concurrent_parm_access() {
-        use crate::session::*;
-
-        fn set_parm_value(parm: &Parameter) {
-            match parm {
-                Parameter::Float(parm) => {
-                    let val: [f32; 3] = std::array::from_fn(|_| fastrand::f32());
-                    parm.set_array(val).unwrap()
-                }
-                Parameter::Int(parm) => {
-                    let values: Vec<_> = repeat_with(|| fastrand::i32(0..10))
-                        .take(parm.wrap.info.size() as usize)
-                        .collect();
-                    parm.set_array(&values).unwrap()
-                }
-                Parameter::String(parm) => {
-                    let values: Vec<String> = (0..parm.wrap.info.size())
-                        .into_iter()
-                        .map(|_| repeat_with(fastrand::alphanumeric).take(10).collect())
-                        .collect();
-                    parm.set_array(values).unwrap()
-                }
-                Parameter::Button(parm) => parm.press_button().unwrap(),
-                Parameter::Other(_) => {}
-            };
-        }
-
-        fn get_parm_value(parm: &Parameter) {
-            match parm {
-                Parameter::Float(parm) => {
-                    parm.get(0).unwrap();
-                }
-                Parameter::Int(parm) => {
-                    parm.get(0).unwrap();
-                }
-                Parameter::String(parm) => {
-                    parm.get(0).unwrap();
-                }
-                Parameter::Button(_) => {}
-                Parameter::Other(_) => {}
-            };
-        }
-
-        let session = quick_session(Some(
-            &SessionOptionsBuilder::default().threaded(true).build(),
-        ))
-        .unwrap();
-        let lib = session
-            .load_asset_file("otls/hapi_parms.hda")
-            .expect("loaded asset");
-        let node = lib.try_create_first().expect("hapi_parm node");
-        node.cook_blocking().unwrap();
-        let parameters = node.parameters().expect("parameters");
-        std::thread::scope(|scope| {
-            for _ in 0..3 {
-                scope.spawn(|| {
-                    for _ in 0..parameters.len() {
-                        let i = fastrand::usize(..parameters.len());
-                        let parm = &parameters[i];
-                        if fastrand::bool() {
-                            set_parm_value(parm);
-                            node.cook().unwrap();
-                        } else {
-                            get_parm_value(parm);
-                            node.cook().unwrap();
-                        }
-                    }
-                });
-            }
-        });
     }
 }

@@ -49,11 +49,18 @@ impl Material {
 
     pub fn extract_image_to_memory(
         &self,
+        buffer: &mut Vec<u8>,
         image_planes: impl AsRef<str>,
         format: impl AsRef<str>,
-    ) -> Result<Vec<i8>> {
+    ) -> Result<()> {
         debug_assert!(self.session.is_valid());
-        extract_image_to_memory(&self.session, self.node_handle(), image_planes, format)
+        extract_image_to_memory(
+            &self.session,
+            self.node_handle(),
+            buffer,
+            image_planes,
+            format,
+        )
     }
 
     pub fn set_image_info(&self, info: &ImageInfo) -> Result<()> {
@@ -110,53 +117,11 @@ pub(crate) fn extract_image_to_file(
 pub(crate) fn extract_image_to_memory(
     session: &Session,
     node: NodeHandle,
+    buffer: &mut Vec<u8>,
     image_planes: impl AsRef<str>,
     format: impl AsRef<str>,
-) -> Result<Vec<i8>> {
+) -> Result<()> {
     let format = CString::new(format.as_ref())?;
     let image_planes = CString::new(image_planes.as_ref())?;
-    crate::ffi::extract_image_to_memory(session, node, &format, &image_planes)
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::geometry::Materials;
-    use crate::session::tests::with_session;
-
-    #[test]
-    fn image_file_formats() {
-        with_session(|session| {
-            let formats = session.get_supported_image_formats().unwrap();
-            assert!(formats.iter().any(|f| f.name().unwrap() == "JPEG"));
-            assert!(formats.iter().any(|f| f.extension().unwrap() == "jpg"));
-        });
-    }
-
-    #[test]
-    fn extract_image() {
-        with_session(|session| {
-            let node = session.create_node("Object/spaceship", None, None).unwrap();
-            node.cook().unwrap();
-            let geo = node.geometry().expect("geometry").unwrap();
-            let mats = geo.get_materials(None).expect("materials");
-            if let Some(Materials::Single(mat)) = mats {
-                let mut info = mat.get_image_info().unwrap();
-                info.set_x_res(512);
-                info.set_y_res(512);
-                mat.render_texture("baseColorMap").unwrap();
-                mat.set_image_info(&info).unwrap();
-                let ip = mat.get_image_planes().unwrap();
-                assert!(ip.iter().any(|ip| *ip == "C"));
-                let file = std::env::temp_dir().join("hapi.jpeg");
-                mat.extract_image_to_file("C", file).expect("extract_image");
-                mat.render_texture("baseColorMap").unwrap();
-                let bytes = mat
-                    .extract_image_to_memory("C", "JPEG")
-                    .expect("extract_image");
-                assert!(!bytes.is_empty());
-            } else {
-                unreachable!();
-            }
-        });
-    }
+    crate::ffi::extract_image_to_memory(session, node, buffer, &format, &image_planes)
 }

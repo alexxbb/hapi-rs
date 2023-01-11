@@ -324,7 +324,7 @@ wrap!(
     Default AttributeInfo [HAPI_AttributeInfo_Create => HAPI_AttributeInfo];
     [get] exists->exists->[bool];
     [get] original_owner->originalOwner->[AttributeOwner];
-    [get] total_array_elements->totalArrayElements->[i64];
+    [get|set|with] total_array_elements->totalArrayElements->[i64];
     [get|set|with] owner->owner->[AttributeOwner];
     [get|set|with] storage->storage->[StorageType];
     [get|set|with] tuple_size->tupleSize->[i32];
@@ -334,12 +334,12 @@ wrap!(
 
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___asset_info.html)
 #[derive(Debug)]
-pub struct AssetInfo<'session> {
+pub struct AssetInfo {
     pub(crate) inner: HAPI_AssetInfo,
-    pub session: &'session Session,
+    pub session: Session,
 }
 
-impl<'s> AssetInfo<'s> {
+impl AssetInfo {
     get!(node_id->nodeId->[handle: NodeHandle]);
     get!(object_node_id->objectNodeId->[handle: NodeHandle]);
     get!(has_ever_cooked->hasEverCooked->bool);
@@ -594,7 +594,7 @@ pub struct ImageInfo {
 }
 
 wrap!(
-    impl ImageInfo => HAPI_ImageInfo;
+    Default ImageInfo [HAPI_ImageInfo_Create => HAPI_ImageInfo];
     [get|set|with] x_res->xRes->[i32];
     [get|set|with] y_res->yRes->[i32];
     [get|set|with] gamma->gamma->[f64];

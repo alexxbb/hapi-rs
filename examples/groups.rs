@@ -64,7 +64,7 @@ fn create_cube(session: &Session) -> Result<HoudiniNode> {
 fn main() -> Result<()> {
     let session = quick_session(None)?;
     let cube = create_cube(&session)?;
-    let xform = session.create_node("Sop/xform", Some("PointGroupManipulator"), None)?;
+    let xform = session.create_node("Sop/xform")?;
     xform.connect_input(0, &cube, 0)?;
 
     if let Parameter::String(p) = xform.parameter("group").expect("group parm") {

@@ -1,10 +1,10 @@
+use std::ops::ControlFlow;
+
 use hapi_rs::enums::{PdgEventType, PdgWorkItemState};
 use hapi_rs::node::Parameter;
-
 use hapi_rs::pdg::TopNode;
 use hapi_rs::session::{new_in_process, SessionOptionsBuilder};
 use hapi_rs::Result;
-use std::ops::ControlFlow;
 
 fn cook_async(node: &TopNode) -> Result<Vec<String>> {
     node.dirty_node(true)?;
@@ -71,12 +71,12 @@ fn main() -> Result<()> {
         .env_variables([("JOB", out_dir.to_string_lossy())])
         .build();
     let session = new_in_process(Some(&options))?;
-    let lib = session.load_asset_file(&otl)?;
+    let lib = session.load_asset_file(otl)?;
     let asset = lib.try_create_first()?;
     if let Parameter::Float(p) = asset.parameter("num_frames")? {
         p.set(0, NUM_FRAMES as f32)?;
     }
-    if let Parameter::String(p) = asset.parameter("pdg_workingdir").expect("parm") {
+    if let Parameter::String(p) = asset.parameter("pdg_workingdir")? {
         p.set(0, out_dir.to_string_lossy())?;
     }
 

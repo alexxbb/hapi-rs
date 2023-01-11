@@ -92,6 +92,16 @@ where
     }
     pub fn set(&self, part_id: i32, values: &DataArray<T>) -> Result<()> {
         debug_assert!(self.0.info.storage().type_matches(T::storage()));
+        debug_assert_eq!(
+            self.0.info.count(),
+            values.sizes().len() as i32,
+            "sizes array must be the same as AttributeInfo::count"
+        );
+        debug_assert_eq!(
+            self.0.info.total_array_elements(),
+            values.data().len() as i64,
+            "data array must be the same as AttributeInfo::total_array_elements"
+        );
         T::set_array(
             &self.0.name,
             &self.0.node,
@@ -207,7 +217,8 @@ pub trait AsAttribute {
     {
         Box::new(self)
     }
-    fn name(&self) -> Cow<str>;
+    fn name(&self) -> &CStr;
+    fn node(&self) -> &HoudiniNode;
 }
 
 impl<T: AttribAccess> AsAttribute for NumericAttr<T> {
@@ -218,8 +229,12 @@ impl<T: AttribAccess> AsAttribute for NumericAttr<T> {
         T::storage()
     }
 
-    fn name(&self) -> Cow<str> {
-        self.0.name.to_string_lossy()
+    fn name(&self) -> &CStr {
+        &self.0.name
+    }
+
+    fn node(&self) -> &HoudiniNode {
+        &self.0.node
     }
 }
 
@@ -230,8 +245,11 @@ impl<T: AttribAccess> AsAttribute for NumericArrayAttr<T> {
     fn storage(&self) -> StorageType {
         T::storage()
     }
-    fn name(&self) -> Cow<str> {
-        self.0.name.to_string_lossy()
+    fn name(&self) -> &CStr {
+        &self.0.name
+    }
+    fn node(&self) -> &HoudiniNode {
+        &self.0.node
     }
 }
 
@@ -244,8 +262,12 @@ impl AsAttribute for StringAttr {
         StorageType::String
     }
 
-    fn name(&self) -> Cow<str> {
-        self.0.name.to_string_lossy()
+    fn name(&self) -> &CStr {
+        &self.0.name
+    }
+
+    fn node(&self) -> &HoudiniNode {
+        &self.0.node
     }
 }
 
@@ -258,8 +280,12 @@ impl AsAttribute for StringArrayAttr {
         StorageType::StringArray
     }
 
-    fn name(&self) -> Cow<str> {
-        self.0.name.to_string_lossy()
+    fn name(&self) -> &CStr {
+        &self.0.name
+    }
+
+    fn node(&self) -> &HoudiniNode {
+        &self.0.node
     }
 }
 
@@ -284,12 +310,15 @@ impl Attribute {
         self.0.as_any().downcast_ref::<T>()
     }
     pub fn name(&self) -> Cow<str> {
-        self.0.name()
+        self.0.name().to_string_lossy()
     }
     pub fn storage(&self) -> StorageType {
         self.0.storage()
     }
     pub fn info(&self) -> &AttributeInfo {
         self.0.info()
+    }
+    pub fn delete(self, part_id: i32) -> Result<()> {
+        crate::ffi::delete_attribute(self.0.node(), part_id, self.0.name(), &self.0.info().inner)
     }
 }

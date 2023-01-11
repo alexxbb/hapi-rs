@@ -56,13 +56,7 @@ impl<T> ErrorContext<T> for Result<T> {
     }
 }
 
-impl PartialEq for HapiError {
-    fn eq(&self, other: &Self) -> bool {
-        self.kind.eq(&other.kind)
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum Kind {
     /// Error returned by ffi calls
@@ -71,6 +65,8 @@ pub enum Kind {
     NullByte(std::ffi::NulError),
     /// String is not a valid utf-8
     Utf8Error(std::string::FromUtf8Error),
+    /// IO Error
+    Io(std::io::Error),
     /// Misc error message from this crate.
     Internal(Cow<'static, str>),
 }
@@ -106,6 +102,7 @@ impl Kind {
             Kind::NullByte(_) => "String contains null byte!",
             Kind::Utf8Error(_) => "String is not UTF-8!",
             Kind::Internal(s) => s,
+            Kind::Io(_) => "IO Error",
         }
     }
 }
@@ -114,6 +111,16 @@ impl From<HapiResult> for HapiError {
     fn from(r: HapiResult) -> Self {
         HapiError {
             kind: Kind::Hapi(r),
+            contexts: Vec::new(),
+            server_message: None,
+        }
+    }
+}
+
+impl From<std::io::Error> for HapiError {
+    fn from(value: std::io::Error) -> Self {
+        HapiError {
+            kind: Kind::Io(value),
             contexts: Vec::new(),
             server_message: None,
         }
@@ -182,6 +189,9 @@ impl std::fmt::Display for HapiError {
                 let text = std::str::from_utf8_unchecked(e.as_bytes());
                 write!(f, "{e} in string \"{}\"", text)
             },
+            Kind::Io(e) => {
+                write!(f, "{}", e)
+            }
             Kind::Internal(e) => {
                 write!(f, "[Internal Error]: {e}")
             }

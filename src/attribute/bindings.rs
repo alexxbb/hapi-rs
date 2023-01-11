@@ -9,6 +9,7 @@ use std::ffi::CStr;
 
 pub trait AttribAccess: Sized + 'static {
     fn storage() -> StorageType;
+    fn storage_array() -> StorageType;
     fn get(
         name: &CStr,
         node: &HoudiniNode,
@@ -51,6 +52,7 @@ pub trait AttribAccess: Sized + 'static {
 [
 _val_type [u8]
 _storage [StorageType::Uint8]
+_storage_array [StorageType::Uint8Array]
 _get [HAPI_GetAttributeUInt8Data]
 _set [HAPI_SetAttributeUInt8Data]
 _get_array [HAPI_GetAttributeUInt8ArrayData]
@@ -59,6 +61,7 @@ _set_array [HAPI_SetAttributeUInt8ArrayData]
 [
 _val_type [i8]
 _storage [StorageType::Int8]
+_storage_array [StorageType::Int8Array]
 _get [HAPI_GetAttributeInt8Data]
 _set [HAPI_SetAttributeInt8Data]
 _get_array [HAPI_GetAttributeInt8ArrayData]
@@ -67,6 +70,7 @@ _set_array [HAPI_SetAttributeInt8ArrayData]
 [
 _val_type [i16]
 _storage [StorageType::Int16]
+_storage_array [StorageType::Int16Array]
 _get [HAPI_GetAttributeInt16Data]
 _set [HAPI_SetAttributeInt16Data]
 _get_array [HAPI_GetAttributeInt16ArrayData]
@@ -75,6 +79,7 @@ _set_array [HAPI_SetAttributeInt16ArrayData]
 [
 _val_type [i32]
 _storage [StorageType::Int]
+_storage_array [StorageType::Array]
 _get [HAPI_GetAttributeIntData]
 _set [HAPI_SetAttributeIntData]
 _get_array [HAPI_GetAttributeIntArrayData]
@@ -83,6 +88,7 @@ _set_array [HAPI_SetAttributeIntArrayData]
 [
 _val_type [i64]
 _storage [StorageType::Int64]
+_storage_array [StorageType::Int64Array]
 _get [HAPI_GetAttributeInt64Data]
 _set [HAPI_SetAttributeInt64Data]
 _get_array [HAPI_GetAttributeInt64ArrayData]
@@ -91,6 +97,7 @@ _set_array [HAPI_SetAttributeInt64ArrayData]
 [
 _val_type [f32]
 _storage [StorageType::Float]
+_storage_array [StorageType::FloatArray]
 _get [HAPI_GetAttributeFloatData]
 _set [HAPI_SetAttributeFloatData]
 _get_array [HAPI_GetAttributeFloatArrayData]
@@ -99,6 +106,7 @@ _set_array [HAPI_SetAttributeFloatArrayData]
 [
 _val_type [f64]
 _storage [StorageType::Float64]
+_storage_array [StorageType::Float64Array]
 _get [HAPI_GetAttributeFloat64Data]
 _set [HAPI_SetAttributeFloat64Data]
 _get_array [HAPI_GetAttributeFloat64ArrayData]
@@ -108,6 +116,9 @@ _set_array [HAPI_SetAttributeFloat64ArrayData]
 impl AttribAccess for _val_type {
     fn storage() -> StorageType {
         _storage
+    }
+    fn storage_array() -> StorageType {
+        _storage_array
     }
     fn get(
         name: &CStr,
@@ -188,7 +199,7 @@ impl AttribAccess for _val_type {
                 info.inner.totalArrayElements as i32,
                 sizes.as_mut_ptr(),
                 0,
-                info.inner.count as i32,
+                info.inner.count,
             )
             .check_err(&node.session, || stringify!(Calling _get_array))?;
         }
@@ -218,7 +229,7 @@ impl AttribAccess for _val_type {
                 info.inner.totalArrayElements as i32,
                 sizes.as_ptr(),
                 0,
-                info.inner.count as i32,
+                info.inner.count,
             )
             .check_err(&node.session, || stringify!(Calling _set_array))?;
         }

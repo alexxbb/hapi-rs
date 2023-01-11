@@ -167,28 +167,24 @@ pub(crate) fn get_string_array(handles: &[i32], session: &Session) -> Result<Str
 mod tests {
     use super::StringArray;
     use crate::ffi;
-    use crate::session::quick_session;
-    use crate::session::tests::with_session;
+    use crate::session::tests::SESSION;
     use std::ffi::CString;
 
     #[test]
-    fn test_get_string() {
-        with_session(|session| {
-            let h = ffi::get_server_env_str(session, &CString::new("HFS").unwrap()).unwrap();
-            assert!(super::get_string(h, session).is_ok());
-            assert!(super::get_cstring(h, session).is_ok());
-        });
+    fn get_string_api() {
+        let h = ffi::get_server_env_str(&SESSION, &CString::new("HFS").unwrap()).unwrap();
+        assert!(super::get_string(h, &SESSION).is_ok());
+        assert!(super::get_cstring(h, &SESSION).is_ok());
     }
 
     #[test]
-    fn test_string_array() {
-        let session = quick_session(None).expect("simple session");
-        session
+    fn string_array_api() {
+        SESSION
             .set_server_var::<str>("TEST", "177")
             .expect("could not set var");
-        let var_count = ffi::get_server_env_var_count(&session).unwrap();
-        let handles = ffi::get_server_env_var_list(&session, var_count).unwrap();
-        let array = super::get_string_array(&handles, &session).unwrap();
+        let var_count = ffi::get_server_env_var_count(&SESSION).unwrap();
+        let handles = ffi::get_server_env_var_list(&SESSION, var_count).unwrap();
+        let array = super::get_string_array(&handles, &SESSION).unwrap();
         assert_eq!(array.iter_str().count(), var_count as usize);
         assert_eq!(array.iter_cstr().count(), var_count as usize);
         assert!(array.iter_str().any(|s| s == "TEST=177"));
@@ -197,10 +193,7 @@ mod tests {
             .any(|s| s.to_bytes_with_nul() == b"TEST=177\0"));
         let mut owned: super::OwnedStringIter = array.into_iter();
         assert!(owned.any(|s| s == "TEST=177"));
-    }
 
-    #[test]
-    fn c_str_array() {
         let arr = StringArray {
             bytes: b"One\0Two\0Three\0".to_vec(),
         };
