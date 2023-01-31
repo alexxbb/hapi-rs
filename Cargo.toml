@@ -19,6 +19,7 @@ log = "0.4.14"
 paste = "1.0.6"
 parking_lot = "0.12.1"
 duplicate = { version = "0.4.1", features = [], default-features = false }
+debug-ignore = "1.0.5"
 tempfile = "3.3.0"
 
 [dev-dependencies]

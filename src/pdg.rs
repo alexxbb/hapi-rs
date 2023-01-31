@@ -43,7 +43,7 @@ impl<'session> PDGWorkItem<'session> {
                         .into_iter()
                         .map(|result| PDGWorkItemResult {
                             inner: result,
-                            session: &self.node.session,
+                            session: (&self.node.session).into(),
                         })
                         .collect(),
                 )

@@ -5,6 +5,7 @@ use crate::session::Session;
 use crate::Result;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
+use std::ops::Deref;
 
 /// Common trait for parameters
 pub trait ParmBaseTrait {
@@ -55,7 +56,7 @@ pub trait ParmBaseTrait {
             v.into_iter()
                 .map(|p| ParmChoiceInfo {
                     inner: p,
-                    session: inner.info.session.clone(),
+                    session: inner.info.session.deref().clone(),
                 })
                 .collect::<Vec<ParmChoiceInfo>>()
         })?;

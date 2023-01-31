@@ -628,7 +628,7 @@ impl Session {
             v.into_iter()
                 .map(|inner| ImageFileFormat {
                     inner,
-                    session: self,
+                    session: self.into(),
                 })
                 .collect()
         })

@@ -345,7 +345,7 @@ impl HoudiniNode {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_object_info(&self.session, self.handle).map(|info| ObjectInfo {
             inner: info,
-            session: &self.session,
+            session: (&self.session).into(),
         })
     }
 
@@ -367,7 +367,7 @@ impl HoudiniNode {
             .into_iter()
             .map(|inner| ObjectInfo {
                 inner,
-                session: &self.session,
+                session: (&self.session).into(),
             })
             .collect())
     }
@@ -443,14 +443,14 @@ impl HoudiniNode {
         let infos = crate::ffi::get_parameters(self)?;
         Ok(infos
             .into_iter()
-            .map(|i| {
+            .map(|info| {
                 Parameter::new(
                     self.handle,
-                    ParmInfo {
-                        inner: i,
-                        session: self.session.clone(),
-                        name: None,
-                    },
+                    ParmInfo::new(
+                        info,
+                        self.session.clone(),
+                        None
+                    ),
                 )
             })
             .collect())
@@ -461,7 +461,7 @@ impl HoudiniNode {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         Ok(AssetInfo {
             inner: crate::ffi::get_asset_info(self)?,
-            session: self.session.clone(),
+            session: self.session.clone().into(),
         })
     }
     /// Recursively check all nodes for a specific error.

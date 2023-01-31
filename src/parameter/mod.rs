@@ -114,6 +114,18 @@ impl Parameter {
     }
 }
 
+impl ParmBaseTrait for Parameter {
+    fn inner(&self) -> &ParmInfoWrap {
+        match self {
+            Parameter::Float(p) => &p.0,
+            Parameter::Int(p) => &p.0,
+            Parameter::Button(p) => &p.0,
+            Parameter::String(p) => &p.0,
+            Parameter::Other(p) => &p.0,
+        }
+    }
+}
+
 impl ParmHandle {
     /// Find a parameter handle by name
     pub fn from_name(name: &str, node: &HoudiniNode) -> Result<Self> {
@@ -126,11 +138,11 @@ impl ParmHandle {
     pub fn info(&self, node: &HoudiniNode) -> Result<ParmInfo> {
         debug_assert!(node.is_valid()?);
         let info = crate::ffi::get_parm_info(node.handle, &node.session, *self)?;
-        Ok(ParmInfo {
-            inner: info,
-            session: node.session.clone(),
-            name: None,
-        })
+        Ok(ParmInfo::new( 
+            info,
+            node.session.clone(),
+            None,
+        ))
     }
 }
 
@@ -139,19 +151,19 @@ impl ParmInfo {
         debug_assert!(node.is_valid()?);
         let name = std::ffi::CString::new(name)?;
         let info = crate::ffi::get_parm_info_from_name(node.handle, &node.session, &name);
-        info.map(|info| ParmInfo {
-            inner: info,
-            session: node.session.clone(),
-            name: Some(name),
-        })
+        info.map(|info| ParmInfo::new(
+            info,
+            node.session.clone(),
+            Some(name),
+        ))
     }
 
     pub(crate) fn from_parm_handle(handle: ParmHandle, node: &HoudiniNode) -> Result<Self> {
         let parm_info = crate::ffi::get_parm_info(node.handle, &node.session, handle)?;
-        Ok(ParmInfo {
-            inner: parm_info,
-            session: node.session.clone(),
-            name: None,
-        })
+        Ok(ParmInfo::new(
+            parm_info,
+            node.session.clone(),
+            None,
+        ))
     }
 }

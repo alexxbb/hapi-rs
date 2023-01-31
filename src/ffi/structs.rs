@@ -6,6 +6,7 @@ use crate::{
     session::Session,
 };
 use paste::paste;
+use debug_ignore::DebugIgnore;
 use std::ffi::CString;
 
 macro_rules! get {
@@ -170,10 +171,29 @@ macro_rules! wrap {
 }
 
 /// Menu parameter label and value
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct ParmChoiceInfo {
     pub(crate) inner: HAPI_ParmChoiceInfo,
     pub(crate) session: Session,
+}
+
+impl std::fmt::Debug for ParmChoiceInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use std::borrow::Cow;
+
+        let get_str = |h: i32| -> Cow<str> {
+            match crate::stringhandle::get_string_bytes(h, &self.session) {
+                // SAFETY: Don't care about utf in Debug
+                Ok(bytes) => unsafe { Cow::Owned(String::from_utf8_unchecked(bytes)) },
+                Err(_) => Cow::Borrowed("!!! Could not retrieve string")
+            }
+        };
+
+        f.debug_struct("ParmChoiceInfo")
+        .field("label", &get_str(self.inner.labelSH))
+        .field("value", &get_str(self.inner.valueSH))
+        .finish()
+    }
 }
 
 impl ParmChoiceInfo {
@@ -185,8 +205,18 @@ impl ParmChoiceInfo {
 #[derive(Debug)]
 pub struct ParmInfo {
     pub(crate) inner: HAPI_ParmInfo,
-    pub(crate) session: Session,
+    pub(crate) session: DebugIgnore<Session>,
     pub(crate) name: Option<CString>,
+}
+
+impl ParmInfo {
+    pub(crate) fn new(inner: HAPI_ParmInfo, session: Session, name: Option<CString>) -> Self {
+        Self {
+            inner,
+            session: DebugIgnore(session),
+            name,
+        }
+    }
 }
 
 impl ParmInfo {
@@ -239,7 +269,7 @@ impl ParmInfo {
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___node_info.html)
 pub struct NodeInfo {
     pub(crate) inner: HAPI_NodeInfo,
-    pub(crate) session: Session,
+    pub(crate) session: DebugIgnore<Session>,
 }
 
 impl NodeInfo {
@@ -265,7 +295,7 @@ impl NodeInfo {
     pub(crate) fn new(session: &Session, node: NodeHandle) -> Result<Self> {
         let session = session.clone();
         let inner = crate::ffi::get_node_info(node, &session)?;
-        Ok(Self { inner, session })
+        Ok(Self { inner, session: DebugIgnore(session) })
     }
 }
 
@@ -336,7 +366,7 @@ wrap!(
 #[derive(Debug)]
 pub struct AssetInfo {
     pub(crate) inner: HAPI_AssetInfo,
-    pub session: Session,
+    pub session: DebugIgnore<Session>,
 }
 
 impl AssetInfo {
@@ -359,11 +389,11 @@ impl AssetInfo {
     get!(help_url->helpURLSH->Result<String>);
 }
 
-#[derive(Debug)]
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___object_info.html)
+#[derive(Debug)]
 pub struct ObjectInfo<'session> {
     pub(crate) inner: HAPI_ObjectInfo,
-    pub session: &'session Session,
+    pub session: DebugIgnore<&'session Session>,
 }
 
 impl<'s> ObjectInfo<'s> {
@@ -378,7 +408,7 @@ impl<'s> ObjectInfo<'s> {
     get!(node_id->nodeId->[handle: NodeHandle]);
     get!(object_to_instance_id->objectToInstanceId->[handle: NodeHandle]);
     pub fn to_node(&self) -> Result<HoudiniNode> {
-        self.node_id().to_node(self.session)
+        self.node_id().to_node(&self.session)
     }
 }
 
@@ -617,7 +647,7 @@ pub struct KeyFrame {
 #[derive(Debug, Clone)]
 pub struct ImageFileFormat<'a> {
     pub(crate) inner: HAPI_ImageFileFormat,
-    pub(crate) session: &'a Session,
+    pub(crate) session: DebugIgnore<&'a Session>,
 }
 
 impl<'a> ImageFileFormat<'a> {
@@ -727,7 +757,7 @@ impl PDGEventInfo {
 #[derive(Debug)]
 pub struct PDGWorkItemResult<'session> {
     pub(crate) inner: HAPI_PDG_WorkItemOutputFile,
-    pub(crate) session: &'session Session,
+    pub(crate) session: DebugIgnore<&'session Session>,
 }
 
 impl<'session> PDGWorkItemResult<'session> {
