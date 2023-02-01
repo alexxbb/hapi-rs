@@ -1,11 +1,13 @@
 use crate::ffi::enums::ChoiceListType;
 use crate::ffi::{KeyFrame, ParmChoiceInfo, ParmInfo};
-use crate::node::NodeHandle;
+use crate::node::{NodeHandle, ParmType};
 use crate::session::Session;
 use crate::Result;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 use std::ops::Deref;
+
+use super::Parameter;
 
 /// Common trait for parameters
 pub trait ParmBaseTrait {
@@ -62,6 +64,24 @@ pub trait ParmBaseTrait {
         })?;
         Ok(Some(parms))
     }
+
+    /// If the parameter is a multiparm, return its children parms.
+    /// NOTE: THis is not a recommended way to traverse parameters in general,
+    /// this is here for convenience only
+    fn multiparm_children(&self) -> Result<Option<Vec<Parameter>>> {
+        let inner = self.inner();
+        if inner.info.parm_type() != ParmType::Multiparmlist {
+            return Ok(None);
+        }
+        let node = inner.node.to_node(&inner.info.session)?;
+        let mut all_parameters = node.parameters()?;
+        all_parameters.retain(|parm| {
+            parm.info().is_child_of_multi_parm() && parm.info().parent_id() == inner.info.id()
+        });
+
+        Ok(Some(all_parameters))
+    }
+
     /// Returns a parameter expression string
     fn expression(&self, index: i32) -> Result<Option<String>> {
         let inner = self.inner();
