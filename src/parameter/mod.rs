@@ -18,6 +18,8 @@
 
 mod base;
 mod access;
+
+use std::fmt::Debug;
 pub use crate::ffi::enums::ParmType;
 pub use crate::ffi::structs::{KeyFrame, ParmInfo};
 use crate::node::{HoudiniNode, NodeHandle};
@@ -59,6 +61,22 @@ impl Parameter {
             | ParmType::PathFileGeo
             | ParmType::PathFileImage => Parameter::String(StringParameter(wrap)),
             _ => Parameter::Other(BaseParameter(wrap)),
+        }
+    }
+
+    /// A convenient method to evaluate a parameter value as string for debugging.
+    pub fn value_as_debug(&self) -> Result<Box<dyn Debug>> {
+        match self {
+            Parameter::Float(parm) => {
+                Ok(Box::new(parm.get_array()?))
+            },
+            Parameter::Int(parm) | Parameter::Button(parm) => {
+                Ok(Box::new(parm.get_array()?))
+            },
+            Parameter::String(parm) => {
+                Ok(Box::new(parm.get_array()?))
+            },
+            Parameter::Other(parm) => Ok(Box::new(parm.0.info.parm_type()))
         }
     }
     /// Information about the parameter

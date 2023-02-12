@@ -103,9 +103,6 @@
 //! which return CString or String. See the [`stringhandle`] module for more info.
 //!
 
-extern crate alloc;
-extern crate core;
-
 pub mod asset;
 pub mod attribute;
 pub mod geometry;
