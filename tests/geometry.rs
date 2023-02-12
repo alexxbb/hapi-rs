@@ -388,6 +388,51 @@ fn geometry_create_input_curve() {
 }
 
 #[test]
+fn geometry_multiple_input_curves() {
+    let geo = SESSION.create_input_node("InputCurves").unwrap();
+    #[rustfmt::skip]
+        let points = vec![
+        0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0,
+
+        1.0, 0.0, 0.0,
+        1.0, 1.0, 0.0,
+
+        2.0, 0.0, 0.0,
+        2.0, 1.0, 0.0,
+    ];
+    let point_count = (points.len() / 3) as i32;
+    let part_info = PartInfo::default()
+        .with_part_type(PartType::Curve)
+        .with_face_count(1)
+        .with_vertex_count(point_count)
+        .with_point_count(point_count);
+    geo.set_part_info(&part_info).unwrap();
+
+    let curve_info = CurveInfo::default()
+        .with_curve_type(CurveType::Linear)
+        .with_curve_count(3)
+        .with_vertex_count(point_count)
+        .with_order(4)
+        .with_has_knots(false);
+
+    geo.set_curve_info(0, &curve_info).unwrap();
+    geo.set_curve_counts(part_info.part_id(), &[2, 2, 2])
+        .unwrap();
+
+    let p_info = AttributeInfo::default()
+        .with_count(point_count)
+        .with_tuple_size(3)
+        .with_storage(StorageType::Float)
+        .with_owner(AttributeOwner::Point);
+    let p_attrib = geo.add_numeric_attribute::<f32>("P", 0, p_info).unwrap();
+    p_attrib.set(0, &points).unwrap();
+    geo.commit().unwrap();
+    geo.node.cook_blocking().unwrap();
+    geo.save_to_file("c:/Temp/curve.geo").unwrap();
+}
+
+#[test]
 fn geometry_read_write_volume() {
     let node = SESSION.create_node("Object/hapi_vol").unwrap();
     node.cook_blocking().unwrap();
