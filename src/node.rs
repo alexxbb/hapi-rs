@@ -96,7 +96,7 @@ fn get_child_node_list(
 ) -> Result<Vec<NodeHandle>> {
     let ids =
         crate::ffi::get_compose_child_node_list(session, parent.into(), types, flags, recursive)?;
-    Ok(ids.iter().map(|i| NodeHandle(*i)).collect())
+    Ok(ids.into_iter().map(NodeHandle).collect())
 }
 
 // Helper function to return all network type nodes.
@@ -431,7 +431,8 @@ impl HoudiniNode {
         match crate::ffi::get_parm_with_tag(self, &tag)? {
             -1 => Ok(None),
             h => {
-                let parm_info = ParmInfo::from_parm_handle(ParmHandle(h), self)?;
+                let parm_info =
+                    ParmInfo::from_parm_handle(ParmHandle(h), self.handle, &self.session)?;
                 Ok(Some(Parameter::new(self.handle, parm_info)))
             }
         }
@@ -444,14 +445,7 @@ impl HoudiniNode {
         Ok(infos
             .into_iter()
             .map(|info| {
-                Parameter::new(
-                    self.handle,
-                    ParmInfo::new(
-                        info,
-                        self.session.clone(),
-                        None
-                    ),
-                )
+                Parameter::new(self.handle, ParmInfo::new(info, self.session.clone(), None))
             })
             .collect())
     }

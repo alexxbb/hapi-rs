@@ -12,8 +12,12 @@ use super::Parameter;
 /// Common trait for parameters
 pub trait ParmBaseTrait {
     #[inline]
-    fn name(&self) -> Result<String> {
-        self.info().name()
+    fn name(&self) -> Result<Cow<str>> {
+        let inner = self.inner();
+        match inner.info.name.as_ref() {
+            None => inner.info.name().map(Cow::Owned),
+            Some(c_name) => Ok(c_name.to_string_lossy()),
+        }
     }
 
     #[inline]
@@ -36,6 +40,18 @@ pub trait ParmBaseTrait {
         &self.inner().info
     }
 
+    /// Update the internal parameter metadata if Houdini parameter changed,
+    /// for example children added to a multi-parm or the menu was updated.
+    fn update(&mut self) -> Result<()> {
+        let inner = self.inner_mut();
+        let name = inner.info.name.take();
+        let mut info =
+            ParmInfo::from_parm_handle(inner.info.id(), inner.node, &inner.info.session)?;
+        info.name = name;
+        inner.info = info;
+        Ok(())
+    }
+
     /// If the parameter has choice menu.
     #[inline]
     fn is_menu(&self) -> bool {
@@ -48,6 +64,9 @@ pub trait ParmBaseTrait {
         }
         let inner = self.inner();
         debug_assert!(inner.info.session.is_valid());
+        if inner.info.choice_count() == 0 {
+            return Ok(Some(Vec::new()));
+        }
         let parms = crate::ffi::get_parm_choice_list(
             inner.node,
             &inner.info.session,
@@ -134,6 +153,7 @@ pub trait ParmBaseTrait {
     fn set_anim_curve(&self, index: i32, keys: &[KeyFrame]) -> Result<()> {
         let inner = self.inner();
         debug_assert!(inner.info.session.is_valid());
+        // SAFETY: Both structures have the same memory layout.
         let keys =
             unsafe { std::mem::transmute::<&[KeyFrame], &[crate::ffi::raw::HAPI_Keyframe]>(keys) };
         crate::ffi::set_parm_anim_curve(
@@ -157,6 +177,9 @@ pub trait ParmBaseTrait {
     }
     #[doc(hidden)]
     fn inner(&self) -> &ParmInfoWrap;
+
+    #[doc(hidden)]
+    fn inner_mut(&mut self) -> &mut ParmInfoWrap;
 }
 
 #[derive(Debug)]
@@ -188,6 +211,12 @@ impl ParmBaseTrait for FloatParameter {
     fn inner(&self) -> &ParmInfoWrap {
         &self.0
     }
+
+    #[inline]
+    #[doc(hidden)]
+    fn inner_mut(&mut self) -> &mut ParmInfoWrap {
+        &mut self.0
+    }
 }
 
 impl ParmBaseTrait for IntParameter {
@@ -196,6 +225,12 @@ impl ParmBaseTrait for IntParameter {
     fn inner(&self) -> &ParmInfoWrap {
         &self.0
     }
+
+    #[inline]
+    #[doc(hidden)]
+    fn inner_mut(&mut self) -> &mut ParmInfoWrap {
+        &mut self.0
+    }
 }
 
 impl ParmBaseTrait for StringParameter {
@@ -203,5 +238,11 @@ impl ParmBaseTrait for StringParameter {
     #[doc(hidden)]
     fn inner(&self) -> &ParmInfoWrap {
         &self.0
+    }
+
+    #[inline]
+    #[doc(hidden)]
+    fn inner_mut(&mut self) -> &mut ParmInfoWrap {
+        &mut self.0
     }
 }

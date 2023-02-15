@@ -1030,10 +1030,19 @@ pub fn get_compose_child_node_list(
         .check_err(session, || "Calling HAPI_ComposeChildNodeList")?;
 
         let count = count.assume_init();
-        let mut obj_infos = vec![0i32; count as usize];
-        raw::HAPI_GetComposedChildNodeList(session.ptr(), parent.0, obj_infos.as_mut_ptr(), count)
+        if count > 0 {
+            let mut obj_infos = vec![0i32; count as usize];
+            raw::HAPI_GetComposedChildNodeList(
+                session.ptr(),
+                parent.0,
+                obj_infos.as_mut_ptr(),
+                count,
+            )
             .check_err(session, || "Calling HAPI_GetComposedChildNodeList")?;
-        Ok(obj_infos)
+            Ok(obj_infos)
+        } else {
+            return Ok(vec![]);
+        }
     }
 }
 
