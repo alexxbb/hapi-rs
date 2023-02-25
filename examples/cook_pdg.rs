@@ -20,11 +20,10 @@ fn cook_async(node: &TopNode) -> Result<Vec<String>> {
             PdgEventType::WorkitemStateChange => match step.event.current_state() {
                 PdgWorkItemState::Success | PdgWorkItemState::Cache => {
                     let workitem = node.get_workitem(step.event.workitem_id(), step.graph_id)?;
-                    if let Some(results) = workitem.get_results()? {
-                        all_results.extend(results.into_iter().filter_map(|wir|
-                            // We only interested in rendered images
-                            (wir.tag().unwrap() == "file/image").then(||wir.result().unwrap())));
-                    }
+                    let results = workitem.get_results()?;
+                    all_results.extend(results.into_iter().filter_map(|wir|
+                        // We only interested in rendered images
+                        (wir.tag().unwrap() == "file/image").then(||wir.result().unwrap())));
                     tasks_done += 1;
                 }
                 PdgWorkItemState::Fail => {
@@ -48,7 +47,7 @@ fn main() -> Result<()> {
     env_logger::init();
     let out_dir = std::env::args().nth(1);
     let out_dir = if let Some(out_dir) = out_dir {
-        let out_dir = std::path::PathBuf::from(out_dir);
+        let out_dir = std::path::PathBuf::from(out_dir.trim_end_matches(std::path::MAIN_SEPARATOR));
         if !out_dir.exists() {
             eprintln!("Path doesn't exists");
             std::process::exit(1);

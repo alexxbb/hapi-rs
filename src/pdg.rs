@@ -28,9 +28,9 @@ impl std::fmt::Debug for PDGWorkItem<'_> {
 
 impl<'session> PDGWorkItem<'session> {
     /// Retrieve the results of work, if the work item has any.
-    pub fn get_results(&self) -> Result<Option<Vec<PDGWorkItemResult<'session>>>> {
+    pub fn get_results(&self) -> Result<Vec<PDGWorkItemResult<'session>>> {
         match self.info.output_file_count() {
-            0 => Ok(None),
+            0 => Ok(Vec::new()),
             _ => ffi::get_workitem_result(
                 &self.node.session,
                 self.node.handle,
@@ -38,15 +38,13 @@ impl<'session> PDGWorkItem<'session> {
                 self.info.output_file_count(),
             )
             .map(|results| {
-                Some(
-                    results
-                        .into_iter()
-                        .map(|result| PDGWorkItemResult {
-                            inner: result,
-                            session: (&self.node.session).into(),
-                        })
-                        .collect(),
-                )
+                results
+                    .into_iter()
+                    .map(|result| PDGWorkItemResult {
+                        inner: result,
+                        session: (&self.node.session).into(),
+                    })
+                    .collect()
             }),
         }
     }
@@ -163,9 +161,7 @@ impl TopNode {
         };
         let mut all_results = Vec::new();
         for wi in workitems {
-            if let Some(results) = wi.get_results()? {
-                all_results.extend(results)
-            }
+            all_results.extend(wi.get_results()?)
         }
         Ok(all_results)
     }
