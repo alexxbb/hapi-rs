@@ -5,8 +5,8 @@ use crate::{
     parameter::ParmHandle,
     session::Session,
 };
-use paste::paste;
 use debug_ignore::DebugIgnore;
+use paste::paste;
 use std::ffi::CString;
 
 macro_rules! get {
@@ -185,14 +185,14 @@ impl std::fmt::Debug for ParmChoiceInfo {
             match crate::stringhandle::get_string_bytes(h, &self.session) {
                 // SAFETY: Don't care about utf in Debug
                 Ok(bytes) => unsafe { Cow::Owned(String::from_utf8_unchecked(bytes)) },
-                Err(_) => Cow::Borrowed("!!! Could not retrieve string")
+                Err(_) => Cow::Borrowed("!!! Could not retrieve string"),
             }
         };
 
         f.debug_struct("ParmChoiceInfo")
-        .field("label", &get_str(self.inner.labelSH))
-        .field("value", &get_str(self.inner.valueSH))
-        .finish()
+            .field("label", &get_str(self.inner.labelSH))
+            .field("value", &get_str(self.inner.valueSH))
+            .finish()
     }
 }
 
@@ -295,7 +295,10 @@ impl NodeInfo {
     pub(crate) fn new(session: &Session, node: NodeHandle) -> Result<Self> {
         let session = session.clone();
         let inner = crate::ffi::get_node_info(node, &session)?;
-        Ok(Self { inner, session: DebugIgnore(session) })
+        Ok(Self {
+            inner,
+            session: DebugIgnore(session),
+        })
     }
 }
 

@@ -47,7 +47,7 @@ fn main() -> Result<()> {
     geom.commit()?;
 
     let hip = std::env::temp_dir().join("curve_marshall.hip");
-    session.save_hip(&hip.to_string_lossy(), true)?;
+    session.save_hip(&hip, true)?;
     println!("Saving {}", hip.to_string_lossy());
     Ok(())
 }

@@ -53,7 +53,7 @@ fn main() -> Result<()> {
         .create()?;
     subdivide_node.connect_input(0, geom.node, 0)?;
     let hip = std::env::temp_dir().join("connecting_assets.hip");
-    session.save_hip(&hip.to_string_lossy(), false)?;
+    session.save_hip(&hip, false)?;
     println!("Saving {}", hip.to_string_lossy());
     Ok(())
 }

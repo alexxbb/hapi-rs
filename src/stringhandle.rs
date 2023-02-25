@@ -37,7 +37,7 @@ pub struct OwnedStringIter {
     cursor: usize,
 }
 
-impl std::iter::Iterator for OwnedStringIter {
+impl Iterator for OwnedStringIter {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -92,7 +92,7 @@ impl From<StringArray> for Vec<String> {
     }
 }
 
-impl<'a> std::iter::Iterator for StringIter<'a> {
+impl<'a> Iterator for StringIter<'a> {
     type Item = &'a str;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -107,8 +107,8 @@ impl<'a> std::iter::Iterator for StringIter<'a> {
     }
 }
 
-impl<'a> std::iter::Iterator for CStringIter<'a> {
-    type Item = &'a std::ffi::CStr;
+impl<'a> Iterator for CStringIter<'a> {
+    type Item = &'a CStr;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.inner.iter().position(|c| *c == b'\0') {
@@ -122,7 +122,7 @@ impl<'a> std::iter::Iterator for CStringIter<'a> {
     }
 }
 
-impl std::iter::IntoIterator for StringArray {
+impl IntoIterator for StringArray {
     type Item = String;
     type IntoIter = OwnedStringIter;
 
@@ -148,8 +148,15 @@ pub(crate) fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
 }
 
 pub(crate) fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>> {
+    if handle < 0 {
+        return Ok(Vec::new());
+    }
     let length = crate::ffi::get_string_buff_len(session, handle)?;
-    crate::ffi::get_string(session, handle, length)
+    if length == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::ffi::get_string(session, handle, length)
+    }
 }
 
 pub(crate) fn get_string_array(handles: &[i32], session: &Session) -> Result<StringArray> {

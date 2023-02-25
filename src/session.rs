@@ -394,19 +394,19 @@ impl Session {
     }
 
     /// Save current session to hip file
-    pub fn save_hip(&self, name: &str, lock_nodes: bool) -> Result<()> {
-        debug!("Saving hip file: {}", name);
+    pub fn save_hip(&self, path: impl AsRef<Path>, lock_nodes: bool) -> Result<()> {
+        debug!("Saving hip file: {:?}", path.as_ref());
         debug_assert!(self.is_valid());
-        let name = CString::new(name)?;
-        crate::ffi::save_hip(self, &name, lock_nodes)
+        let path = utils::path_to_cstring(path)?;
+        crate::ffi::save_hip(self, &path, lock_nodes)
     }
 
     /// Load a hip file into current session
     pub fn load_hip(&self, path: impl AsRef<Path>, cook: bool) -> Result<()> {
         debug!("Loading hip file: {:?}", path.as_ref());
         debug_assert!(self.is_valid());
-        let name = utils::path_to_cstring(path)?;
-        crate::ffi::load_hip(self, &name, cook)
+        let path = utils::path_to_cstring(path)?;
+        crate::ffi::load_hip(self, &path, cook)
     }
 
     /// Merge a hip file into current session
@@ -906,6 +906,10 @@ impl SessionOptionsBuilder {
                 writeln!(file, "{}={}", k, v).expect("write to .env file");
             }
             let (_, tmp_file) = file.keep().expect("persistent tempfile");
+            debug!(
+                "Creating temporary environment file: {}",
+                tmp_file.to_string_lossy()
+            );
             let tmp_file = CString::new(tmp_file.to_string_lossy().to_string()).expect("null byte");
 
             if let Some(old) = &mut self.env_files {
