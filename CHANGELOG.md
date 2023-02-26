@@ -1,4 +1,12 @@
 # hapi-rs changelog
+## [0.9.1]
+### Changed:
+- Remove internal Mutex from `Session`.
+- Slightly improved `Parameter` APIs.
+- Use `StringHandle` instead of `i32`.
+- Update examples.
+- Minor cleanups and improvements across the crate.
+
 ## [0.9.0]
 ### New
 - New builder pattern for creating nodes.
