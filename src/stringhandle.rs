@@ -7,12 +7,15 @@ use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
 
+#[derive(Debug, Copy, Clone)]
+#[repr(transparent)]
+pub struct StringHandle(pub(crate) i32);
+
 /// Holds a contiguous array of bytes where each individual string value is null-separated.
 /// You can choose how to iterate over it by calling a corresponding iter_* function.
 /// The `Debug` impl has an alternative `{:#?}` representation, which prints as a vec of strings.
-pub struct StringArray {
-    bytes: Vec<u8>,
-}
+#[derive(Clone)]
+pub struct StringArray(Vec<u8>);
 
 impl std::fmt::Debug for StringArray {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -20,7 +23,7 @@ impl std::fmt::Debug for StringArray {
             let strings = self.iter_str().collect::<Vec<_>>();
             strings.fmt(f)
         } else {
-            let count = self.bytes.iter().filter(|v| **v == b'\0').count();
+            let count = self.0.iter().filter(|v| **v == b'\0').count();
             write!(f, "StringArray[num_strings = {count}]")
         }
     }
@@ -66,23 +69,23 @@ pub struct CStringIter<'a> {
 impl<'a> StringArray {
     /// Return an iterator over &str
     pub fn iter_str(&'a self) -> StringIter<'a> {
-        StringIter { inner: &self.bytes }
+        StringIter { inner: &self.0 }
     }
 
     /// Return an iterator over &CStr
     pub fn iter_cstr(&'a self) -> CStringIter<'a> {
-        CStringIter { inner: &self.bytes }
+        CStringIter { inner: &self.0 }
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.bytes.is_empty()
+        self.0.is_empty()
     }
 
     /// Reference to underlying bytes
     #[inline]
     pub fn bytes(&self) -> &[u8] {
-        self.bytes.as_slice()
+        self.0.as_slice()
     }
 }
 
@@ -128,18 +131,18 @@ impl IntoIterator for StringArray {
 
     fn into_iter(self) -> Self::IntoIter {
         OwnedStringIter {
-            inner: self.bytes,
+            inner: self.0,
             cursor: 0,
         }
     }
 }
 
-pub(crate) fn get_string(handle: i32, session: &Session) -> Result<String> {
+pub(crate) fn get_string(handle: StringHandle, session: &Session) -> Result<String> {
     let bytes = get_string_bytes(handle, session)?;
     String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
 }
 
-pub(crate) fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
+pub(crate) fn get_cstring(handle: StringHandle, session: &Session) -> Result<CString> {
     unsafe {
         let bytes = get_string_bytes(handle, session)?;
         // SAFETY: HAPI C API should not return strings with interior zero byte
@@ -147,19 +150,19 @@ pub(crate) fn get_cstring(handle: i32, session: &Session) -> Result<CString> {
     }
 }
 
-pub(crate) fn get_string_bytes(handle: i32, session: &Session) -> Result<Vec<u8>> {
-    if handle < 0 {
+pub(crate) fn get_string_bytes(handle: StringHandle, session: &Session) -> Result<Vec<u8>> {
+    if handle.0 < 0 {
         return Ok(Vec::new());
     }
-    let length = crate::ffi::get_string_buff_len(session, handle)?;
+    let length = crate::ffi::get_string_buff_len(session, handle.0)?;
     if length == 0 {
         Ok(Vec::new())
     } else {
-        crate::ffi::get_string(session, handle, length)
+        crate::ffi::get_string(session, handle.0, length)
     }
 }
 
-pub(crate) fn get_string_array(handles: &[i32], session: &Session) -> Result<StringArray> {
+pub(crate) fn get_string_array(handles: &[StringHandle], session: &Session) -> Result<StringArray> {
     let _lock = session.lock();
     let length = crate::ffi::get_string_batch_size(handles, session)?;
     let bytes = if length > 0 {
@@ -167,7 +170,7 @@ pub(crate) fn get_string_array(handles: &[i32], session: &Session) -> Result<Str
     } else {
         vec![]
     };
-    Ok(StringArray { bytes })
+    Ok(StringArray(bytes))
 }
 
 #[cfg(test)]
@@ -175,6 +178,7 @@ mod tests {
     use super::StringArray;
     use crate::ffi;
     use crate::session::tests::SESSION;
+    use crate::stringhandle::StringHandle;
     use std::ffi::CString;
 
     #[test]
@@ -201,9 +205,7 @@ mod tests {
         let mut owned: super::OwnedStringIter = array.into_iter();
         assert!(owned.any(|s| s == "TEST=177"));
 
-        let arr = StringArray {
-            bytes: b"One\0Two\0Three\0".to_vec(),
-        };
+        let arr = StringArray(b"One\0Two\0Three\0".to_vec());
         let v: Vec<_> = arr.iter_cstr().collect();
         assert_eq!(v[0].to_bytes_with_nul(), b"One\0");
         assert_eq!(v[2].to_bytes_with_nul(), b"Three\0");

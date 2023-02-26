@@ -1,5 +1,5 @@
 use crate::errors::Result;
-use crate::stringhandle::StringArray;
+use crate::stringhandle::{StringArray, StringHandle};
 use std::borrow::Cow;
 
 /// Groups _data_ and _sizes_ arrays for working with geometry attributes.
@@ -69,7 +69,7 @@ where
 
 /// Represents multi-array string data. Returned by [`crate::attribute::StringArrayAttr::get`]
 pub struct StringMultiArray {
-    pub(crate) handles: Vec<i32>,
+    pub(crate) handles: Vec<StringHandle>,
     pub(crate) sizes: Vec<i32>,
     pub(crate) session: crate::session::Session,
 }
@@ -89,7 +89,7 @@ pub struct ArrayIterMut<'a, T> {
 }
 
 pub struct MultiArrayIter<'a> {
-    handles: std::slice::Iter<'a, i32>,
+    handles: std::slice::Iter<'a, StringHandle>,
     sizes: std::slice::Iter<'a, i32>,
     session: &'a crate::session::Session,
     cursor: usize,

@@ -7,6 +7,7 @@ use std::vec;
 
 use raw::HAPI_PDG_EventInfo;
 
+use crate::ffi::bindings::HAPI_StringHandle;
 use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
 use crate::{
@@ -14,7 +15,7 @@ use crate::{
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
     session::{Session, SessionOptions},
-    stringhandle::StringArray,
+    stringhandle::{StringArray, StringHandle},
 };
 
 use super::raw;
@@ -59,13 +60,13 @@ pub fn get_parm_string_values(
     start: i32,
     length: i32,
 ) -> Result<StringArray> {
-    let mut handles = vec![0; length as usize];
+    let mut handles = vec![StringHandle(0); length as usize];
     unsafe {
         raw::HAPI_GetParmStringValues(
             session.ptr(),
             node.0,
             1,
-            handles.as_mut_ptr(),
+            handles.as_mut_ptr() as *mut HAPI_StringHandle,
             start,
             length,
         )
@@ -135,7 +136,7 @@ pub fn get_parm_string_value(
         .check_err(session, || "Calling HAPI_GetParmStringValue")?;
         handle.assume_init()
     };
-    crate::stringhandle::get_string(handle, session)
+    crate::stringhandle::get_string(StringHandle(handle), session)
 }
 
 pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<NodeHandle>> {
@@ -267,10 +268,12 @@ pub fn get_parm_expression(
     };
     match handle {
         0 => Ok(None),
-        _ => Ok(match crate::stringhandle::get_string(handle, session)? {
-            s if s.is_empty() => None,
-            s => Some(s),
-        }),
+        _ => Ok(
+            match crate::stringhandle::get_string(StringHandle(handle), session)? {
+                s if s.is_empty() => None,
+                s => Some(s),
+            },
+        ),
     }
 }
 
@@ -422,7 +425,7 @@ pub fn get_node_path(
             sh.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_GetNodePath")?;
-        crate::stringhandle::get_string(sh.assume_init(), session)
+        crate::stringhandle::get_string(StringHandle(sh.assume_init()), session)
     }
 }
 
@@ -499,9 +502,14 @@ pub fn get_asset_count(library_id: i32, session: &Session) -> Result<i32> {
 
 pub fn get_asset_names(library_id: i32, num_assets: i32, session: &Session) -> Result<StringArray> {
     let handles = unsafe {
-        let mut names = vec![0; num_assets as usize];
-        raw::HAPI_GetAvailableAssets(session.ptr(), library_id, names.as_mut_ptr(), num_assets)
-            .check_err(session, || "Calling HAPI_GetAvailableAssets")?;
+        let mut names = vec![StringHandle(0); num_assets as usize];
+        raw::HAPI_GetAvailableAssets(
+            session.ptr(),
+            library_id,
+            names.as_mut_ptr() as *mut HAPI_StringHandle,
+            num_assets,
+        )
+        .check_err(session, || "Calling HAPI_GetAvailableAssets")?;
         names
     };
     crate::stringhandle::get_string_array(&handles, session)
@@ -573,7 +581,7 @@ pub fn get_asset_def_parm_values(
 )> {
     let mut int_values = vec![0; count.int_count as usize];
     let mut float_values = vec![0.0; count.float_count as usize];
-    let mut string_handles = vec![0; count.string_count as usize];
+    let mut string_handles = vec![StringHandle(0); count.string_count as usize];
     let mut choice_values =
         vec![unsafe { raw::HAPI_ParmChoiceInfo_Create() }; count.choice_count as usize];
     unsafe {
@@ -588,7 +596,7 @@ pub fn get_asset_def_parm_values(
             0,
             count.float_count,
             false as i8,
-            string_handles.as_mut_ptr(),
+            string_handles.as_mut_ptr() as *mut HAPI_StringHandle,
             0,
             count.string_count,
             choice_values.as_mut_ptr(),
@@ -603,12 +611,13 @@ pub fn get_asset_def_parm_values(
     Ok((int_values, float_values, string_values, choice_values))
 }
 
-pub fn get_string_batch_size(handles: &[i32], session: &Session) -> Result<i32> {
+pub fn get_string_batch_size(handles: &[StringHandle], session: &Session) -> Result<i32> {
     unsafe {
         let mut length = uninit!();
+        let ptr = handles.as_ptr() as *const HAPI_StringHandle;
         raw::HAPI_GetStringBatchSize(
             session.ptr(),
-            handles.as_ptr(),
+            ptr,
             handles.len() as i32,
             length.as_mut_ptr(),
         )
@@ -707,21 +716,23 @@ pub fn get_server_env_var_count(session: &Session) -> Result<i32> {
     }
 }
 
-pub fn get_server_env_var_list(session: &Session, count: i32) -> Result<Vec<i32>> {
+pub fn get_server_env_var_list(session: &Session, count: i32) -> Result<Vec<StringHandle>> {
     unsafe {
-        let mut handles = vec![0; count as usize];
-        raw::HAPI_GetServerEnvVarList(session.ptr(), handles.as_mut_ptr(), 0, count)
+        let mut handles = vec![StringHandle(0); count as usize];
+        // StringHandle is repr(transparent) i32 and HAPI_StringHandle is i32 too.
+        let ptr = handles.as_mut_ptr() as *mut HAPI_StringHandle;
+        raw::HAPI_GetServerEnvVarList(session.ptr(), ptr, 0, count)
             .check_err(session, || "Calling HAPI_GetServerEnvVarList")?;
         Ok(handles)
     }
 }
 
-pub fn get_server_env_str(session: &Session, key: &CStr) -> Result<i32> {
+pub fn get_server_env_str(session: &Session, key: &CStr) -> Result<StringHandle> {
     unsafe {
         let mut val = uninit!();
         raw::HAPI_GetServerEnvString(session.ptr(), key.as_ptr(), val.as_mut_ptr())
             .check_err(session, || "Calling HAPI_GetServerEnvString")?;
-        Ok(val.assume_init())
+        Ok(StringHandle(val.assume_init()))
     }
 }
 
@@ -1120,7 +1131,7 @@ pub fn get_node_input_name(node: &HoudiniNode, input: i32) -> Result<String> {
     unsafe {
         raw::HAPI_GetNodeInputName(node.session.ptr(), node.handle.0, input, name.as_mut_ptr())
             .check_err(&node.session, || "Calling HAPI_GetNodeInputName")?;
-        crate::stringhandle::get_string(name.assume_init(), &node.session)
+        crate::stringhandle::get_string(StringHandle(name.assume_init()), &node.session)
     }
 }
 
@@ -1339,7 +1350,7 @@ pub fn get_output_names(node: &HoudiniNode) -> Result<Vec<String>> {
             )
             .check_err(&node.session, || "Calling HAPI_GetNodeOutputName")?;
             names.push(crate::stringhandle::get_string(
-                handle.assume_init(),
+                StringHandle(handle.assume_init()),
                 &node.session,
             )?)
         }
@@ -1964,14 +1975,14 @@ pub fn get_attribute_names(
     count: i32,
     owner: raw::AttributeOwner,
 ) -> Result<StringArray> {
-    let mut handles = vec![0; count as usize];
+    let mut handles = vec![StringHandle(0); count as usize];
     unsafe {
         raw::HAPI_GetAttributeNames(
             node.session.ptr(),
             node.handle.0,
             part_id,
             owner,
-            handles.as_mut_ptr(),
+            handles.as_mut_ptr() as *mut HAPI_StringHandle,
             count,
         )
         .check_err(&node.session, || "Calling HAPI_GetAttributeNames")?;
@@ -2181,13 +2192,13 @@ pub fn get_group_names(
     group_type: raw::GroupType,
     count: i32,
 ) -> Result<StringArray> {
-    let mut handles = vec![0; count as usize];
+    let mut handles = vec![StringHandle(0); count as usize];
     unsafe {
         raw::HAPI_GetGroupNames(
             node.session.ptr(),
             node.handle.0,
             group_type,
-            handles.as_mut_ptr(),
+            handles.as_mut_ptr() as *mut HAPI_StringHandle,
             count,
         )
         .check_err(&node.session, || "Calling HAPI_GetGroupNames")?;
@@ -2609,13 +2620,13 @@ pub fn get_group_names_on_instance_part(
             raw::GroupType::Prim => count.1,
             _ => unreachable!("Unsupported GroupType"),
         };
-        let mut handles = vec![0; count as usize];
+        let mut handles = vec![StringHandle(0); count as usize];
         raw::HAPI_GetGroupNamesOnPackedInstancePart(
             session.ptr(),
             node.0,
             part_id,
             group,
-            handles.as_mut_ptr(),
+            handles.as_mut_ptr() as *mut HAPI_StringHandle,
             count,
         )
         .check_err(session, || "Calling HAPI_GetGroupNamesOnPackedInstancePart")?;
@@ -2797,7 +2808,7 @@ pub fn extract_image_to_file(
             handle.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_ExtractImageToFile")?;
-        crate::stringhandle::get_string(handle.assume_init(), session)
+        crate::stringhandle::get_string(StringHandle(handle.assume_init()), session)
     }
 }
 
@@ -2840,9 +2851,14 @@ pub fn get_image_planes(session: &Session, material: NodeHandle) -> Result<Strin
         raw::HAPI_GetImagePlaneCount(session.ptr(), material.0, count.as_mut_ptr())
             .check_err(session, || "Calling HAPI_GetImagePlaneCount")?;
         let count = count.assume_init();
-        let mut handles = vec![0; count as usize];
-        raw::HAPI_GetImagePlanes(session.ptr(), material.0, handles.as_mut_ptr(), count)
-            .check_err(session, || "Calling HAPI_GetImagePlanes")?;
+        let mut handles = vec![StringHandle(0); count as usize];
+        raw::HAPI_GetImagePlanes(
+            session.ptr(),
+            material.0,
+            handles.as_mut_ptr() as *mut HAPI_StringHandle,
+            count,
+        )
+        .check_err(session, || "Calling HAPI_GetImagePlanes")?;
         crate::stringhandle::get_string_array(&handles, session)
     }
 }

@@ -34,6 +34,7 @@ pub use crate::{
 
 pub type SessionState = crate::ffi::enums::State;
 
+use crate::stringhandle::StringHandle;
 use crate::{ffi::raw, utils};
 
 /// Builder struct for [`Session::node_builder`] API
@@ -96,7 +97,8 @@ impl EnvVariable for str {
 
     fn get_value(session: &Session, key: impl AsRef<str>) -> Result<String> {
         let key = CString::new(key.as_ref())?;
-        crate::stringhandle::get_string(crate::ffi::get_server_env_str(session, &key)?, session)
+        let handle = crate::ffi::get_server_env_str(session, &key)?.into();
+        crate::stringhandle::get_string(handle, session)
     }
 
     fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()> {
@@ -237,7 +239,7 @@ impl Session {
     }
 
     /// Retrieve string data given a handle.
-    pub fn get_string(&self, handle: i32) -> Result<String> {
+    pub fn get_string(&self, handle: StringHandle) -> Result<String> {
         crate::stringhandle::get_string(handle, self)
     }
 

@@ -1,8 +1,8 @@
 use super::array::{DataArray, StringMultiArray};
 use crate::ffi::raw;
-use crate::ffi::raw::{HAPI_AttributeInfo, StorageType};
+use crate::ffi::raw::{HAPI_AttributeInfo, HAPI_StringHandle, StorageType};
 use crate::ffi::AttributeInfo;
-use crate::stringhandle::StringArray;
+use crate::stringhandle::{StringArray, StringHandle};
 use crate::{node::HoudiniNode, Result};
 use duplicate::duplicate_item;
 use std::ffi::CStr;
@@ -248,17 +248,18 @@ pub(crate) fn get_attribute_string_data(
     unsafe {
         let mut handles = Vec::new();
         let count = attr_info.count;
-        handles.resize((count * attr_info.tupleSize) as usize, 0);
+        handles.resize((count * attr_info.tupleSize) as usize, StringHandle(0));
         // SAFETY: Most likely an error in C API, it should not modify the info object,
         // but for some reason it wants a mut pointer
         let attr_info = attr_info as *const _ as *mut HAPI_AttributeInfo;
+        let handles_ptr = handles.as_mut_ptr() as *mut HAPI_StringHandle;
         raw::HAPI_GetAttributeStringData(
             node.session.ptr(),
             node.handle.0,
             part_id,
             name.as_ptr(),
             attr_info,
-            handles.as_mut_ptr(),
+            handles_ptr,
             0,
             count,
         )
@@ -299,7 +300,7 @@ pub fn get_attribute_string_array_data(
 ) -> Result<StringMultiArray> {
     debug_assert!(node.is_valid()?);
     unsafe {
-        let mut data_array = vec![0; info.totalArrayElements as usize];
+        let mut data_array = vec![StringHandle(0); info.totalArrayElements as usize];
         let mut sizes_fixed_array = vec![0; info.count as usize];
         raw::HAPI_GetAttributeStringArrayData(
             node.session.ptr(),
@@ -307,7 +308,7 @@ pub fn get_attribute_string_array_data(
             part_id,
             name.as_ptr(),
             info as *const _ as *mut _,
-            data_array.as_mut_ptr(),
+            data_array.as_mut_ptr() as *mut HAPI_StringHandle,
             info.totalArrayElements as i32,
             sizes_fixed_array.as_mut_ptr(),
             0,
