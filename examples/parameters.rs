@@ -30,7 +30,15 @@ fn main() -> Result<()> {
                     format!("{}", p.get(0)?)
                 }
             }
-            Parameter::String(p) => format!("{:?}", p.get(0)?),
+            Parameter::String(p) => {
+                let max_len = 30usize;
+                let mut val = p.get(0)?;
+                val.truncate(max_len);
+                if val.len() > 2 {
+                    val.push_str("..");
+                }
+                format!("{}", val)
+            }
             _ => continue,
         };
         let default_value = format!("{:?}", asset_parm.default_value());

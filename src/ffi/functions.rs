@@ -662,7 +662,7 @@ pub fn get_status_string(
     verbosity: raw::StatusVerbosity,
 ) -> Result<String> {
     let mut length = uninit!();
-    let _lock = session.lock();
+    // let _lock = session.lock();
     unsafe {
         raw::HAPI_GetStatusStringBufLength(session.ptr(), status, verbosity, length.as_mut_ptr())
             .error_message("Calling HAPI_GetStatusStringBufLength: failed")?;
@@ -1029,7 +1029,7 @@ pub fn get_compose_child_node_list(
 ) -> Result<Vec<i32>> {
     unsafe {
         let mut count = uninit!();
-        let _lock = session.lock();
+        // let _lock = session.lock();
         raw::HAPI_ComposeChildNodeList(
             session.ptr(),
             parent.0,
@@ -1148,7 +1148,7 @@ pub fn query_node_output_connected_nodes(
     search_subnets: bool,
 ) -> Result<Vec<NodeHandle>> {
     let mut count = uninit!();
-    let _lock = node.session.lock();
+    // let _lock = node.session.lock();
     unsafe {
         raw::HAPI_QueryNodeOutputConnectedCount(
             node.session.ptr(),

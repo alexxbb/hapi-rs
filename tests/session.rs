@@ -44,7 +44,7 @@ fn session_init_and_teardown() {
 fn session_get_set_time() {
     // For some reason, this test randomly fails when using shared session
     let session = quick_session(None).expect("Could not start session");
-    let _lock = session.lock();
+    // let _lock = session.lock();
     let opt = TimelineOptions::default().with_end_time(5.5);
     assert!(session.set_timeline_options(opt.clone()).is_ok());
     let opt2 = session.get_timeline_options().expect("timeline_options");

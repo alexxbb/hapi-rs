@@ -7,6 +7,8 @@ use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
 
+/// A handle to a string returned by some api.
+/// Then the String can be retrieved with [`Session::get_string`]
 #[derive(Debug, Copy, Clone)]
 #[repr(transparent)]
 pub struct StringHandle(pub(crate) i32);
@@ -163,7 +165,7 @@ pub(crate) fn get_string_bytes(handle: StringHandle, session: &Session) -> Resul
 }
 
 pub(crate) fn get_string_array(handles: &[StringHandle], session: &Session) -> Result<StringArray> {
-    let _lock = session.lock();
+    // let _lock = session.lock();
     let length = crate::ffi::get_string_batch_size(handles, session)?;
     let bytes = if length > 0 {
         crate::ffi::get_string_batch(length, session)?
@@ -178,7 +180,6 @@ mod tests {
     use super::StringArray;
     use crate::ffi;
     use crate::session::tests::SESSION;
-    use crate::stringhandle::StringHandle;
     use std::ffi::CString;
 
     #[test]

@@ -15,7 +15,7 @@
 //! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
 //!
 use log::{debug, error, warn};
-use parking_lot::ReentrantMutex;
+// use parking_lot::ReentrantMutex;
 use std::ffi::OsString;
 use std::fmt::Debug;
 use std::path::PathBuf;
@@ -162,7 +162,7 @@ pub(crate) struct SessionInner {
     pub(crate) handle: raw::HAPI_Session,
     pub(crate) options: SessionOptions,
     pub(crate) connection: ConnectionType,
-    pub(crate) lock: ReentrantMutex<()>,
+    // pub(crate) lock: ReentrantMutex<()>,
 }
 
 /// Session represents a unique connection to the Engine instance and all API calls require a valid session.
@@ -190,7 +190,7 @@ impl Session {
                 handle,
                 options,
                 connection,
-                lock: ReentrantMutex::new(()),
+                // lock: ReentrantMutex::new(()),
             }),
         }
     }
@@ -532,9 +532,9 @@ impl Session {
 
     /// Lock the internal reentrant mutex. Should not be used in general, but may be useful
     /// in certain situations when a series of API calls must be done in sequence
-    pub fn lock(&self) -> parking_lot::ReentrantMutexGuard<()> {
-        self.inner.lock.lock()
-    }
+    // pub fn lock(&self) -> parking_lot::ReentrantMutexGuard<()> {
+    //     self.inner.lock.lock()
+    // }
 
     /// Set Houdini timeline options
     pub fn set_timeline_options(&self, options: TimelineOptions) -> Result<()> {

@@ -1,7 +1,12 @@
 /// This example starts an interactive Houdini session first time you run it,
 /// and consecutive calls will connect to it and use it instead.
 /// Check --help for command options.
+///
+/// IMPORTANT: It's recommended to `cargo build ..` the example and run it
+/// directly from the target directory. `cargo run` has issues with CTRL-C..
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
@@ -42,7 +47,7 @@ fn main() -> Result<()> {
             let executable = Path::new(&hfs).join("bin").join("houdini");
             start_houdini_server(PIPE, executable, true)?;
             // While trying to connect, it will print some errors, these can be ignored.
-            connect_to_pipe(PIPE, None, Some(Duration::from_secs(30)))?
+            connect_to_pipe(PIPE, None, Some(Duration::from_secs(50)))?
         }
     };
 
@@ -65,16 +70,30 @@ fn main() -> Result<()> {
         .with_order(3);
     let geo = session.create_input_curve_node("curvy")?;
     geo.set_input_curve_info(0, &curve_info)?;
-    let mut points = Vec::new();
-    let radius = args.radius;
-    let ampl = args.amplitude;
-    for i in 0..100 {
-        let t = i as f32 * 0.08;
-        let x = t.sin() * radius + (t * args.frequency).cos() * ampl;
-        let y = t.cos() * radius + (t * args.frequency).sin() * ampl;
-        points.extend_from_slice(&[x, y, 0.0]);
-    }
-    geo.set_input_curve_positions(0, &points)?;
+    let running = Arc::new(AtomicBool::new(true));
+    let flag = running.clone();
 
+    ctrlc::set_handler(move || {
+        flag.store(false, Ordering::Relaxed);
+    })
+    .expect("handler");
+
+    let mut points = Vec::new();
+    println!("Press CTRL-C to stop");
+    let mut tick = 0.0;
+    while running.load(Ordering::Relaxed) && session.is_valid() {
+        std::thread::sleep(Duration::from_millis(50));
+        points.clear();
+        let radius = (args.radius + 10.0 * tick).sin();
+        let ampl = args.amplitude + tick.sin();
+        for i in 0..100 {
+            let t = i as f32 * 0.08;
+            let x = t.sin() * radius + (t * args.frequency).cos() * ampl;
+            let y = t.cos() * radius + (t * args.frequency).sin() * ampl;
+            points.extend_from_slice(&[x, y, 0.0]);
+        }
+        let _ = geo.set_input_curve_positions(0, &points);
+        tick += 0.01;
+    }
     Ok(())
 }
