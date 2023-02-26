@@ -1,4 +1,6 @@
+#![allow(unused)]
 use std::ops::ControlFlow;
+use std::path::{Path, PathBuf};
 
 use hapi_rs::enums::{PdgEventType, PdgWorkItemState};
 use hapi_rs::node::Parameter;
@@ -6,13 +8,11 @@ use hapi_rs::pdg::TopNode;
 use hapi_rs::session::{new_in_process, SessionOptionsBuilder};
 use hapi_rs::Result;
 
-fn cook_async(node: &TopNode) -> Result<Vec<String>> {
+fn cook_async(node: &TopNode) -> Result<()> {
     node.dirty_node(true)?;
-    let mut all_results = vec![];
     let mut num_tasks = 0;
     let mut tasks_done = 0;
-    // TODO: Add progress bar
-    println!("Cooking PDG...Should take a couple of seconds");
+    println!("Cooking PDG...");
     node.cook_async(|step| {
         match step.event.event_type() {
             PdgEventType::EventWorkitemAdd => num_tasks += 1,
@@ -21,10 +21,14 @@ fn cook_async(node: &TopNode) -> Result<Vec<String>> {
                 PdgWorkItemState::Success | PdgWorkItemState::Cache => {
                     let workitem = node.get_workitem(step.event.workitem_id(), step.graph_id)?;
                     let results = workitem.get_results()?;
-                    all_results.extend(results.into_iter().filter_map(|wir|
-                        // We only interested in rendered images
-                        (wir.tag().unwrap() == "file/image").then(||wir.result().unwrap())));
-                    tasks_done += 1;
+                    for wir in results {
+                        // We only interested in geo files;;
+                        if wir.tag().unwrap() == "file/geo" {
+                            let file = wir.result().unwrap();
+                            println!("Completed {file}");
+                        }
+                        tasks_done += 1;
+                    }
                 }
                 PdgWorkItemState::Fail => {
                     let item = node.get_workitem(step.event.workitem_id(), step.graph_id)?;
@@ -34,61 +38,50 @@ fn cook_async(node: &TopNode) -> Result<Vec<String>> {
             },
             PdgEventType::EventCookError => {
                 eprintln!("PDG Cook Error :(");
+                let msg = step.event.message(&node.node.session)?;
+                if !msg.is_empty() {
+                    println!("Error: {msg}");
+                }
                 return Ok(ControlFlow::Break(false));
             }
             _ => {}
         }
         Ok(ControlFlow::Continue(()))
     })?;
-    Ok(all_results)
+    Ok(())
 }
 
 fn main() -> Result<()> {
     env_logger::init();
+
+    let hfs: PathBuf = std::env::var_os("HFS").expect("HFS Variable").into();
+    let otl = hfs.join("houdini/help/examples/nodes/top/hdaprocessor/example_top_hdaprocessor.hda");
     let out_dir = std::env::args().nth(1);
-    let out_dir = if let Some(out_dir) = out_dir {
-        let out_dir = std::path::PathBuf::from(out_dir.trim_end_matches(std::path::MAIN_SEPARATOR));
-        if !out_dir.exists() {
-            eprintln!("Path doesn't exists");
-            std::process::exit(1);
-        }
-        out_dir
-    } else {
+    let Some(out_dir) = out_dir else {
         eprintln!("Pass a directory path to write PDG output to");
         std::process::exit(1);
     };
-
-    const NODE_TO_COOK: &str = "out";
-    const SUBNET: &str = "second";
-    const NUM_FRAMES: i32 = 10;
-    let otl = std::env::current_dir()
-        .unwrap()
-        .join("otls/pdg_examples.hda");
-
+    // Paths ending in / cause Houdini to freak out.
+    let out_dir: PathBuf = out_dir.trim_end_matches(std::path::MAIN_SEPARATOR).into();
+    if !out_dir.exists() {
+        eprintln!("Path doesn't exists");
+        std::process::exit(1);
+    }
+    // The example hda uses the HIP variable in TOPs so we have to 'cd'
+    std::env::set_current_dir(&out_dir).unwrap();
     let options = SessionOptionsBuilder::default()
         .threaded(true)
-        .env_variables([("JOB", out_dir.to_string_lossy())])
+        .env_variables([
+            ("PDG_DIR", out_dir.to_string_lossy()),
+            ("JOB", out_dir.to_string_lossy()),
+        ])
         .build();
     let session = new_in_process(Some(&options))?;
     let lib = session.load_asset_file(otl)?;
     let asset = lib.try_create_first()?;
-    if let Parameter::Float(p) = asset.parameter("num_frames")? {
-        p.set(0, NUM_FRAMES as f32)?;
-    }
-    if let Parameter::String(p) = asset.parameter("pdg_workingdir")? {
-        p.set(0, out_dir.to_string_lossy())?;
-    }
-
-    asset.cook_blocking()?;
-
-    let subnet = asset.get_child_by_path(SUBNET)?.expect("child node");
-    let top_net = &subnet.find_top_networks()?[0];
-    let top_node = top_net
-        .find_child_node(NODE_TO_COOK, false)?
-        .expect("TOP node");
-    let top_node = top_node.to_top_node().expect("top node");
-    for output in cook_async(&top_node)? {
-        println!("{}", output);
-    }
+    session.save_hip(out_dir.join("cook_pdg_example.hip"), true)?;
+    let top_net = asset.find_top_networks()?[0].clone();
+    let top_node = top_net.to_top_node().expect("TOP node");
+    let _ = cook_async(&top_node)?;
     Ok(())
 }
