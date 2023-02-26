@@ -25,10 +25,10 @@ use hapi_rs::parameter::*;
 
 fn main() -> Result<()> {
     // Start a standalone engine process
-    let session = quick_session()?;
+    let session = quick_session(None)?;
     // Load a Houdini Asset and create a node
-    session.load_asset_file("otls/hapi_geo.hda")?;
-    let node = session.create_node("Object/hapi_geo", None, None)?;
+    let lib = session.load_asset_file("otls/hapi_geo.hda")?;
+    let node = lib.create_asset_for_node("Object/hapi_geo", None)?;
     // Set the "scale" parameter
     if let Parameter::Float(parm) = node.parameter("scale")? {
         parm.set(0, 3.0)?;

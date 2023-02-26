@@ -298,7 +298,7 @@ impl Session {
 
     /// Create a node. `name` must start with a network category, e.g, "Object/geo", "Sop/box",
     /// in operator namespace was used, the full name may look like this: namespace::Object/mynode
-    /// If you need more creating options, see the [`node_builder`] API.
+    /// If you need more creating options, see the [`Session::node_builder`] API.
     /// New node will *not* be cooked.
     pub fn create_node(&self, name: impl AsRef<str>) -> Result<HoudiniNode> {
         self.create_node_with(name.as_ref(), None, None, false)
@@ -349,7 +349,7 @@ impl Session {
     }
 
     /// Find a node given an absolute path. To find a child node, pass the `parent` node
-    /// or use [`HoudiniNode::find_child_by_path`]
+    /// or use [`HoudiniNode::find_child_node`]
     pub fn get_node_from_path(
         &self,
         path: impl AsRef<str>,
@@ -419,7 +419,7 @@ impl Session {
         crate::ffi::merge_hip(self, &name, cook)
     }
 
-    /// Get node ids created by merging [`merge_hip`] a hip file.
+    /// Get node ids created by merging [`Session::merge_hip`] a hip file.
     pub fn get_hip_file_nodes(&self, hip_id: i32) -> Result<Vec<NodeHandle>> {
         crate::ffi::get_hipfile_node_ids(self, hip_id)
             .map(|handles| handles.into_iter().map(NodeHandle).collect())

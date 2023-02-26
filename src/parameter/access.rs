@@ -158,7 +158,7 @@ impl StringParameter {
     }
 
     /// Save/Download a file referenced in this parameter to a given file.
-    /// [filename] should include the desired extension to work properly.
+    /// `filename` must include the desired extension to work properly.
     pub fn save_parm_file(&self, destination_dir: &std::path::Path, filename: &str) -> Result<()> {
         log::debug!(
             "Saving parameter file to: {:?}/{}",

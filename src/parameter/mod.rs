@@ -26,8 +26,9 @@ use crate::Result;
 pub use base::*;
 use std::fmt::Debug;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
 /// An internal handle to a parameter
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ParmHandle(pub crate::ffi::raw::HAPI_ParmId);
 
 #[derive(Debug)]

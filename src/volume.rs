@@ -139,7 +139,7 @@ impl VolumeStorage for f32 {
 }
 
 /// Represents a single tile in a volume.
-/// Used with [`Geometry::foreach_volume_tile`]
+/// Used with [`crate::geometry::Geometry::foreach_volume_tile`]
 #[derive(Debug)]
 pub struct Tile<'a> {
     pub info: &'a VolumeTileInfo,
