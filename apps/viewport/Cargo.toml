@@ -10,3 +10,5 @@ hapi-rs = { path="../.." }
 eframe = "0.21.3"
 egui_glow = "0.21.0"
 glow = "0.12.1"
+ultraviolet = {version = "0.9.0", features=["bytemuck"]}
+bytemuck = "1.13.1"
