@@ -11,7 +11,8 @@ use ultraviolet as uv;
 
 struct ViewportApp {
     full_screen: bool,
-    mesh: Arc<Mutex<Cube>>,
+    meshes: Arc<Mutex<Vec<Shapes>>>,
+    draw_index: usize,
 }
 
 impl ViewportApp {
@@ -19,7 +20,11 @@ impl ViewportApp {
         let gl = cc.gl.as_ref().expect("Could not init gl Context");
         Self {
             full_screen: false,
-            mesh: Arc::new(Mutex::new(Cube::new(gl))),
+            meshes: Arc::new(Mutex::new(vec![
+                Shapes::Square(Mesh::square(gl)),
+                Shapes::Triangle(Mesh::triangle(gl)),
+            ])),
+            draw_index: 0,
         }
     }
 }
@@ -32,16 +37,32 @@ impl eframe::App for ViewportApp {
             .min_width(200.0)
             .show(ctx, |ui| {
                 ui.heading("PARAMETERS");
+                let label = if self.draw_index == 0 {
+                    "Square"
+                } else {
+                    "Tri"
+                };
+                egui::ComboBox::from_label("")
+                    .selected_text(label)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.draw_index, 0, "Square");
+                        ui.selectable_value(&mut self.draw_index, 1, "Tri");
+                    });
             });
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::Frame::canvas(ui.style()).show(ui, |ui| {
                 let resp = ui.allocate_rect(ui.max_rect(), Sense::click());
 
-                let mesh = self.mesh.clone();
+                let meshes = Arc::clone(&self.meshes);
+                let draw_index = self.draw_index;
                 let callback = egui::PaintCallback {
                     rect: ui.max_rect(),
                     callback: Arc::new(egui_glow::CallbackFn::new(move |info, painter| {
-                        mesh.lock().paint(painter.gl());
+                        let mesh = &meshes.lock()[draw_index];
+                        match mesh {
+                            Shapes::Triangle(m) => m.paint(painter.gl()),
+                            Shapes::Square(m) => m.paint(painter.gl()),
+                        }
                     })),
                 };
                 ui.painter().add(callback);
@@ -72,21 +93,13 @@ fn main() {
     eframe::run_native("HAPI Viewport", options, creator);
 }
 
-#[derive(Debug)]
-struct Cube {
-    program: glow::Program,
-    vertex_array: glow::VertexArray,
-}
+unsafe fn compile_gl_program(gl: &glow::Context) -> glow::Program {
+    use glow::HasContext as _;
 
-impl Cube {
-    fn new(gl: &glow::Context) -> Self {
-        use glow::HasContext as _;
+    let program = gl.create_program().expect("gl program");
 
-        unsafe {
-            let program = gl.create_program().expect("gl program");
-
-            let (vtx_source, frag_source) = (
-                r#"
+    let (vtx_source, frag_source) = (
+        r#"
                     #version 330
                     
                     layout (location = 0) in vec3 pos; 
@@ -94,7 +107,7 @@ impl Cube {
                         gl_Position = vec4(pos.x, pos.y, pos.z, 1.0);
                     }
                 "#,
-                r#"
+        r#"
                     #version 330
                     
                     out vec4 out_color;
@@ -103,53 +116,83 @@ impl Cube {
                         out_color = vec4(1.0f, 0.5f, 0.2f, 1.0f);
                     } 
                 "#,
+    );
+    let shader_sources = [
+        (glow::VERTEX_SHADER, vtx_source),
+        (glow::FRAGMENT_SHADER, frag_source),
+    ];
+    let shaders: Vec<_> = shader_sources
+        .into_iter()
+        .map(|(s_type, s_source)| {
+            let shader = gl.create_shader(s_type).expect("Cannot create shader");
+            gl.shader_source(shader, s_source);
+            gl.compile_shader(shader);
+            assert!(
+                gl.get_shader_compile_status(shader),
+                "Failed to compile shader {s_type}: {}",
+                gl.get_shader_info_log(shader)
             );
-            let shader_sources = [
-                (glow::VERTEX_SHADER, vtx_source),
-                (glow::FRAGMENT_SHADER, frag_source),
-            ];
-            let shaders: Vec<_> = shader_sources
-                .into_iter()
-                .map(|(s_type, s_source)| {
-                    let shader = gl.create_shader(s_type).expect("Cannot create shader");
-                    gl.shader_source(shader, s_source);
-                    gl.compile_shader(shader);
-                    assert!(
-                        gl.get_shader_compile_status(shader),
-                        "Failed to compile shader {s_type}: {}",
-                        gl.get_shader_info_log(shader)
-                    );
-                    gl.attach_shader(program, shader);
-                    shader
-                })
-                .collect();
-            gl.link_program(program);
-            if !gl.get_program_link_status(program) {
-                panic!(
-                    "GL Program link error: {}",
-                    gl.get_program_info_log(program)
-                );
-            }
-            for shader in shaders {
-                gl.detach_shader(program, shader);
-                gl.delete_shader(shader)
-            }
+            gl.attach_shader(program, shader);
+            shader
+        })
+        .collect();
+    gl.link_program(program);
+    if !gl.get_program_link_status(program) {
+        panic!(
+            "GL Program link error: {}",
+            gl.get_program_info_log(program)
+        );
+    }
+    for shader in shaders {
+        gl.detach_shader(program, shader);
+        gl.delete_shader(shader)
+    }
+    program
+}
 
-            let vertices: &[uv::Vec3] = &[
-                [-0.5, -0.5, 0.0].into(),
-                [0.5, -0.5, 0.0].into(),
-                [0.5, 0.5, 0.0].into(),
-                [-0.5, 0.5, 0.0].into(),
-            ];
-            let vertices = cast_slice(vertices);
+struct Mesh {
+    program: glow::Program,
+    vao: glow::VertexArray,
+    num_vtx: i32,
+}
 
-            let indices = cast_slice(&[0, 1, 2, 2, 3, 0]);
+impl Mesh {
+    fn triangle(gl: &glow::Context) -> Self {
+        #[rustfmt::skip]
+        let vertices = &[
+            -0.5f32, -0.5, 0.0,
+            0.5, -0.5, 0.0,
+            0.5, 0.5, 0.0
+        ];
+        let indices = &[0, 1, 2];
+
+        Mesh::new(gl, vertices.as_slice(), indices.as_slice())
+    }
+
+    fn square(gl: &glow::Context) -> Self {
+        #[rustfmt::skip]
+        let vertices = &[
+            -0.5, -0.5, 0.0,
+            0.5, -0.5, 0.0,
+            0.5, 0.5, 0.0,
+            -0.5, 0.5, 0.0,
+        ];
+        let indices = &[0, 1, 2, 2, 3, 0];
+
+        Mesh::new(gl, vertices.as_slice(), indices.as_slice())
+    }
+
+    fn new(gl: &glow::Context, vertices: &[f32], indices: &[i32]) -> Self {
+        use glow::HasContext as _;
+
+        unsafe {
+            let program = compile_gl_program(gl);
 
             // Create Vertex Array Object. This is the object that describes what and how to
             // draw. Think of it as a preset.
-            let vertex_array = gl.create_vertex_array().expect("vertex array");
+            let vao = gl.create_vertex_array().expect("vertex array");
             // Make it current
-            gl.bind_vertex_array(Some(vertex_array));
+            gl.bind_vertex_array(Some(vao));
 
             // Generate buffers
             let vbo = gl.create_buffer().expect("buffer");
@@ -158,12 +201,16 @@ impl Cube {
             // Bind VBO
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
             // Copy data to it
-            gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, vertices, glow::STATIC_DRAW);
+            gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, cast_slice(vertices), glow::STATIC_DRAW);
 
             // Bind EBO
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo));
             // Copy data to it
-            gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, indices, glow::STATIC_DRAW);
+            gl.buffer_data_u8_slice(
+                glow::ELEMENT_ARRAY_BUFFER,
+                cast_slice(indices),
+                glow::STATIC_DRAW,
+            );
 
             // Create attribute pointer at location(0) in shader
             gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, 0, 0);
@@ -173,17 +220,9 @@ impl Cube {
 
             Self {
                 program,
-                vertex_array,
+                vao,
+                num_vtx: vertices.len() as i32,
             }
-        }
-    }
-
-    fn destroy(&self, gl: &glow::Context) {
-        use glow::HasContext;
-
-        unsafe {
-            gl.delete_program(self.program);
-            gl.delete_vertex_array(self.vertex_array);
         }
     }
 
@@ -193,10 +232,15 @@ impl Cube {
         unsafe {
             gl.polygon_mode(glow::FRONT_AND_BACK, glow::LINE);
             gl.use_program(Some(self.program));
-            gl.bind_vertex_array(Some(self.vertex_array));
-            gl.draw_elements(glow::TRIANGLES, 6, glow::UNSIGNED_INT, 0);
+            gl.bind_vertex_array(Some(self.vao));
+            gl.draw_elements(glow::TRIANGLES, self.num_vtx, glow::UNSIGNED_INT, 0);
             gl.polygon_mode(glow::FRONT_AND_BACK, glow::FILL);
             gl.bind_vertex_array(None);
         }
     }
+}
+
+enum Shapes {
+    Triangle(Mesh),
+    Square(Mesh),
 }
