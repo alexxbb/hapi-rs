@@ -7,6 +7,7 @@ use eframe::{egui, CreationContext, Frame};
 use egui::mutex::Mutex;
 use egui_glow::CallbackFn;
 use glow::HasContext;
+use std::convert::Into;
 use std::ops::BitXorAssign;
 use std::sync::Arc;
 use ultraviolet as uv;
@@ -23,7 +24,7 @@ impl ViewportApp {
         let gl = cc.gl.as_ref().expect("Could not init gl Context").clone();
         Self {
             full_screen: false,
-            mesh: Arc::new(Mutex::new(Mesh::triangle(gl, 1.0))),
+            mesh: Arc::new(Mutex::new(Mesh::cube(gl))),
             draw_index: 0,
             scale: 1.0,
         }
@@ -61,7 +62,7 @@ impl eframe::App for ViewportApp {
             });
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                let resp = ui.allocate_rect(ui.max_rect(), Sense::click());
+                ui.allocate_rect(ui.max_rect(), Sense::click());
 
                 let mesh = Arc::clone(&self.mesh);
                 let callback = egui::PaintCallback {
@@ -108,17 +109,23 @@ unsafe fn compile_gl_program(gl: &glow::Context) -> glow::Program {
                     #version 330
                     
                     layout (location = 0) in vec3 pos; 
+                    layout (location = 1) in vec3 color; 
+                    
+                    out vec4 v_color;
+                    
                     void main() {
-                        gl_Position = vec4(pos.x, pos.y, pos.z, 1.0);
+                        gl_Position = vec4(pos, 1.0);
+                        v_color = vec4(color, 1.0);
                     }
                 "#,
         r#"
                     #version 330
                     
+                    in vec4 v_color;
                     out vec4 out_color;
                     
                     void main() {
-                        out_color = vec4(1.0f, 0.5f, 0.2f, 1.0f);
+                        out_color = v_color;
                     } 
                 "#,
     );
@@ -165,17 +172,18 @@ struct Mesh {
 }
 
 impl Mesh {
-    fn triangle(gl: Arc<glow::Context>, scale: f32) -> Self {
+    fn triangle(gl: Arc<glow::Context>) -> Self {
         #[rustfmt::skip]
         let mut vertices = &mut [
             -0.5f32, -0.5, 0.0,
             0.5, -0.5, 0.0,
             0.5, 0.5, 0.0
         ];
-        vertices.iter_mut().for_each(|v| *v *= scale);
-        let indices = &[0, 1, 2];
 
-        Mesh::new(gl, vertices.as_slice(), indices.as_slice())
+        let indices = &[0, 1, 2];
+        let colors = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0];
+
+        Mesh::setup(gl, vertices.as_slice(), indices.as_slice(), Some(&colors))
     }
 
     fn square(gl: Arc<glow::Context>) -> Self {
@@ -188,7 +196,7 @@ impl Mesh {
         ];
         let indices = &[0, 1, 2, 2, 3, 0];
 
-        Mesh::new(gl, vertices.as_slice(), indices.as_slice())
+        Mesh::setup(gl, vertices.as_slice(), indices.as_slice(), None)
     }
 
     fn upload(&self, vertices: &[f32]) {
@@ -202,8 +210,16 @@ impl Mesh {
             self.gl.bind_buffer(glow::ARRAY_BUFFER, None);
         }
     }
+    fn cube(gl: Arc<glow::Context>) -> Self {
+        Mesh::setup(gl, CUBE, INDICES, Some(COLORS))
+    }
 
-    fn new(gl: Arc<glow::Context>, vertices: &[f32], indices: &[i32]) -> Self {
+    fn setup(
+        gl: Arc<glow::Context>,
+        vertices: &[f32],
+        indices: &[i32],
+        colors: Option<&[f32]>,
+    ) -> Self {
         use glow::HasContext as _;
 
         unsafe {
@@ -215,8 +231,17 @@ impl Mesh {
             // Generate buffers
             let vbo = gl.create_buffer().expect("buffer");
             let ebo = gl.create_buffer().expect("ebo buffer");
-            // Make it current
+            // Make VAO current
             gl.bind_vertex_array(Some(vao));
+
+            if let Some(colors) = colors {
+                let color_buffer = gl.create_buffer().expect("color buffer");
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(color_buffer));
+                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, cast_slice(colors), glow::DYNAMIC_DRAW);
+                gl.enable_vertex_attrib_array(1);
+                gl.vertex_attrib_pointer_f32(1, 3, glow::FLOAT, false, 0, 0);
+                gl.bind_buffer(glow::ARRAY_BUFFER, None)
+            }
 
             // Bind VBO
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
@@ -232,11 +257,10 @@ impl Mesh {
                 glow::DYNAMIC_DRAW,
             );
 
-            // Create attribute pointer at location(0) in shader
-            gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, 0, 0);
-
-            // Enable this attribute
+            // Enable attributes
             gl.enable_vertex_attrib_array(0);
+            // Create attribute pointers at location(X) in shader
+            gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, 0, 0);
 
             Self {
                 gl,
@@ -253,17 +277,52 @@ impl Mesh {
         use glow::HasContext;
 
         unsafe {
-            gl.polygon_mode(glow::FRONT_AND_BACK, glow::LINE);
             gl.use_program(Some(self.program));
             gl.bind_vertex_array(Some(self.vao));
             gl.draw_elements(glow::TRIANGLES, self.num_vtx, glow::UNSIGNED_INT, 0);
-            gl.polygon_mode(glow::FRONT_AND_BACK, glow::FILL);
             gl.bind_vertex_array(None);
         }
     }
 }
 
-enum Shapes {
-    Triangle(Mesh),
-    Square(Mesh),
-}
+#[rustfmt::skip]
+const CUBE: &[f32] = &[
+    // front
+    -0.5, -0.5,  0.5,
+     0.5, -0.5,  0.5,
+     0.5,  0.5,  0.5,
+    -0.5,  0.5,  0.5,
+    // back
+    -0.5, -0.5, -0.5,
+     0.5, -0.5, -0.5,
+     0.5,  0.5, -0.5,
+    -0.5,  0.5, -0.5
+];
+
+const COLORS: &[f32] = &[
+    // front colors
+    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, // back colors
+    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0,
+];
+
+#[rustfmt::skip]
+const INDICES: &[i32] = &[
+    // front
+    0, 1, 2,
+    2, 3, 0,
+    // right
+    1, 5, 6,
+    6, 2, 1,
+    // back
+    7, 6, 5,
+    5, 4, 7,
+    // left
+    4, 0, 3,
+    3, 7, 4,
+    // bottom
+    4, 5, 1,
+    1, 0, 4,
+    // top
+    3, 2, 6,
+    6, 7, 3
+];
