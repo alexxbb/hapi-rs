@@ -7,6 +7,7 @@ use eframe::{egui, CreationContext, Frame};
 use egui::mutex::Mutex;
 use egui_glow::CallbackFn;
 use glow::HasContext;
+use png::Reader;
 use std::convert::Into;
 use std::ops::BitXorAssign;
 use std::sync::Arc;
@@ -50,15 +51,15 @@ impl eframe::App for ViewportApp {
                         ui.selectable_value(&mut self.draw_index, 0, "Square");
                         ui.selectable_value(&mut self.draw_index, 1, "Tri");
                     });
-                if ui
-                    .add(egui::Slider::new(&mut self.scale, 0.1..=1.0).text("Scale"))
-                    .changed()
-                {
-                    let mesh = self.mesh.lock();
-                    let mut vertices = &mut [-0.5f32, -0.5, 0.0, 0.5, -0.5, 0.0, 0.5, 0.5, 0.0];
-                    vertices.iter_mut().for_each(|v| *v *= self.scale);
-                    mesh.upload(vertices);
-                }
+                // if ui
+                //     .add(egui::Slider::new(&mut self.scale, 0.1..=1.0).text("Scale"))
+                //     .changed()
+                // {
+                //     let mesh = self.mesh.lock();
+                //     let mut vertices = &mut [-0.5f32, -0.5, 0.0, 0.5, -0.5, 0.0, 0.5, 0.5, 0.0];
+                //     vertices.iter_mut().for_each(|v| *v *= self.scale);
+                //     mesh.upload(vertices);
+                // }
             });
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::Frame::canvas(ui.style()).show(ui, |ui| {
@@ -104,34 +105,9 @@ unsafe fn compile_gl_program(gl: &glow::Context) -> glow::Program {
 
     let program = gl.create_program().expect("gl program");
 
-    let (vtx_source, frag_source) = (
-        r#"
-                    #version 330
-                    
-                    layout (location = 0) in vec3 pos; 
-                    layout (location = 1) in vec3 color; 
-                    
-                    out vec4 v_color;
-                    
-                    void main() {
-                        gl_Position = vec4(pos, 1.0);
-                        v_color = vec4(color, 1.0);
-                    }
-                "#,
-        r#"
-                    #version 330
-                    
-                    in vec4 v_color;
-                    out vec4 out_color;
-                    
-                    void main() {
-                        out_color = v_color;
-                    } 
-                "#,
-    );
     let shader_sources = [
-        (glow::VERTEX_SHADER, vtx_source),
-        (glow::FRAGMENT_SHADER, frag_source),
+        (glow::VERTEX_SHADER, include_str!("cube.vert")),
+        (glow::FRAGMENT_SHADER, include_str!("cube.frag")),
     ];
     let shaders: Vec<_> = shader_sources
         .into_iter()
@@ -168,35 +144,39 @@ struct Mesh {
     vao: glow::VertexArray,
     vbo: glow::Buffer,
     ebo: glow::Buffer,
-    num_vtx: i32,
+    texture: glow::Texture,
 }
 
 impl Mesh {
-    fn triangle(gl: Arc<glow::Context>) -> Self {
-        #[rustfmt::skip]
-        let mut vertices = &mut [
-            -0.5f32, -0.5, 0.0,
-            0.5, -0.5, 0.0,
-            0.5, 0.5, 0.0
-        ];
+    // fn triangle(gl: Arc<glow::Context>) -> Self {
+    //     #[rustfmt::skip]
+    //     let mut vertices = &mut [
+    //         -0.5f32, -0.5, 0.0,
+    //         0.5, -0.5, 0.0,
+    //         0.5, 0.5, 0.0
+    //     ];
+    //
+    //     let indices = &[0, 1, 2];
+    //     let colors = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0];
+    //
+    //     Mesh::setup(gl, vertices.as_slice(), indices.as_slice(), Some(&colors))
+    // }
+    //
+    // fn square(gl: Arc<glow::Context>) -> Self {
+    //     #[rustfmt::skip]
+    //     let vertices = &[
+    //         -0.5, -0.5, 0.0,
+    //         0.5, -0.5, 0.0,
+    //         0.5, 0.5, 0.0,
+    //         -0.5, 0.5, 0.0,
+    //     ];
+    //     let indices = &[0, 1, 2, 2, 3, 0];
+    //
+    //     Mesh::setup(gl, vertices.as_slice(), indices.as_slice(), None)
+    // }
 
-        let indices = &[0, 1, 2];
-        let colors = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0];
-
-        Mesh::setup(gl, vertices.as_slice(), indices.as_slice(), Some(&colors))
-    }
-
-    fn square(gl: Arc<glow::Context>) -> Self {
-        #[rustfmt::skip]
-        let vertices = &[
-            -0.5, -0.5, 0.0,
-            0.5, -0.5, 0.0,
-            0.5, 0.5, 0.0,
-            -0.5, 0.5, 0.0,
-        ];
-        let indices = &[0, 1, 2, 2, 3, 0];
-
-        Mesh::setup(gl, vertices.as_slice(), indices.as_slice(), None)
+    fn cube(gl: Arc<glow::Context>) -> Self {
+        Mesh::setup(gl, CUBE, None)
     }
 
     fn upload(&self, vertices: &[f32]) {
@@ -210,19 +190,12 @@ impl Mesh {
             self.gl.bind_buffer(glow::ARRAY_BUFFER, None);
         }
     }
-    fn cube(gl: Arc<glow::Context>) -> Self {
-        Mesh::setup(gl, CUBE, INDICES, Some(COLORS))
-    }
 
-    fn setup(
-        gl: Arc<glow::Context>,
-        vertices: &[f32],
-        indices: &[i32],
-        colors: Option<&[f32]>,
-    ) -> Self {
+    fn setup(gl: Arc<glow::Context>, vertices: &[f32], colors: Option<&[f32]>) -> Self {
         use glow::HasContext as _;
 
         unsafe {
+            gl.enable(glow::DEPTH_TEST);
             let program = compile_gl_program(&gl);
 
             // Create Vertex Array Object. This is the object that describes what and how to
@@ -248,19 +221,61 @@ impl Mesh {
             // Copy data to it
             gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, cast_slice(vertices), glow::DYNAMIC_DRAW);
 
-            // Bind EBO
-            gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo));
-            // Copy data to it
-            gl.buffer_data_u8_slice(
-                glow::ELEMENT_ARRAY_BUFFER,
-                cast_slice(indices),
-                glow::DYNAMIC_DRAW,
-            );
+            // // Bind EBO
+            // gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo));
+            // // Copy data to it
+            // gl.buffer_data_u8_slice(
+            //     glow::ELEMENT_ARRAY_BUFFER,
+            //     cast_slice(indices),
+            //     glow::DYNAMIC_DRAW,
+            // );
 
+            // Create attribute pointers at location(X) in shader
+            let stride = (std::mem::size_of::<f32>() * 5) as i32;
+            gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, stride, 0);
             // Enable attributes
             gl.enable_vertex_attrib_array(0);
-            // Create attribute pointers at location(X) in shader
-            gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, 0, 0);
+
+            let offset = (std::mem::size_of::<f32>() * 3) as i32;
+            gl.vertex_attrib_pointer_f32(1, 2, glow::FLOAT, false, stride, offset);
+            // Enable attributes
+            gl.enable_vertex_attrib_array(1);
+
+            let decoder = png::Decoder::new(std::fs::File::open("maps/crate.png").unwrap());
+            let mut reader = decoder.read_info().unwrap();
+            let mut buf = vec![0; reader.output_buffer_size()];
+            reader.next_frame(&mut buf).unwrap();
+            let (w, h) = (reader.info().width, reader.info().height);
+
+            let texture = gl.create_texture().expect("texture");
+            gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::REPEAT as i32);
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::REPEAT as i32);
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_MIN_FILTER,
+                glow::LINEAR as i32,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_MAG_FILTER,
+                glow::LINEAR as i32,
+            );
+            gl.tex_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                glow::RGB as i32,
+                w as i32,
+                h as i32,
+                0,
+                glow::RGB,
+                glow::UNSIGNED_BYTE,
+                Some(&buf),
+            );
+            gl.generate_mipmap(glow::TEXTURE_2D);
+
+            gl.use_program(Some(program));
+            gl.uniform_1_i32(gl.get_uniform_location(program, "myTexture").as_ref(), 0);
 
             Self {
                 gl,
@@ -268,7 +283,7 @@ impl Mesh {
                 vao,
                 vbo,
                 ebo,
-                num_vtx: vertices.len() as i32,
+                texture,
             }
         }
     }
@@ -277,9 +292,11 @@ impl Mesh {
         use glow::HasContext;
 
         unsafe {
-            gl.use_program(Some(self.program));
             gl.bind_vertex_array(Some(self.vao));
-            gl.draw_elements(glow::TRIANGLES, self.num_vtx, glow::UNSIGNED_INT, 0);
+            gl.active_texture(glow::TEXTURE0);
+            gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
+            gl.use_program(Some(self.program));
+            gl.draw_arrays(glow::TRIANGLES, 0, 36);
             gl.bind_vertex_array(None);
         }
     }
@@ -287,42 +304,81 @@ impl Mesh {
 
 #[rustfmt::skip]
 const CUBE: &[f32] = &[
-    // front
-    -0.5, -0.5,  0.5,
-     0.5, -0.5,  0.5,
-     0.5,  0.5,  0.5,
-    -0.5,  0.5,  0.5,
-    // back
-    -0.5, -0.5, -0.5,
-     0.5, -0.5, -0.5,
-     0.5,  0.5, -0.5,
-    -0.5,  0.5, -0.5
-];
+        -0.5, -0.5, -0.5,  0.0, 0.0,
+         0.5, -0.5, -0.5,  1.0, 0.0,
+         0.5,  0.5, -0.5,  1.0, 1.0,
+         0.5,  0.5, -0.5,  1.0, 1.0,
+        -0.5,  0.5, -0.5,  0.0, 1.0,
+        -0.5, -0.5, -0.5,  0.0, 0.0,
 
-const COLORS: &[f32] = &[
-    // front colors
-    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, // back colors
-    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0,
+        -0.5, -0.5,  0.5,  0.0, 0.0,
+         0.5, -0.5,  0.5,  1.0, 0.0,
+         0.5,  0.5,  0.5,  1.0, 1.0,
+         0.5,  0.5,  0.5,  1.0, 1.0,
+        -0.5,  0.5,  0.5,  0.0, 1.0,
+        -0.5, -0.5,  0.5,  0.0, 0.0,
+
+        -0.5,  0.5,  0.5,  1.0, 0.0,
+        -0.5,  0.5, -0.5,  1.0, 1.0,
+        -0.5, -0.5, -0.5,  0.0, 1.0,
+        -0.5, -0.5, -0.5,  0.0, 1.0,
+        -0.5, -0.5,  0.5,  0.0, 0.0,
+        -0.5,  0.5,  0.5,  1.0, 0.0,
+
+         0.5,  0.5,  0.5,  1.0, 0.0,
+         0.5,  0.5, -0.5,  1.0, 1.0,
+         0.5, -0.5, -0.5,  0.0, 1.0,
+         0.5, -0.5, -0.5,  0.0, 1.0,
+         0.5, -0.5,  0.5,  0.0, 0.0,
+         0.5,  0.5,  0.5,  1.0, 0.0,
+
+        -0.5, -0.5, -0.5,  0.0, 1.0,
+         0.5, -0.5, -0.5,  1.0, 1.0,
+         0.5, -0.5,  0.5,  1.0, 0.0,
+         0.5, -0.5,  0.5,  1.0, 0.0,
+        -0.5, -0.5,  0.5,  0.0, 0.0,
+        -0.5, -0.5, -0.5,  0.0, 1.0,
+
+        -0.5,  0.5, -0.5,  0.0, 1.0,
+         0.5,  0.5, -0.5,  1.0, 1.0,
+         0.5,  0.5,  0.5,  1.0, 0.0,
+         0.5,  0.5,  0.5,  1.0, 0.0,
+        -0.5,  0.5,  0.5,  0.0, 0.0,
+        -0.5,  0.5, -0.5,  0.0, 1.0
 ];
 
 #[rustfmt::skip]
 const INDICES: &[i32] = &[
     // front
-    0, 1, 2,
-    2, 3, 0,
+    0, 4, 1,
+    4, 5, 1,
     // right
     1, 5, 6,
     6, 2, 1,
     // back
-    7, 6, 5,
-    5, 4, 7,
+    6, 3, 2,
+    6, 7, 3,
     // left
-    4, 0, 3,
-    3, 7, 4,
+    7, 0, 3,
+    7, 4, 0,
     // bottom
-    4, 5, 1,
-    1, 0, 4,
+    1, 3, 0,
+    1, 2, 3,
     // top
-    3, 2, 6,
-    6, 7, 3
+    4, 6, 5,
+    4, 7, 6
+];
+
+#[rustfmt::skip]
+const COLORS: &[f32] = &[
+    // front colors
+    1.0, 0.0, 0.0,
+    0.0, 1.0, 0.0,
+    0.0, 0.0, 1.0,
+    1.0, 1.0, 1.0,
+    // back colors
+    1.0, 0.0, 0.0,
+    0.0, 1.0, 0.0,
+    0.0, 0.0, 1.0,
+    1.0, 1.0, 1.0,
 ];
