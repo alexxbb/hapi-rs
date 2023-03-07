@@ -16,8 +16,8 @@ use ultraviolet as uv;
 struct ViewportApp {
     full_screen: bool,
     mesh: Arc<Mutex<Mesh>>,
-    draw_index: usize,
     scale: f32,
+    animated: bool,
 }
 
 impl ViewportApp {
@@ -26,8 +26,8 @@ impl ViewportApp {
         Self {
             full_screen: false,
             mesh: Arc::new(Mutex::new(Mesh::cube(gl))),
-            draw_index: 0,
             scale: 1.0,
+            animated: false,
         }
     }
 }
@@ -40,17 +40,12 @@ impl eframe::App for ViewportApp {
             .min_width(200.0)
             .show(ctx, |ui| {
                 ui.heading("PARAMETERS");
-                let label = if self.draw_index == 0 {
-                    "Square"
-                } else {
-                    "Tri"
-                };
-                egui::ComboBox::from_label("")
-                    .selected_text(label)
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.draw_index, 0, "Square");
-                        ui.selectable_value(&mut self.draw_index, 1, "Tri");
-                    });
+                // egui::ComboBox::from_label("")
+                //     .selected_text(label)
+                //     .show_ui(ui, |ui| {
+                //         ui.selectable_value(&mut self.draw_index, 0, "Square");
+                //         ui.selectable_value(&mut self.draw_index, 1, "Tri");
+                //     });
                 // if ui
                 //     .add(egui::Slider::new(&mut self.scale, 0.1..=1.0).text("Scale"))
                 //     .changed()
@@ -60,19 +55,28 @@ impl eframe::App for ViewportApp {
                 //     vertices.iter_mut().for_each(|v| *v *= self.scale);
                 //     mesh.upload(vertices);
                 // }
+                ui.add(egui::Checkbox::new(&mut self.animated, "Animate"));
             });
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::Frame::canvas(ui.style()).show(ui, |ui| {
                 ui.allocate_rect(ui.max_rect(), Sense::click());
+                let aspect_ratio = ui.max_rect().aspect_ratio();
 
+                let time = self
+                    .animated
+                    .then_some(ui.ctx().input(|input| input.time))
+                    .unwrap_or(0.0);
                 let mesh = Arc::clone(&self.mesh);
                 let callback = egui::PaintCallback {
                     rect: ui.max_rect(),
                     callback: Arc::new(CallbackFn::new(move |info, painter| {
-                        mesh.lock().paint(painter.gl());
+                        mesh.lock().paint(painter.gl(), time, aspect_ratio);
                     })),
                 };
                 ui.painter().add(callback);
+                if self.animated {
+                    ui.ctx().request_repaint();
+                }
             })
         });
 
@@ -92,8 +96,9 @@ fn main() {
     let options = eframe::NativeOptions {
         initial_window_size: Some(egui::vec2(700.0, 500.0)),
         initial_window_pos: Some(egui::Pos2::new(1000.0, 500.0)),
-        multisampling: 4,
+        multisampling: 8,
         renderer: eframe::Renderer::Glow,
+        depth_buffer: 24,
         ..Default::default()
     };
     let creator: eframe::AppCreator = Box::new(move |cc| Box::new(ViewportApp::new(cc)));
@@ -148,33 +153,6 @@ struct Mesh {
 }
 
 impl Mesh {
-    // fn triangle(gl: Arc<glow::Context>) -> Self {
-    //     #[rustfmt::skip]
-    //     let mut vertices = &mut [
-    //         -0.5f32, -0.5, 0.0,
-    //         0.5, -0.5, 0.0,
-    //         0.5, 0.5, 0.0
-    //     ];
-    //
-    //     let indices = &[0, 1, 2];
-    //     let colors = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0];
-    //
-    //     Mesh::setup(gl, vertices.as_slice(), indices.as_slice(), Some(&colors))
-    // }
-    //
-    // fn square(gl: Arc<glow::Context>) -> Self {
-    //     #[rustfmt::skip]
-    //     let vertices = &[
-    //         -0.5, -0.5, 0.0,
-    //         0.5, -0.5, 0.0,
-    //         0.5, 0.5, 0.0,
-    //         -0.5, 0.5, 0.0,
-    //     ];
-    //     let indices = &[0, 1, 2, 2, 3, 0];
-    //
-    //     Mesh::setup(gl, vertices.as_slice(), indices.as_slice(), None)
-    // }
-
     fn cube(gl: Arc<glow::Context>) -> Self {
         Mesh::setup(gl, CUBE, None)
     }
@@ -195,7 +173,6 @@ impl Mesh {
         use glow::HasContext as _;
 
         unsafe {
-            gl.enable(glow::DEPTH_TEST);
             let program = compile_gl_program(&gl);
 
             // Create Vertex Array Object. This is the object that describes what and how to
@@ -220,15 +197,6 @@ impl Mesh {
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
             // Copy data to it
             gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, cast_slice(vertices), glow::DYNAMIC_DRAW);
-
-            // // Bind EBO
-            // gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo));
-            // // Copy data to it
-            // gl.buffer_data_u8_slice(
-            //     glow::ELEMENT_ARRAY_BUFFER,
-            //     cast_slice(indices),
-            //     glow::DYNAMIC_DRAW,
-            // );
 
             // Create attribute pointers at location(X) in shader
             let stride = (std::mem::size_of::<f32>() * 5) as i32;
@@ -288,14 +256,36 @@ impl Mesh {
         }
     }
 
-    fn paint(&self, gl: &glow::Context) {
+    fn paint(&self, gl: &glow::Context, time: f64, aspect_ratio: f32) {
         use glow::HasContext;
 
         unsafe {
+            gl.enable(glow::DEPTH_TEST);
+            gl.clear(glow::DEPTH_BUFFER_BIT);
             gl.bind_vertex_array(Some(self.vao));
             gl.active_texture(glow::TEXTURE0);
             gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
             gl.use_program(Some(self.program));
+
+            let push_matrix = |uniform, mat: uv::Mat4| {
+                gl.uniform_matrix_4_f32_slice(
+                    gl.get_uniform_location(self.program, uniform).as_ref(),
+                    false,
+                    mat.as_slice(),
+                );
+            };
+
+            let projection = uv::projection::perspective_gl(45.0, aspect_ratio, 0.01, 10.0);
+            push_matrix("projection", projection);
+
+            let view = uv::Mat4::identity().translated(&uv::Vec3::new(0.0, 0.0, -2.0));
+            push_matrix("view", view);
+
+            let rot = uv::rotor::Rotor3::from_rotation_xz(time as f32);
+            let rot2 = uv::rotor::Rotor3::from_rotation_xy(30.0);
+            let model = uv::Mat4::identity() * (rot * rot2).into_matrix().into_homogeneous();
+            push_matrix("model", model);
+
             gl.draw_arrays(glow::TRIANGLES, 0, 36);
             gl.bind_vertex_array(None);
         }
