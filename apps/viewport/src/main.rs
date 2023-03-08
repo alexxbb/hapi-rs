@@ -71,6 +71,7 @@ struct ViewportApp {
     mesh: Arc<Mutex<Mesh>>,
     scale: f32,
     animated: bool,
+    wireframe: bool,
     camera: Camera,
     movement: egui::Vec2,
 }
@@ -83,6 +84,7 @@ impl ViewportApp {
             mesh: Arc::new(Mutex::new(Mesh::cube(gl))),
             scale: 1.0,
             animated: true,
+            wireframe: false,
             camera: Camera::new(Vec3::new(0.0, 1.0, -2.5)),
             movement: egui::Vec2::splat(0.0)
         }
@@ -98,6 +100,7 @@ impl eframe::App for ViewportApp {
             .show(ctx, |ui| {
                 ui.heading("PARAMETERS");
                 ui.add(egui::Checkbox::new(&mut self.animated, "Animate"));
+                ui.add(egui::Checkbox::new(&mut self.wireframe, "Wireframe"));
             });
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::Frame::canvas(ui.style()).show(ui, |ui| {
@@ -118,12 +121,13 @@ impl eframe::App for ViewportApp {
                     .animated
                     .then_some(ui.ctx().input(|input| input.time))
                     .unwrap_or(0.0);
+                let wireframe = self.wireframe;
                 let mesh = Arc::clone(&self.mesh);
                 let mut camera = self.camera.clone();
                 let callback = egui::PaintCallback {
                     rect: ui.max_rect(),
                     callback: Arc::new(CallbackFn::new(move |info, painter| {
-                        mesh.lock().paint(painter.gl(), time, aspect_ratio, &camera);
+                        mesh.lock().paint(painter.gl(), time, aspect_ratio, &camera, wireframe);
                     })),
                 };
                 ui.painter().add(callback);
@@ -309,7 +313,7 @@ impl Mesh {
         }
     }
 
-    fn paint(&self, gl: &glow::Context, time: f64, aspect_ratio: f32, camera: &Camera) {
+    fn paint(&self, gl: &glow::Context, time: f64, aspect_ratio: f32, camera: &Camera, wireframe: bool) {
         use glow::HasContext;
 
         unsafe {
@@ -338,8 +342,12 @@ impl Mesh {
             let model = uv::Mat4::identity() * rot.into_matrix().into_homogeneous();
             push_matrix("model", model);
 
+            if wireframe {
+                gl.polygon_mode(glow::FRONT_AND_BACK, glow::LINE);
+            }
             gl.draw_arrays(glow::TRIANGLES, 0, 36);
             gl.bind_vertex_array(None);
+            gl.polygon_mode(glow::FRONT_AND_BACK, glow::FILL);
         }
     }
 }
