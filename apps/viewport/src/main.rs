@@ -1,7 +1,8 @@
 #![allow(unused)]
 
+use std::default::Default;
 use bytemuck::cast_slice;
-use eframe::egui::{Context, Key, Modifiers, Sense};
+use eframe::egui::{Context, Key, Modifiers, PointerButton, Sense};
 use eframe::epaint::Vertex;
 use eframe::{egui, CreationContext, Frame};
 use egui::mutex::Mutex;
@@ -9,15 +10,69 @@ use egui_glow::CallbackFn;
 use glow::HasContext;
 use png::Reader;
 use std::convert::Into;
-use std::ops::BitXorAssign;
+use std::ops::{BitXorAssign, Sub};
 use std::sync::Arc;
 use ultraviolet as uv;
+use ultraviolet::{Vec3, Mat4};
+
+#[derive(Copy, Clone)]
+struct Camera {
+    eye: Vec3,
+    look_at: Vec3,
+    up_vec: Vec3,
+    view: Mat4,
+}
+
+impl Camera {
+    fn new(eye: Vec3) -> Self {
+        let up_vec = Vec3::unit_y();
+        let look_at = Vec3::zero();
+        let view = Mat4::look_at(eye, look_at, up_vec);
+        Camera {
+            eye,
+            look_at,
+            up_vec,
+            view
+        }
+    }
+    fn orbit(&mut self, delta_x: f32, delta_y: f32) {
+        let rot_y = -delta_x / 150.0;
+        let rot_mat = Mat4::from_rotation_y(rot_y);
+        self.eye = rot_mat.transform_vec3(self.eye);
+        self.view = Mat4::look_at(self.eye, self.look_at, self.up_vec);
+
+        let eye_dir = (self.look_at - self.eye).normalized();
+        let ortho = eye_dir.cross(self.up_vec);
+
+        let rot_ortho = -delta_y / 150.0;
+        let rot_mat = Mat4::from_rotation_around(ortho.into_homogeneous_vector(), rot_ortho);
+
+        let eye_local = rot_mat.transform_vec3(self.eye - self.look_at);
+
+        let new_eye = eye_local + self.look_at;
+        let new_view_dir = self.look_at - new_eye;
+
+        let cos_angle = new_view_dir.dot(self.up_vec) / (new_view_dir.mag() * self.up_vec.mag());
+
+        if cos_angle < 0.95 && cos_angle > -0.95 {
+            self.eye = eye_local + self.look_at;
+            self.view = Mat4::look_at(self.eye, self.look_at, self.up_vec);
+        }
+
+    }
+
+    fn view_matrix(&self) -> Mat4 {
+        self.view
+    }
+}
 
 struct ViewportApp {
     full_screen: bool,
     mesh: Arc<Mutex<Mesh>>,
     scale: f32,
     animated: bool,
+    camera: Camera,
+    movement: egui::Vec2,
 }
 
 impl ViewportApp {
@@ -27,7 +82,9 @@ impl ViewportApp {
             full_screen: false,
             mesh: Arc::new(Mutex::new(Mesh::cube(gl))),
             scale: 1.0,
-            animated: false,
+            animated: true,
+            camera: Camera::new(Vec3::new(0.0, 1.0, -2.5)),
+            movement: egui::Vec2::splat(0.0)
         }
     }
 }
@@ -40,37 +97,33 @@ impl eframe::App for ViewportApp {
             .min_width(200.0)
             .show(ctx, |ui| {
                 ui.heading("PARAMETERS");
-                // egui::ComboBox::from_label("")
-                //     .selected_text(label)
-                //     .show_ui(ui, |ui| {
-                //         ui.selectable_value(&mut self.draw_index, 0, "Square");
-                //         ui.selectable_value(&mut self.draw_index, 1, "Tri");
-                //     });
-                // if ui
-                //     .add(egui::Slider::new(&mut self.scale, 0.1..=1.0).text("Scale"))
-                //     .changed()
-                // {
-                //     let mesh = self.mesh.lock();
-                //     let mut vertices = &mut [-0.5f32, -0.5, 0.0, 0.5, -0.5, 0.0, 0.5, 0.5, 0.0];
-                //     vertices.iter_mut().for_each(|v| *v *= self.scale);
-                //     mesh.upload(vertices);
-                // }
                 ui.add(egui::Checkbox::new(&mut self.animated, "Animate"));
             });
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::Frame::canvas(ui.style()).show(ui, |ui| {
                 ui.allocate_rect(ui.max_rect(), Sense::click());
-                let aspect_ratio = ui.max_rect().aspect_ratio();
+                let rect = ui.max_rect();
+                let aspect_ratio = rect.aspect_ratio();
+
+                let mut mouse_movement = egui::Vec2::splat(0.0);
+                ui.input(|input| {
+                    if input.pointer.button_down(PointerButton::Primary) {
+                        mouse_movement += input.pointer.delta();
+                    }
+                });
+
+                self.camera.orbit(mouse_movement.x, mouse_movement.y);
 
                 let time = self
                     .animated
                     .then_some(ui.ctx().input(|input| input.time))
                     .unwrap_or(0.0);
                 let mesh = Arc::clone(&self.mesh);
+                let mut camera = self.camera.clone();
                 let callback = egui::PaintCallback {
                     rect: ui.max_rect(),
                     callback: Arc::new(CallbackFn::new(move |info, painter| {
-                        mesh.lock().paint(painter.gl(), time, aspect_ratio);
+                        mesh.lock().paint(painter.gl(), time, aspect_ratio, &camera);
                     })),
                 };
                 ui.painter().add(callback);
@@ -256,7 +309,7 @@ impl Mesh {
         }
     }
 
-    fn paint(&self, gl: &glow::Context, time: f64, aspect_ratio: f32) {
+    fn paint(&self, gl: &glow::Context, time: f64, aspect_ratio: f32, camera: &Camera) {
         use glow::HasContext;
 
         unsafe {
@@ -278,12 +331,11 @@ impl Mesh {
             let projection = uv::projection::perspective_gl(45.0, aspect_ratio, 0.01, 10.0);
             push_matrix("projection", projection);
 
-            let view = uv::Mat4::identity().translated(&uv::Vec3::new(0.0, 0.0, -2.0));
-            push_matrix("view", view);
+            // let view = uv::Mat4::identity().translated(&uv::Vec3::new(0.0, 0.0, -2.0));
+            push_matrix("view", camera.view_matrix());
 
-            let rot = uv::rotor::Rotor3::from_rotation_xz(time as f32);
-            let rot2 = uv::rotor::Rotor3::from_rotation_xy(30.0);
-            let model = uv::Mat4::identity() * (rot * rot2).into_matrix().into_homogeneous();
+            let rot = uv::rotor::Rotor3::from_rotation_xz(time as f32 * 0.5);
+            let model = uv::Mat4::identity() * rot.into_matrix().into_homogeneous();
             push_matrix("model", model);
 
             gl.draw_arrays(glow::TRIANGLES, 0, 36);
