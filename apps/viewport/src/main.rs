@@ -1,6 +1,5 @@
 #![allow(unused)]
 
-use std::default::Default;
 use bytemuck::cast_slice;
 use eframe::egui::{Context, Key, Modifiers, PointerButton, Sense};
 use eframe::epaint::Vertex;
@@ -10,10 +9,11 @@ use egui_glow::CallbackFn;
 use glow::HasContext;
 use png::Reader;
 use std::convert::Into;
+use std::default::Default;
 use std::ops::{BitXorAssign, Sub};
 use std::sync::Arc;
 use ultraviolet as uv;
-use ultraviolet::{Vec3, Mat4};
+use ultraviolet::{Mat4, Vec3};
 
 #[derive(Copy, Clone)]
 struct Camera {
@@ -32,7 +32,7 @@ impl Camera {
             eye,
             look_at,
             up_vec,
-            view
+            view,
         }
     }
     fn orbit(&mut self, delta_x: f32, delta_y: f32) {
@@ -58,7 +58,6 @@ impl Camera {
             self.eye = eye_local + self.look_at;
             self.view = Mat4::look_at(self.eye, self.look_at, self.up_vec);
         }
-
     }
 
     fn view_matrix(&self) -> Mat4 {
@@ -68,7 +67,7 @@ impl Camera {
 
 struct ViewportApp {
     full_screen: bool,
-    mesh: Arc<Mutex<Mesh>>,
+    asset: Arc<Mutex<Mesh>>,
     scale: f32,
     animated: bool,
     wireframe: bool,
@@ -81,12 +80,12 @@ impl ViewportApp {
         let gl = cc.gl.as_ref().expect("Could not init gl Context").clone();
         Self {
             full_screen: false,
-            mesh: Arc::new(Mutex::new(Mesh::cube(gl))),
+            asset: Arc::new(Mutex::new(Mesh::cube(gl))),
             scale: 1.0,
             animated: true,
             wireframe: false,
             camera: Camera::new(Vec3::new(0.0, 1.0, -2.5)),
-            movement: egui::Vec2::splat(0.0)
+            movement: egui::Vec2::splat(0.0),
         }
     }
 }
@@ -122,12 +121,13 @@ impl eframe::App for ViewportApp {
                     .then_some(ui.ctx().input(|input| input.time))
                     .unwrap_or(0.0);
                 let wireframe = self.wireframe;
-                let mesh = Arc::clone(&self.mesh);
+                let mesh = Arc::clone(&self.asset);
                 let mut camera = self.camera.clone();
                 let callback = egui::PaintCallback {
                     rect: ui.max_rect(),
                     callback: Arc::new(CallbackFn::new(move |info, painter| {
-                        mesh.lock().paint(painter.gl(), time, aspect_ratio, &camera, wireframe);
+                        mesh.lock()
+                            .paint(painter.gl(), time, aspect_ratio, &camera, wireframe);
                     })),
                 };
                 ui.painter().add(callback);
@@ -243,8 +243,6 @@ impl Mesh {
             gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, 0, 0);
             gl.enable_vertex_attrib_array(0);
 
-
-
             // UVs
             let uvbo = gl.create_buffer().expect("buffer");
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(uvbo));
@@ -255,8 +253,11 @@ impl Mesh {
             // Elements
             let ebo = gl.create_buffer().expect("ebo buffer");
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo));
-            gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, cast_slice(INDICES), glow::DYNAMIC_DRAW);
-
+            gl.buffer_data_u8_slice(
+                glow::ELEMENT_ARRAY_BUFFER,
+                cast_slice(INDICES),
+                glow::DYNAMIC_DRAW,
+            );
 
             let decoder = png::Decoder::new(std::fs::File::open("maps/crate.png").unwrap());
             let mut reader = decoder.read_info().unwrap();
@@ -305,7 +306,14 @@ impl Mesh {
         }
     }
 
-    fn paint(&self, gl: &glow::Context, time: f64, aspect_ratio: f32, camera: &Camera, wireframe: bool) {
+    fn paint(
+        &self,
+        gl: &glow::Context,
+        time: f64,
+        aspect_ratio: f32,
+        camera: &Camera,
+        wireframe: bool,
+    ) {
         use glow::HasContext;
 
         unsafe {
@@ -344,29 +352,6 @@ impl Mesh {
     }
 }
 
-const PLANE: &[f32] = &[
-    -0.5, 0.0, -0.5, // uv0 0 1 0
-    0.5, 0.0, -0.5,  // uv1 1 1 0
-    -0.5, 0.0, 0.5,  // uv3 0 0 0
-    0.5, 0.0, 0.5    // uv2 1 0 0
-];
-
-const UV: &[f32] = &[
-    0.0, 1.0, 0.0,
-    1.0, 1.0, 0.0,
-    1.0, 0.0, 0.0,
-    0.0, 0.0, 0.0,
-];
-
-// Houdini vertex indices
-// 0, 1, 3, 2
-// Count per face: [4]
-
-const INDICES: &[u16] = &[
-    2, 3, 1,
-
-    2, 1, 0
-];
 // facesFromhoudini = [4, 4, 4, 4,4 ]
 //
 // triangle_buffer = new Triang;e[num_triangles];
