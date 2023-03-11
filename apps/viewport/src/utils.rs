@@ -24,11 +24,11 @@ unsafe impl bytemuck::Zeroable for Vertex {}
 #[derive(Default)]
 pub struct MeshData {
     positions: Vec<f32>,
-    face_counts: Vec<i32>,
     normals: Option<Vec<f32>>,
     color: Option<Vec<f32>>,
     uvs: Option<Vec<f32>>,
-    pub vertex_array: Vec<Vertex>,
+    pub num_vertices: i32,
+    pub vertex_array: Vec<Vec3>,
     pub vao: Option<glow::VertexArray>,
     pub vbo: Option<glow::Buffer>,
     pub texture: Option<glow::Texture>,
@@ -57,22 +57,13 @@ impl MeshData {
         // Make VAO current
         gl.bind_vertex_array(Some(vao));
 
-        // if let Some(colors) = colors {
-        //     let color_buffer = gl.create_buffer().expect("color buffer");
-        //     gl.bind_buffer(glow::ARRAY_BUFFER, Some(color_buffer));
-        //     gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, cast_slice(colors), glow::DYNAMIC_DRAW);
-        //     gl.enable_vertex_attrib_array(1);
-        //     gl.vertex_attrib_pointer_f32(1, 3, glow::FLOAT, false, 0, 0);
-        //     gl.bind_buffer(glow::ARRAY_BUFFER, None)
-        // }
-
         // Bind VBO
         gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
         // Copy data to it
         gl.buffer_data_u8_slice(
             glow::ARRAY_BUFFER,
             cast_slice(&self.vertex_array),
-            glow::DYNAMIC_DRAW,
+            glow::STATIC_DRAW,
         );
 
         // Position
@@ -81,7 +72,7 @@ impl MeshData {
             stride += stride;
         }
         if self.uvs.is_some() {
-            stride += size_of::<Vec2>();
+            stride += size_of::<Vec3>();
         }
         gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, stride as i32, 0);
         // Enable attributes
@@ -103,7 +94,7 @@ impl MeshData {
             }
             let stride = gl.vertex_attrib_pointer_f32(
                 2,
-                2,
+                3,
                 glow::FLOAT,
                 false,
                 stride as i32,
@@ -147,7 +138,6 @@ impl MeshData {
         gl.generate_mipmap(glow::TEXTURE_2D);
 
         gl.use_program(Some(program));
-        gl.uniform_1_i32(gl.get_uniform_location(program, "myTexture").as_ref(), 0);
 
         self.vao = Some(vao);
         self.vbo = Some(vbo);
@@ -182,11 +172,12 @@ impl MeshData {
             }
         };
 
-        // TODO: Capacity
-        let mut vertex_array = Vec::new();
+        let num_vertices = (face_counts.iter().sum::<i32>() / 2) * 3;
+        let mut vertex_array = Vec::with_capacity(num_vertices as usize);
+
         let mut offset = 0;
 
-        for vertex_count_per_face in &face_counts {
+        for vertex_count_per_face in face_counts {
             let num_triangles = (vertex_count_per_face - 2) as usize;
             for i in 0..num_triangles {
                 let off0 = offset + 0;
@@ -213,84 +204,53 @@ impl MeshData {
                     positions[tri_c * 3 + 2],
                 );
 
-                let mut vertex = Vertex {
-                    position: pos_a,
-                    normal: Vec3::zero(),
-                    uv: Vec2::zero(),
-                };
-
-                if let Some(ref uvs) = uvs {
-                    vertex.uv = Vec2::new(uvs[off0 * 3 + 0], uvs[off0 * 3 + 1]);
-                }
+                // VTX 1
+                vertex_array.push(pos_a);
                 if let Some(ref normals) = normals {
-                    vertex.normal = Vec3::new(
+                    vertex_array.push(Vec3::new(
                         normals[off0 * 3 + 0],
                         normals[off0 * 3 + 1],
                         normals[off0 * 3 + 2],
-                    );
+                    ));
                 }
-                vertex_array.push(vertex);
-
-                let mut vertex = Vertex {
-                    position: pos_b,
-                    normal: Vec3::zero(),
-                    uv: Vec2::zero(),
-                };
-
                 if let Some(ref uvs) = uvs {
-                    vertex.uv = Vec2::new(uvs[off1 * 3 + 0], uvs[off1 * 3 + 1]);
+                    vertex_array.push(Vec3::new(uvs[off0 * 3 + 0], uvs[off0 * 3 + 1], 0.0));
                 }
+
+                // VTX 2
+                vertex_array.push(pos_b);
                 if let Some(ref normals) = normals {
-                    vertex.normal = Vec3::new(
+                    vertex_array.push(Vec3::new(
                         normals[off1 * 3 + 0],
                         normals[off1 * 3 + 1],
                         normals[off1 * 3 + 2],
-                    );
+                    ));
                 }
-                vertex_array.push(vertex);
-
-                let mut vertex = Vertex {
-                    position: pos_c,
-                    normal: Vec3::zero(),
-                    uv: Vec2::zero(),
-                };
-
                 if let Some(ref uvs) = uvs {
-                    vertex.uv = Vec2::new(uvs[off2 * 3 + 0], uvs[off2 * 3 + 1]);
+                    vertex_array.push(Vec3::new(uvs[off1 * 3 + 0], uvs[off1 * 3 + 1], 0.0));
                 }
+
+                // VTX 3
+                vertex_array.push(pos_c);
                 if let Some(ref normals) = normals {
-                    vertex.normal = Vec3::new(
+                    vertex_array.push(Vec3::new(
                         normals[off2 * 3 + 0],
                         normals[off2 * 3 + 1],
                         normals[off2 * 3 + 2],
-                    );
+                    ));
                 }
-                vertex_array.push(vertex);
-
-                // let uv_a = Vec2::new(uvs[off0 * 3 + 0], uv_attr[off0 * 3 + 1]);
-                // let uv_b = Vec2::new(uvs[off1 * 3 + 0], uv_attr[off1 * 3 + 1]);
-                // let uv_c = Vec2::new(uvs[off2 * 3 + 0], uv_attr[off2 * 3 + 1]);
-
-                // vertex_array.extend_from_slice(&[
-                //     Vertex {
-                //         pos: pos_a,
-                //         uv: uv_a,
-                //     },
-                //     Vertex {
-                //         pos: pos_b,
-                //         uv: uv_b,
-                //     },
-                //     Vertex {
-                //         pos: pos_c,
-                //         uv: uv_c,
-                //     },
-                // ]);
+                if let Some(ref uvs) = uvs {
+                    vertex_array.push(Vec3::new(uvs[off2 * 3 + 0], uvs[off2 * 3 + 1], 0.0));
+                }
             }
+            offset += vertex_count_per_face as usize;
         }
 
+        // dbg!(&vertex_array);
+
+        dbg!(num_vertices);
         Ok(Self {
             positions,
-            face_counts,
             normals,
             color: None,
             uvs,
@@ -298,6 +258,7 @@ impl MeshData {
             vao: None,
             vbo: None,
             texture: None,
+            num_vertices: num_vertices as i32,
         })
     }
 }
@@ -367,6 +328,7 @@ impl Asset {
         unsafe {
             self.gl.enable(glow::DEPTH_TEST);
             self.gl.clear(glow::DEPTH_BUFFER_BIT);
+            self.gl.front_face(glow::CW);
             self.gl.bind_vertex_array(self.renderable.mesh.vao);
             self.gl.active_texture(glow::TEXTURE0);
             self.gl
@@ -387,7 +349,8 @@ impl Asset {
             push_matrix("view", camera.view_matrix());
             push_matrix("model", Mat4::identity());
 
-            self.gl.draw_arrays(glow::TRIANGLES, 0, 6);
+            self.gl
+                .draw_arrays(glow::TRIANGLES, 0, self.renderable.mesh.num_vertices);
             self.gl.bind_vertex_array(None);
         }
     }
