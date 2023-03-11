@@ -1,5 +1,5 @@
 #![allow(unused)]
-mod hapi_geo;
+mod utils;
 
 use hapi_rs::attribute::NumericAttr;
 use hapi_rs::enums::AttributeOwner;
@@ -42,7 +42,7 @@ fn main() -> Result<()> {
     // dbg!(&uv_attr.len() / 3);
     // dbg!(face_counts);
 
-    let mesh = hapi_geo::MeshData::from_houdini_geo(&geo)?;
+    let mesh = utils::MeshData::from_houdini_geo(&geo)?;
     dbg!(&mesh.vertex_array);
 
     // let mut vertices = Vec::new();
