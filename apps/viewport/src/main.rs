@@ -67,10 +67,9 @@ impl Camera {
 
 struct ViewportApp {
     full_screen: bool,
-    asset: Arc<Mutex<Mesh>>,
+    mesh: Arc<Mutex<Mesh>>,
     scale: f32,
     animated: bool,
-    wireframe: bool,
     camera: Camera,
     movement: egui::Vec2,
 }
@@ -80,10 +79,9 @@ impl ViewportApp {
         let gl = cc.gl.as_ref().expect("Could not init gl Context").clone();
         Self {
             full_screen: false,
-            asset: Arc::new(Mutex::new(Mesh::cube(gl))),
+            mesh: Arc::new(Mutex::new(Mesh::cube(gl))),
             scale: 1.0,
             animated: true,
-            wireframe: false,
             camera: Camera::new(Vec3::new(0.0, 1.0, -2.5)),
             movement: egui::Vec2::splat(0.0),
         }
@@ -99,7 +97,6 @@ impl eframe::App for ViewportApp {
             .show(ctx, |ui| {
                 ui.heading("PARAMETERS");
                 ui.add(egui::Checkbox::new(&mut self.animated, "Animate"));
-                ui.add(egui::Checkbox::new(&mut self.wireframe, "Wireframe"));
             });
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::Frame::canvas(ui.style()).show(ui, |ui| {
@@ -120,14 +117,12 @@ impl eframe::App for ViewportApp {
                     .animated
                     .then_some(ui.ctx().input(|input| input.time))
                     .unwrap_or(0.0);
-                let wireframe = self.wireframe;
-                let mesh = Arc::clone(&self.asset);
+                let mesh = Arc::clone(&self.mesh);
                 let mut camera = self.camera.clone();
                 let callback = egui::PaintCallback {
                     rect: ui.max_rect(),
                     callback: Arc::new(CallbackFn::new(move |info, painter| {
-                        mesh.lock()
-                            .paint(painter.gl(), time, aspect_ratio, &camera, wireframe);
+                        mesh.lock().paint(painter.gl(), time, aspect_ratio, &camera);
                     })),
                 };
                 ui.painter().add(callback);
@@ -211,7 +206,7 @@ struct Mesh {
 
 impl Mesh {
     fn cube(gl: Arc<glow::Context>) -> Self {
-        Mesh::setup(gl, PLANE, None)
+        Mesh::setup(gl, CUBE, None)
     }
 
     fn upload(&self, vertices: &[f32]) {
@@ -235,29 +230,36 @@ impl Mesh {
             // Create Vertex Array Object. This is the object that describes what and how to
             // draw. Think of it as a preset.
             let vao = gl.create_vertex_array().expect("vertex array");
+            // Generate buffers
+            let vbo = gl.create_buffer().expect("buffer");
+            let ebo = gl.create_buffer().expect("ebo buffer");
+            // Make VAO current
             gl.bind_vertex_array(Some(vao));
 
-            let vbo = gl.create_buffer().expect("buffer");
+            if let Some(colors) = colors {
+                let color_buffer = gl.create_buffer().expect("color buffer");
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(color_buffer));
+                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, cast_slice(colors), glow::DYNAMIC_DRAW);
+                gl.enable_vertex_attrib_array(1);
+                gl.vertex_attrib_pointer_f32(1, 3, glow::FLOAT, false, 0, 0);
+                gl.bind_buffer(glow::ARRAY_BUFFER, None)
+            }
+
+            // Bind VBO
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
+            // Copy data to it
             gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, cast_slice(vertices), glow::DYNAMIC_DRAW);
-            gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, 0, 0);
+
+            // Create attribute pointers at location(X) in shader
+            let stride = (std::mem::size_of::<f32>() * 5) as i32;
+            gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, stride, 0);
+            // Enable attributes
             gl.enable_vertex_attrib_array(0);
 
-            // UVs
-            let uvbo = gl.create_buffer().expect("buffer");
-            gl.bind_buffer(glow::ARRAY_BUFFER, Some(uvbo));
-            gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, cast_slice(UV), glow::DYNAMIC_DRAW);
-            gl.vertex_attrib_pointer_f32(1, 3, glow::FLOAT, false, 0, 0);
+            let offset = (std::mem::size_of::<f32>() * 3) as i32;
+            gl.vertex_attrib_pointer_f32(1, 2, glow::FLOAT, false, stride, offset);
+            // Enable attributes
             gl.enable_vertex_attrib_array(1);
-
-            // Elements
-            let ebo = gl.create_buffer().expect("ebo buffer");
-            gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo));
-            gl.buffer_data_u8_slice(
-                glow::ELEMENT_ARRAY_BUFFER,
-                cast_slice(INDICES),
-                glow::DYNAMIC_DRAW,
-            );
 
             let decoder = png::Decoder::new(std::fs::File::open("maps/crate.png").unwrap());
             let mut reader = decoder.read_info().unwrap();
@@ -306,14 +308,7 @@ impl Mesh {
         }
     }
 
-    fn paint(
-        &self,
-        gl: &glow::Context,
-        time: f64,
-        aspect_ratio: f32,
-        camera: &Camera,
-        wireframe: bool,
-    ) {
+    fn paint(&self, gl: &glow::Context, time: f64, aspect_ratio: f32, camera: &Camera) {
         use glow::HasContext;
 
         unsafe {
@@ -335,50 +330,96 @@ impl Mesh {
             let projection = uv::projection::perspective_gl(45.0, aspect_ratio, 0.01, 10.0);
             push_matrix("projection", projection);
 
+            // let view = uv::Mat4::identity().translated(&uv::Vec3::new(0.0, 0.0, -2.0));
             push_matrix("view", camera.view_matrix());
 
             let rot = uv::rotor::Rotor3::from_rotation_xz(time as f32 * 0.5);
             let model = uv::Mat4::identity() * rot.into_matrix().into_homogeneous();
             push_matrix("model", model);
 
-            if wireframe {
-                gl.polygon_mode(glow::FRONT_AND_BACK, glow::LINE);
-            }
-            // gl.draw_arrays(glow::TRIANGLES, 0, 36);
-            gl.draw_elements(glow::TRIANGLES, 6, glow::UNSIGNED_SHORT, 0);
+            gl.draw_arrays(glow::TRIANGLES, 0, 36);
             gl.bind_vertex_array(None);
-            gl.polygon_mode(glow::FRONT_AND_BACK, glow::FILL);
         }
     }
 }
 
-// facesFromhoudini = [4, 4, 4, 4,4 ]
-//
-// triangle_buffer = new Triang;e[num_triangles];
-//
-// struct Triangle {
-//     vec3 points[3];
-//     vec2 uvs[3];
-//     vec3 normals [3];
-// }
-//
-// int offset = 0;
-// for (int face = 0; face < num_faces; face++){
-//     num_vertices_in_face = facesFromHoudini[face];
-//     num_triangles = num_vertices_in_face - 2;
-//     for (int i = 0 ; i < num_triangles; i++) {
-//         int triIndexA = vertexIndicesFromHoudini[offset + 0];
-//         int triIndexB = vertexIndicesFromHoudini[offset + i + 1];
-//         int triIndexC = vertexIndicesFromHoudini[offset + i + 2];
-//
-//         Triangle tri = {points, uvs, normals};
-//         tri.points[0] = PLANE[triIndexA];
-//         tri.points[1] = PLANE[triIndexB];
-//         tri.points[2] = PLANE[triIndexC];
-//
-//         tri.uvs[0] = UV[offset + 0];
-//         tri.uvs[0] = UV[offset + i + 1];
-//         tri.uvs[0] = UV[offset + i + 2];
-//     }
-//     offset +  + num_vertices_in_face
-// }
+#[rustfmt::skip]
+const CUBE: &[f32] = &[
+        -0.5, -0.5, -0.5,  0.0, 0.0,
+         0.5, -0.5, -0.5,  1.0, 0.0,
+         0.5,  0.5, -0.5,  1.0, 1.0,
+         0.5,  0.5, -0.5,  1.0, 1.0,
+        -0.5,  0.5, -0.5,  0.0, 1.0,
+        -0.5, -0.5, -0.5,  0.0, 0.0,
+
+        -0.5, -0.5,  0.5,  0.0, 0.0,
+         0.5, -0.5,  0.5,  1.0, 0.0,
+         0.5,  0.5,  0.5,  1.0, 1.0,
+         0.5,  0.5,  0.5,  1.0, 1.0,
+        -0.5,  0.5,  0.5,  0.0, 1.0,
+        -0.5, -0.5,  0.5,  0.0, 0.0,
+
+        -0.5,  0.5,  0.5,  1.0, 0.0,
+        -0.5,  0.5, -0.5,  1.0, 1.0,
+        -0.5, -0.5, -0.5,  0.0, 1.0,
+        -0.5, -0.5, -0.5,  0.0, 1.0,
+        -0.5, -0.5,  0.5,  0.0, 0.0,
+        -0.5,  0.5,  0.5,  1.0, 0.0,
+
+         0.5,  0.5,  0.5,  1.0, 0.0,
+         0.5,  0.5, -0.5,  1.0, 1.0,
+         0.5, -0.5, -0.5,  0.0, 1.0,
+         0.5, -0.5, -0.5,  0.0, 1.0,
+         0.5, -0.5,  0.5,  0.0, 0.0,
+         0.5,  0.5,  0.5,  1.0, 0.0,
+
+        -0.5, -0.5, -0.5,  0.0, 1.0,
+         0.5, -0.5, -0.5,  1.0, 1.0,
+         0.5, -0.5,  0.5,  1.0, 0.0,
+         0.5, -0.5,  0.5,  1.0, 0.0,
+        -0.5, -0.5,  0.5,  0.0, 0.0,
+        -0.5, -0.5, -0.5,  0.0, 1.0,
+
+        -0.5,  0.5, -0.5,  0.0, 1.0,
+         0.5,  0.5, -0.5,  1.0, 1.0,
+         0.5,  0.5,  0.5,  1.0, 0.0,
+         0.5,  0.5,  0.5,  1.0, 0.0,
+        -0.5,  0.5,  0.5,  0.0, 0.0,
+        -0.5,  0.5, -0.5,  0.0, 1.0
+];
+
+#[rustfmt::skip]
+const INDICES: &[i32] = &[
+    // front
+    0, 4, 1,
+    4, 5, 1,
+    // right
+    1, 5, 6,
+    6, 2, 1,
+    // back
+    6, 3, 2,
+    6, 7, 3,
+    // left
+    7, 0, 3,
+    7, 4, 0,
+    // bottom
+    1, 3, 0,
+    1, 2, 3,
+    // top
+    4, 6, 5,
+    4, 7, 6
+];
+
+#[rustfmt::skip]
+const COLORS: &[f32] = &[
+    // front colors
+    1.0, 0.0, 0.0,
+    0.0, 1.0, 0.0,
+    0.0, 0.0, 1.0,
+    1.0, 1.0, 1.0,
+    // back colors
+    1.0, 0.0, 0.0,
+    0.0, 1.0, 0.0,
+    0.0, 0.0, 1.0,
+    1.0, 1.0, 1.0,
+];
