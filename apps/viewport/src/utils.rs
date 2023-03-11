@@ -104,36 +104,51 @@ impl MeshData {
             gl.enable_vertex_attrib_array(2);
         }
 
-        let decoder = png::Decoder::new(std::fs::File::open("maps/crate.png").unwrap());
-        let mut reader = decoder.read_info().unwrap();
-        let mut buf = vec![0; reader.output_buffer_size()];
-        reader.next_frame(&mut buf).unwrap();
-        let (w, h) = (reader.info().width, reader.info().height);
-
         let texture = gl.create_texture().expect("texture");
         gl.bind_texture(glow::TEXTURE_2D, Some(texture));
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::REPEAT as i32);
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::REPEAT as i32);
-        gl.tex_parameter_i32(
-            glow::TEXTURE_2D,
-            glow::TEXTURE_MIN_FILTER,
-            glow::LINEAR as i32,
-        );
-        gl.tex_parameter_i32(
-            glow::TEXTURE_2D,
-            glow::TEXTURE_MAG_FILTER,
-            glow::LINEAR as i32,
-        );
+
+        let (texture_pixels, width, height) = match self.uvs {
+            Some(_) => {
+                let decoder = png::Decoder::new(std::fs::File::open("maps/crate.png").unwrap());
+                let mut reader = decoder.read_info().unwrap();
+                let mut pixels = vec![0; reader.output_buffer_size()];
+                reader.next_frame(&mut pixels).unwrap();
+                let (w, h) = (reader.info().width, reader.info().height);
+                gl.tex_parameter_i32(
+                    glow::TEXTURE_2D,
+                    glow::TEXTURE_MIN_FILTER,
+                    glow::LINEAR as i32,
+                );
+                gl.tex_parameter_i32(
+                    glow::TEXTURE_2D,
+                    glow::TEXTURE_MAG_FILTER,
+                    glow::LINEAR as i32,
+                );
+                (pixels, w, h)
+            }
+            None => {
+                // TODO: Not working when there's no uv coords.
+                let pixels = vec![
+                    0xff, 0x00, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0x00, 0xff, 0xff, 0xff,
+                    0xff, 0x00, 0xff,
+                ];
+                let pixels: Vec<u8> = bytemuck::cast_slice(&[1.0, 1.0, 1.0]).into();
+                (pixels, 1, 1)
+            }
+        };
+
         gl.tex_image_2d(
             glow::TEXTURE_2D,
             0,
             glow::RGB as i32,
-            w as i32,
-            h as i32,
+            width as i32,
+            height as i32,
             0,
             glow::RGB,
             glow::UNSIGNED_BYTE,
-            Some(&buf),
+            Some(&texture_pixels),
         );
         gl.generate_mipmap(glow::TEXTURE_2D);
 
@@ -269,8 +284,8 @@ unsafe fn compile_gl_program(gl: &glow::Context) -> glow::Program {
     let program = gl.create_program().expect("gl program");
 
     let shader_sources = [
-        (glow::VERTEX_SHADER, include_str!("cube.vert")),
-        (glow::FRAGMENT_SHADER, include_str!("cube.frag")),
+        (glow::VERTEX_SHADER, include_str!("shader.vert")),
+        (glow::FRAGMENT_SHADER, include_str!("shader.frag")),
     ];
     let shaders: Vec<_> = shader_sources
         .into_iter()
@@ -348,6 +363,13 @@ impl Asset {
             push_matrix("projection", camera.projection_matrix());
             push_matrix("view", camera.view_matrix());
             push_matrix("model", Mat4::identity());
+
+            self.gl.uniform_3_f32_slice(
+                self.gl
+                    .get_uniform_location(self.renderable.program, "cameraPos")
+                    .as_ref(),
+                camera.position().as_slice(),
+            );
 
             self.gl
                 .draw_arrays(glow::TRIANGLES, 0, self.renderable.mesh.num_vertices);

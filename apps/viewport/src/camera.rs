@@ -57,4 +57,8 @@ impl Camera {
     pub fn set_aspect_ratio(&mut self, aspect_ratio: f32) {
         self.aspect_ratio = aspect_ratio;
     }
+
+    pub fn position(&self) -> Vec3 {
+        self.eye
+    }
 }
