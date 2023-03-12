@@ -2,6 +2,7 @@ use bytemuck::cast_slice;
 use hapi_rs::attribute::NumericAttr;
 use hapi_rs::geometry::AttributeOwner;
 use hapi_rs::geometry::Geometry;
+use hapi_rs::session::HoudiniNode;
 use hapi_rs::Result;
 use std::collections::HashMap;
 use std::mem::size_of;
@@ -41,10 +42,18 @@ pub struct Renderable {
     pub program: glow::Program,
 }
 
+pub struct AssetParameters(pub HashMap<String, UiParameter>);
+
+impl AssetParameters {
+    pub fn from_node(node: &HoudiniNode) -> Result<Self> {
+        Ok(Self(build_parm_map(node.parameters()?)?))
+    }
+}
+
 pub struct Asset {
     pub renderable: Renderable,
-    pub node: Geometry,
-    pub parameters: HashMap<String, UiParameter>,
+    pub asset_node: HoudiniNode,
+    pub geometry_node: Geometry,
     pub gl: Arc<glow::Context>,
 }
 
@@ -264,9 +273,7 @@ impl MeshData {
             offset += vertex_count_per_face as usize;
         }
 
-        // dbg!(&vertex_array);
-
-        dbg!(num_vertices);
+        // eprintln!("Mesh number vertices: {num_vertices}");
         Ok(Self {
             positions,
             normals,
@@ -340,18 +347,21 @@ impl Asset {
             program
         };
 
-        let parameters = build_parm_map(asset.parameters()?)?;
-
         Ok(Self {
             gl,
+            asset_node: asset,
             renderable: Renderable { mesh, program },
-            node: geo,
-            parameters,
+            geometry_node: geo,
         })
     }
 
     pub fn rebuild_mesh(&mut self) -> Result<()> {
-        self.renderable.mesh = MeshData::from_houdini_geo(&self.node)?;
+        self.renderable.mesh = MeshData::from_houdini_geo(&self.geometry_node)?;
+        unsafe {
+            self.renderable
+                .mesh
+                .setup_gl(self.gl.clone(), self.renderable.program);
+        }
         Ok(())
     }
 

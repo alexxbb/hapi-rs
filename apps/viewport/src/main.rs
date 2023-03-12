@@ -21,13 +21,14 @@ use ultraviolet::{Mat4, Vec3};
 use hapi_rs::parameter::Parameter;
 
 use crate::parameters::{ParmKind, UiParameter};
-use utils::{Asset, MeshData};
+use utils::{Asset, AssetParameters, MeshData};
 
 static OTL: &str = r#"C:\Github\hapi-rs\apps\viewport\otls\hapi_opengl.hda"#;
 
 struct ViewportApp {
     full_screen: bool,
     asset: Arc<Mutex<Asset>>,
+    asset_parameters: Arc<Mutex<AssetParameters>>,
     scale: f32,
     turntable: bool,
     camera: Camera,
@@ -38,9 +39,13 @@ impl ViewportApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let gl = cc.gl.as_ref().expect("Could not init gl Context").clone();
         let asset = Asset::load_hda(gl, OTL).expect("Load HDA");
+        let asset_parameters =
+            AssetParameters::from_node(&asset.asset_node).expect("Asset parameters");
+
         Self {
             full_screen: false,
             asset: Arc::new(Mutex::new(asset)),
+            asset_parameters: Arc::new(Mutex::new(asset_parameters)),
             scale: 1.0,
             turntable: false,
             camera: Camera::new(Vec3::new(0.0, 1.0, -2.0)),
@@ -60,13 +65,14 @@ impl eframe::App for ViewportApp {
                 ui.add(egui::Checkbox::new(&mut self.turntable, "Turntable"));
                 let mut asset = self.asset.lock();
 
-                let mut rebuild_fn = || {
-                    asset.node.node.cook().expect("Node cook");
+                let mut rebuild_fn = move || {
+                    asset.geometry_node.node.cook().expect("Node cook");
                     asset.rebuild_mesh().expect("rebuild");
+                    ctx.request_repaint();
                 };
 
-                let mut parameters = &mut asset.parameters;
-                for (parm_name, ui_parm) in parameters.iter_mut() {
+                let mut parameters = &mut self.asset_parameters.lock();
+                for (parm_name, ui_parm) in parameters.0.iter_mut() {
                     let UiParameter {
                         parameter: hou_parm,
                         kind: parm_kind,
@@ -84,13 +90,34 @@ impl eframe::App for ViewportApp {
                                                 Parameter::Int(p) => {
                                                     p.set(0, *current).expect("Parameter Update");
                                                     rebuild_fn();
-                                                    // asset.rebuild_mesh().expect("New mesh");
                                                 }
                                                 _ => unreachable!(),
                                             }
                                         }
                                     }
                                 });
+                        }
+                        ParmKind::Float { ref mut current } => {
+                            if ui.add(egui::Slider::new(current, 0.0..=10.0)).changed() {
+                                match hou_parm {
+                                    Parameter::Float(p) => {
+                                        p.set(0, *current).expect("Parameter Update");
+                                        rebuild_fn();
+                                    }
+                                    _ => unreachable!(),
+                                }
+                            }
+                        }
+                        ParmKind::Toggle { ref mut current } => {
+                            if ui.add(egui::Checkbox::new(current, parm_name)).changed() {
+                                match hou_parm {
+                                    Parameter::Int(p) => {
+                                        p.set(0, *current as i32).expect("Parameter Update");
+                                        rebuild_fn();
+                                    }
+                                    _ => unreachable!(),
+                                }
+                            }
                         }
                         _ => {}
                     }
@@ -105,11 +132,15 @@ impl eframe::App for ViewportApp {
                 let mut wheel_zoom = 0.0f32;
                 ui.input(|input| {
                     if input.pointer.button_down(PointerButton::Primary) {
-                        mouse_movement += input.pointer.delta();
+                        if rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
+                            mouse_movement += input.pointer.delta();
+                        }
                     }
                     if input.pointer.button_down(PointerButton::Secondary) {
-                        let delta = input.pointer.delta() * 0.005;
-                        wheel_zoom += delta.x + delta.y;
+                        if rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
+                            let delta = input.pointer.delta() * 0.005;
+                            wheel_zoom += delta.x + delta.y;
+                        }
                     }
                 });
 
@@ -155,7 +186,7 @@ impl eframe::App for ViewportApp {
 
 fn main() {
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(900.0, 700.0)),
+        initial_window_size: Some(egui::vec2(1200.0, 800.0)),
         initial_window_pos: Some(egui::Pos2::new(1000.0, 500.0)),
         multisampling: 8,
         renderer: eframe::Renderer::Glow,
