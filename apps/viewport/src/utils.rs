@@ -3,10 +3,12 @@ use hapi_rs::attribute::NumericAttr;
 use hapi_rs::geometry::AttributeOwner;
 use hapi_rs::geometry::Geometry;
 use hapi_rs::Result;
+use std::collections::HashMap;
 use std::mem::size_of;
 use std::sync::Arc;
 
 use crate::camera::Camera;
+use crate::parameters::{build_parm_map, UiParameter};
 
 use ultraviolet::{Mat4, Vec2, Vec3};
 
@@ -41,7 +43,8 @@ pub struct Renderable {
 
 pub struct Asset {
     pub renderable: Renderable,
-    pub node: Option<Geometry>,
+    pub node: Geometry,
+    pub parameters: HashMap<String, UiParameter>,
     pub gl: Arc<glow::Context>,
 }
 
@@ -337,14 +340,22 @@ impl Asset {
             program
         };
 
+        let parameters = build_parm_map(asset.parameters()?)?;
+
         Ok(Self {
             gl,
             renderable: Renderable { mesh, program },
-            node: Some(geo),
+            node: geo,
+            parameters,
         })
     }
 
-    pub fn paint(&self, camera: &Camera) {
+    pub fn rebuild_mesh(&mut self) -> Result<()> {
+        self.renderable.mesh = MeshData::from_houdini_geo(&self.node)?;
+        Ok(())
+    }
+
+    pub fn draw(&self, camera: &Camera) {
         use glow::HasContext;
 
         unsafe {
