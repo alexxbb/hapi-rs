@@ -18,7 +18,7 @@ uniform mat4 projection;
 
 void main()
 {
-  vec2 WIN_SCALE = vec2(100.0);
+  vec2 WIN_SCALE = vec2(200.0);
   vec4 p0_3d = gl_in[0].gl_Position;
   vec4 p1_3d = gl_in[1].gl_Position;
   vec4 p2_3d = gl_in[2].gl_Position;

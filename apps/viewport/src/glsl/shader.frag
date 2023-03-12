@@ -18,7 +18,7 @@ void main() {
     vec3 light_color = vec3(1.0);
     float specularStrength = 0.7;
 
-    vec3 wire_color = vec3(0.1, 1.0, 0.1);
+    vec3 wire_color = vec3(0.0, 0.0, 0.1);
 
     // Wireframe
     vec3 dist_vec = Dist;

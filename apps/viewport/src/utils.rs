@@ -284,9 +284,9 @@ unsafe fn compile_gl_program(gl: &glow::Context) -> glow::Program {
     let program = gl.create_program().expect("gl program");
 
     let shader_sources = [
-        (glow::VERTEX_SHADER, include_str!("shader.vert")),
-        (glow::FRAGMENT_SHADER, include_str!("shader.frag")),
-        (glow::GEOMETRY_SHADER, include_str!("shader.geom")),
+        (glow::VERTEX_SHADER, include_str!("glsl/shader.vert")),
+        (glow::FRAGMENT_SHADER, include_str!("glsl/shader.frag")),
+        (glow::GEOMETRY_SHADER, include_str!("glsl/shader.geom")),
     ];
     let shaders: Vec<_> = shader_sources
         .into_iter()

@@ -18,7 +18,7 @@ use ultraviolet as uv;
 use ultraviolet::{Mat4, Vec3};
 use utils::{Asset, MeshData};
 
-static OTL: &str = r#"C:\Github\hapi-rs\apps\viewport\otls\hapi_cube.hda"#;
+static OTL: &str = r#"C:\Github\hapi-rs\apps\viewport\otls\hapi_opengl.hda"#;
 
 struct ViewportApp {
     full_screen: bool,
@@ -38,7 +38,7 @@ impl ViewportApp {
             asset: Arc::new(Mutex::new(asset)),
             scale: 1.0,
             animated: true,
-            camera: Camera::new(Vec3::new(0.0, 1.0, -2.5)),
+            camera: Camera::new(Vec3::new(0.0, 1.0, -2.0)),
             movement: egui::Vec2::splat(0.0),
         }
     }
@@ -109,7 +109,7 @@ impl eframe::App for ViewportApp {
 
 fn main() {
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(700.0, 500.0)),
+        initial_window_size: Some(egui::vec2(900.0, 700.0)),
         initial_window_pos: Some(egui::Pos2::new(1000.0, 500.0)),
         multisampling: 8,
         renderer: eframe::Renderer::Glow,
@@ -119,15 +119,3 @@ fn main() {
     let creator: eframe::AppCreator = Box::new(move |cc| Box::new(ViewportApp::new(cc)));
     eframe::run_native("HAPI Viewport", options, creator);
 }
-
-// fn upload(&self, vertices: &[f32]) {
-//     unsafe {
-//         self.gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
-//         self.gl.buffer_data_u8_slice(
-//             glow::ARRAY_BUFFER,
-//             cast_slice(vertices),
-//             glow::DYNAMIC_DRAW,
-//         );
-//         self.gl.bind_buffer(glow::ARRAY_BUFFER, None);
-//     }
-// }
