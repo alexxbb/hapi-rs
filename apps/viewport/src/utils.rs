@@ -286,16 +286,23 @@ unsafe fn compile_gl_program(gl: &glow::Context) -> glow::Program {
     let shader_sources = [
         (glow::VERTEX_SHADER, include_str!("shader.vert")),
         (glow::FRAGMENT_SHADER, include_str!("shader.frag")),
+        (glow::GEOMETRY_SHADER, include_str!("shader.geom")),
     ];
     let shaders: Vec<_> = shader_sources
         .into_iter()
         .map(|(s_type, s_source)| {
+            let shader_type = match s_type {
+                glow::VERTEX_SHADER => "vertex",
+                glow::FRAGMENT_SHADER => "fragment",
+                glow::GEOMETRY_SHADER => "geometry",
+                _ => unreachable!("Unknown shader type"),
+            };
             let shader = gl.create_shader(s_type).expect("Cannot create shader");
             gl.shader_source(shader, s_source);
             gl.compile_shader(shader);
             assert!(
                 gl.get_shader_compile_status(shader),
-                "Failed to compile shader {s_type}: {}",
+                "Failed to compile \"{shader_type}\" shader: {}",
                 gl.get_shader_info_log(shader)
             );
             gl.attach_shader(program, shader);

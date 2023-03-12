@@ -66,7 +66,7 @@ impl eframe::App for ViewportApp {
                         mouse_movement += input.pointer.delta();
                     }
                     if input.pointer.button_down(PointerButton::Secondary) {
-                        let delta = input.pointer.delta() * 0.01;
+                        let delta = input.pointer.delta() * 0.005;
                         wheel_zoom += delta.x + delta.y;
                     }
                 });
