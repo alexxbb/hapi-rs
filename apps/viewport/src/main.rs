@@ -60,14 +60,20 @@ impl eframe::App for ViewportApp {
                 let rect = ui.max_rect();
 
                 let mut mouse_movement = egui::Vec2::splat(0.0);
+                let mut wheel_zoom = 0.0f32;
                 ui.input(|input| {
                     if input.pointer.button_down(PointerButton::Primary) {
                         mouse_movement += input.pointer.delta();
+                    }
+                    if input.pointer.button_down(PointerButton::Secondary) {
+                        let delta = input.pointer.delta() * 0.01;
+                        wheel_zoom += delta.x + delta.y;
                     }
                 });
 
                 self.camera.orbit(mouse_movement.x, mouse_movement.y);
                 self.camera.set_aspect_ratio(rect.aspect_ratio());
+                self.camera.set_zoom(wheel_zoom);
 
                 let time = self
                     .animated

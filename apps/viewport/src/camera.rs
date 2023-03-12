@@ -7,6 +7,7 @@ pub struct Camera {
     up_vec: Vec3,
     view: Mat4,
     aspect_ratio: f32,
+    zoom: f32,
 }
 
 impl Camera {
@@ -20,6 +21,7 @@ impl Camera {
             up_vec,
             view,
             aspect_ratio: 1.0,
+            zoom: 1.0,
         }
     }
     pub fn orbit(&mut self, delta_x: f32, delta_y: f32) {
@@ -52,10 +54,15 @@ impl Camera {
     }
 
     pub fn projection_matrix(&self) -> Mat4 {
-        ultraviolet::projection::perspective_gl(45.0, self.aspect_ratio, 0.01, 10.0)
+        ultraviolet::projection::perspective_gl(45.0, self.aspect_ratio, 0.01, 20.0)
     }
     pub fn set_aspect_ratio(&mut self, aspect_ratio: f32) {
         self.aspect_ratio = aspect_ratio;
+    }
+
+    pub fn set_zoom(&mut self, zoom: f32) {
+        let dir = (self.look_at - self.eye).normalized();
+        self.eye += dir * zoom;
     }
 
     pub fn position(&self) -> Vec3 {

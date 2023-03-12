@@ -12,7 +12,7 @@ uniform vec3 cameraPos;
 
 void main() {
     vec3 ambient_color = vec3(0.05, 0.05, 0.1);
-    vec3 obj_color = vec3(0.8, 0.5, 0.7);
+    vec3 obj_color = vec3(0.8, 0.9, 0.9);
     vec3 light_color = vec3(1.0);
     float specularStrength = 0.7;
 
