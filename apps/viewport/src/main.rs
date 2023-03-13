@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-mod utils;
+mod ogl;
 mod camera;
 mod parameters;
 
@@ -21,7 +21,7 @@ use ultraviolet::{Mat4, Vec3};
 use hapi_rs::parameter::Parameter;
 
 use crate::parameters::{ParmKind, UiParameter};
-use utils::{Asset, AssetParameters, MeshData};
+use ogl::{Asset, AssetParameters, MeshData};
 
 static OTL: &str = "otls/hapi_opengl.hda";
 static ICON: &str = "maps/icon.png";

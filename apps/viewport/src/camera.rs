@@ -43,7 +43,7 @@ impl Camera {
 
         let cos_angle = new_view_dir.dot(self.up_vec) / (new_view_dir.mag() * self.up_vec.mag());
 
-        if cos_angle < 0.95 && cos_angle > -0.95 {
+        if cos_angle < 0.97 && cos_angle > -0.97 {
             self.eye = eye_local + self.look_at;
             self.view = Mat4::look_at(self.eye, self.look_at, self.up_vec);
         }
