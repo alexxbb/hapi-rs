@@ -11,6 +11,7 @@ use eframe::{egui, CreationContext, Frame};
 use egui::mutex::Mutex;
 use egui_glow::CallbackFn;
 use glow::HasContext;
+use path_absolutize::Absolutize;
 use std::default::Default;
 use std::ops::{BitXorAssign, Sub};
 use std::sync::Arc;
@@ -22,7 +23,8 @@ use hapi_rs::parameter::Parameter;
 use crate::parameters::{ParmKind, UiParameter};
 use utils::{Asset, AssetParameters, MeshData};
 
-static OTL: &str = r#"C:\Github\hapi-rs\apps\viewport\otls\hapi_opengl.hda"#;
+static OTL: &str = "otls/hapi_opengl.hda";
+static ICON: &str = "maps/icon.png";
 
 struct ViewportApp {
     full_screen: bool,
@@ -37,7 +39,19 @@ struct ViewportApp {
 impl ViewportApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let gl = cc.gl.as_ref().expect("Could not init gl Context").clone();
-        let asset = Asset::load_hda(gl, OTL).expect("Load HDA");
+        let session = if cfg!(debug_assertions) {
+            if let Ok(session) = hapi_rs::session::connect_to_pipe("hapi", None, None) {
+                session
+            } else {
+                eprintln!("Could not connect to HARS server, starting new in-process");
+                hapi_rs::session::new_in_process(None).expect("in-process session")
+            }
+        } else {
+            hapi_rs::session::new_in_process(None).expect("Houdini session")
+        };
+        let otl = std::path::Path::new(OTL).absolutize().expect("OTL path");
+        let otl = otl.to_string_lossy();
+        let asset = Asset::load_hda(gl, &session, &otl).expect("Load HDA");
         let asset_parameters =
             AssetParameters::from_node(&asset.asset_node).expect("Asset parameters");
 
@@ -187,7 +201,7 @@ impl eframe::App for ViewportApp {
 }
 
 fn load_icon() -> Option<eframe::IconData> {
-    let Ok(file) = std::fs::File::open("maps/icon.png") else {
+    let Ok(file) = std::fs::File::open(ICON) else {
         eprintln!("Could not load app icon");
         return None
     };

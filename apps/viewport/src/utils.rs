@@ -2,6 +2,7 @@ use bytemuck::cast_slice;
 use hapi_rs::attribute::NumericAttr;
 use hapi_rs::geometry::AttributeOwner;
 use hapi_rs::geometry::Geometry;
+use hapi_rs::node::Session;
 use hapi_rs::session::HoudiniNode;
 use hapi_rs::Result;
 use std::collections::HashMap;
@@ -426,8 +427,7 @@ unsafe fn compile_gl_program(gl: &glow::Context) -> glow::Program {
 }
 
 impl Asset {
-    pub fn load_hda(gl: Arc<glow::Context>, hda: &str) -> Result<Self> {
-        let session = hapi_rs::session::connect_to_pipe("hapi", None, None)?;
+    pub fn load_hda(gl: Arc<glow::Context>, session: &Session, hda: &str) -> Result<Self> {
         let lib = session.load_asset_file(hda)?;
         let asset = lib.try_create_first()?;
         let geo = asset.geometry()?.expect("Geometry");
