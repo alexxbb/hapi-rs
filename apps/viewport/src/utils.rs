@@ -28,7 +28,7 @@ unsafe impl bytemuck::Zeroable for Vertex {}
 pub struct MeshData {
     positions: Vec<f32>,
     normals: Option<Vec<f32>>,
-    color: Option<Vec<f32>>,
+    colors: Option<Vec<f32>>,
     uvs: Option<Vec<f32>>,
     pub num_vertices: i32,
     pub vertex_array: Vec<Vec3>,
@@ -75,13 +75,16 @@ impl MeshData {
         gl.buffer_data_u8_slice(
             glow::ARRAY_BUFFER,
             cast_slice(&self.vertex_array),
-            glow::STATIC_DRAW,
+            glow::DYNAMIC_DRAW,
         );
 
         // Position
         let mut stride = size_of::<Vec3>();
         if self.normals.is_some() {
             stride += stride;
+        }
+        if self.colors.is_some() {
+            stride += size_of::<Vec3>();
         }
         if self.uvs.is_some() {
             stride += size_of::<Vec3>();
@@ -98,6 +101,19 @@ impl MeshData {
             gl.enable_vertex_attrib_array(1);
         }
 
+        // Color
+        if self.colors.is_some() {
+            let mut offset = size_of::<Vec3>();
+            if self.normals.is_some() {
+                offset += size_of::<Vec3>();
+            }
+            gl.vertex_attrib_pointer_f32(2, 3, glow::FLOAT, false, stride as i32, offset as i32);
+            // Enable attributes
+            gl.enable_vertex_attrib_array(2);
+        } else {
+            gl.disable_vertex_attrib_array(2);
+        }
+
         // UV
         if self.uvs.is_some() {
             let mut offset = size_of::<Vec3>();
@@ -105,7 +121,7 @@ impl MeshData {
                 offset += size_of::<Vec3>();
             }
             let stride = gl.vertex_attrib_pointer_f32(
-                2,
+                3,
                 3,
                 glow::FLOAT,
                 false,
@@ -113,7 +129,7 @@ impl MeshData {
                 offset as i32,
             );
             // Enable attributes
-            gl.enable_vertex_attrib_array(2);
+            gl.enable_vertex_attrib_array(3);
         }
 
         let texture = gl.create_texture().expect("texture");
@@ -187,8 +203,14 @@ impl MeshData {
                 None => None,
             }
         };
-        let normals = {
-            match geo.get_attribute(_part_id, AttributeOwner::Vertex, "N")? {
+        let (normals, point_normal) = {
+            let mut point_normal = false;
+            let mut vtx_attr = geo.get_attribute(_part_id, AttributeOwner::Vertex, "N")?;
+            if vtx_attr.is_none() {
+                point_normal = true;
+                vtx_attr = geo.get_attribute(_part_id, AttributeOwner::Point, "N")?;
+            }
+            let normals = match vtx_attr {
                 Some(n_attr) => Some(
                     n_attr
                         .downcast::<NumericAttr<f32>>()
@@ -196,10 +218,41 @@ impl MeshData {
                         .get(_part_id)?,
                 ),
                 None => None,
-            }
+            };
+            (normals, point_normal)
         };
 
-        let num_vertices = (face_counts.iter().sum::<i32>() / 2) * 3;
+        let (colors, point_color) = {
+            let mut point_color = false;
+            let mut clr_attr = geo.get_attribute(_part_id, AttributeOwner::Vertex, "Cd")?;
+            if clr_attr.is_none() {
+                point_color = true;
+                clr_attr = geo.get_attribute(_part_id, AttributeOwner::Point, "Cd")?;
+            }
+            let colors = match clr_attr {
+                Some(cd_attr) => Some(
+                    cd_attr
+                        .downcast::<NumericAttr<f32>>()
+                        .expect("Cd is NumericAttribute")
+                        .get(_part_id)?,
+                ),
+                None => None,
+            };
+            (colors, point_color)
+        };
+
+        let mut num_vertices = (face_counts.iter().sum::<i32>() / 2) * 3;
+        num_vertices *= 3; // Position
+        if normals.is_some() {
+            num_vertices *= 3;
+        }
+        if colors.is_some() {
+            num_vertices *= 3;
+        }
+        if uvs.is_some() {
+            num_vertices *= 3;
+        }
+
         let mut vertex_array = Vec::with_capacity(num_vertices as usize);
 
         let mut offset = 0;
@@ -211,61 +264,100 @@ impl MeshData {
                 let off1 = offset + i + 1;
                 let off2 = offset + i + 2;
 
-                let tri_a = vertex_list[off0] as usize;
-                let tri_b = vertex_list[off1] as usize;
-                let tri_c = vertex_list[off2] as usize;
+                let point_0_index = vertex_list[off0] as usize;
+                let point_1_index = vertex_list[off1] as usize;
+                let point_2_index = vertex_list[off2] as usize;
 
                 let pos_a = Vec3::new(
-                    positions[tri_a * 3 + 0],
-                    positions[tri_a * 3 + 1],
-                    positions[tri_a * 3 + 2],
+                    positions[point_0_index * 3 + 0],
+                    positions[point_0_index * 3 + 1],
+                    positions[point_0_index * 3 + 2],
                 );
                 let pos_b = Vec3::new(
-                    positions[tri_b * 3 + 0],
-                    positions[tri_b * 3 + 1],
-                    positions[tri_b * 3 + 2],
+                    positions[point_1_index * 3 + 0],
+                    positions[point_1_index * 3 + 1],
+                    positions[point_1_index * 3 + 2],
                 );
                 let pos_c = Vec3::new(
-                    positions[tri_c * 3 + 0],
-                    positions[tri_c * 3 + 1],
-                    positions[tri_c * 3 + 2],
+                    positions[point_2_index * 3 + 0],
+                    positions[point_2_index * 3 + 1],
+                    positions[point_2_index * 3 + 2],
                 );
 
                 // VTX 1
                 vertex_array.push(pos_a);
+                // Normals
                 if let Some(ref normals) = normals {
+                    let idx = if point_normal { point_0_index } else { off0 };
                     vertex_array.push(Vec3::new(
-                        normals[off0 * 3 + 0],
-                        normals[off0 * 3 + 1],
-                        normals[off0 * 3 + 2],
+                        normals[idx * 3 + 0],
+                        normals[idx * 3 + 1],
+                        normals[idx * 3 + 2],
                     ));
                 }
+                // Color
+                if let Some(ref colors) = colors {
+                    let idx = if point_color { point_0_index } else { off0 };
+                    vertex_array.push(Vec3::new(
+                        colors[idx * 3 + 0],
+                        colors[idx * 3 + 1],
+                        colors[idx * 3 + 2],
+                    ));
+                }
+
+                // UV
                 if let Some(ref uvs) = uvs {
                     vertex_array.push(Vec3::new(uvs[off0 * 3 + 0], uvs[off0 * 3 + 1], 0.0));
                 }
 
                 // VTX 2
                 vertex_array.push(pos_b);
+                // Normal
                 if let Some(ref normals) = normals {
+                    let idx = if point_normal { point_1_index } else { off1 };
                     vertex_array.push(Vec3::new(
-                        normals[off1 * 3 + 0],
-                        normals[off1 * 3 + 1],
-                        normals[off1 * 3 + 2],
+                        normals[idx * 3 + 0],
+                        normals[idx * 3 + 1],
+                        normals[idx * 3 + 2],
                     ));
                 }
+
+                // Color
+                if let Some(ref colors) = colors {
+                    let idx = if point_color { point_1_index } else { off1 };
+                    vertex_array.push(Vec3::new(
+                        colors[idx * 3 + 0],
+                        colors[idx * 3 + 1],
+                        colors[idx * 3 + 2],
+                    ));
+                }
+
+                // UV
                 if let Some(ref uvs) = uvs {
                     vertex_array.push(Vec3::new(uvs[off1 * 3 + 0], uvs[off1 * 3 + 1], 0.0));
                 }
 
                 // VTX 3
                 vertex_array.push(pos_c);
+                // Normal
                 if let Some(ref normals) = normals {
+                    let idx = if point_normal { point_2_index } else { off2 };
                     vertex_array.push(Vec3::new(
-                        normals[off2 * 3 + 0],
-                        normals[off2 * 3 + 1],
-                        normals[off2 * 3 + 2],
+                        normals[idx * 3 + 0],
+                        normals[idx * 3 + 1],
+                        normals[idx * 3 + 2],
                     ));
                 }
+                // Color
+                if let Some(ref colors) = colors {
+                    let idx = if point_color { point_2_index } else { off2 };
+                    vertex_array.push(Vec3::new(
+                        colors[idx * 3 + 0],
+                        colors[idx * 3 + 1],
+                        colors[idx * 3 + 2],
+                    ));
+                }
+                // UV
                 if let Some(ref uvs) = uvs {
                     vertex_array.push(Vec3::new(uvs[off2 * 3 + 0], uvs[off2 * 3 + 1], 0.0));
                 }
@@ -277,7 +369,7 @@ impl MeshData {
         Ok(Self {
             positions,
             normals,
-            color: None,
+            colors,
             uvs,
             vertex_array,
             vao: None,
@@ -391,6 +483,14 @@ impl Asset {
             push_matrix("projection", camera.projection_matrix());
             push_matrix("view", camera.view_matrix());
             push_matrix("model", Mat4::identity());
+
+            let use_color_loc = self
+                .gl
+                .get_uniform_location(self.renderable.program, "use_point_color");
+            self.gl.uniform_1_i32(
+                use_color_loc.as_ref(),
+                self.renderable.mesh.colors.is_some() as i32,
+            );
 
             self.gl.uniform_3_f32_slice(
                 self.gl

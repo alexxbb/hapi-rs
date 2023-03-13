@@ -4,6 +4,7 @@ out vec4 out_color;
 
 in vec3 UV;
 in vec3 Normal;
+in vec4 Color;
 in vec3 FragPos;
 in vec3 Dist;
 
@@ -14,7 +15,7 @@ uniform vec3 cameraPos;
 
 void main() {
     vec3 ambient_color = vec3(0.05, 0.05, 0.1);
-    vec3 obj_color = vec3(0.8, 0.9, 0.9);
+    vec3 obj_color = Color.rgb;
     vec3 light_color = vec3(1.0);
     float specularStrength = 0.7;
 

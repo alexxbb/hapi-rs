@@ -6,11 +6,13 @@ layout(triangle_strip, max_vertices=3) out;
 in VS_OUT {
     vec3 UV;
     vec3 Normal;
+    vec4 Color;
     vec3 FragPos;
 } gs_in[];
 
 out vec3 UV;
 out vec3 Normal;
+out vec4 Color;
 out vec3 FragPos;
 out vec3 Dist;
 
@@ -61,6 +63,7 @@ void main()
   gl_Position = p0_3d;
   Normal = gs_in[0].Normal;
   FragPos = gs_in[0].FragPos;
+  Color = gs_in[0].Color;
   UV = gs_in[0].UV;
   EmitVertex();
 
@@ -86,6 +89,7 @@ void main()
 
   gl_Position = p1_3d * vec4(2.0);
   Normal = gs_in[1].Normal;
+  Color = gs_in[1].Color;
   FragPos = gs_in[1].FragPos;
   UV = gs_in[1].UV;
   EmitVertex();
@@ -111,6 +115,7 @@ void main()
 
   gl_Position = p2_3d;
   Normal = gs_in[2].Normal;
+  Color = gs_in[2].Color;
   FragPos = gs_in[2].FragPos;
   UV = gs_in[2].UV;
   EmitVertex();
