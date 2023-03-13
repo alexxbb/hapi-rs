@@ -11,7 +11,6 @@ use eframe::{egui, CreationContext, Frame};
 use egui::mutex::Mutex;
 use egui_glow::CallbackFn;
 use glow::HasContext;
-use png::Reader;
 use std::default::Default;
 use std::ops::{BitXorAssign, Sub};
 use std::sync::Arc;
@@ -58,10 +57,13 @@ impl eframe::App for ViewportApp {
     fn update(&mut self, ctx: &Context, frame: &mut Frame) {
         egui::SidePanel::left("parameters")
             .resizable(true)
-            .default_width(400.0)
+            .default_width(200.0)
             .min_width(200.0)
             .show(ctx, |ui| {
-                ui.heading("PARAMETERS");
+                ui.vertical_centered(|ui| {
+                    ui.heading("Asset Parameters");
+                });
+                ui.separator();
                 ui.add(egui::Checkbox::new(&mut self.turntable, "Turntable"));
                 let mut asset = self.asset.lock();
 
@@ -109,10 +111,7 @@ impl eframe::App for ViewportApp {
                             }
                         }
                         ParmKind::Toggle { ref mut current } => {
-                            if ui
-                                .add(egui::Checkbox::new(current, parm_name.as_str()))
-                                .changed()
-                            {
+                            if ui.checkbox(current, parm_name.as_str()).changed() {
                                 match hou_parm {
                                     Parameter::Int(p) => {
                                         p.set(0, *current as i32).expect("Parameter Update");
@@ -187,6 +186,25 @@ impl eframe::App for ViewportApp {
     }
 }
 
+fn load_icon() -> Option<eframe::IconData> {
+    let Ok(file) = std::fs::File::open("maps/icon.png") else {
+        eprintln!("Could not load app icon");
+        return None
+    };
+    let decoder = png::Decoder::new(file);
+    let mut reader = decoder.read_info().expect("png reader");
+    let mut pixels = vec![0; reader.output_buffer_size()];
+    let width = reader.info().width;
+    let height = reader.info().height;
+    reader.next_frame(&mut pixels).unwrap();
+
+    Some(eframe::IconData {
+        rgba: pixels,
+        width,
+        height,
+    })
+}
+
 fn main() {
     let options = eframe::NativeOptions {
         initial_window_size: Some(egui::vec2(1200.0, 800.0)),
@@ -194,6 +212,7 @@ fn main() {
         multisampling: 8,
         renderer: eframe::Renderer::Glow,
         depth_buffer: 24,
+        icon_data: load_icon(),
         ..Default::default()
     };
     let creator: eframe::AppCreator = Box::new(move |cc| Box::new(ViewportApp::new(cc)));
