@@ -16,8 +16,8 @@ pub enum ParmKind {
     Toggle { current: bool },
 }
 
-pub fn build_parm_map(parms: Vec<Parameter>) -> Result<HashMap<String, UiParameter>> {
-    let mut map = HashMap::new();
+pub fn build_parm_map(parms: Vec<Parameter>) -> Result<Vec<(String, UiParameter)>> {
+    let mut parm_list = Vec::new();
     for parm in parms {
         if parm.info().invisible() {
             continue;
@@ -31,38 +31,38 @@ pub fn build_parm_map(parms: Vec<Parameter>) -> Result<HashMap<String, UiParamet
                         .map(|choice| choice.label().unwrap())
                         .collect();
                     let current = p.get(0)?;
-                    map.insert(
+                    parm_list.push((
                         label,
                         UiParameter {
                             parameter: parm,
                             kind: ParmKind::Menu { choices, current },
                         },
-                    );
+                    ));
                 } else {
                     if parm.info().parm_type() == ParmType::Toggle {
                         let current = p.get(0)? > 0;
-                        map.insert(
+                        parm_list.push((
                             label,
                             UiParameter {
                                 parameter: parm,
                                 kind: ParmKind::Toggle { current },
                             },
-                        );
+                        ));
                     }
                 }
             }
             Parameter::Float(p) => {
                 let current = p.get(0)?;
-                map.insert(
+                parm_list.push((
                     label,
                     UiParameter {
                         parameter: parm,
                         kind: ParmKind::Float { current },
                     },
-                );
+                ));
             }
             _ => {}
         }
     }
-    Ok(map)
+    Ok(parm_list)
 }

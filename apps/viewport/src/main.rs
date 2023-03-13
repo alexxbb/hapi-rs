@@ -80,7 +80,7 @@ impl eframe::App for ViewportApp {
                     match parm_kind {
                         ParmKind::Menu { choices, current } => {
                             let current_selection = &choices[*current as usize];
-                            egui::ComboBox::from_label(parm_name)
+                            egui::ComboBox::from_label(parm_name.as_str())
                                 .selected_text(current_selection)
                                 .show_ui(ui, |ui| {
                                     for (i, choice) in choices.iter().enumerate() {
@@ -109,7 +109,10 @@ impl eframe::App for ViewportApp {
                             }
                         }
                         ParmKind::Toggle { ref mut current } => {
-                            if ui.add(egui::Checkbox::new(current, parm_name)).changed() {
+                            if ui
+                                .add(egui::Checkbox::new(current, parm_name.as_str()))
+                                .changed()
+                            {
                                 match hou_parm {
                                     Parameter::Int(p) => {
                                         p.set(0, *current as i32).expect("Parameter Update");

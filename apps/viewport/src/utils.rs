@@ -42,7 +42,7 @@ pub struct Renderable {
     pub program: glow::Program,
 }
 
-pub struct AssetParameters(pub HashMap<String, UiParameter>);
+pub struct AssetParameters(pub Vec<(String, UiParameter)>);
 
 impl AssetParameters {
     pub fn from_node(node: &HoudiniNode) -> Result<Self> {
