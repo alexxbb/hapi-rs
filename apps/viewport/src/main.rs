@@ -47,6 +47,7 @@ impl ViewportApp {
                 hapi_rs::session::new_in_process(None).expect("in-process session")
             }
         } else {
+            eprintln!("Starting in-process session");
             hapi_rs::session::new_in_process(None).expect("Houdini session")
         };
         let otl = std::path::Path::new(OTL).absolutize().expect("OTL path");
@@ -78,7 +79,7 @@ impl eframe::App for ViewportApp {
                     ui.heading("Asset Parameters");
                 });
                 ui.separator();
-                ui.add(egui::Checkbox::new(&mut self.turntable, "Turntable"));
+                // ui.add(egui::Checkbox::new(&mut self.turntable, "Turntable"));
                 let mut asset = self.asset.lock();
 
                 let mut rebuild_fn = move || {
