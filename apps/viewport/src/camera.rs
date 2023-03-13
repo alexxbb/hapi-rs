@@ -54,7 +54,7 @@ impl Camera {
     }
 
     pub fn projection_matrix(&self) -> Mat4 {
-        ultraviolet::projection::perspective_gl(45.0, self.aspect_ratio, 0.01, 20.0)
+        ultraviolet::projection::perspective_gl(45.0, self.aspect_ratio, 0.01, 30.0)
     }
     pub fn set_aspect_ratio(&mut self, aspect_ratio: f32) {
         self.aspect_ratio = aspect_ratio;

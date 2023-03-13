@@ -462,6 +462,7 @@ impl Asset {
 
         unsafe {
             self.gl.enable(glow::DEPTH_TEST);
+            self.gl.enable(glow::MULTISAMPLE);
             self.gl.clear(glow::DEPTH_BUFFER_BIT);
             self.gl.front_face(glow::CW);
             self.gl.bind_vertex_array(self.renderable.mesh.vao);

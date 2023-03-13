@@ -223,7 +223,7 @@ fn main() {
     let options = eframe::NativeOptions {
         initial_window_size: Some(egui::vec2(1200.0, 800.0)),
         initial_window_pos: Some(egui::Pos2::new(1000.0, 500.0)),
-        multisampling: 8,
+        multisampling: 16,
         renderer: eframe::Renderer::Glow,
         depth_buffer: 24,
         icon_data: load_icon(),
