@@ -5,7 +5,7 @@ mod camera;
 mod parameters;
 
 use camera::Camera;
-use eframe::egui::{Context, Key, Modifiers, PointerButton, Sense};
+use eframe::egui::{Color32, Context, Key, Modifiers, PointerButton, Sense};
 use eframe::epaint::Vertex;
 use eframe::{egui, CreationContext, Frame};
 use egui::mutex::Mutex;
@@ -21,7 +21,7 @@ use ultraviolet::{Mat4, Vec3};
 use hapi_rs::parameter::Parameter;
 
 use crate::parameters::{ParmKind, UiParameter};
-use ogl::{Asset, AssetParameters, MeshData};
+use ogl::{Asset, AssetParameters, CookingStats, MeshData};
 
 static OTL: &str = "otls/hapi_opengl.hda";
 static ICON: &str = "maps/icon.png";
@@ -82,8 +82,8 @@ impl eframe::App for ViewportApp {
                 // ui.add(egui::Checkbox::new(&mut self.turntable, "Turntable"));
                 let mut asset = self.asset.lock();
 
-                let mut rebuild_fn = move || {
-                    asset.geometry_node.node.cook().expect("Node cook");
+                let mut rebuild_fn = || {
+                    asset.cook().expect("Cook");
                     asset.rebuild_mesh().expect("rebuild");
                     ctx.request_repaint();
                 };
@@ -139,6 +139,54 @@ impl eframe::App for ViewportApp {
                         _ => {}
                     }
                 }
+                ui.separator();
+                ui.vertical_centered(|ui| {
+                    ui.label("Stats");
+                });
+                ui.group(|ui| {
+                    let CookingStats {
+                        cooking_time,
+                        vertex_processing_time,
+                        hapi_calls_time,
+                        mesh_vertex_count,
+                    } = &asset.stats;
+                    use egui::ecolor::Color32;
+                    use egui::epaint::text::TextFormat;
+                    use egui::epaint::Stroke;
+                    use egui::text::LayoutJob;
+
+                    macro_rules! stat {
+                        ($text:literal, $duration:ident, $suffix:expr) => {
+                            let mut job = LayoutJob::default();
+                            job.append(
+                                $text,
+                                0.0,
+                                TextFormat {
+                                    color: Color32::GRAY,
+                                    italics: true,
+                                    ..Default::default()
+                                },
+                            );
+                            job.append(
+                                &format!($suffix, $duration.as_micros()),
+                                0.0,
+                                TextFormat {
+                                    color: Color32::WHITE,
+                                    ..Default::default()
+                                },
+                            );
+
+                            ui.label(job);
+                        };
+                    }
+
+                    let mesh_vertex_count = std::time::Duration::from_micros(*mesh_vertex_count);
+                    stat!("Vertex Count:", mesh_vertex_count, "      {}");
+                    ui.separator();
+                    stat!("Cooking Time:", cooking_time, "      {} μs");
+                    stat!("Mesh Time:", vertex_processing_time, "            {} μs");
+                    stat!("API Time:", hapi_calls_time, "                {} μs");
+                });
             });
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::Frame::canvas(ui.style()).show(ui, |ui| {

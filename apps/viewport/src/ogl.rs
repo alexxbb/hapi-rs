@@ -8,6 +8,7 @@ use hapi_rs::Result;
 use std::collections::HashMap;
 use std::mem::size_of;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use crate::camera::Camera;
 use crate::parameters::{build_parm_map, UiParameter};
@@ -51,14 +52,27 @@ impl AssetParameters {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct CookingStats {
+    pub cooking_time: Duration,
+    pub vertex_processing_time: Duration,
+    pub hapi_calls_time: Duration,
+    pub mesh_vertex_count: u64,
+}
+
 pub struct Asset {
     pub renderable: Renderable,
     pub asset_node: HoudiniNode,
     pub geometry_node: Geometry,
     pub gl: Arc<glow::Context>,
+    pub stats: CookingStats,
 }
 
 impl MeshData {
+    // pub fn vertex_count(&self) -> u64 {
+    //     self.positions.len() as u64 / 3
+    // }
+
     pub unsafe fn setup_gl(&mut self, gl: Arc<glow::Context>, program: glow::Program) {
         use glow::HasContext as _;
 
@@ -187,7 +201,8 @@ impl MeshData {
         self.vbo = Some(vbo);
         self.texture = Some(texture);
     }
-    pub fn from_houdini_geo(geo: &Geometry) -> Result<Self> {
+    pub fn from_houdini_geo(geo: &Geometry) -> Result<(Self, Duration, Duration)> {
+        let _start = Instant::now();
         let _part = geo.part_info(0)?;
         let _part_id = _part.part_id();
         let positions = geo.get_position_attribute(_part_id)?.get(_part_id)?;
@@ -241,6 +256,9 @@ impl MeshData {
             };
             (colors, point_color)
         };
+
+        let hapi_time = Instant::now().duration_since(_start);
+        let _start = Instant::now();
 
         let mut num_vertices = (face_counts.iter().sum::<i32>() / 2) * 3;
         num_vertices *= 3; // Position
@@ -367,7 +385,8 @@ impl MeshData {
         }
 
         // eprintln!("Mesh number vertices: {num_vertices}");
-        Ok(Self {
+        let vertex_processing_time = Instant::now().duration_since(_start);
+        let _self = Self {
             positions,
             normals,
             colors,
@@ -377,7 +396,8 @@ impl MeshData {
             vbo: None,
             texture: None,
             num_vertices: num_vertices as i32,
-        })
+        };
+        Ok((_self, hapi_time, vertex_processing_time))
     }
 }
 
@@ -431,24 +451,46 @@ impl Asset {
         let lib = session.load_asset_file(hda)?;
         let asset = lib.try_create_first()?;
         let geo = asset.geometry()?.expect("Geometry");
+        let _start = Instant::now();
         geo.node.cook()?;
-        let mut mesh = MeshData::from_houdini_geo(&geo)?;
+        let cooking_time = Instant::now().duration_since(_start);
+        let (mut mesh, hapi_time, vertex_processing_time) = MeshData::from_houdini_geo(&geo)?;
+        let buffer_build_time = Instant::now().duration_since(_start);
         let program = unsafe {
             let program = compile_gl_program(&gl);
             mesh.setup_gl(gl.clone(), program);
             program
         };
 
+        let mesh_vertex_count = mesh.positions.len() as u64;
         Ok(Self {
             gl,
             asset_node: asset,
             renderable: Renderable { mesh, program },
             geometry_node: geo,
+            stats: CookingStats {
+                cooking_time,
+                vertex_processing_time: vertex_processing_time,
+                hapi_calls_time: hapi_time,
+                mesh_vertex_count,
+            },
         })
     }
 
+    pub fn cook(&mut self) -> Result<()> {
+        let _start = Instant::now();
+        self.geometry_node.node.cook()?;
+        self.stats.cooking_time = Instant::now().duration_since(_start);
+        Ok(())
+    }
+
     pub fn rebuild_mesh(&mut self) -> Result<()> {
-        self.renderable.mesh = MeshData::from_houdini_geo(&self.geometry_node)?;
+        let (mesh, hapi_time, vertex_processing_time) =
+            MeshData::from_houdini_geo(&self.geometry_node)?;
+        self.stats.mesh_vertex_count = mesh.positions.len() as u64;
+        self.renderable.mesh = mesh;
+        self.stats.hapi_calls_time = hapi_time;
+        self.stats.vertex_processing_time = vertex_processing_time;
         unsafe {
             self.renderable
                 .mesh

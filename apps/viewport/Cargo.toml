@@ -9,7 +9,7 @@ edition = "2021"
 hapi-rs = { path="../.." }
 eframe = "0.21.3"
 egui_glow = "0.21.0"
-glow = "0.12.1"
+glow = { version = "0.12.1", features = ["debug_automatic_glGetError"] }
 ultraviolet = {version = "0.9.0", features=["bytemuck"]}
 bytemuck = "1.13.1"
 png = "0.17.7"
