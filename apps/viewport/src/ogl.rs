@@ -6,6 +6,7 @@ use hapi_rs::node::Session;
 use hapi_rs::session::HoudiniNode;
 use hapi_rs::Result;
 use std::collections::HashMap;
+use std::default::Default;
 use std::mem::size_of;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -52,12 +53,57 @@ impl AssetParameters {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct CookingStats {
-    pub cooking_time: Duration,
-    pub vertex_processing_time: Duration,
-    pub hapi_calls_time: Duration,
+    pub cook_count: u64,
+    pub avg_cooking_time: Duration,
+    pub accum_cooking_time: Duration,
+    pub last_cooking_time: Duration,
+}
+
+#[derive(Clone, Default)]
+pub struct Stats {
+    pub cooking: CookingStats,
+    pub buffer: BufferStats,
+}
+
+impl Stats {
+    pub fn reset(&mut self) {
+        self.cooking.reset();
+        self.buffer.reset();
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct BufferStats {
+    pub avg_buffer_time: Duration,
+    pub avg_hapi_time: Duration,
     pub mesh_vertex_count: u64,
+    accum_buffer_time: Duration,
+    accum_hapi_time: Duration,
+    last_buffer_time: Duration,
+    last_hapi_time: Duration,
+}
+
+impl BufferStats {
+    pub fn reset(&mut self) {
+        *self = Self::default()
+    }
+    pub fn add_hapi_time(&mut self, time: Duration) {
+        self.last_hapi_time = time;
+        self.accum_hapi_time += time;
+    }
+
+    pub fn last_hapi_time(&mut self, time: Duration) {
+        self.last_hapi_time = time;
+        self.accum_hapi_time += time;
+    }
+}
+
+impl CookingStats {
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
 }
 
 pub struct Asset {
@@ -65,14 +111,10 @@ pub struct Asset {
     pub asset_node: HoudiniNode,
     pub geometry_node: Geometry,
     pub gl: Arc<glow::Context>,
-    pub stats: CookingStats,
+    pub stats: Stats,
 }
 
 impl MeshData {
-    // pub fn vertex_count(&self) -> u64 {
-    //     self.positions.len() as u64 / 3
-    // }
-
     pub unsafe fn setup_gl(&mut self, gl: Arc<glow::Context>, program: glow::Program) {
         use glow::HasContext as _;
 
@@ -468,11 +510,17 @@ impl Asset {
             asset_node: asset,
             renderable: Renderable { mesh, program },
             geometry_node: geo,
-            stats: CookingStats {
-                cooking_time,
-                vertex_processing_time: vertex_processing_time,
-                hapi_calls_time: hapi_time,
-                mesh_vertex_count,
+            stats: Stats {
+                cooking: CookingStats {
+                    cook_count: 1,
+                    avg_cooking_time: Duration::from_micros(0),
+                    last_cooking_time: cooking_time,
+                    accum_cooking_time: Duration::from_micros(0),
+                },
+                buffer: BufferStats {
+                    mesh_vertex_count,
+                    ..Default::default()
+                },
             },
         })
     }
@@ -480,17 +528,48 @@ impl Asset {
     pub fn cook(&mut self) -> Result<()> {
         let _start = Instant::now();
         self.geometry_node.node.cook()?;
-        self.stats.cooking_time = Instant::now().duration_since(_start);
+        let CookingStats {
+            cook_count,
+            avg_cooking_time,
+            accum_cooking_time,
+            last_cooking_time,
+        } = &mut self.stats.cooking;
+        *cook_count += 1;
+        *last_cooking_time = Instant::now().duration_since(_start);
+        if *cook_count > 5 {
+            *accum_cooking_time += *last_cooking_time;
+            *avg_cooking_time = *accum_cooking_time / (*cook_count as u32 - 5);
+        } else {
+            *avg_cooking_time = Duration::from_micros(0);
+        }
         Ok(())
     }
 
     pub fn rebuild_mesh(&mut self) -> Result<()> {
-        let (mesh, hapi_time, vertex_processing_time) =
-            MeshData::from_houdini_geo(&self.geometry_node)?;
-        self.stats.mesh_vertex_count = mesh.positions.len() as u64;
+        let (mesh, hapi_time, processing_time) = MeshData::from_houdini_geo(&self.geometry_node)?;
+        let BufferStats {
+            avg_buffer_time,
+            avg_hapi_time,
+            mesh_vertex_count,
+            accum_buffer_time,
+            accum_hapi_time,
+            last_buffer_time,
+            last_hapi_time,
+        } = &mut self.stats.buffer;
+        let cook_count = self.stats.cooking.cook_count;
+        *mesh_vertex_count = mesh.positions.len() as u64;
+        *last_buffer_time = processing_time;
+        *last_hapi_time = hapi_time;
+        if cook_count > 5 {
+            *accum_buffer_time += *last_buffer_time;
+            *accum_hapi_time += *last_hapi_time;
+            *avg_buffer_time = *accum_buffer_time / (cook_count as u32 - 5);
+            *avg_hapi_time = *accum_hapi_time / (cook_count as u32 - 5);
+        } else {
+            *avg_buffer_time = Duration::from_micros(0);
+            *avg_hapi_time = Duration::from_micros(0);
+        }
         self.renderable.mesh = mesh;
-        self.stats.hapi_calls_time = hapi_time;
-        self.stats.vertex_processing_time = vertex_processing_time;
         unsafe {
             self.renderable
                 .mesh

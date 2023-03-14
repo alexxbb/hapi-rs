@@ -15,13 +15,14 @@ use path_absolutize::Absolutize;
 use std::default::Default;
 use std::ops::{BitXorAssign, Sub};
 use std::sync::Arc;
+use std::time::Duration;
 use ultraviolet as uv;
 use ultraviolet::{Mat4, Vec3};
 
 use hapi_rs::parameter::Parameter;
 
 use crate::parameters::{ParmKind, UiParameter};
-use ogl::{Asset, AssetParameters, CookingStats, MeshData};
+use ogl::{Asset, AssetParameters, BufferStats, CookingStats, MeshData, Stats};
 
 static OTL: &str = "otls/hapi_opengl.hda";
 static ICON: &str = "maps/icon.png";
@@ -82,9 +83,12 @@ impl eframe::App for ViewportApp {
                 // ui.add(egui::Checkbox::new(&mut self.turntable, "Turntable"));
                 let mut asset = self.asset.lock();
 
-                let mut rebuild_fn = || {
+                let mut rebuild_fn = |reset_stats| {
                     asset.cook().expect("Cook");
                     asset.rebuild_mesh().expect("rebuild");
+                    if reset_stats {
+                        asset.stats.reset();
+                    }
                     ctx.request_repaint();
                 };
 
@@ -106,7 +110,7 @@ impl eframe::App for ViewportApp {
                                             match hou_parm {
                                                 Parameter::Int(p) => {
                                                     p.set(0, *current).expect("Parameter Update");
-                                                    rebuild_fn();
+                                                    rebuild_fn(true);
                                                 }
                                                 _ => unreachable!(),
                                             }
@@ -119,7 +123,7 @@ impl eframe::App for ViewportApp {
                                 match hou_parm {
                                     Parameter::Float(p) => {
                                         p.set(0, *current).expect("Parameter Update");
-                                        rebuild_fn();
+                                        rebuild_fn(false);
                                     }
                                     _ => unreachable!(),
                                 }
@@ -130,7 +134,7 @@ impl eframe::App for ViewportApp {
                                 match hou_parm {
                                     Parameter::Int(p) => {
                                         p.set(0, *current as i32).expect("Parameter Update");
-                                        rebuild_fn();
+                                        rebuild_fn(false);
                                     }
                                     _ => unreachable!(),
                                 }
@@ -144,19 +148,14 @@ impl eframe::App for ViewportApp {
                     ui.label("Stats");
                 });
                 ui.group(|ui| {
-                    let CookingStats {
-                        cooking_time,
-                        vertex_processing_time,
-                        hapi_calls_time,
-                        mesh_vertex_count,
-                    } = &asset.stats;
+                    let Stats { cooking, buffer } = &asset.stats;
                     use egui::ecolor::Color32;
                     use egui::epaint::text::TextFormat;
                     use egui::epaint::Stroke;
                     use egui::text::LayoutJob;
 
                     macro_rules! stat {
-                        ($text:literal, $duration:ident, $suffix:expr) => {
+                        ($text:literal, $value:expr) => {
                             let mut job = LayoutJob::default();
                             job.append(
                                 $text,
@@ -168,7 +167,7 @@ impl eframe::App for ViewportApp {
                                 },
                             );
                             job.append(
-                                &format!($suffix, $duration.as_micros()),
+                                $value,
                                 0.0,
                                 TextFormat {
                                     color: Color32::WHITE,
@@ -180,12 +179,32 @@ impl eframe::App for ViewportApp {
                         };
                     }
 
-                    let mesh_vertex_count = std::time::Duration::from_micros(*mesh_vertex_count);
-                    stat!("Vertex Count:", mesh_vertex_count, "      {}");
+                    let CookingStats {
+                        cook_count,
+                        avg_cooking_time,
+                        ..
+                    } = &cooking;
+                    let BufferStats {
+                        avg_buffer_time,
+                        avg_hapi_time,
+                        mesh_vertex_count,
+                        ..
+                    } = &buffer;
+                    stat!("Vertex Count:", &format!("           {mesh_vertex_count}"));
                     ui.separator();
-                    stat!("Cooking Time:", cooking_time, "      {} μs");
-                    stat!("Mesh Time:", vertex_processing_time, "            {} μs");
-                    stat!("API Time:", hapi_calls_time, "                {} μs");
+                    stat!("Cook Count:", &format!("           {cook_count}"));
+                    stat!(
+                        "Avg Cooking Time:",
+                        &format!("      {} ms", avg_cooking_time.as_millis())
+                    );
+                    stat!(
+                        "Avg Mesh Time:",
+                        &format!("            {} μs", avg_buffer_time.as_micros())
+                    );
+                    stat!(
+                        "Avg API Time:",
+                        &format!("                {} μs", avg_hapi_time.as_micros())
+                    );
                 });
             });
         egui::CentralPanel::default().show(ctx, |ui| {
