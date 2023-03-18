@@ -107,12 +107,9 @@ impl eframe::App for ViewportApp {
                                     for (i, choice) in choices.iter().enumerate() {
                                         if ui.selectable_value(current, i as i32, choice).changed()
                                         {
-                                            match hou_parm {
-                                                Parameter::Int(p) => {
-                                                    p.set(0, *current).expect("Parameter Update");
-                                                    rebuild_fn(true);
-                                                }
-                                                _ => unreachable!(),
+                                            if let Parameter::Int(p) = &hou_parm {
+                                                p.set(0, *current).expect("Parameter Update");
+                                                rebuild_fn(true);
                                             }
                                         }
                                     }
@@ -120,23 +117,17 @@ impl eframe::App for ViewportApp {
                         }
                         ParmKind::Float { ref mut current } => {
                             if ui.add(egui::Slider::new(current, 0.0..=10.0)).changed() {
-                                match hou_parm {
-                                    Parameter::Float(p) => {
-                                        p.set(0, *current).expect("Parameter Update");
-                                        rebuild_fn(false);
-                                    }
-                                    _ => unreachable!(),
+                                if let Parameter::Float(p) = &hou_parm {
+                                    p.set(0, *current).expect("Parameter Update");
+                                    rebuild_fn(false);
                                 }
                             }
                         }
                         ParmKind::Toggle { ref mut current } => {
                             if ui.checkbox(current, parm_name.as_str()).changed() {
-                                match hou_parm {
-                                    Parameter::Int(p) => {
-                                        p.set(0, *current as i32).expect("Parameter Update");
-                                        rebuild_fn(false);
-                                    }
-                                    _ => unreachable!(),
+                                if let Parameter::Int(p) = &hou_parm {
+                                    p.set(0, *current as i32).expect("Parameter Update");
+                                    rebuild_fn(false);
                                 }
                             }
                         }
