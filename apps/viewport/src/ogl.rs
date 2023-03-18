@@ -314,6 +314,10 @@ impl MeshData {
             num_vertices *= 3;
         }
 
+        // pig head:
+        //  bound checked:         200 us
+        //  unsafe unchecked Rust: 180 us
+
         let mut vertex_array = Vec::with_capacity(num_vertices as usize);
 
         let mut offset = 0;
@@ -325,45 +329,55 @@ impl MeshData {
                 let off1 = offset + i + 1;
                 let off2 = offset + i + 2;
 
-                let point_0_index = vertex_list[off0] as usize;
-                let point_1_index = vertex_list[off1] as usize;
-                let point_2_index = vertex_list[off2] as usize;
+                let point_0_index = unsafe { *vertex_list.get_unchecked(off0) as usize };
+                let point_1_index = unsafe { *vertex_list.get_unchecked(off1) as usize };
+                let point_2_index = unsafe { *vertex_list.get_unchecked(off2) as usize };
 
-                let pos_a = Vec3::new(
-                    positions[point_0_index * 3 + 0],
-                    positions[point_0_index * 3 + 1],
-                    positions[point_0_index * 3 + 2],
-                );
-                let pos_b = Vec3::new(
-                    positions[point_1_index * 3 + 0],
-                    positions[point_1_index * 3 + 1],
-                    positions[point_1_index * 3 + 2],
-                );
-                let pos_c = Vec3::new(
-                    positions[point_2_index * 3 + 0],
-                    positions[point_2_index * 3 + 1],
-                    positions[point_2_index * 3 + 2],
-                );
+                let pos_a = unsafe {
+                    Vec3::new(
+                        *positions.get_unchecked(point_0_index * 3 + 0),
+                        *positions.get_unchecked(point_0_index * 3 + 1),
+                        *positions.get_unchecked(point_0_index * 3 + 2),
+                    )
+                };
+                let pos_b = unsafe {
+                    Vec3::new(
+                        *positions.get_unchecked(point_1_index * 3 + 0),
+                        *positions.get_unchecked(point_1_index * 3 + 1),
+                        *positions.get_unchecked(point_1_index * 3 + 2),
+                    )
+                };
+                let pos_c = unsafe {
+                    Vec3::new(
+                        *positions.get_unchecked(point_2_index * 3 + 0),
+                        *positions.get_unchecked(point_2_index * 3 + 1),
+                        *positions.get_unchecked(point_2_index * 3 + 2),
+                    )
+                };
 
                 // VTX 1
                 vertex_array.push(pos_a);
                 // Normals
                 if let Some(ref normals) = normals {
                     let idx = if point_normal { point_0_index } else { off0 };
-                    vertex_array.push(Vec3::new(
-                        normals[idx * 3 + 0],
-                        normals[idx * 3 + 1],
-                        normals[idx * 3 + 2],
-                    ));
+                    vertex_array.push(unsafe {
+                        Vec3::new(
+                            *normals.get_unchecked(idx * 3 + 0),
+                            *normals.get_unchecked(idx * 3 + 1),
+                            *normals.get_unchecked(idx * 3 + 2),
+                        )
+                    });
                 }
                 // Color
                 if let Some(ref colors) = colors {
                     let idx = if point_color { point_0_index } else { off0 };
-                    vertex_array.push(Vec3::new(
-                        colors[idx * 3 + 0],
-                        colors[idx * 3 + 1],
-                        colors[idx * 3 + 2],
-                    ));
+                    vertex_array.push(unsafe {
+                        Vec3::new(
+                            *colors.get_unchecked(idx * 3 + 0),
+                            *colors.get_unchecked(idx * 3 + 1),
+                            *colors.get_unchecked(idx * 3 + 2),
+                        )
+                    });
                 }
 
                 // UV
@@ -376,21 +390,25 @@ impl MeshData {
                 // Normal
                 if let Some(ref normals) = normals {
                     let idx = if point_normal { point_1_index } else { off1 };
-                    vertex_array.push(Vec3::new(
-                        normals[idx * 3 + 0],
-                        normals[idx * 3 + 1],
-                        normals[idx * 3 + 2],
-                    ));
+                    vertex_array.push(unsafe {
+                        Vec3::new(
+                            *normals.get_unchecked(idx * 3 + 0),
+                            *normals.get_unchecked(idx * 3 + 1),
+                            *normals.get_unchecked(idx * 3 + 2),
+                        )
+                    });
                 }
 
                 // Color
                 if let Some(ref colors) = colors {
                     let idx = if point_color { point_1_index } else { off1 };
-                    vertex_array.push(Vec3::new(
-                        colors[idx * 3 + 0],
-                        colors[idx * 3 + 1],
-                        colors[idx * 3 + 2],
-                    ));
+                    vertex_array.push(unsafe {
+                        Vec3::new(
+                            *colors.get_unchecked(idx * 3 + 0),
+                            *colors.get_unchecked(idx * 3 + 1),
+                            *colors.get_unchecked(idx * 3 + 2),
+                        )
+                    });
                 }
 
                 // UV
@@ -403,20 +421,24 @@ impl MeshData {
                 // Normal
                 if let Some(ref normals) = normals {
                     let idx = if point_normal { point_2_index } else { off2 };
-                    vertex_array.push(Vec3::new(
-                        normals[idx * 3 + 0],
-                        normals[idx * 3 + 1],
-                        normals[idx * 3 + 2],
-                    ));
+                    vertex_array.push(unsafe {
+                        Vec3::new(
+                            *normals.get_unchecked(idx * 3 + 0),
+                            *normals.get_unchecked(idx * 3 + 1),
+                            *normals.get_unchecked(idx * 3 + 2),
+                        )
+                    });
                 }
                 // Color
                 if let Some(ref colors) = colors {
                     let idx = if point_color { point_2_index } else { off2 };
-                    vertex_array.push(Vec3::new(
-                        colors[idx * 3 + 0],
-                        colors[idx * 3 + 1],
-                        colors[idx * 3 + 2],
-                    ));
+                    vertex_array.push(unsafe {
+                        Vec3::new(
+                            *colors.get_unchecked(idx * 3 + 0),
+                            *colors.get_unchecked(idx * 3 + 1),
+                            *colors.get_unchecked(idx * 3 + 2),
+                        )
+                    });
                 }
                 // UV
                 if let Some(ref uvs) = uvs {
