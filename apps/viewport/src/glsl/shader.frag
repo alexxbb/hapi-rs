@@ -20,9 +20,9 @@ uniform vec3 cameraPos;
 
 
 void main() {
-    vec3 ambient_color = vec3(0.05, 0.05, 0.1);
+    vec3 ambient_color = vec3(0.1, 0.05, 0.05);
     vec3 obj_color = vs_in.Color.rgb;
-    vec3 light_color = vec3(1.0);
+    vec3 light_color = vec3(1.3);
     float specular_strength = 0.3;
     vec3 norm = normalize(vs_in.Normal);
     vec3 camera_dir = normalize(cameraPos - vs_in.FragPos);

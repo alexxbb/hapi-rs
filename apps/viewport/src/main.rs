@@ -75,6 +75,55 @@ impl ViewportApp {
 
 impl eframe::App for ViewportApp {
     fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::Frame::canvas(ui.style()).show(ui, |ui| {
+                ui.allocate_rect(ui.max_rect(), Sense::click());
+                let rect = ui.max_rect();
+
+                let mut mouse_movement = egui::Vec2::splat(0.0);
+                let mut wheel_zoom = 0.0f32;
+                ui.input(|input| {
+                    if input.pointer.button_down(PointerButton::Primary) {
+                        if rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
+                            mouse_movement += input.pointer.delta();
+                        }
+                    }
+                    if input.pointer.button_down(PointerButton::Secondary) {
+                        if rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
+                            let delta = input.pointer.delta() * 0.005;
+                            wheel_zoom += delta.x + delta.y;
+                        }
+                    }
+                });
+
+                self.camera.set_aspect_ratio(rect.aspect_ratio());
+                self.camera.set_zoom(wheel_zoom);
+                if self.turntable {
+                    // TODO rotate camera
+                    let time = self
+                        .turntable
+                        .then_some(ui.ctx().input(|input| input.time))
+                        .unwrap_or(0.0);
+                } else {
+                    self.camera.orbit(mouse_movement.x, mouse_movement.y);
+                }
+
+                let asset = Arc::clone(&self.asset);
+                let mut camera = self.camera.clone();
+                let callback = egui::PaintCallback {
+                    rect: ui.max_rect(),
+                    callback: Arc::new(CallbackFn::new(move |info, painter| {
+                        unsafe { painter.gl().clear_color(0.0765, 0.125, 0.170, 1.0) };
+                        asset.lock().draw(&camera);
+                    })),
+                };
+                ui.painter().add(callback);
+                if self.turntable {
+                    ui.ctx().request_repaint();
+                }
+            })
+        });
+
         egui::SidePanel::left("parameters")
             .resizable(true)
             .default_width(200.0)
@@ -223,54 +272,6 @@ impl eframe::App for ViewportApp {
                     );
                 });
             });
-        egui::CentralPanel::default().show(ctx, |ui| {
-            egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                ui.allocate_rect(ui.max_rect(), Sense::click());
-                let rect = ui.max_rect();
-
-                let mut mouse_movement = egui::Vec2::splat(0.0);
-                let mut wheel_zoom = 0.0f32;
-                ui.input(|input| {
-                    if input.pointer.button_down(PointerButton::Primary) {
-                        if rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
-                            mouse_movement += input.pointer.delta();
-                        }
-                    }
-                    if input.pointer.button_down(PointerButton::Secondary) {
-                        if rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
-                            let delta = input.pointer.delta() * 0.005;
-                            wheel_zoom += delta.x + delta.y;
-                        }
-                    }
-                });
-
-                self.camera.set_aspect_ratio(rect.aspect_ratio());
-                self.camera.set_zoom(wheel_zoom);
-                if self.turntable {
-                    // TODO rotate camera
-                    let time = self
-                        .turntable
-                        .then_some(ui.ctx().input(|input| input.time))
-                        .unwrap_or(0.0);
-                } else {
-                    self.camera.orbit(mouse_movement.x, mouse_movement.y);
-                }
-
-                let asset = Arc::clone(&self.asset);
-                let mut camera = self.camera.clone();
-                let callback = egui::PaintCallback {
-                    rect: ui.max_rect(),
-                    callback: Arc::new(CallbackFn::new(move |info, painter| {
-                        // unsafe { painter.gl().clear_color(0.2, 0.2, 0.2, 1.0) };
-                        asset.lock().draw(&camera);
-                    })),
-                };
-                ui.painter().add(callback);
-                if self.turntable {
-                    ui.ctx().request_repaint();
-                }
-            })
-        });
 
         ctx.input(|input| {
             if input.key_pressed(Key::Escape) {
