@@ -1,12 +1,13 @@
 use bytemuck::cast_slice;
 use hapi_rs::attribute::NumericAttr;
-use hapi_rs::geometry::AttributeOwner;
-use hapi_rs::geometry::Geometry;
+use hapi_rs::geometry::{AttributeOwner, Geometry, Materials};
 use hapi_rs::node::Session;
 use hapi_rs::session::HoudiniNode;
 use hapi_rs::Result;
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::default::Default;
+use std::fs;
 use std::mem::size_of;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -36,12 +37,122 @@ pub struct MeshData {
     pub num_vertices: i32,
     pub vertex_array: Vec<Vec3>,
     pub vao: Option<glow::VertexArray>,
-    pub vbo: Option<glow::Buffer>,
-    pub texture: Option<glow::Texture>,
+}
+
+#[derive(Debug)]
+pub struct Texture {
+    pub handle: glow::Texture,
+}
+
+impl Texture {
+    pub fn load_png_from_file(file: &str) -> (Vec<u8>, u32, u32) {
+        let bytes = std::fs::read(file).expect("png file");
+        Texture::decode_png_from_data(bytes)
+    }
+
+    pub fn decode_png_from_data(data: impl AsRef<[u8]>) -> (Vec<u8>, u32, u32) {
+        let decoder = png::Decoder::new(data.as_ref());
+        let mut reader = decoder.read_info().expect("png info");
+        let mut pixels = vec![0; reader.output_buffer_size()];
+        reader.next_frame(&mut pixels).unwrap();
+        let (width, height) = (reader.info().width, reader.info().height);
+        (pixels, width, height)
+    }
+
+    pub fn sample(gl: &glow::Context) -> Self {
+        use glow::HasContext as _;
+
+        let (pixels, width, height) = Texture::load_png_from_file("maps/crate.png");
+
+        unsafe {
+            let texture = gl.create_texture().expect("texture");
+            gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::REPEAT as i32);
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::REPEAT as i32);
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_MIN_FILTER,
+                glow::LINEAR as i32,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_MAG_FILTER,
+                glow::LINEAR as i32,
+            );
+
+            gl.tex_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                glow::RGB as i32,
+                width as i32,
+                height as i32,
+                0,
+                glow::RGB,
+                glow::UNSIGNED_BYTE,
+                Some(&pixels),
+            );
+            gl.generate_mipmap(glow::TEXTURE_2D);
+            Self { handle: texture }
+        }
+    }
+    pub fn extract(gl: &glow::Context, geo: &Geometry) -> Result<Option<Self>> {
+        use glow::HasContext as _;
+
+        let Some(materials) = geo.get_materials(None)? else {
+            eprintln!("No texture!");
+            return Ok(None)
+        };
+        let mat = match &materials {
+            Materials::Single(mat) => mat,
+            Materials::Multiple(mult_mat) => &mult_mat[0],
+        };
+
+        mat.render_texture("basecolor_texture")?;
+        let image_info = mat.get_image_info()?;
+        let (width, height) = (image_info.x_res() as usize, image_info.y_res() as usize);
+        let mut pixels = Vec::with_capacity(width * height);
+        mat.extract_image_to_memory(&mut pixels, "C", "PNG")?;
+
+        let (pixels, _, _) = Texture::decode_png_from_data(&pixels);
+
+        let texture = unsafe {
+            let texture = gl.create_texture().expect("texture");
+            gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::REPEAT as i32);
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::REPEAT as i32);
+
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_MIN_FILTER,
+                glow::LINEAR as i32,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_MAG_FILTER,
+                glow::LINEAR as i32,
+            );
+
+            gl.tex_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                glow::RGBA as i32,
+                width as i32,
+                height as i32,
+                0,
+                glow::RGB,
+                glow::UNSIGNED_BYTE,
+                Some(&pixels),
+            );
+            gl.generate_mipmap(glow::TEXTURE_2D);
+            texture
+        };
+        Ok(Some(Texture { handle: texture }))
+    }
 }
 
 pub struct Renderable {
     pub mesh: MeshData,
+    pub texture: Option<Texture>,
     pub program: glow::Program,
 }
 
@@ -177,72 +288,19 @@ impl MeshData {
             if self.normals.is_some() {
                 offset += size_of::<Vec3>();
             }
-            let stride = gl.vertex_attrib_pointer_f32(
-                3,
-                3,
-                glow::FLOAT,
-                false,
-                stride as i32,
-                offset as i32,
-            );
+            if self.colors.is_some() {
+                offset += size_of::<Vec3>();
+            }
+            gl.vertex_attrib_pointer_f32(3, 3, glow::FLOAT, false, stride as i32, offset as i32);
             // Enable attributes
             gl.enable_vertex_attrib_array(3);
         }
 
-        let texture = gl.create_texture().expect("texture");
-        gl.bind_texture(glow::TEXTURE_2D, Some(texture));
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::REPEAT as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::REPEAT as i32);
-
-        let (texture_pixels, width, height) = match self.uvs {
-            Some(_) => {
-                let decoder = png::Decoder::new(std::fs::File::open("maps/crate.png").unwrap());
-                let mut reader = decoder.read_info().unwrap();
-                let mut pixels = vec![0; reader.output_buffer_size()];
-                reader.next_frame(&mut pixels).unwrap();
-                let (w, h) = (reader.info().width, reader.info().height);
-                gl.tex_parameter_i32(
-                    glow::TEXTURE_2D,
-                    glow::TEXTURE_MIN_FILTER,
-                    glow::LINEAR as i32,
-                );
-                gl.tex_parameter_i32(
-                    glow::TEXTURE_2D,
-                    glow::TEXTURE_MAG_FILTER,
-                    glow::LINEAR as i32,
-                );
-                (pixels, w, h)
-            }
-            None => {
-                // TODO: Not working when there's no uv coords.
-                let pixels = vec![
-                    0xff, 0x00, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0x00, 0xff, 0xff, 0xff,
-                    0xff, 0x00, 0xff,
-                ];
-                let pixels: Vec<u8> = bytemuck::cast_slice(&[1.0, 1.0, 1.0]).into();
-                (pixels, 1, 1)
-            }
-        };
-
-        gl.tex_image_2d(
-            glow::TEXTURE_2D,
-            0,
-            glow::RGB as i32,
-            width as i32,
-            height as i32,
-            0,
-            glow::RGB,
-            glow::UNSIGNED_BYTE,
-            Some(&texture_pixels),
-        );
-        gl.generate_mipmap(glow::TEXTURE_2D);
-
         gl.use_program(Some(program));
 
         self.vao = Some(vao);
-        self.vbo = Some(vbo);
-        self.texture = Some(texture);
     }
+
     pub fn from_houdini_geo(geo: &Geometry) -> Result<(Self, Duration, Duration)> {
         let _start = Instant::now();
         let _part = geo.part_info(0)?;
@@ -382,7 +440,7 @@ impl MeshData {
 
                 // UV
                 if let Some(ref uvs) = uvs {
-                    vertex_array.push(Vec3::new(uvs[off0 * 3 + 0], uvs[off0 * 3 + 1], 0.0));
+                    vertex_array.push(Vec3::new(uvs[off0 * 3 + 0], 1.0 - uvs[off0 * 3 + 1], 0.0));
                 }
 
                 // VTX 2
@@ -413,7 +471,7 @@ impl MeshData {
 
                 // UV
                 if let Some(ref uvs) = uvs {
-                    vertex_array.push(Vec3::new(uvs[off1 * 3 + 0], uvs[off1 * 3 + 1], 0.0));
+                    vertex_array.push(Vec3::new(uvs[off1 * 3 + 0], 1.0 - uvs[off1 * 3 + 1], 0.0));
                 }
 
                 // VTX 3
@@ -442,7 +500,7 @@ impl MeshData {
                 }
                 // UV
                 if let Some(ref uvs) = uvs {
-                    vertex_array.push(Vec3::new(uvs[off2 * 3 + 0], uvs[off2 * 3 + 1], 0.0));
+                    vertex_array.push(Vec3::new(uvs[off2 * 3 + 0], 1.0 - uvs[off2 * 3 + 1], 0.0));
                 }
             }
             offset += vertex_count_per_face as usize;
@@ -457,8 +515,6 @@ impl MeshData {
             uvs,
             vertex_array,
             vao: None,
-            vbo: None,
-            texture: None,
             num_vertices: num_vertices as i32,
         };
         Ok((_self, hapi_time, vertex_processing_time))
@@ -473,7 +529,7 @@ unsafe fn compile_gl_program(gl: &glow::Context) -> glow::Program {
     let shader_sources = [
         (glow::VERTEX_SHADER, include_str!("glsl/shader.vert")),
         (glow::FRAGMENT_SHADER, include_str!("glsl/shader.frag")),
-        (glow::GEOMETRY_SHADER, include_str!("glsl/shader.geom")),
+        // (glow::GEOMETRY_SHADER, include_str!("glsl/shader.geom")),
     ];
     let shaders: Vec<_> = shader_sources
         .into_iter()
@@ -519,6 +575,7 @@ impl Asset {
         geo.node.cook()?;
         let cooking_time = Instant::now().duration_since(_start);
         let (mut mesh, hapi_time, vertex_processing_time) = MeshData::from_houdini_geo(&geo)?;
+        let texture = Texture::extract(&gl, &geo)?;
         let buffer_build_time = Instant::now().duration_since(_start);
         let program = unsafe {
             let program = compile_gl_program(&gl);
@@ -530,7 +587,11 @@ impl Asset {
         Ok(Self {
             gl,
             asset_node: asset,
-            renderable: Renderable { mesh, program },
+            renderable: Renderable {
+                mesh,
+                program,
+                texture,
+            },
             geometry_node: geo,
             stats: Stats {
                 cooking: CookingStats {
@@ -564,6 +625,13 @@ impl Asset {
         } else {
             *avg_cooking_time = Duration::from_micros(0);
         }
+        Ok(())
+    }
+
+    pub fn reload_texture(&mut self) -> Result<()> {
+        // TODO: Cache textures when switching models
+        let texture = Texture::extract(&self.gl, &self.geometry_node)?;
+        std::mem::replace(&mut self.renderable.texture, texture);
         Ok(())
     }
 
@@ -606,12 +674,15 @@ impl Asset {
         unsafe {
             self.gl.enable(glow::DEPTH_TEST);
             self.gl.enable(glow::MULTISAMPLE);
+            // self.gl
+            //     .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
             self.gl.clear(glow::DEPTH_BUFFER_BIT);
             self.gl.front_face(glow::CW);
             self.gl.bind_vertex_array(self.renderable.mesh.vao);
             self.gl.active_texture(glow::TEXTURE0);
-            self.gl
-                .bind_texture(glow::TEXTURE_2D, self.renderable.mesh.texture);
+            if let Some(ref texture) = self.renderable.texture {
+                self.gl.bind_texture(glow::TEXTURE_2D, Some(texture.handle));
+            }
             self.gl.use_program(Some(self.renderable.program));
 
             let push_matrix = |uniform, mat: Mat4| {
