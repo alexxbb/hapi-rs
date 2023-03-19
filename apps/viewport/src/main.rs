@@ -43,12 +43,13 @@ struct ViewportApp {
 impl ViewportApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let gl = cc.gl.as_ref().expect("Could not init gl Context").clone();
+        let options = SessionOptions::default();
         let session = if cfg!(debug_assertions) {
-            if let Ok(session) = hapi_rs::session::connect_to_pipe("hapi", None, None) {
+            if let Ok(session) = hapi_rs::session::connect_to_pipe("hapi", Some(&options), None) {
                 session
             } else {
                 eprintln!("Could not connect to HARS server, starting new in-process");
-                hapi_rs::session::new_in_process(None).expect("in-process session")
+                hapi_rs::session::new_in_process(Some(&options)).expect("in-process session")
             }
         } else {
             eprintln!("Starting in-process session");
