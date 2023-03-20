@@ -28,6 +28,7 @@ use setup::{Asset, AssetParameters, BufferStats, CookingStats, MeshData, Stats};
 
 static OTL: &str = "otls/hapi_opengl.hda";
 static ICON: &str = "maps/icon.png";
+static WIN_TITLE: &str = "HAPI Viewport";
 
 struct ViewportApp {
     full_screen: bool,
@@ -67,8 +68,8 @@ impl ViewportApp {
             asset_parameters: Arc::new(Mutex::new(asset_parameters)),
             should_refresh_parms: false,
             scale: 1.0,
-            turntable: false,
-            camera: Camera::new(Vec3::new(0.0, 1.0, -2.0)),
+            turntable: true,
+            camera: Camera::new(Vec3::new(0.0, 1.0, -2.5)),
             movement: egui::Vec2::splat(0.0),
         }
     }
@@ -85,17 +86,17 @@ impl eframe::App for ViewportApp {
                     ui.heading("Asset Parameters");
                 });
                 ui.separator();
-                // ui.add(egui::Checkbox::new(&mut self.turntable, "Turntable"));
+                ui.add(egui::Checkbox::new(&mut self.turntable, "Turntable"));
                 let mut asset = self.asset.lock();
 
                 let mut rebuild_fn = |reset_stats, reload_texture| {
+                    if reset_stats {
+                        asset.stats.reset();
+                    }
                     asset.cook().expect("Cook");
                     asset.rebuild_mesh().expect("rebuild");
                     if reload_texture {
                         asset.reload_texture();
-                    }
-                    if reset_stats {
-                        asset.stats.reset();
                     }
                     ctx.request_repaint();
                 };
@@ -155,6 +156,7 @@ impl eframe::App for ViewportApp {
                                     p.set(0, *current as i32).expect("Parameter Update");
                                     rebuild_fn(false, false);
                                 }
+                                self.should_refresh_parms = true;
                             }
                         }
                         _ => {}
@@ -232,7 +234,7 @@ impl eframe::App for ViewportApp {
                 let rect = ui.max_rect();
 
                 let mut mouse_movement = egui::Vec2::splat(0.0);
-                let mut wheel_zoom = 0.0f32;
+                let mut camera_zoom = 0.0f32;
                 ui.input(|input| {
                     if input.pointer.button_down(PointerButton::Primary) {
                         if rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
@@ -242,19 +244,20 @@ impl eframe::App for ViewportApp {
                     if input.pointer.button_down(PointerButton::Secondary) {
                         if rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
                             let delta = input.pointer.delta() * 0.005;
-                            wheel_zoom += delta.x + delta.y;
+                            camera_zoom += delta.x + delta.y;
                         }
                     }
                 });
 
                 self.camera.set_aspect_ratio(rect.aspect_ratio());
-                self.camera.set_zoom(wheel_zoom);
+                self.camera.set_zoom(camera_zoom);
                 if self.turntable {
                     // TODO rotate camera
-                    let time = self
-                        .turntable
-                        .then_some(ui.ctx().input(|input| input.time))
-                        .unwrap_or(0.0);
+                    // let time = self
+                    //     .turntable
+                    //     .then_some(ui.ctx().input(|input| input.time))
+                    //     .unwrap_or(0.0);
+                    self.camera.turntable(2.0 as f32);
                 } else {
                     self.camera.orbit(mouse_movement.x, mouse_movement.y);
                 }
@@ -311,11 +314,18 @@ fn main() {
         initial_window_size: Some(egui::vec2(1200.0, 800.0)),
         initial_window_pos: Some(egui::Pos2::new(1000.0, 500.0)),
         multisampling: 16,
+        follow_system_theme: false,
+        default_theme: eframe::Theme::Dark,
         renderer: eframe::Renderer::Glow,
         depth_buffer: 24,
         icon_data: load_icon(),
         ..Default::default()
     };
     let creator: eframe::AppCreator = Box::new(move |cc| Box::new(ViewportApp::new(cc)));
-    eframe::run_native("HAPI Viewport", options, creator);
+    let title = if cfg!(debug_assertions) {
+        format!("{} - DEBUG MODE IS SLOW !!!", WIN_TITLE)
+    } else {
+        WIN_TITLE.to_string()
+    };
+    eframe::run_native(&title, options, creator);
 }

@@ -24,6 +24,13 @@ impl Camera {
             zoom: 1.0,
         }
     }
+    pub fn reset(&mut self) {}
+    pub fn turntable(&mut self, delta: f32) {
+        let rot_y = -delta / 150.0;
+        let rot_mat = Mat4::from_rotation_y(rot_y % 360.0);
+        self.eye = rot_mat.transform_vec3(self.eye);
+        self.view = Mat4::look_at(self.eye, self.look_at, self.up_vec);
+    }
     pub fn orbit(&mut self, delta_x: f32, delta_y: f32) {
         let rot_y = -delta_x / 150.0;
         let rot_mat = Mat4::from_rotation_y(rot_y);
