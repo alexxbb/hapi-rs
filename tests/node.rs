@@ -85,6 +85,7 @@ fn node_inputs_and_outputs() {
 #[test]
 fn node_search() {
     let asset = SESSION.create_node("Object/hapi_geo").unwrap();
+    asset.cook_blocking().unwrap();
     let nope = asset.get_child_by_path("bla").unwrap();
     assert!(nope.is_none());
     asset

@@ -374,17 +374,8 @@ impl Geometry {
             "Node not cooked"
         );
         let name = CString::new("P")?;
-        let inner = crate::ffi::get_attribute_info(
-            &self.node,
-            part_id,
-            AttributeOwner::Point,
-            name.as_c_str(),
-        )?;
-        Ok(NumericAttr::new(
-            name,
-            AttributeInfo { inner },
-            self.node.clone(),
-        ))
+        let info = AttributeInfo::new(&self.node, part_id, AttributeOwner::Point, name.as_c_str())?;
+        Ok(NumericAttr::new(name, info, self.node.clone()))
     }
 
     /// Get geometry attribute by name and owner.
@@ -399,12 +390,11 @@ impl Geometry {
             "Node not cooked"
         );
         let name = CString::new(name)?;
-        let inner = crate::ffi::get_attribute_info(&self.node, part_id, owner, &name)?;
-        let storage = inner.storage;
-        if inner.exists < 1 {
+        let info = AttributeInfo::new(&self.node, part_id, owner, &name)?;
+        let storage = info.storage();
+        if !info.exists() {
             return Ok(None);
         }
-        let info = AttributeInfo { inner };
         let node = self.node.clone();
         let attr_obj: Box<dyn AnyAttribWrapper> = match storage {
             s @ (StorageType::Invalid | StorageType::Max) => {

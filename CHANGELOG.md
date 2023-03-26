@@ -1,4 +1,10 @@
 # hapi-rs changelog
+
+## NEXT
+
+### New
+- Add `NumericAttribute::read_into()` method for reusing a buffer for attribute data.
+
 ## [0.9.1]
 ### Changed:
 - Remove internal Mutex from `Session`.

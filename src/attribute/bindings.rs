@@ -14,16 +14,14 @@ pub trait AttribAccess: Sized + 'static {
         name: &CStr,
         node: &HoudiniNode,
         info: &AttributeInfo,
-        part: i32,
-        stride: i32,
-        start: i32,
-        len: i32,
-    ) -> Result<Vec<Self>>;
+        part_id: i32,
+        buffer: &mut Vec<Self>,
+    ) -> Result<()>;
     fn set(
         name: &CStr,
         node: &HoudiniNode,
         info: &AttributeInfo,
-        part: i32,
+        part_id: i32,
         data: &[Self],
         start: i32,
         len: i32,
@@ -125,31 +123,29 @@ impl AttribAccess for _val_type {
         node: &HoudiniNode,
         info: &AttributeInfo,
         part: i32,
-        stride: i32,
-        start: i32,
-        len: i32,
-    ) -> Result<Vec<_val_type>> {
+        buffer: &mut Vec<Self>,
+    ) -> Result<()> {
+        debug_assert!(node.is_valid()?);
+        buffer.resize(
+            (info.inner.count * info.inner.tupleSize) as usize,
+            _val_type::default(),
+        );
         unsafe {
-            debug_assert!(node.is_valid()?);
-            let mut data_array = Vec::new();
-            data_array.resize((len * info.inner.tupleSize) as usize, _val_type::default());
             // SAFETY: Most likely an error in C API, it should not modify the info object,
             // but for some reason it wants a mut pointer
             let attr_info = &info.inner as *const _ as *mut HAPI_AttributeInfo;
-            // let mut data_array = vec![];
             raw::_get(
                 node.session.ptr(),
                 node.handle.0,
                 part,
                 name.as_ptr(),
                 attr_info,
-                stride,
-                data_array.as_mut_ptr(),
-                start,
-                len,
+                -1,
+                buffer.as_mut_ptr(),
+                0,
+                info.inner.count,
             )
-            .check_err(&node.session, || stringify!(Calling _get))?;
-            Ok(data_array)
+            .check_err(&node.session, || stringify!(Calling _get))
         }
     }
     fn set(

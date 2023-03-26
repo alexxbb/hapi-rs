@@ -28,7 +28,7 @@ use std::fmt::Debug;
 
 /// An internal handle to a parameter
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParmHandle(pub crate::ffi::raw::HAPI_ParmId);
 
 #[derive(Debug)]

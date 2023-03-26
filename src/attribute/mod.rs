@@ -122,17 +122,25 @@ impl<T: AttribAccess> NumericAttr<T> {
             _m: Default::default(),
         })
     }
+    /// Get attribute value. Allocates a new vector on every call
     pub fn get(&self, part_id: i32) -> Result<Vec<T>> {
         debug_assert_eq!(self.0.info.storage(), T::storage());
+        let mut buffer = vec![];
         T::get(
             &self.0.name,
             &self.0.node,
             &self.0.info,
             part_id,
-            -1,
-            0,
-            self.0.info.count(),
-        )
+            &mut buffer,
+        )?;
+        Ok(buffer)
+    }
+    /// Read the attribute data into a provided buffer. The buffer will be auto-resized
+    /// from the attribute info.
+    pub fn read_into(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<()> {
+        debug_assert_eq!(self.0.info.storage(), T::storage());
+        let info = AttributeInfo::new(&self.0.node, part_id, self.0.info.owner(), &self.0.name)?;
+        T::get(&self.0.name, &self.0.node, &info, part_id, buffer)
     }
     pub fn set(&self, part_id: i32, values: &[T]) -> Result<()> {
         debug_assert_eq!(self.0.info.storage(), T::storage());

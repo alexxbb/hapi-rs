@@ -1052,7 +1052,7 @@ pub fn get_compose_child_node_list(
             .check_err(session, || "Calling HAPI_GetComposedChildNodeList")?;
             Ok(obj_infos)
         } else {
-            return Ok(vec![]);
+            Ok(vec![])
         }
     }
 }

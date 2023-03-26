@@ -280,7 +280,7 @@ impl AssetLibrary {
             crate::ffi::get_asset_def_parm_values(self.lib_id, &asset_name, &self.session, &count)?;
         let menus = values.3.into_iter().map(|info| ParmChoiceInfo {
             inner: info,
-            session: self.session.clone().into(),
+            session: self.session.clone(),
         });
         let values = AssetParmValues {
             int: values.0,

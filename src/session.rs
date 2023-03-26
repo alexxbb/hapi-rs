@@ -97,7 +97,7 @@ impl EnvVariable for str {
 
     fn get_value(session: &Session, key: impl AsRef<str>) -> Result<String> {
         let key = CString::new(key.as_ref())?;
-        let handle = crate::ffi::get_server_env_str(session, &key)?.into();
+        let handle = crate::ffi::get_server_env_str(session, &key)?;
         crate::stringhandle::get_string(handle, session)
     }
 

@@ -8,7 +8,7 @@ use crate::{
 };
 use debug_ignore::DebugIgnore;
 use paste::paste;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 
 macro_rules! get {
 
@@ -368,6 +368,19 @@ wrap!(
     [get|set|with] type_info->typeInfo->[AttributeTypeInfo];
     [get|set|with] count->count->[i32];
 );
+
+impl AttributeInfo {
+    pub(crate) fn new(
+        node: &HoudiniNode,
+        part_id: i32,
+        owner: AttributeOwner,
+        name: &CStr,
+    ) -> Result<Self> {
+        Ok(Self {
+            inner: crate::ffi::get_attribute_info(&node, part_id, owner, name)?,
+        })
+    }
+}
 
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___asset_info.html)
 #[derive(Debug)]
