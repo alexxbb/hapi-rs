@@ -4,6 +4,8 @@
 
 ### New
 - Add `NumericAttribute::read_into()` method for reusing a buffer for attribute data.
+- Reintroduced an internal reentrant mutex to make sure 2 or more API calls are atomic.
+- Update dependencies
 
 ## [0.9.1]
 ### Changed:

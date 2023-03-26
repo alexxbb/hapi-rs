@@ -264,7 +264,7 @@ impl AssetLibrary {
     /// Returns a struct holding the asset parameter information and values
     pub fn get_asset_parms(&self, asset: impl AsRef<str>) -> Result<AssetParameters> {
         debug_assert!(self.session.is_valid());
-        // let _lock = self.session.lock();
+        let _lock = self.session.lock();
         log::debug!("Reading asset parameter list of {}", asset.as_ref());
         let asset_name = CString::new(asset.as_ref())?;
         let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &asset_name, &self.session)?;

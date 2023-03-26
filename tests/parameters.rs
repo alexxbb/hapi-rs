@@ -1,8 +1,7 @@
 use once_cell::sync::Lazy;
 
-use hapi_rs::parameter::ParmType;
 use hapi_rs::{
-    parameter::{KeyFrame, Parameter, ParmBaseTrait},
+    parameter::{KeyFrame, Parameter, ParmBaseTrait, ParmType},
     session::{quick_session, Session, SessionOptionsBuilder},
     Result,
 };

@@ -9,7 +9,6 @@ use hapi_rs::{
 static SESSION: Lazy<Mutex<Session>> = Lazy::new(|| {
     // Put session into Mutex for this test since there seem to be a race condition
     // IN Houdini which messes up string access, despite HAPI claims to be thread-safe.
-    // This crate used to have an internal reentrant lock for such cases, but it was removed.
     env_logger::init();
     let session = quick_session(None).expect("Could not create test session");
     session

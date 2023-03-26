@@ -165,7 +165,7 @@ pub(crate) fn get_string_bytes(handle: StringHandle, session: &Session) -> Resul
 }
 
 pub(crate) fn get_string_array(handles: &[StringHandle], session: &Session) -> Result<StringArray> {
-    // let _lock = session.lock();
+    let _lock = session.lock();
     let length = crate::ffi::get_string_batch_size(handles, session)?;
     let bytes = if length > 0 {
         crate::ffi::get_string_batch(length, session)?
