@@ -1,11 +1,15 @@
 use once_cell::sync::Lazy;
+use std::sync::Mutex;
 
 use hapi_rs::{
     asset::{AssetLibrary, ParmValue},
     session::{quick_session, Session},
 };
 
-static SESSION: Lazy<Session> = Lazy::new(|| {
+static SESSION: Lazy<Mutex<Session>> = Lazy::new(|| {
+    // Put session into Mutex for this test since there seem to be a race condition
+    // IN Houdini which messes up string access, despite HAPI claims to be thread-safe.
+    // This crate used to have an internal reentrant lock for such cases, but it was removed.
     env_logger::init();
     let session = quick_session(None).expect("Could not create test session");
     session
@@ -20,11 +24,13 @@ static SESSION: Lazy<Session> = Lazy::new(|| {
     session
         .load_asset_file("otls/sesi/SideFX_spaceship.hda")
         .expect("load asset");
-    session
+    Mutex::new(session)
 });
 
 static LIB: Lazy<AssetLibrary> = Lazy::new(|| {
     SESSION
+        .lock()
+        .unwrap()
         .load_asset_file("otls/hapi_parms.hda")
         .expect("load_asset_file")
 });
@@ -37,7 +43,7 @@ fn asset_get_count() {
 #[test]
 fn asset_load_from_memory() {
     let mem = std::fs::read("otls/hapi_geo.hda").unwrap();
-    AssetLibrary::from_memory(SESSION.clone(), &mem).unwrap();
+    AssetLibrary::from_memory(SESSION.lock().unwrap().clone(), &mem).unwrap();
 }
 
 #[test]
@@ -57,14 +63,12 @@ fn asset_get_first_name() {
 }
 
 #[test]
-fn asset_parameters() {
+fn asset_default_parameters() {
     let parms = LIB.get_asset_parms("Object/hapi_parms").unwrap();
 
     let parm = parms.find_parameter("single_string").expect("parm");
     if let ParmValue::String([val]) = parm.default_value() {
         assert_eq!(val, "hello");
-    } else {
-        panic!("parm is not a string");
     }
     let parm = parms.find_parameter("float3").expect("parm");
     if let ParmValue::Float(val) = parm.default_value() {

@@ -101,11 +101,14 @@ fn geometry_attribute_names() {
 fn geometry_numeric_attributes() {
     let geo = SESSION.create_input_node("test").unwrap();
     _create_triangle(&geo);
-    let attr_p = geo
+    // Generic way to get an attribute
+    let _attr_p = geo
         .get_attribute(0, AttributeOwner::Point, "P")
         .unwrap()
         .unwrap();
-    let attr_p = attr_p.downcast::<NumericAttr<f32>>().unwrap();
+    let _attr_p = _attr_p.downcast::<NumericAttr<f32>>().unwrap();
+    // Convenient method
+    let attr_p = geo.get_position_attribute(0).unwrap();
     let dat = attr_p.get(0).expect("read_attribute");
     assert_eq!(dat.len(), 9);
     geo.node.delete().unwrap();
