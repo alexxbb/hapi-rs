@@ -6,7 +6,7 @@
 
 SideFX Houdini Meets Rust!
 
-[SideFx Houdini](https://www.sidefx.com/) is a world leading software for creating stunning visual effects for movies
+[SideFx Houdini](https://www.sidefx.com/) is world leading software for creating stunning visual effects for movies
 and games. Apart from the main graphical interface written in C++ and Python, Houdini also provides a C interface
 called [Houdini Engine](https://www.sidefx.com/products/houdini-engine/) or HAPI for short. Its goal is to bring the
 power of Houdini to other DCCs (Digital Content Creation) software and game engines.
@@ -15,6 +15,9 @@ This crate aims to provide idiomatic Rust interface to Houdini Engine and is bui
 of [hapi-sys](https://crates.io/crates/hapi-sys).
 
 > :exclamation: A valid **commercial** Houdini Engine license is required to use this crate
+
+# HDA Viewer Demo
+https://user-images.githubusercontent.com/10694389/227816361-b9ffa083-7932-40e4-afda-3cb400126eb5.mp4
 
 # Example
 
