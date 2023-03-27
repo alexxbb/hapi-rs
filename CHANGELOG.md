@@ -1,10 +1,10 @@
 # hapi-rs changelog
 
-## NEXT
-
+## [0.9.2]
 ### New
-- Add `NumericAttribute::read_into()` method for reusing a buffer for attribute data.
+- Add `NumericAttribute::read_into()` method for reusing a buffer when reading attribute data.
 - Reintroduced an internal reentrant mutex to make sure 2 or more API calls are atomic.
+- Add a demo of OpenGL viewer
 - Update dependencies
 
 ## [0.9.1]
