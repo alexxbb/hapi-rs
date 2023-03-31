@@ -504,6 +504,7 @@ wrap!(
     [get|set|with] knot_count->knotCount->[i32];
     [get|set|with] periodic->isPeriodic->[bool];
     [get|set|with] rational->isRational->[bool];
+    [get|set|with] closed->isClosed->[bool];
     [get|set|with] has_knots->hasKnots->[bool];
     [get|set|with] order->order->[i32];
 );
