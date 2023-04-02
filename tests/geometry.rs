@@ -118,7 +118,7 @@ fn geometry_numeric_attributes() {
 fn geometry_create_string_attrib() {
     let geo = SESSION.create_input_node("test").unwrap();
     _create_triangle(&geo);
-    let part = geo.part_info(0).unwrap();
+    let part = geo.part_info(0).unwrap().expect("part 0");
     let info = AttributeInfo::default()
         .with_owner(AttributeOwner::Point)
         .with_storage(StorageType::String)
@@ -128,6 +128,18 @@ fn geometry_create_string_attrib() {
     let attr_name = geo.add_string_attribute("name", 0, info).unwrap();
     attr_name.set(0, &["pt0", "pt1", "pt2"]).unwrap();
     geo.commit().unwrap();
+    geo.node.cook_blocking().unwrap();
+    let str_attr = geo
+        .get_attribute(0, AttributeOwner::Point, "name")
+        .unwrap()
+        .unwrap();
+    let Some(str_attr) = str_attr.downcast::<StringAttr>() else {
+        panic!("Must be string array attr");
+    };
+    let str_array = str_attr.get(0).unwrap();
+    let mut iter = str_array.iter_str();
+    assert_eq!(iter.next(), Some("pt0"));
+    assert_eq!(iter.last(), Some("pt2"));
     geo.node.delete().unwrap();
 }
 
@@ -232,7 +244,7 @@ fn geometry_save_and_load_to_file() {
     geo.load_from_file(&tmp_file.to_string_lossy())
         .expect("load_from_file");
     geo.node.cook().unwrap();
-    assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
+    assert_eq!(geo.part_info(0).unwrap().expect("part 0").point_count(), 3);
     geo.node.delete().unwrap();
 }
 
@@ -259,10 +271,10 @@ fn geometry_commit_and_revert() {
     _create_triangle(&geo);
     geo.commit().unwrap();
     geo.node.cook_blocking().unwrap();
-    assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
+    assert_eq!(geo.part_info(0).unwrap().expect("part 0").point_count(), 3);
     geo.revert().unwrap();
     geo.node.cook_blocking().unwrap();
-    assert_eq!(geo.part_info(0).unwrap().point_count(), 0);
+    assert_eq!(geo.part_info(0).unwrap().expect("part 0").point_count(), 0);
     geo.node.delete().unwrap();
 }
 
@@ -271,7 +283,7 @@ fn geometry_elements() {
     let node = SESSION.create_node("Object/hapi_geo").unwrap();
     node.cook_blocking().unwrap();
     let geo = node.geometry().unwrap().expect("Geometry");
-    let part = geo.part_info(0).unwrap();
+    let part = geo.part_info(0).unwrap().expect("part 0");
     // Cube
     let points = geo
         .get_element_count_by_owner(Some(&part), AttributeOwner::Point)
@@ -325,6 +337,14 @@ fn geometry_delete_attribute() {
 }
 
 #[test]
+fn geometry_partitions() {
+    let geo = SESSION.create_input_node("input").unwrap();
+    _create_triangle(&geo);
+    assert_eq!(geo.partitions().unwrap().len(), 1);
+    assert!(matches!(geo.part_info(100), Ok(None)));
+}
+
+#[test]
 fn geometry_add_and_delete_group() {
     let geo = SESSION.create_input_node("input").unwrap();
     _create_triangle(&geo);
@@ -367,7 +387,11 @@ fn geometry_basic_instancing() {
         .unwrap();
     assert_eq!(
         tranforms.len() as i32,
-        instancer.part_info(0).unwrap().instance_count()
+        instancer
+            .part_info(0)
+            .unwrap()
+            .expect("part 0")
+            .instance_count()
     );
 }
 
@@ -440,7 +464,7 @@ fn geometry_read_write_volume() {
     let node = SESSION.create_node("Object/hapi_vol").unwrap();
     node.cook_blocking().unwrap();
     let source = node.geometry().unwrap().unwrap();
-    let source_part = source.part_info(0).unwrap();
+    let source_part = source.part_info(0).unwrap().expect("part 0");
     let vol_info = source.volume_info(0).unwrap();
     let dest_geo = SESSION.create_input_node("volume_copy").unwrap();
     dest_geo.node.cook_blocking().unwrap();

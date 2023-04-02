@@ -52,19 +52,21 @@ impl GeoFormat {
 }
 
 impl Geometry {
-    pub fn part_info(&self, part_id: i32) -> Result<PartInfo> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
-        crate::ffi::get_part_info(&self.node, part_id).map(|inner| PartInfo { inner })
+    /// Get geometry partition info by index.
+    /// Returns an Option if given an incorrect part id.
+    /// A common cases of invalid part_id is when node hasn't been cooked,
+    /// after node created or after calling `[Geometry::commit]`
+    pub fn part_info(&self, part_id: i32) -> Result<Option<PartInfo>> {
+        // TODO: Consider taking a u32 and cast to i32 for ffi.
+        use crate::errors::Kind;
+        match crate::ffi::get_part_info(&self.node, part_id) {
+            Ok(inner) => Ok(Some(PartInfo { inner })),
+            Err(err) if matches!(err.kind, Kind::Hapi(HapiResult::InvalidArgument)) => Ok(None),
+            Err(err) => Err(err),
+        }
     }
 
     pub fn volume_info(&self, part_id: i32) -> Result<VolumeInfo> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
         crate::ffi::get_volume_info(&self.node, part_id).map(|inner| VolumeInfo { inner })
     }
 
@@ -213,12 +215,13 @@ impl Geometry {
     /// ith element in the array is the point index the ith vertex
     /// associates with.
     pub fn vertex_list(&self, part: Option<&PartInfo>) -> Result<Vec<i32>> {
+        // TODO: Consider taking a ref to an existing PartInfo instead of Option
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
         let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?);
+        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_geo_vertex_list(
             &self.node.session,
             self.node.handle,
@@ -233,8 +236,8 @@ impl Geometry {
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        (0..self.info.part_count())
-            .map(|i| self.part_info(i))
+        (0..self.geo_info()?.part_count())
+            .map(|i| self.part_info(i).map(|p| p.expect("partition")))
             .collect()
     }
 
@@ -244,7 +247,7 @@ impl Geometry {
             "Node not cooked"
         );
         let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?);
+        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_face_counts(
             &self.node.session,
             self.node.handle,
@@ -261,7 +264,7 @@ impl Geometry {
             "Node not cooked"
         );
         let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?);
+        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         let (all_the_same, mats) = crate::ffi::get_material_node_ids_on_faces(
             &self.node.session,
             self.node.handle,
@@ -329,7 +332,7 @@ impl Geometry {
         owner: AttributeOwner,
     ) -> Result<i32> {
         let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?);
+        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_element_count_by_attribute_owner(part, owner)
     }
 
@@ -340,7 +343,7 @@ impl Geometry {
         owner: AttributeOwner,
     ) -> Result<i32> {
         let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?);
+        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_attribute_count_by_owner(part, owner)
     }
 
@@ -354,7 +357,7 @@ impl Geometry {
             "Node not cooked"
         );
         let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?);
+        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         let counts = part.attribute_counts();
         let count = match owner {
             AttributeOwner::Invalid => panic!("Invalid AttributeOwner"),
@@ -462,10 +465,8 @@ impl Geometry {
         part_id: i32,
         info: AttributeInfo,
     ) -> Result<StringAttr> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        debug_assert!(self.node.is_valid()?);
+        debug_assert!(matches!(info.storage(), StorageType::String));
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(StringAttr::new(name, info, self.node.clone()))
@@ -479,6 +480,7 @@ impl Geometry {
         info: AttributeInfo,
     ) -> Result<StringArrayAttr> {
         debug_assert!(self.node.is_valid()?);
+        debug_assert!(matches!(info.storage(), StorageType::StringArray));
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(StringArrayAttr::new(name, info, self.node.clone()))
@@ -564,7 +566,7 @@ impl Geometry {
             "Node not cooked"
         );
         let tmp;
-        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?);
+        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?.expect("partition id=0"));
         let group_name = CString::new(group_name)?;
         crate::ffi::get_group_membership(
             &self.node.session,
@@ -597,7 +599,7 @@ impl Geometry {
             "Node not cooked"
         );
         let tmp;
-        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?);
+        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_instanced_part_ids(
             &self.node.session,
             self.node.handle,
@@ -615,7 +617,7 @@ impl Geometry {
             "Node not cooked"
         );
         let tmp;
-        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?);
+        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_group_count_on_instance_part(
             &self.node.session,
             self.node.handle,
@@ -650,7 +652,7 @@ impl Geometry {
             "Node not cooked"
         );
         let tmp;
-        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?);
+        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_instanced_part_transforms(
             &self.node.session,
             self.node.handle,

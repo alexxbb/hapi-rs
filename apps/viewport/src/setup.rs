@@ -303,7 +303,7 @@ impl MeshData {
 
     pub fn from_houdini_geo(geo: &Geometry) -> Result<(Self, Duration, Duration)> {
         let _start = Instant::now();
-        let _part = geo.part_info(0)?;
+        let _part = geo.part_info(0)?.expect("Geometry to have partition");
         let _part_id = _part.part_id();
         let positions = geo.get_position_attribute(_part_id)?.get(_part_id)?;
         let face_counts = geo.get_face_counts(Some(&_part))?;
