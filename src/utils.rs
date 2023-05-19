@@ -34,12 +34,13 @@ where
     I: IntoIterator,
     I::Item: AsRef<str>,
 {
+    const SEP: char = if cfg!(windows) { ';' } else { ':' };
     let mut buf = String::new();
     let mut iter = files.into_iter().peekable();
     while let Some(n) = iter.next() {
         buf.push_str(n.as_ref());
         if iter.peek().is_some() {
-            buf.push(':');
+            buf.push(SEP);
         }
     }
     buf
