@@ -1049,6 +1049,7 @@ pub fn get_compose_child_node_list(
     flags: raw::NodeFlags,
     recursive: bool,
 ) -> Result<Vec<i32>> {
+    let _lock = session.lock();
     unsafe {
         let mut count = uninit!();
         let _lock = session.lock();
