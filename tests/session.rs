@@ -24,6 +24,19 @@ static SESSION: Lazy<Session> = Lazy::new(|| {
 });
 
 #[test]
+fn loaded_asset_libraries() {
+    let libs = SESSION.get_loaded_asset_libraries().unwrap();
+    assert!(libs
+        .iter()
+        .find(|lib| lib.file.as_ref().unwrap().ends_with("otls/hapi_geo.hda"))
+        .is_some());
+    assert!(libs
+        .iter()
+        .find(|lib| lib.file.as_ref().unwrap().ends_with("otls/hapi_parms.hda"))
+        .is_some());
+}
+
+#[test]
 fn session_init_and_teardown() {
     let opt = SessionOptions::builder()
         .dso_search_paths(["/path/one", "/path/two"])

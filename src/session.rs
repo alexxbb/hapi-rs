@@ -431,6 +431,24 @@ impl Session {
         AssetLibrary::from_file(self.clone(), file)
     }
 
+    /// Returns a list of loaded asset libraries including Houdini's default.
+    pub fn get_loaded_asset_libraries(&self) -> Result<Vec<AssetLibrary>> {
+        debug_assert!(self.is_valid());
+
+        crate::ffi::get_asset_library_ids(self)?
+            .into_iter()
+            .map(|library_id| {
+                crate::ffi::get_asset_library_file_path(self, library_id).map(|lib_file| {
+                    AssetLibrary {
+                        lib_id: library_id,
+                        session: self.clone(),
+                        file: Some(PathBuf::from(lib_file)),
+                    }
+                })
+            })
+            .collect::<Result<Vec<_>>>()
+    }
+
     /// Interrupt session cooking
     pub fn interrupt(&self) -> Result<()> {
         debug_assert!(self.is_valid());

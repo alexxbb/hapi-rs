@@ -132,8 +132,8 @@ impl<'a> AssetParm<'a> {
 /// A handle to a loaded HDA file
 #[derive(Debug, Clone)]
 pub struct AssetLibrary {
-    lib_id: ffi::HAPI_AssetLibraryId,
-    session: Session,
+    pub(crate) lib_id: ffi::HAPI_AssetLibraryId,
+    pub(crate) session: Session,
     pub file: Option<PathBuf>,
 }
 

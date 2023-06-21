@@ -515,6 +515,28 @@ pub fn get_asset_names(library_id: i32, num_assets: i32, session: &Session) -> R
     crate::stringhandle::get_string_array(&handles, session)
 }
 
+pub fn get_asset_library_ids(session: &Session) -> Result<Vec<raw::HAPI_AssetLibraryId>> {
+    unsafe {
+        let mut count = -1;
+        raw::HAPI_GetLoadedAssetLibraryCount(session.ptr(), &mut count as *mut _)
+            .check_err(session, || "Calling HAPI_GetLoadedAssetLibraryCount")?;
+
+        let mut ids = vec![-1; count as usize];
+        raw::HAPI_GetAssetLibraryIds(session.ptr(), ids.as_mut_ptr(), 0, count)
+            .check_err(session, || "Callign HAPI_GetAssetLibraryIds")?;
+        Ok(ids)
+    }
+}
+
+pub fn get_asset_library_file_path(session: &Session, library_id: i32) -> Result<String> {
+    unsafe {
+        let mut handle = -1;
+        raw::HAPI_GetAssetLibraryFilePath(session.ptr(), library_id, &mut handle as *mut _)
+            .check_err(session, || "Calling HAPI_GetAssetLibraryFilePath")?;
+        crate::stringhandle::get_string(StringHandle(handle), session)
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct ParmValueCount {
     pub parm_count: i32,
