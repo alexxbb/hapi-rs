@@ -1,4 +1,6 @@
 use once_cell::sync::Lazy;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use hapi_rs::{
     node::{
@@ -10,7 +12,9 @@ use hapi_rs::{
     Result,
 };
 
-static SESSION: Lazy<Session> = Lazy::new(|| {
+static SESSION: Lazy<Arc<Mutex<Session>>> = Lazy::new(|| {
+    // There seems to be a threading issue with H19.5.462 when accessing node APIs from
+    // multiple thread even though HAPI "promises" thread safety
     env_logger::init();
     let opt = SessionOptions::builder().threaded(true).build();
     let session = quick_session(Some(&opt)).expect("Could not create test session");
@@ -26,12 +30,13 @@ static SESSION: Lazy<Session> = Lazy::new(|| {
     session
         .load_asset_file("otls/sesi/SideFX_spaceship.hda")
         .expect("load asset");
-    session
+    Arc::new(Mutex::new(session))
 });
 
 #[test]
 fn node_create() {
-    let node = SESSION.create_node("Object/spaceship").unwrap();
+    let session = SESSION.lock().unwrap();
+    let node = session.create_node("Object/spaceship").unwrap();
     assert_eq!(
         node.cook_count(NodeType::None, NodeFlags::None, true)
             .unwrap(),
@@ -43,18 +48,19 @@ fn node_create() {
             .unwrap(),
         1
     );
-    assert!(matches!(SESSION.cook().unwrap(), CookResult::Succeeded));
+    assert!(matches!(session.cook().unwrap(), CookResult::Succeeded));
 }
 
 #[test]
 fn node_set_node_display_flag() -> Result<()> {
-    let sop = SESSION.create_node("Object/geo").unwrap();
-    let sphere = SESSION.node_builder("sphere").with_parent(&sop).create()?;
-    let cube = SESSION.node_builder("box").with_parent(&sop).create()?;
+    let session = SESSION.lock().unwrap();
+    let sop = session.create_node("Object/geo").unwrap();
+    let sphere = session.node_builder("sphere").with_parent(&sop).create()?;
+    let cube = session.node_builder("box").with_parent(&sop).create()?;
     sphere.cook().unwrap();
     cube.cook().unwrap();
     cube.set_display_flag(true)?;
-    SESSION.cook().expect("session cook");
+    session.cook().expect("session cook");
     assert!(!sphere.geometry()?.unwrap().geo_info()?.is_display_geo());
     sphere.set_display_flag(true)?;
     assert!(!cube.geometry()?.unwrap().geo_info()?.is_display_geo());
@@ -63,7 +69,8 @@ fn node_set_node_display_flag() -> Result<()> {
 
 #[test]
 fn node_inputs_and_outputs() {
-    let node = SESSION.create_node("Object/hapi_geo").unwrap();
+    let session = SESSION.lock().unwrap();
+    let node = session.create_node("Object/hapi_geo").unwrap();
     let geo = node.geometry().unwrap().unwrap();
     let mut input = geo.node.input_node(0).unwrap();
     while let Some(ref n) = input {
@@ -84,7 +91,8 @@ fn node_inputs_and_outputs() {
 
 #[test]
 fn node_search() {
-    let asset = SESSION.create_node("Object/hapi_geo").unwrap();
+    let session = SESSION.lock().unwrap();
+    let asset = session.create_node("Object/hapi_geo").unwrap();
     asset.cook_blocking().unwrap();
     let nope = asset.get_child_by_path("bla").unwrap();
     assert!(nope.is_none());
@@ -104,7 +112,8 @@ fn node_search() {
 
 #[test]
 fn node_transform() {
-    let obj = SESSION.create_node("Object/null").unwrap();
+    let session = SESSION.lock().unwrap();
+    let obj = session.create_node("Object/null").unwrap();
     let t = obj.get_transform(None, None).unwrap();
     assert_eq!(t.position(), [0.0, 0.0, 0.0]);
     assert_eq!(t.scale(), [1.0, 1.0, 1.0]);
@@ -123,10 +132,11 @@ fn node_transform() {
 
 #[test]
 fn node_save_and_load() {
-    let cam = SESSION.create_node("Object/cam").unwrap();
+    let session = SESSION.lock().unwrap();
+    let cam = session.create_node("Object/cam").unwrap();
     let tmp = std::env::temp_dir().join("node");
     cam.save_to_file(&tmp).expect("save_to_file");
-    let new = HoudiniNode::load_from_file(&SESSION, None, "loaded_cam", true, &tmp)
+    let new = HoudiniNode::load_from_file(&session, None, "loaded_cam", true, &tmp)
         .expect("load_from_file");
     std::fs::remove_file(&tmp).unwrap();
     cam.delete().unwrap();
@@ -135,7 +145,8 @@ fn node_save_and_load() {
 
 #[test]
 fn node_number_of_geo_outputs() {
-    let node = SESSION.create_node("Object/hapi_geo").unwrap();
+    let session = SESSION.lock().unwrap();
+    let node = session.create_node("Object/hapi_geo").unwrap();
     assert_eq!(node.number_of_geo_outputs().unwrap(), 2);
     let infos = node.geometry_output_nodes().unwrap();
     assert_eq!(infos.len(), 2);
@@ -143,20 +154,23 @@ fn node_number_of_geo_outputs() {
 
 #[test]
 fn node_output_names() {
-    let node = SESSION.create_node("Object/hapi_parms").unwrap();
+    let session = SESSION.lock().unwrap();
+    let node = session.create_node("Object/hapi_parms").unwrap();
     let outputs = node.get_output_names().unwrap();
     assert_eq!(outputs[0], "nothing");
 }
 
 #[test]
 fn node_get_parm_with_tag() {
-    let node = SESSION.create_node("Object/hapi_parms").unwrap();
+    let session = SESSION.lock().unwrap();
+    let node = session.create_node("Object/hapi_parms").unwrap();
     assert!(node.parameter_with_tag("my_tag").unwrap().is_some());
 }
 
 #[test]
 fn node_set_animate_transform() {
-    let bone = SESSION.create_node("Object/bone").unwrap();
+    let session = SESSION.lock().unwrap();
+    let bone = session.create_node("Object/bone").unwrap();
     let ty = [
         KeyFrame {
             time: 0.0,
@@ -173,7 +187,7 @@ fn node_set_animate_transform() {
     ];
     bone.set_transform_anim_curve(TransformComponent::Ty, &ty)
         .unwrap();
-    SESSION.set_time(1.0).unwrap();
+    session.set_time(1.0).unwrap();
     if let Parameter::Float(p) = bone.parameter("ty").unwrap() {
         assert_eq!(p.get(1).unwrap(), 5.0);
     }
@@ -181,7 +195,8 @@ fn node_set_animate_transform() {
 
 #[test]
 fn node_get_set_preset() {
-    let node = SESSION.create_node("Object/null").unwrap();
+    let session = SESSION.lock().unwrap();
+    let node = session.create_node("Object/null").unwrap();
     if let Parameter::Float(p) = node.parameter("scale").unwrap() {
         assert_eq!(p.get(0).unwrap(), 1.0);
         let save = node.get_preset("test", PresetType::Binary).unwrap();
