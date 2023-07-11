@@ -138,8 +138,8 @@ pub trait ParmBaseTrait {
         crate::ffi::remove_parm_expression(inner.node, &inner.info.session, inner.info.id(), index)
     }
 
-    /// Revert parameter at index to its default value
-    fn revert_to_default(&self, index: i32) -> Result<()> {
+    /// Revert parameter at index to its default value. If `index` is None - reset all instances.
+    fn revert_to_default(&self, index: Option<i32>) -> Result<()> {
         let inner = self.inner();
         crate::ffi::revert_parameter_to_default(
             inner.node,

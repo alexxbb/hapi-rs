@@ -1115,11 +1115,18 @@ pub fn revert_parameter_to_default(
     node: NodeHandle,
     session: &Session,
     parm_name: &CStr,
-    index: i32,
+    index: Option<i32>,
 ) -> Result<()> {
     unsafe {
-        raw::HAPI_RevertParmToDefault(session.ptr(), node.0, parm_name.as_ptr(), index)
-            .check_err(session, || "Calling HAPI_RevertParmToDefault")
+        let ses_ptr = session.ptr();
+        let parn_name = parm_name.as_ptr();
+        let node_id = node.0;
+        match index {
+            Some(idx) => raw::HAPI_RevertParmToDefault(ses_ptr, node_id, parm_name, index)
+                .check_err(session, || "Calling HAPI_RevertParmToDefault"),
+            None => raw::HAPI_RevertParmToDefaults(ses_ptr, node_id, parm_name)
+                .check_err(session, || "Calling HAPI_RevertParmToDefaults"),
+        }
     }
 }
 
