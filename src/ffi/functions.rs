@@ -1119,10 +1119,10 @@ pub fn revert_parameter_to_default(
 ) -> Result<()> {
     unsafe {
         let ses_ptr = session.ptr();
-        let parn_name = parm_name.as_ptr();
+        let parm_name = parm_name.as_ptr();
         let node_id = node.0;
         match index {
-            Some(idx) => raw::HAPI_RevertParmToDefault(ses_ptr, node_id, parm_name, index)
+            Some(index) => raw::HAPI_RevertParmToDefault(ses_ptr, node_id, parm_name, index)
                 .check_err(session, || "Calling HAPI_RevertParmToDefault"),
             None => raw::HAPI_RevertParmToDefaults(ses_ptr, node_id, parm_name)
                 .check_err(session, || "Calling HAPI_RevertParmToDefaults"),
@@ -2918,15 +2918,28 @@ pub fn cook_pdg(
     pdg_node: NodeHandle,
     generate_only: bool,
     blocking: bool,
+    all_outputs: bool,
 ) -> Result<()> {
     unsafe {
-        raw::HAPI_CookPDG(
+        let cook_fn = if all_outputs {
+            raw::HAPI_CookPDG
+        } else {
+            raw::HAPI_CookPDGAllOutputs
+        };
+        cook_fn(
             session.ptr(),
             pdg_node.0,
             generate_only as i32,
             blocking as i32,
         )
         .check_err(session, || "Calling HAPI_CookPDG")
+    }
+}
+
+pub fn pause_pdg_cook(session: &Session, graph_context_id: i32) -> Result<()> {
+    unsafe {
+        raw::HAPI_PausePDGCook(session.ptr(), graph_context_id)
+            .check_err(session, || "Calling HAPI_PausePDGCook")
     }
 }
 

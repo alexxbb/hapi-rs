@@ -13,7 +13,7 @@ fn cook_async(node: &TopNode) -> Result<()> {
     let mut num_tasks = 0;
     let mut tasks_done = 0;
     println!("Cooking PDG...");
-    node.cook_async(|step| {
+    node.cook_async(false, |step| {
         match step.event.event_type() {
             PdgEventType::EventWorkitemAdd => num_tasks += 1,
             PdgEventType::EventWorkitemRemove => num_tasks -= 1,

@@ -755,6 +755,7 @@ wrap!(
     [get|set|with] breakpoint_parameterization->breakpointParameterization->[InputCurveParameterization];
 );
 
+#[derive(Debug, Copy, Clone)]
 pub struct PDGEventInfo {
     pub(crate) inner: HAPI_PDG_EventInfo,
 }

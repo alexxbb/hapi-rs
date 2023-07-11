@@ -40,7 +40,7 @@ impl Hash for Item {
 }
 
 fn wrapped_rs_function_names() -> HashSet<Item> {
-    let rx1 = Regex::new(r#"raw::(HAPI\w+)\("#).unwrap();
+    let rx1 = Regex::new(r#"raw::(HAPI\w+)\(?"#).unwrap();
     let rx2 = Regex::new(r#"\[(HAPI\w+)\]"#).unwrap();
     let rx3 = Regex::new(r#".*raw::(HAPI\w+)\("#).unwrap();
 
