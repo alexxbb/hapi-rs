@@ -165,6 +165,12 @@ pub trait ParmBaseTrait {
         )
     }
 
+    fn has_tag(&self, tag: &str) -> Result<bool> {
+        let inner = self.inner();
+        let tag = CString::new(tag)?;
+        crate::ffi::parm_has_tag(&inner.info.session, inner.node, inner.info.id(), &tag)
+    }
+
     #[doc(hidden)]
     // If the parameter was obtained by name (node.parameter(..))
     // we store the name in the info struct, otherwise, call API to get name

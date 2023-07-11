@@ -2090,6 +2090,26 @@ pub fn get_file_parm(
     }
 }
 
+pub fn parm_has_tag(
+    session: &Session,
+    node: NodeHandle,
+    parm_id: ParmHandle,
+    tag_name: &CStr,
+) -> Result<bool> {
+    unsafe {
+        let mut has_tag = uninit!();
+        raw::HAPI_ParmHasTag(
+            session.ptr(),
+            node.0,
+            parm_id.0,
+            tag_name.as_ptr(),
+            has_tag.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_ParmHasTag")?;
+        Ok(has_tag.assume_init() > 0)
+    }
+}
+
 pub fn get_face_counts(
     session: &Session,
     node: NodeHandle,
