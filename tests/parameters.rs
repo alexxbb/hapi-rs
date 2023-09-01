@@ -123,8 +123,22 @@ fn parameters_reset_to_default() {
     if let Parameter::Float(p) = parm {
         let default = p.get(0).unwrap();
         p.set(0, 0.01).unwrap();
-        p.revert_to_default(0).unwrap();
+        p.revert_to_default(Some(0)).unwrap();
         assert_eq!(p.get(0).unwrap(), default);
+    }
+}
+
+#[test]
+fn parameter_tags() {
+    let node = SESSION
+        .create_node("Object/hapi_parms")
+        .expect("create_node");
+    if let Ok(Parameter::Button(parm)) = node.parameter("button") {
+        assert!(parm.has_tag("script_callback").unwrap());
+        let tag_name = parm.get_tag_name(0).unwrap();
+        assert_eq!(tag_name, "script_callback");
+        let tag_value = parm.get_tag_value("script_callback").unwrap();
+        assert_eq!(tag_value, "hou.phm().callback(kwargs)");
     }
 }
 

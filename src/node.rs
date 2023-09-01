@@ -159,6 +159,12 @@ impl AsRef<NodeHandle> for HoudiniNode {
     }
 }
 
+impl AsRef<NodeHandle> for NodeHandle {
+    fn as_ref(&self) -> &NodeHandle {
+        self
+    }
+}
+
 impl NodeHandle {
     /// Retrieve info about the node this handle belongs to
     pub fn info(&self, session: &Session) -> Result<NodeInfo> {
@@ -372,6 +378,7 @@ impl HoudiniNode {
             .collect())
     }
 
+    #[inline]
     /// Find all children of this node by type.
     pub fn find_children_by_type(
         &self,

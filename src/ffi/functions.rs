@@ -1080,19 +1080,47 @@ pub fn get_compose_child_node_list(
     }
 }
 
+#[inline]
+pub fn get_compose_object_list(session: &Session, parent: NodeHandle) -> Result<i32> {
+    unsafe {
+        let mut count = uninit!();
+        raw::HAPI_ComposeObjectList(session.ptr(), parent.0, null(), count.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_ComposeObjectList")?;
+        Ok(count.assume_init())
+    }
+}
+
 pub fn get_composed_object_list(
     session: &Session,
     parent: NodeHandle,
 ) -> Result<Vec<raw::HAPI_ObjectInfo>> {
     unsafe {
-        let mut count = uninit!();
-        raw::HAPI_ComposeObjectList(session.ptr(), parent.0, null(), count.as_mut_ptr())
-            .check_err(session, || "Calling HAPI_ComposeObjectList")?;
-        let count = count.assume_init();
+        let count = get_compose_object_list(session, parent)?;
         let mut obj_infos = vec![raw::HAPI_ObjectInfo_Create(); count as usize];
         raw::HAPI_GetComposedObjectList(session.ptr(), parent.0, obj_infos.as_mut_ptr(), 0, count)
             .check_err(session, || "Calling HAPI_GetComposedObjectList")?;
         Ok(obj_infos)
+    }
+}
+
+pub fn get_composed_object_transforms(
+    session: &Session,
+    parent: NodeHandle,
+    rst_order: raw::RSTOrder,
+) -> Result<Vec<raw::HAPI_Transform>> {
+    let count = get_compose_object_list(session, parent)?;
+    unsafe {
+        let mut transforms = vec![raw::HAPI_Transform_Create(); count as usize];
+        raw::HAPI_GetComposedObjectTransforms(
+            session.ptr(),
+            parent.0,
+            rst_order,
+            transforms.as_mut_ptr(),
+            0,
+            transforms.len() as i32,
+        )
+        .check_err(session, || "Calling HAPI_GetComposedObjectTransforms")?;
+        Ok(transforms)
     }
 }
 
@@ -2115,6 +2143,48 @@ pub fn parm_has_tag(
         .check_err(session, || "Calling HAPI_ParmHasTag")?;
         Ok(has_tag.assume_init() > 0)
     }
+}
+
+pub fn get_parm_tag_name(
+    session: &Session,
+    node: NodeHandle,
+    parm_id: ParmHandle,
+    tag_index: i32,
+) -> Result<String> {
+    let handle = unsafe {
+        let mut handle = uninit!();
+        raw::HAPI_GetParmTagName(
+            session.ptr(),
+            node.0,
+            parm_id.0,
+            tag_index,
+            handle.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetParmTagName")?;
+        handle.assume_init()
+    };
+    crate::stringhandle::get_string(StringHandle(handle), session)
+}
+
+pub fn get_parm_tag_value(
+    session: &Session,
+    node: NodeHandle,
+    parm_id: ParmHandle,
+    tag_name: &CStr,
+) -> Result<String> {
+    let handle = unsafe {
+        let mut handle = uninit!();
+        raw::HAPI_GetParmTagValue(
+            session.ptr(),
+            node.0,
+            parm_id.0,
+            tag_name.as_ptr(),
+            handle.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetParmTagValue")?;
+        handle.assume_init()
+    };
+    crate::stringhandle::get_string(StringHandle(handle), session)
 }
 
 pub fn get_face_counts(

@@ -27,12 +27,12 @@ pub use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::{enums::*, CookOptions, ImageFileFormat, SessionSyncInfo, TimelineOptions, Viewport},
-    node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType},
+    node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType, Transform},
     parameter::Parameter,
     stringhandle::StringArray,
 };
 
-pub type SessionState = crate::ffi::enums::State;
+pub type SessionState = State;
 
 use crate::stringhandle::StringHandle;
 use crate::{ffi::raw, utils};
@@ -373,11 +373,11 @@ impl Session {
         debug_assert!(self.is_valid());
         debug!("Searching parameter at path: {}", path.as_ref());
         let Some((path, parm)) = path.as_ref().rsplit_once('/') else {
-            return Ok(None)
+            return Ok(None);
         };
         let Some(node) = self.get_node_from_path(path, None)? else {
             debug!("Node {} not found", path);
-            return Ok(None)
+            return Ok(None);
         };
         Ok(node.parameter(parm).ok())
     }
@@ -393,6 +393,23 @@ impl Session {
             handle: NodeHandle(handle),
             node_type: manager,
         })
+    }
+
+    /// Return a list of transforms for all object nodes under a given parent node.
+    pub fn get_composed_object_transform(
+        &self,
+        parent: impl AsRef<NodeHandle>,
+        rst_order: RSTOrder,
+    ) -> Result<Vec<Transform>> {
+        debug_assert!(self.is_valid());
+        crate::ffi::get_composed_object_transforms(self, *parent.as_ref(), rst_order).map(
+            |transforms| {
+                transforms
+                    .into_iter()
+                    .map(|tr| Transform { inner: tr })
+                    .collect()
+            },
+        )
     }
 
     /// Save current session to hip file

@@ -136,6 +136,7 @@ mod ffi;
 
 pub use errors::{HapiError, Result};
 pub use ffi::enums;
+pub use ffi::raw;
 pub use ffi::structs::Viewport;
 
 /// Houdini version this library was build upon
@@ -157,15 +158,15 @@ pub struct EngineVersion {
 
 /// Houdini version this library was build upon
 pub const HOUDINI_VERSION: HoudiniVersion = HoudiniVersion {
-    major: ffi::raw::HAPI_VERSION_HOUDINI_MAJOR,
-    minor: ffi::raw::HAPI_VERSION_HOUDINI_MINOR,
-    build: ffi::raw::HAPI_VERSION_HOUDINI_BUILD,
-    patch: ffi::raw::HAPI_VERSION_HOUDINI_PATCH,
+    major: raw::HAPI_VERSION_HOUDINI_MAJOR,
+    minor: raw::HAPI_VERSION_HOUDINI_MINOR,
+    build: raw::HAPI_VERSION_HOUDINI_BUILD,
+    patch: raw::HAPI_VERSION_HOUDINI_PATCH,
 };
 
 /// Engine version this library was build upon
 pub const ENGINE_VERSION: EngineVersion = EngineVersion {
-    major: ffi::raw::HAPI_VERSION_HOUDINI_ENGINE_MAJOR,
-    minor: ffi::raw::HAPI_VERSION_HOUDINI_ENGINE_MINOR,
-    api: ffi::raw::HAPI_VERSION_HOUDINI_ENGINE_API,
+    major: raw::HAPI_VERSION_HOUDINI_ENGINE_MAJOR,
+    minor: raw::HAPI_VERSION_HOUDINI_ENGINE_MINOR,
+    api: raw::HAPI_VERSION_HOUDINI_ENGINE_API,
 };

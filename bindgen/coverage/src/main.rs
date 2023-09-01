@@ -5,7 +5,14 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 fn raw_hapi_function_names() -> HashSet<Item> {
-    const IGNORE_SUFFIX: &[&str] = &["_IsString", "_Create", "_Init"];
+    const IGNORE_SUFFIX: &[&str] = &[
+        "_IsString",
+        "_IsFloat",
+        "_IsPath",
+        "_IsNode",
+        "_Create",
+        "_Init",
+    ];
     let raw = Path::new("../../src/ffi/bindings.rs");
     let text = std::fs::read_to_string(&raw).expect("bindings.rs");
     let rx = regex_lite::Regex::new(r#"pub fn (HAPI\w+)\("#).unwrap();

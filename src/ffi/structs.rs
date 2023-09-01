@@ -377,7 +377,7 @@ impl AttributeInfo {
         name: &CStr,
     ) -> Result<Self> {
         Ok(Self {
-            inner: crate::ffi::get_attribute_info(&node, part_id, owner, name)?,
+            inner: crate::ffi::get_attribute_info(node, part_id, owner, name)?,
         })
     }
 }
@@ -616,7 +616,7 @@ fn _create_box_info() -> HAPI_BoxInfo {
 wrap!(
     Default BoxInfo [_create_box_info => HAPI_BoxInfo];
     [get|set|with] center->center->[[f32;3]];
-    [get|set|with] rotation->size->[[f32;3]];
+    [get|set|with] rotation->rotation->[[f32;3]];
     [get|set|with] size->size->[[f32;3]];
 );
 

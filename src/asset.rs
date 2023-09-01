@@ -198,7 +198,7 @@ impl AssetLibrary {
         // but for some assets type like Cop, Top a manager node must be created first
         debug!("Trying to create a node for operator: {}", name.as_ref());
         let Some((context, operator)) = name.as_ref().split_once('/') else {
-            return Err(HapiError::internal("Node name must be fully qualified"))
+            return Err(HapiError::internal("Node name must be fully qualified"));
         };
         // Strip operator namespace if present
         let context = if let Some((_, context)) = context.split_once("::") {

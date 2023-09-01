@@ -171,6 +171,18 @@ pub trait ParmBaseTrait {
         crate::ffi::parm_has_tag(&inner.info.session, inner.node, inner.info.id(), &tag)
     }
 
+    /// Get parameter tag name by index. The number of tags is stored in `self.info().tag_count()`
+    fn get_tag_name(&self, tag_index: i32) -> Result<String> {
+        let inner = self.inner();
+        crate::ffi::get_parm_tag_name(&inner.info.session, inner.node, inner.info.id(), tag_index)
+    }
+
+    fn get_tag_value(&self, tag_name: &str) -> Result<String> {
+        let inner = self.inner();
+        let tag = CString::new(tag_name)?;
+        crate::ffi::get_parm_tag_value(&inner.info.session, inner.node, inner.info.id(), &tag)
+    }
+
     #[doc(hidden)]
     // If the parameter was obtained by name (node.parameter(..))
     // we store the name in the info struct, otherwise, call API to get name
