@@ -160,7 +160,28 @@ fn parameters_save_parm_file() {
 }
 
 #[test]
+fn get_set_value_as_node() {
+    let node = SESSION
+        .create_node("Object/hapi_parms")
+        .expect("create_node");
+    let Ok(Parameter::String(parm)) = node.parameter("op_path") else {
+        panic!("op_node string parameter not found");
+    };
+    assert_eq!(parm.info().parm_type(), ParmType::Node);
+    let null_node = SESSION.create_node("Object/null").unwrap();
+    parm.set_value_as_node(&null_node)
+        .expect("op_path parameter set");
+    let value = parm
+        .get_value_as_node()
+        .unwrap()
+        .expect("op_path node not found");
+    assert_eq!(null_node.handle, value);
+}
+
+#[test]
 fn parameters_concurrent_access() -> Result<()> {
+    // This is a dumb test of accessing parameters randomly from multiple threads
+    // HAPI claims each session is protected with a lock....
     fn set_parm_value(parm: &Parameter) -> Result<()> {
         match parm {
             Parameter::Float(parm) => {

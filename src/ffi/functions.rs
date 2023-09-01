@@ -139,18 +139,29 @@ pub fn get_parm_string_value(
     crate::stringhandle::get_string(StringHandle(handle), session)
 }
 
-pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<NodeHandle>> {
+pub fn get_parm_node_value(
+    session: &Session,
+    node: NodeHandle,
+    name: &CStr,
+) -> Result<Option<NodeHandle>> {
     unsafe {
         let mut id = uninit!();
-        raw::HAPI_GetParmNodeValue(
-            node.session.ptr(),
-            node.handle.0,
-            name.as_ptr(),
-            id.as_mut_ptr(),
-        )
-        .check_err(&node.session, || "Calling HAPI_GetParmNodeValue")?;
+        raw::HAPI_GetParmNodeValue(session.ptr(), node.0, name.as_ptr(), id.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_GetParmNodeValue")?;
         let id = id.assume_init();
-        Ok(if id == -1 { None } else { Some(NodeHandle(id)) })
+        Ok((id != -1).then_some(NodeHandle(id)))
+    }
+}
+
+pub fn set_parm_node_value(
+    session: &Session,
+    node: NodeHandle,
+    name: &CStr,
+    value: NodeHandle,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetParmNodeValue(session.ptr(), node.0, name.as_ptr(), value.0)
+            .check_err(session, || "Calling HAPI_SetParmNodeValue")
     }
 }
 

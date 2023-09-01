@@ -8,6 +8,8 @@ fn raw_hapi_function_names() -> HashSet<Item> {
     const IGNORE_SUFFIX: &[&str] = &[
         "_IsString",
         "_IsFloat",
+        "_IsInt",
+        "_AreEqual",
         "_IsPath",
         "_IsNode",
         "_Create",

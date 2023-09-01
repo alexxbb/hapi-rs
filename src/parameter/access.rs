@@ -1,5 +1,6 @@
 use super::*;
 
+use log::warn;
 use std::ffi::CString;
 
 pub use crate::{
@@ -174,5 +175,29 @@ impl StringParameter {
             &dest_dir,
             &dest_file,
         )
+    }
+
+    /// If parameter is a `ParmType::Node` type, set it to reference another node
+    pub fn set_value_as_node(&self, value: impl AsRef<NodeHandle>) -> Result<()> {
+        debug_assert!(self.0.node.is_valid(self.session())?);
+        if self.0.info.parm_type() == ParmType::Node {
+            crate::ffi::set_parm_node_value(
+                self.session(),
+                self.0.node,
+                &self.c_name()?,
+                *value.as_ref(),
+            )
+        } else {
+            Ok(())
+        }
+    }
+    /// Return a handle to a node if the parameter is of type `ParmType::Node`
+    pub fn get_value_as_node(&self) -> Result<Option<NodeHandle>> {
+        debug_assert!(self.0.node.is_valid(self.session())?);
+        if self.0.info.parm_type() == ParmType::Node {
+            crate::ffi::get_parm_node_value(self.session(), self.0.node, &self.c_name()?)
+        } else {
+            Ok(None)
+        }
     }
 }

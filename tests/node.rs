@@ -1,6 +1,5 @@
 use once_cell::sync::Lazy;
 
-use hapi_rs::node::ManagerType;
 use hapi_rs::{
     node::{
         HoudiniNode, KeyFrame, NodeFlags, NodeType, PresetType, RSTOrder, TransformComponent,
