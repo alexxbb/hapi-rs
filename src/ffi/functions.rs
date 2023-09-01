@@ -402,6 +402,16 @@ pub fn get_node_info(node: NodeHandle, session: &Session) -> Result<raw::HAPI_No
     }
 }
 
+pub fn get_sop_output_node(session: &Session, node: NodeHandle, output: i32) -> Result<NodeHandle> {
+    unsafe {
+        let mut out_node = -1;
+        raw::HAPI_GetOutputNodeId(session.ptr(), node.0, output, &mut out_node as *mut _)
+            .check_err(session, || "Calling HAPI_GetOutputNodeId")?;
+
+        Ok(NodeHandle(out_node))
+    }
+}
+
 pub fn is_node_valid(session: &Session, info: &raw::HAPI_NodeInfo) -> Result<bool> {
     unsafe {
         let mut answer = uninit!();

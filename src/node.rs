@@ -390,6 +390,12 @@ impl HoudiniNode {
         get_child_node_list(&self.session, self, types, flags, recursive)
     }
 
+    /// Get all children of the node, not recursively.
+    pub fn get_children(&self) -> Result<Vec<NodeHandle>> {
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
+        get_child_node_list(&self.session, self, NodeType::Any, NodeFlags::Any, false)
+    }
+
     /// Get a child node by path.
     pub fn get_child_by_path(&self, relative_path: &str) -> Result<Option<HoudiniNode>> {
         self.session
@@ -417,6 +423,12 @@ impl HoudiniNode {
             }
         }
         Ok(None)
+    }
+
+    /// Given if Self is an asset or a subnet SOP node, get its output node at index.
+    pub fn get_sop_output_node(&self, index: i32) -> Result<NodeHandle> {
+        debug_assert!(self.is_valid()?);
+        crate::ffi::get_sop_output_node(&self.session, self.handle, index)
     }
 
     /// Return the node's parent.
@@ -569,6 +581,7 @@ impl HoudiniNode {
         crate::ffi::get_output_geo_count(self)
     }
 
+    /// Get names of each HDA output
     pub fn get_output_names(&self) -> Result<Vec<String>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_output_names(self)
