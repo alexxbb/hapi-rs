@@ -8,7 +8,7 @@ use std::vec;
 use raw::HAPI_PDG_EventInfo;
 
 use crate::ffi::bindings::HAPI_StringHandle;
-use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId};
+use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId, RSTOrder};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
 use crate::{
     errors::{HapiError, Kind, Result},
@@ -722,6 +722,54 @@ pub fn get_status_string(
     }
 }
 
+pub fn clear_connection_error() -> Result<()> {
+    unsafe {
+        raw::HAPI_ClearConnectionError().error_message("Calling HAPI_ClearConnectionError: failed")
+    }
+}
+
+pub fn get_active_cache_names(session: &Session) -> Result<StringArray> {
+    unsafe {
+        let mut count = uninit!();
+        raw::HAPI_GetActiveCacheCount(session.ptr(), count.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_GetActiveCacheCount")?;
+        let count = count.assume_init();
+        let mut names = vec![StringHandle(-1); count as usize];
+        raw::HAPI_GetActiveCacheNames(
+            session.ptr(),
+            names.as_mut_ptr() as *mut HAPI_StringHandle,
+            count,
+        )
+        .check_err(session, || "Calling HAPI_GetActiveCacheNames")?;
+        crate::stringhandle::get_string_array(&names, session)
+    }
+}
+
+pub fn get_cache_property(
+    session: &Session,
+    name: &CStr,
+    property: raw::CacheProperty,
+) -> Result<i32> {
+    unsafe {
+        let mut value = uninit!();
+        raw::HAPI_GetCacheProperty(session.ptr(), name.as_ptr(), property, value.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_GetCacheProperty")?;
+        Ok(value.assume_init())
+    }
+}
+
+pub fn set_cache_property(
+    session: &Session,
+    name: &CStr,
+    property: raw::CacheProperty,
+    value: i32,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetCacheProperty(session.ptr(), name.as_ptr(), property, value)
+            .check_err(session, || "Calling HAPI_SetCacheProperty")
+    }
+}
+
 pub fn create_inprocess_session() -> Result<raw::HAPI_Session> {
     let mut ses = uninit!();
     unsafe {
@@ -1115,6 +1163,7 @@ pub fn get_composed_object_list(
     session: &Session,
     parent: NodeHandle,
 ) -> Result<Vec<raw::HAPI_ObjectInfo>> {
+    let _lock = session.lock();
     unsafe {
         let count = get_compose_object_list(session, parent)?;
         let mut obj_infos = vec![raw::HAPI_ObjectInfo_Create(); count as usize];
@@ -1129,6 +1178,7 @@ pub fn get_composed_object_transforms(
     parent: NodeHandle,
     rst_order: raw::RSTOrder,
 ) -> Result<Vec<raw::HAPI_Transform>> {
+    let _lock = session.lock();
     let count = get_compose_object_list(session, parent)?;
     unsafe {
         let mut transforms = vec![raw::HAPI_Transform_Create(); count as usize];
@@ -2794,6 +2844,28 @@ pub fn get_instanced_part_transforms(
             count,
         )
         .check_err(session, || "Calling HAPI_GetInstancerPartTransforms")?;
+        Ok(transforms)
+    }
+}
+
+pub fn get_instance_transforms_on_part(
+    session: &Session,
+    node: NodeHandle,
+    part_info: raw::HAPI_PartInfo,
+    rst_order: RSTOrder,
+) -> Result<Vec<raw::HAPI_Transform>> {
+    unsafe {
+        let mut transforms = vec![raw::HAPI_Transform_Create(); part_info.pointCount as usize];
+        raw::HAPI_GetInstanceTransformsOnPart(
+            session.ptr(),
+            node.0,
+            part_info.id,
+            rst_order,
+            transforms.as_mut_ptr(),
+            0,
+            transforms.len() as i32,
+        )
+        .check_err(session, || "Calling HAPI_GetInstanceTransformsOnPart")?;
         Ok(transforms)
     }
 }

@@ -670,6 +670,30 @@ impl Session {
                 .collect()
         })
     }
+
+    pub fn get_active_cache_names(&self) -> Result<StringArray> {
+        debug_assert!(self.is_valid());
+        crate::ffi::get_active_cache_names(self)
+    }
+
+    pub fn get_cache_property_value(
+        &self,
+        cache_name: &str,
+        property: CacheProperty,
+    ) -> Result<i32> {
+        let cache_name = CString::new(cache_name)?;
+        crate::ffi::get_cache_property(self, &cache_name, property)
+    }
+
+    pub fn set_cache_property_value(
+        &self,
+        cache_name: &str,
+        property: CacheProperty,
+        value: i32,
+    ) -> Result<()> {
+        let cache_name = CString::new(cache_name)?;
+        crate::ffi::set_cache_property(self, &cache_name, property, value)
+    }
 }
 
 impl Drop for Session {
@@ -1001,6 +1025,7 @@ pub fn start_engine_pipe_server(
     };
     let log_file = log_file.map(CString::new).transpose()?;
     let c_str = utils::path_to_cstring(path)?;
+    crate::ffi::clear_connection_error()?;
     crate::ffi::start_thrift_pipe_server(&c_str, &opts, log_file.as_deref())
 }
 
@@ -1019,6 +1044,7 @@ pub fn start_engine_socket_server(
         verbosity,
     };
     let log_file = log_file.map(CString::new).transpose()?;
+    crate::ffi::clear_connection_error()?;
     crate::ffi::start_thrift_socket_server(port as i32, &opts, log_file.as_deref())
 }
 

@@ -1,3 +1,4 @@
+use hapi_rs::raw::CacheProperty;
 use once_cell::sync::Lazy;
 
 use hapi_rs::session::{
@@ -111,4 +112,22 @@ fn session_manager_nodes() {
     SESSION.get_manager_node(ManagerType::Cop).unwrap();
     SESSION.get_manager_node(ManagerType::Rop).unwrap();
     SESSION.get_manager_node(ManagerType::Top).unwrap();
+}
+
+#[test]
+fn cache_properties() {
+    let cache_names = SESSION
+        .get_active_cache_names()
+        .unwrap()
+        .into_iter()
+        .collect::<Vec<_>>();
+    assert!(cache_names.contains(&String::from("SOP Cache")));
+    assert!(cache_names.contains(&String::from("HDA Contents Cache")));
+    SESSION
+        .set_cache_property_value("SOP Cache", CacheProperty::CachepropMax, 2048)
+        .unwrap();
+    let cache_val = SESSION
+        .get_cache_property_value("SOP Cache", CacheProperty::CachepropMax)
+        .unwrap();
+    assert_eq!(cache_val, 2048);
 }

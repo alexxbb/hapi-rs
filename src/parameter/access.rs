@@ -1,6 +1,5 @@
 use super::*;
 
-use log::warn;
 use std::ffi::CString;
 
 pub use crate::{
