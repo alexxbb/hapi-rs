@@ -3085,9 +3085,9 @@ pub fn cook_pdg(
 ) -> Result<()> {
     unsafe {
         let cook_fn = if all_outputs {
-            raw::HAPI_CookPDG
-        } else {
             raw::HAPI_CookPDGAllOutputs
+        } else {
+            raw::HAPI_CookPDG
         };
         cook_fn(
             session.ptr(),
@@ -3229,6 +3229,7 @@ pub fn get_workitem_result(
 
 pub fn get_pdg_workitems(session: &Session, pdg_node: NodeHandle) -> Result<Vec<i32>> {
     unsafe {
+        let _lock = session.lock();
         let mut num = -1;
         raw::HAPI_GetNumWorkitems(session.ptr(), pdg_node.0, &mut num as *mut i32)
             .check_err(session, || "Calling HAPI_GetNumWorkitems")?;
@@ -3237,5 +3238,132 @@ pub fn get_pdg_workitems(session: &Session, pdg_node: NodeHandle) -> Result<Vec<
         raw::HAPI_GetWorkitems(session.ptr(), pdg_node.0, array.as_mut_ptr(), num)
             .check_err(session, || "Calling HAPI_GetWorkitems")?;
         Ok(array)
+    }
+}
+
+pub fn create_pdg_workitem(
+    session: &Session,
+    pdg_node: NodeHandle,
+    name: &CStr,
+    index: i32,
+) -> Result<i32> {
+    unsafe {
+        let mut handle = uninit!();
+        raw::HAPI_CreateWorkItem(
+            session.ptr(),
+            pdg_node.0,
+            handle.as_mut_ptr(),
+            name.as_ptr(),
+            index,
+        )
+        .check_err(session, || "Calling HAPI_CreateWorkItem")?;
+        Ok(handle.assume_init())
+    }
+}
+
+pub fn commit_pdg_workitems(session: &Session, node: NodeHandle) -> Result<()> {
+    unsafe {
+        raw::HAPI_CommitWorkItems(session.ptr(), node.0)
+            .check_err(session, || "Calling HAPI_CommitWorkItems")
+    }
+}
+
+pub fn get_workitem_data_length(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+) -> Result<i32> {
+    unsafe {
+        let mut length = uninit!();
+        raw::HAPI_GetWorkitemDataLength(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            length.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetWorkitemDataLength")?;
+        Ok(length.assume_init())
+    }
+}
+
+pub fn set_workitem_int_data(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+    data: &[i32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetWorkitemIntData(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            data.as_ptr(),
+            data.len() as i32,
+        )
+        .check_err(session, || "Calling HAPI_SetWorkitemIntData")
+    }
+}
+
+pub fn get_workitem_int_data(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+    data: &mut [i32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_GetWorkitemIntData(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            data.as_mut_ptr(),
+            data.len() as i32,
+        )
+        .check_err(session, || "Calling HAPI_GetWorkitemIntData")
+    }
+}
+
+pub fn set_workitem_float_data(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+    data: &[f32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetWorkitemFloatData(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            data.as_ptr(),
+            data.len() as i32,
+        )
+        .check_err(session, || "Calling HAPI_SetWorkitemIntData")
+    }
+}
+
+pub fn get_workitem_float_data(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+    data: &mut [f32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_GetWorkitemFloatData(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            data.as_mut_ptr(),
+            data.len() as i32,
+        )
+        .check_err(session, || "Calling HAPI_GetWorkitemFloatData")
     }
 }

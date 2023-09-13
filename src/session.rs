@@ -703,7 +703,7 @@ impl Drop for Session {
             if self.is_valid() {
                 if self.inner.options.cleanup {
                     if let Err(e) = self.cleanup() {
-                        error!("Cleanup failed in Drop: {}", e);
+                        error!("Session cleanup failed in Drop: {}", e);
                     }
                 }
                 if let Err(e) = crate::ffi::shutdown_session(self) {
@@ -1061,6 +1061,9 @@ pub fn start_houdini_server(
         } else {
             "-core"
         })
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .spawn()
         .map_err(HapiError::from)
 }
