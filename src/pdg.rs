@@ -129,6 +129,67 @@ impl<'session> PDGWorkItem<'session> {
         )?;
         Ok(buffer)
     }
+
+    pub fn set_int_attribute(&self, attrib_name: &str, value: &[i32]) -> Result<()> {
+        let attrib_name = std::ffi::CString::new(attrib_name)?;
+        ffi::set_workitem_int_attribute(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &attrib_name,
+            value,
+        )
+    }
+    pub fn get_int_attribute(&self, attr_name: &str) -> Result<Vec<i32>> {
+        let attr_name = std::ffi::CString::new(attr_name)?;
+        let attr_size = ffi::get_workitem_attribute_size(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &attr_name,
+        )?;
+        let mut buffer = Vec::new();
+        buffer.resize(attr_size as usize, 0);
+        ffi::get_workitem_int_attribute(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &attr_name,
+            &mut buffer,
+        )?;
+        Ok(buffer)
+    }
+
+    pub fn set_float_attribute(&self, attrib_name: &str, value: &[f32]) -> Result<()> {
+        let attrib_name = std::ffi::CString::new(attrib_name)?;
+        ffi::set_workitem_float_attribute(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &attrib_name,
+            value,
+        )
+    }
+
+    pub fn get_float_attribute(&self, attr_name: &str) -> Result<Vec<f32>> {
+        let attr_name = std::ffi::CString::new(attr_name)?;
+        let attr_size = ffi::get_workitem_attribute_size(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &attr_name,
+        )?;
+        let mut buffer = Vec::new();
+        buffer.resize(attr_size as usize, 0.0);
+        ffi::get_workitem_float_attribute(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &attr_name,
+            &mut buffer,
+        )?;
+        Ok(buffer)
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -1,5 +1,6 @@
 #![allow(clippy::missing_safety_doc)]
 
+use duplicate::duplicate_item;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
@@ -3288,87 +3289,17 @@ pub fn get_workitem_data_length(
     }
 }
 
-pub fn set_workitem_int_data(
-    session: &Session,
-    node: NodeHandle,
-    workitem_id: i32,
-    data_name: &CStr,
-    data: &[i32],
-) -> Result<()> {
-    unsafe {
-        raw::HAPI_SetWorkitemIntData(
-            session.ptr(),
-            node.0,
-            workitem_id,
-            data_name.as_ptr(),
-            data.as_ptr(),
-            data.len() as i32,
-        )
-        .check_err(session, || "Calling HAPI_SetWorkitemIntData")
-    }
-}
-
-pub fn get_workitem_int_data(
-    session: &Session,
-    node: NodeHandle,
-    workitem_id: i32,
-    data_name: &CStr,
-    data: &mut [i32],
-) -> Result<()> {
-    unsafe {
-        raw::HAPI_GetWorkitemIntData(
-            session.ptr(),
-            node.0,
-            workitem_id,
-            data_name.as_ptr(),
-            data.as_mut_ptr(),
-            data.len() as i32,
-        )
-        .check_err(session, || "Calling HAPI_GetWorkitemIntData")
-    }
-}
-
-pub fn set_workitem_float_data(
-    session: &Session,
-    node: NodeHandle,
-    workitem_id: i32,
-    data_name: &CStr,
-    data: &[f32],
-) -> Result<()> {
-    unsafe {
-        raw::HAPI_SetWorkitemFloatData(
-            session.ptr(),
-            node.0,
-            workitem_id,
-            data_name.as_ptr(),
-            data.as_ptr(),
-            data.len() as i32,
-        )
-        .check_err(session, || "Calling HAPI_SetWorkitemIntData")
-    }
-}
-
-pub fn get_workitem_float_data(
-    session: &Session,
-    node: NodeHandle,
-    workitem_id: i32,
-    data_name: &CStr,
-    data: &mut [f32],
-) -> Result<()> {
-    unsafe {
-        raw::HAPI_GetWorkitemFloatData(
-            session.ptr(),
-            node.0,
-            workitem_id,
-            data_name.as_ptr(),
-            data.as_mut_ptr(),
-            data.len() as i32,
-        )
-        .check_err(session, || "Calling HAPI_GetWorkitemFloatData")
-    }
-}
-
-pub fn get_workitem_attribute_size(
+#[duplicate_item(
+[
+_rust_fn [get_workitem_attribute_size]
+_ffi_fn [HAPI_GetWorkItemAttributeSize]
+]
+[
+_rust_fn [get_workitem_data_size]
+_ffi_fn [HAPI_GetWorkitemDataLength]
+]
+)]
+pub fn _rust_fn(
     session: &Session,
     node: NodeHandle,
     workitem_id: i32,
@@ -3376,7 +3307,7 @@ pub fn get_workitem_attribute_size(
 ) -> Result<i32> {
     unsafe {
         let mut size = uninit!();
-        raw::HAPI_GetWorkItemAttributeSize(
+        raw::_ffi_fn(
             session.ptr(),
             node.0,
             workitem_id,
@@ -3388,24 +3319,150 @@ pub fn get_workitem_attribute_size(
     }
 }
 
-pub fn get_workitem_int_attribute(
+#[duplicate_item(
+[
+_type [i32]
+_rust_fn [set_workitem_int_data]
+_ffi_fn [HAPI_SetWorkitemIntData]
+]
+[
+_type [i32]
+_rust_fn [set_workitem_int_attribute]
+_ffi_fn [HAPI_SetWorkItemIntAttribute]
+]
+[
+_type [f32]
+_rust_fn [set_workitem_float_data]
+_ffi_fn [HAPI_SetWorkitemFloatData]
+]
+[
+_type [f32]
+_rust_fn [set_workitem_float_attribute]
+_ffi_fn [HAPI_SetWorkItemFloatAttribute]
+]
+)]
+pub fn _rust_fn(
     session: &Session,
     node: NodeHandle,
     workitem_id: i32,
-    name: &CStr,
-) -> Result<Vec<i32>> {
-    let data_size = get_workitem_attribute_size(session, node, workitem_id, name)?;
-    let mut data = Vec::new();
-    data.resize(data_size as usize, 0);
+    data_name: &CStr,
+    data: &[_type],
+) -> Result<()> {
     unsafe {
-        raw::HAPI_GetWorkItemIntAttribute(
+        raw::_ffi_fn(
             session.ptr(),
             node.0,
             workitem_id,
-            name.as_ptr(),
-            data.as_mut_ptr(),
-            data_size,
+            data_name.as_ptr(),
+            data.as_ptr(),
+            data.len() as i32,
         )
-        .check_err(session, || "Calling HAPI_GetWorkItemIntAttribute")
+        .check_err(session, || stringify!(Calling _ffi_fn))
+    }
+}
+
+#[duplicate_item(
+[
+_type [i32]
+_rust_fn [get_workitem_int_data]
+_ffi_fn [HAPI_GetWorkitemIntData]
+]
+[
+_type [i32]
+_rust_fn [get_workitem_int_attribute]
+_ffi_fn [HAPI_GetWorkItemIntAttribute]
+]
+[
+_type [f32]
+_rust_fn [get_workitem_float_data]
+_ffi_fn [HAPI_GetWorkitemFloatData]
+]
+[
+_type [f32]
+_rust_fn [get_workitem_float_attribute]
+_ffi_fn [HAPI_GetWorkItemFloatAttribute]
+]
+)]
+pub fn _rust_fn(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+    data: &mut [_type],
+) -> Result<()> {
+    unsafe {
+        raw::_ffi_fn(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            data.as_mut_ptr(),
+            data.len() as i32,
+        )
+        .check_err(session, || stringify!(Calling _ffi_fn))
+    }
+}
+
+#[duplicate_item(
+[
+_rust_fn [set_workitem_string_attribute]
+_ffi_fn [HAPI_SetWorkItemStringAttribute]
+]
+[
+_rust_fn [set_workitem_string_data]
+_ffi_fn [HAPI_SetWorkitemStringData]
+]
+)]
+pub fn _rust_fn(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+    data_index: i32,
+    data: &CStr,
+) -> Result<()> {
+    unsafe {
+        raw::_ffi_fn(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            data_index,
+            data.as_ptr(),
+        )
+        .check_err(session, || stringify!(Calling _ffi_fn))
+    }
+}
+
+#[duplicate_item(
+[
+_rust_fn [get_workitem_string_attribute]
+_ffi_fn [HAPI_GetWorkItemStringAttribute]
+_size_fn [get_workitem_attribute_size]
+]
+[
+_rust_fn [get_workitem_string_data]
+_ffi_fn [HAPI_GetWorkitemStringData]
+_size_fn [get_workitem_data_size]
+]
+)]
+pub fn _rust_fn(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+) -> Result<()> {
+    unsafe {
+        let length = _size_fn(session, node, workitem_id, data_name)?;
+        let mut handles = vec![0; length as usize];
+        raw::_ffi_fn(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            handles.as_mut_ptr(),
+            length,
+        )
+        .check_err(session, || stringify!(Calling _ffi_fn))
     }
 }
