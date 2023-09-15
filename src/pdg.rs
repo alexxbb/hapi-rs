@@ -1,7 +1,7 @@
 use crate::ffi;
 use crate::ffi::{
     raw::{PdgEventType, PdgState},
-    PDGEventInfo, PDGWorkItemInfo, PDGWorkItemResult,
+    PDGEventInfo, PDGWorkItemInfo, PDGWorkItemOutputFile,
 };
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::Result;
@@ -40,20 +40,25 @@ impl<'session> PDGWorkItem<'session> {
             .map(|inner| PDGWorkItemInfo { inner })
     }
     /// Retrieve the results of work, if the work item has any.
-    pub fn get_results(&self) -> Result<Vec<PDGWorkItemResult<'session>>> {
+    pub fn get_results(&self) -> Result<Vec<PDGWorkItemOutputFile<'session>>> {
         match self.get_info()?.output_file_count() {
             0 => Ok(Vec::new()),
             count => {
-                ffi::get_workitem_result(&self.node.session, self.node.handle, self.id.0, count)
-                    .map(|results| {
-                        results
-                            .into_iter()
-                            .map(|result| PDGWorkItemResult {
-                                inner: result,
-                                session: (&self.node.session).into(),
-                            })
-                            .collect()
+                let results = ffi::get_workitem_result(
+                    &self.node.session,
+                    self.node.handle,
+                    self.id.0,
+                    count,
+                )?;
+                let results = results
+                    .into_iter()
+                    .map(|inner| PDGWorkItemOutputFile {
+                        inner,
+                        session: (&self.node.session).into(),
                     })
+                    .collect();
+
+                Ok(results)
             }
         }
     }
@@ -217,7 +222,10 @@ impl TopNode {
     // FIXME. Observing some weird behaviour. The output files are intermixed with tags
     #[allow(dead_code)]
     #[allow(unreachable_code)]
-    fn cook_blocking_with_results(&self, _all_outputs: bool) -> Result<Vec<PDGWorkItemResult<'_>>> {
+    fn cook_blocking_with_results(
+        &self,
+        _all_outputs: bool,
+    ) -> Result<Vec<PDGWorkItemOutputFile<'_>>> {
         unimplemented!();
         ffi::cook_pdg(
             &self.node.session,

@@ -777,12 +777,12 @@ impl PDGEventInfo {
 }
 
 #[derive(Debug)]
-pub struct PDGWorkItemResult<'session> {
+pub struct PDGWorkItemOutputFile<'session> {
     pub(crate) inner: HAPI_PDG_WorkItemOutputFile,
     pub(crate) session: DebugIgnore<&'session Session>,
 }
 
-impl<'session> PDGWorkItemResult<'session> {
+impl<'session> PDGWorkItemOutputFile<'session> {
     get!(result->filePathSH->Result<String>);
     get!(tag->tagSH->Result<String>);
     get!(sha->hash->i64);

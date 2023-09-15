@@ -3367,3 +3367,108 @@ pub fn get_workitem_float_data(
         .check_err(session, || "Calling HAPI_GetWorkitemFloatData")
     }
 }
+
+pub fn get_workitem_attribute_size(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    attribute_name: &CStr,
+) -> Result<i32> {
+    unsafe {
+        let mut size = uninit!();
+        raw::HAPI_GetWorkItemAttributeSize(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            attribute_name.as_ptr(),
+            size.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetWorkItemAttributeSize")?;
+        Ok(size.assume_init())
+    }
+}
+
+pub(crate) trait PdgAttribute: Sized + Default + Clone {
+    fn set_fn() -> unsafe extern "C" fn(
+        *const raw::HAPI_Session,
+        i32,
+        i32,
+        *const std::os::raw::c_char,
+        *const Self,
+        i32,
+    ) -> raw::HapiResult;
+
+    fn get_fn() -> unsafe extern "C" fn(
+        *const raw::HAPI_Session,
+        i32,
+        i32,
+        *const std::os::raw::c_char,
+        *mut Self,
+        i32,
+    ) -> raw::HapiResult;
+}
+
+impl PdgAttribute for i32 {
+    fn set_fn() -> unsafe extern "C" fn(
+        *const raw::HAPI_Session,
+        i32,
+        i32,
+        *const std::os::raw::c_char,
+        *const Self,
+        i32,
+    ) -> raw::HapiResult {
+        raw::HAPI_SetWorkItemIntAttribute
+    }
+    fn get_fn() -> unsafe extern "C" fn(
+        *const raw::HAPI_Session,
+        i32,
+        i32,
+        *const std::os::raw::c_char,
+        *mut Self,
+        i32,
+    ) -> raw::HapiResult {
+        raw::HAPI_GetWorkItemIntAttribute
+    }
+}
+
+pub(crate) fn set_workitem_attribute<T: PdgAttribute>(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    name: &CStr,
+    data: &[T],
+) -> Result<()> {
+    unsafe {
+        (T::set_fn())(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            name.as_ptr(),
+            data.as_ptr(),
+            data.len() as i32,
+        )
+        .check_err(session, || "Calling HAPI_SetWorkItem<T>Attribute")
+    }
+}
+
+pub(crate) fn get_workitem_attribute<T: PdgAttribute>(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    name: &CStr,
+) -> Result<Vec<T>> {
+    let data_size = get_workitem_attribute_size(session, node, workitem_id, name)?;
+    let mut data = Vec::<T>::new();
+    data.resize(data_size as usize, T::default());
+    unsafe {
+        (T::get_fn())(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            name.as_ptr(),
+            data.as_mut_ptr(),
+            data_size,
+        )
+        .check_err(session, || "Calling HAPI_SetWorkItem<T>Attribute")
+    }
+}
