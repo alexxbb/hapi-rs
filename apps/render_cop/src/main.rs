@@ -109,7 +109,7 @@ impl Sandbox for App {
     fn view(&self) -> Element<'_, Self::Message> {
         let slider = slider(0.0..=1.0, self.input, Message::InputChanged)
             .step(0.05)
-            .width(Length::Units(300));
+            .width(Length::Fixed(300.0));
         let noise = pick_list(
             &[Noise::Alligator, Noise::Voronoi][..],
             self.noise,

@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 hapi-rs = {path="../.."}
-iced = {version = "0.6.0", features = ["image"]}
+iced = {version = "0.10.0", features = ["image"]}
 anyhow = "1.0.66"
 resolve-path = "0.1.0"
