@@ -365,8 +365,8 @@ impl HoudiniNode {
     pub fn get_objects_info(&self) -> Result<Vec<ObjectInfo>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         let parent = match self.info.node_type() {
-            NodeType::Obj => NodeHandle(self.info.parent_id().0),
-            _ => NodeHandle(self.handle.0),
+            NodeType::Obj => self.info.parent_id(),
+            _ => self.handle,
         };
         let infos = crate::ffi::get_composed_object_list(&self.session, parent)?;
         Ok(infos
@@ -378,7 +378,6 @@ impl HoudiniNode {
             .collect())
     }
 
-    #[inline]
     /// Find all children of this node by type.
     pub fn find_children_by_type(
         &self,

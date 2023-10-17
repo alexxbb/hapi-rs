@@ -74,16 +74,16 @@ macro_rules! get {
 // Example: Default CurveInfo [HAPI_CurveInfo_Create => HAPI_CurveInfo];
 //
 // Generate getters, setters and with ("builder") methods
-// [get|set|with] struct_field->ffiStructField->[ReturnType];
+// [get|set|with] struct_field->ffiStructField->[ValueType];
 //  get:
-//      fn get_struct_field(&self) -> ReturnType { self.ffiStructField }
+//      fn get_struct_field(&self) -> ValueType { self.ffiStructField }
 //  set:
-//      fn set_struct_field(&self, val: ReturnType)  { self.ffiStructField = val; }
+//      fn set_struct_field(&self, val: ValueType)  { self.ffiStructField = val; }
 //  with:
-//      fn with_struct_field(self, val: ReturnType) -> Self  { self.ffiStructField = val; self }
+//      fn with_struct_field(self, val: ValueType) -> Self  { self.ffiStructField = val; self }
 //
 // Special case for string handles:
-// [get+session] name->name->[ReturnType]
+// [get+session] name->name->[ValueType]
 // fn get_name(&self, session: &Session) -> Result<String> { session.get_string(self.inner.name) }
 //
 
