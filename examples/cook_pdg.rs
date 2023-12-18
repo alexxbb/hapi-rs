@@ -19,7 +19,7 @@ fn cook_async(node: &TopNode) -> Result<()> {
             PdgEventType::EventWorkitemRemove => num_tasks -= 1,
             PdgEventType::WorkitemStateChange => match step.event.current_state() {
                 PdgWorkItemState::Success | PdgWorkItemState::Cache => {
-                    let workitem = node.get_workitem(step.event.workitem_id(), step.graph_id)?;
+                    let workitem = node.get_workitem(step.event.workitem_id())?;
                     let results = workitem.get_results()?;
                     for wir in results {
                         // We only interested in geo files;;
@@ -31,7 +31,7 @@ fn cook_async(node: &TopNode) -> Result<()> {
                     }
                 }
                 PdgWorkItemState::Fail => {
-                    let item = node.get_workitem(step.event.workitem_id(), step.graph_id)?;
+                    let item = node.get_workitem(step.event.workitem_id())?;
                     eprintln!("Workitem {item:?} failed to cook");
                 }
                 _ => {}

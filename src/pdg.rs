@@ -349,17 +349,15 @@ impl TopNode {
         ffi::get_pdg_state(&self.node.session, context)
     }
 
-    // /// Get the work item by id and graph(context) id.
-    // pub fn get_workitem(&self, workitem_id: WorkItemId) -> Result<PDGWorkItem<'_>> {
-    //     let context_id = self.get_context_id()?;
-    //     ffi::get_workitem_info(&self.node.session, context_id, workitem_id.0).map(|inner| {
-    //         PDGWorkItem {
-    //             id: workitem_id,
-    //             context_id,
-    //             node: &self.node,
-    //         }
-    //     })
-    // }
+    /// Get the work item by id and graph(context) id.
+    pub fn get_workitem(&self, workitem_id: WorkItemId) -> Result<PDGWorkItem<'_>> {
+        let context_id = self.get_context_id()?;
+        ffi::get_workitem_info(&self.node.session, context_id, workitem_id.0).map(|_| PDGWorkItem {
+            id: workitem_id,
+            context_id,
+            node: &self.node,
+        })
+    }
 
     pub fn get_all_workitems(&self) -> Result<Vec<PDGWorkItem<'_>>> {
         let context_id = self.get_context_id()?;

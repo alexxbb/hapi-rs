@@ -2,10 +2,7 @@ use super::*;
 
 use std::ffi::CString;
 
-pub use crate::{
-    ffi::enums::{ChoiceListType, ParmType},
-    ffi::ParmInfo,
-};
+pub use crate::ffi::enums::ParmType;
 
 use crate::errors::Result;
 

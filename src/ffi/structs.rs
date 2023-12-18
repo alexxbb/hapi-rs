@@ -3,6 +3,7 @@ use crate::{
     errors::Result,
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
+    pdg::WorkItemId,
     session::Session,
     stringhandle::StringHandle,
 };
@@ -762,7 +763,7 @@ pub struct PDGEventInfo {
 
 impl PDGEventInfo {
     get!(node_id->nodeId->[handle: NodeHandle]);
-    get!(workitem_id->workItemId->i32);
+    get!(workitem_id->workItemId->[handle: WorkItemId]);
     get!(dependency_id->dependencyId->i32);
     get!(with_session message->msgSH->Result<String>);
     pub fn current_state(&self) -> PdgWorkItemState {
