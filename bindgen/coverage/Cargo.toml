@@ -1,12 +1,9 @@
 [package]
-name = "render_cop"
+name = "coverage"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-hapi-rs = {path="../.."}
-iced = {version = "0.10.0", features = ["image"]}
-anyhow = "1.0.66"
-resolve-path = "0.1.0"
+regex-lite = "0.1.0"

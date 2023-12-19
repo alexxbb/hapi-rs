@@ -159,6 +159,12 @@ impl AsRef<NodeHandle> for HoudiniNode {
     }
 }
 
+impl AsRef<NodeHandle> for NodeHandle {
+    fn as_ref(&self) -> &NodeHandle {
+        self
+    }
+}
+
 impl NodeHandle {
     /// Retrieve info about the node this handle belongs to
     pub fn info(&self, session: &Session) -> Result<NodeInfo> {
@@ -359,8 +365,8 @@ impl HoudiniNode {
     pub fn get_objects_info(&self) -> Result<Vec<ObjectInfo>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         let parent = match self.info.node_type() {
-            NodeType::Obj => NodeHandle(self.info.parent_id().0),
-            _ => NodeHandle(self.handle.0),
+            NodeType::Obj => self.info.parent_id(),
+            _ => self.handle,
         };
         let infos = crate::ffi::get_composed_object_list(&self.session, parent)?;
         Ok(infos
@@ -381,6 +387,12 @@ impl HoudiniNode {
     ) -> Result<Vec<NodeHandle>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         get_child_node_list(&self.session, self, types, flags, recursive)
+    }
+
+    /// Get all children of the node, not recursively.
+    pub fn get_children(&self) -> Result<Vec<NodeHandle>> {
+        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
+        get_child_node_list(&self.session, self, NodeType::Any, NodeFlags::Any, false)
     }
 
     /// Get a child node by path.
@@ -410,6 +422,12 @@ impl HoudiniNode {
             }
         }
         Ok(None)
+    }
+
+    /// Given if Self is an asset or a subnet SOP node, get its output node at index.
+    pub fn get_sop_output_node(&self, index: i32) -> Result<NodeHandle> {
+        debug_assert!(self.is_valid()?);
+        crate::ffi::get_sop_output_node(&self.session, self.handle, index)
     }
 
     /// Return the node's parent.
@@ -562,6 +580,7 @@ impl HoudiniNode {
         crate::ffi::get_output_geo_count(self)
     }
 
+    /// Get names of each HDA output
     pub fn get_output_names(&self) -> Result<Vec<String>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_output_names(self)

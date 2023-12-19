@@ -382,11 +382,11 @@ fn geometry_basic_instancing() {
     let names: Vec<String> = names.into_iter().collect();
     assert_eq!(names.first().unwrap(), "group_1");
     assert_eq!(names.last().unwrap(), "group_6");
-    let tranforms = instancer
+    let transforms = instancer
         .get_instance_part_transforms(None, RSTOrder::Srt)
         .unwrap();
     assert_eq!(
-        tranforms.len() as i32,
+        transforms.len() as i32,
         instancer
             .part_info(0)
             .unwrap()

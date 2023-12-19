@@ -13,13 +13,13 @@ fn cook_async(node: &TopNode) -> Result<()> {
     let mut num_tasks = 0;
     let mut tasks_done = 0;
     println!("Cooking PDG...");
-    node.cook_async(|step| {
+    node.cook_async(false, |step| {
         match step.event.event_type() {
             PdgEventType::EventWorkitemAdd => num_tasks += 1,
             PdgEventType::EventWorkitemRemove => num_tasks -= 1,
             PdgEventType::WorkitemStateChange => match step.event.current_state() {
                 PdgWorkItemState::Success | PdgWorkItemState::Cache => {
-                    let workitem = node.get_workitem(step.event.workitem_id(), step.graph_id)?;
+                    let workitem = node.get_workitem(step.event.workitem_id())?;
                     let results = workitem.get_results()?;
                     for wir in results {
                         // We only interested in geo files;;
@@ -31,7 +31,7 @@ fn cook_async(node: &TopNode) -> Result<()> {
                     }
                 }
                 PdgWorkItemState::Fail => {
-                    let item = node.get_workitem(step.event.workitem_id(), step.graph_id)?;
+                    let item = node.get_workitem(step.event.workitem_id())?;
                     eprintln!("Workitem {item:?} failed to cook");
                 }
                 _ => {}

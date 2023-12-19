@@ -119,6 +119,9 @@ fn node_transform() {
     assert!(obj.get_object_info().unwrap().has_transform_changed());
     let t = obj.get_transform(None, None).unwrap();
     assert_eq!(t.position(), [0.0, 1.0, 0.0]);
+    SESSION
+        .get_composed_object_transform(obj.parent_node().unwrap(), RSTOrder::Default)
+        .unwrap();
 }
 
 #[test]

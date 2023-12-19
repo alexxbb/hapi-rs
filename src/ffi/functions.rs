@@ -1,5 +1,6 @@
 #![allow(clippy::missing_safety_doc)]
 
+use duplicate::duplicate_item;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
@@ -8,7 +9,7 @@ use std::vec;
 use raw::HAPI_PDG_EventInfo;
 
 use crate::ffi::bindings::HAPI_StringHandle;
-use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId};
+use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId, RSTOrder};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
 use crate::{
     errors::{HapiError, Kind, Result},
@@ -139,18 +140,29 @@ pub fn get_parm_string_value(
     crate::stringhandle::get_string(StringHandle(handle), session)
 }
 
-pub fn get_parm_node_value(node: &HoudiniNode, name: &CStr) -> Result<Option<NodeHandle>> {
+pub fn get_parm_node_value(
+    session: &Session,
+    node: NodeHandle,
+    name: &CStr,
+) -> Result<Option<NodeHandle>> {
     unsafe {
         let mut id = uninit!();
-        raw::HAPI_GetParmNodeValue(
-            node.session.ptr(),
-            node.handle.0,
-            name.as_ptr(),
-            id.as_mut_ptr(),
-        )
-        .check_err(&node.session, || "Calling HAPI_GetParmNodeValue")?;
+        raw::HAPI_GetParmNodeValue(session.ptr(), node.0, name.as_ptr(), id.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_GetParmNodeValue")?;
         let id = id.assume_init();
-        Ok(if id == -1 { None } else { Some(NodeHandle(id)) })
+        Ok((id != -1).then_some(NodeHandle(id)))
+    }
+}
+
+pub fn set_parm_node_value(
+    session: &Session,
+    node: NodeHandle,
+    name: &CStr,
+    value: NodeHandle,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetParmNodeValue(session.ptr(), node.0, name.as_ptr(), value.0)
+            .check_err(session, || "Calling HAPI_SetParmNodeValue")
     }
 }
 
@@ -391,6 +403,16 @@ pub fn get_node_info(node: NodeHandle, session: &Session) -> Result<raw::HAPI_No
     }
 }
 
+pub fn get_sop_output_node(session: &Session, node: NodeHandle, output: i32) -> Result<NodeHandle> {
+    unsafe {
+        let mut out_node = -1;
+        raw::HAPI_GetOutputNodeId(session.ptr(), node.0, output, &mut out_node as *mut _)
+            .check_err(session, || "Calling HAPI_GetOutputNodeId")?;
+
+        Ok(NodeHandle(out_node))
+    }
+}
+
 pub fn is_node_valid(session: &Session, info: &raw::HAPI_NodeInfo) -> Result<bool> {
     unsafe {
         let mut answer = uninit!();
@@ -513,6 +535,28 @@ pub fn get_asset_names(library_id: i32, num_assets: i32, session: &Session) -> R
         names
     };
     crate::stringhandle::get_string_array(&handles, session)
+}
+
+pub fn get_asset_library_ids(session: &Session) -> Result<Vec<raw::HAPI_AssetLibraryId>> {
+    unsafe {
+        let mut count = -1;
+        raw::HAPI_GetLoadedAssetLibraryCount(session.ptr(), &mut count as *mut _)
+            .check_err(session, || "Calling HAPI_GetLoadedAssetLibraryCount")?;
+
+        let mut ids = vec![-1; count as usize];
+        raw::HAPI_GetAssetLibraryIds(session.ptr(), ids.as_mut_ptr(), 0, count)
+            .check_err(session, || "Callign HAPI_GetAssetLibraryIds")?;
+        Ok(ids)
+    }
+}
+
+pub fn get_asset_library_file_path(session: &Session, library_id: i32) -> Result<String> {
+    unsafe {
+        let mut handle = -1;
+        raw::HAPI_GetAssetLibraryFilePath(session.ptr(), library_id, &mut handle as *mut _)
+            .check_err(session, || "Calling HAPI_GetAssetLibraryFilePath")?;
+        crate::stringhandle::get_string(StringHandle(handle), session)
+    }
 }
 
 #[derive(Default, Debug)]
@@ -676,6 +720,54 @@ pub fn get_status_string(
         } else {
             Ok(String::new())
         }
+    }
+}
+
+pub fn clear_connection_error() -> Result<()> {
+    unsafe {
+        raw::HAPI_ClearConnectionError().error_message("Calling HAPI_ClearConnectionError: failed")
+    }
+}
+
+pub fn get_active_cache_names(session: &Session) -> Result<StringArray> {
+    unsafe {
+        let mut count = uninit!();
+        raw::HAPI_GetActiveCacheCount(session.ptr(), count.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_GetActiveCacheCount")?;
+        let count = count.assume_init();
+        let mut names = vec![StringHandle(-1); count as usize];
+        raw::HAPI_GetActiveCacheNames(
+            session.ptr(),
+            names.as_mut_ptr() as *mut HAPI_StringHandle,
+            count,
+        )
+        .check_err(session, || "Calling HAPI_GetActiveCacheNames")?;
+        crate::stringhandle::get_string_array(&names, session)
+    }
+}
+
+pub fn get_cache_property(
+    session: &Session,
+    name: &CStr,
+    property: raw::CacheProperty,
+) -> Result<i32> {
+    unsafe {
+        let mut value = uninit!();
+        raw::HAPI_GetCacheProperty(session.ptr(), name.as_ptr(), property, value.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_GetCacheProperty")?;
+        Ok(value.assume_init())
+    }
+}
+
+pub fn set_cache_property(
+    session: &Session,
+    name: &CStr,
+    property: raw::CacheProperty,
+    value: i32,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetCacheProperty(session.ptr(), name.as_ptr(), property, value)
+            .check_err(session, || "Calling HAPI_SetCacheProperty")
     }
 }
 
@@ -1027,6 +1119,7 @@ pub fn get_compose_child_node_list(
     flags: raw::NodeFlags,
     recursive: bool,
 ) -> Result<Vec<i32>> {
+    let _lock = session.lock();
     unsafe {
         let mut count = uninit!();
         let _lock = session.lock();
@@ -1057,19 +1150,49 @@ pub fn get_compose_child_node_list(
     }
 }
 
-pub fn get_composed_object_list(
-    session: &Session,
-    parent: NodeHandle,
-) -> Result<Vec<raw::HAPI_ObjectInfo>> {
+#[inline]
+pub fn get_compose_object_list(session: &Session, parent: NodeHandle) -> Result<i32> {
     unsafe {
         let mut count = uninit!();
         raw::HAPI_ComposeObjectList(session.ptr(), parent.0, null(), count.as_mut_ptr())
             .check_err(session, || "Calling HAPI_ComposeObjectList")?;
-        let count = count.assume_init();
+        Ok(count.assume_init())
+    }
+}
+
+pub fn get_composed_object_list(
+    session: &Session,
+    parent: NodeHandle,
+) -> Result<Vec<raw::HAPI_ObjectInfo>> {
+    let _lock = session.lock();
+    unsafe {
+        let count = get_compose_object_list(session, parent)?;
         let mut obj_infos = vec![raw::HAPI_ObjectInfo_Create(); count as usize];
         raw::HAPI_GetComposedObjectList(session.ptr(), parent.0, obj_infos.as_mut_ptr(), 0, count)
             .check_err(session, || "Calling HAPI_GetComposedObjectList")?;
         Ok(obj_infos)
+    }
+}
+
+pub fn get_composed_object_transforms(
+    session: &Session,
+    parent: NodeHandle,
+    rst_order: raw::RSTOrder,
+) -> Result<Vec<raw::HAPI_Transform>> {
+    let _lock = session.lock();
+    let count = get_compose_object_list(session, parent)?;
+    unsafe {
+        let mut transforms = vec![raw::HAPI_Transform_Create(); count as usize];
+        raw::HAPI_GetComposedObjectTransforms(
+            session.ptr(),
+            parent.0,
+            rst_order,
+            transforms.as_mut_ptr(),
+            0,
+            transforms.len() as i32,
+        )
+        .check_err(session, || "Calling HAPI_GetComposedObjectTransforms")?;
+        Ok(transforms)
     }
 }
 
@@ -1092,11 +1215,18 @@ pub fn revert_parameter_to_default(
     node: NodeHandle,
     session: &Session,
     parm_name: &CStr,
-    index: i32,
+    index: Option<i32>,
 ) -> Result<()> {
     unsafe {
-        raw::HAPI_RevertParmToDefault(session.ptr(), node.0, parm_name.as_ptr(), index)
-            .check_err(session, || "Calling HAPI_RevertParmToDefault")
+        let ses_ptr = session.ptr();
+        let parm_name = parm_name.as_ptr();
+        let node_id = node.0;
+        match index {
+            Some(index) => raw::HAPI_RevertParmToDefault(ses_ptr, node_id, parm_name, index)
+                .check_err(session, || "Calling HAPI_RevertParmToDefault"),
+            None => raw::HAPI_RevertParmToDefaults(ses_ptr, node_id, parm_name)
+                .check_err(session, || "Calling HAPI_RevertParmToDefaults"),
+        }
     }
 }
 
@@ -2067,6 +2197,68 @@ pub fn get_file_parm(
     }
 }
 
+pub fn parm_has_tag(
+    session: &Session,
+    node: NodeHandle,
+    parm_id: ParmHandle,
+    tag_name: &CStr,
+) -> Result<bool> {
+    unsafe {
+        let mut has_tag = uninit!();
+        raw::HAPI_ParmHasTag(
+            session.ptr(),
+            node.0,
+            parm_id.0,
+            tag_name.as_ptr(),
+            has_tag.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_ParmHasTag")?;
+        Ok(has_tag.assume_init() > 0)
+    }
+}
+
+pub fn get_parm_tag_name(
+    session: &Session,
+    node: NodeHandle,
+    parm_id: ParmHandle,
+    tag_index: i32,
+) -> Result<String> {
+    let handle = unsafe {
+        let mut handle = uninit!();
+        raw::HAPI_GetParmTagName(
+            session.ptr(),
+            node.0,
+            parm_id.0,
+            tag_index,
+            handle.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetParmTagName")?;
+        handle.assume_init()
+    };
+    crate::stringhandle::get_string(StringHandle(handle), session)
+}
+
+pub fn get_parm_tag_value(
+    session: &Session,
+    node: NodeHandle,
+    parm_id: ParmHandle,
+    tag_name: &CStr,
+) -> Result<String> {
+    let handle = unsafe {
+        let mut handle = uninit!();
+        raw::HAPI_GetParmTagValue(
+            session.ptr(),
+            node.0,
+            parm_id.0,
+            tag_name.as_ptr(),
+            handle.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetParmTagValue")?;
+        handle.assume_init()
+    };
+    crate::stringhandle::get_string(StringHandle(handle), session)
+}
+
 pub fn get_face_counts(
     session: &Session,
     node: NodeHandle,
@@ -2657,6 +2849,28 @@ pub fn get_instanced_part_transforms(
     }
 }
 
+pub fn get_instance_transforms_on_part(
+    session: &Session,
+    node: NodeHandle,
+    part_info: raw::HAPI_PartInfo,
+    rst_order: RSTOrder,
+) -> Result<Vec<raw::HAPI_Transform>> {
+    unsafe {
+        let mut transforms = vec![raw::HAPI_Transform_Create(); part_info.pointCount as usize];
+        raw::HAPI_GetInstanceTransformsOnPart(
+            session.ptr(),
+            node.0,
+            part_info.id,
+            rst_order,
+            transforms.as_mut_ptr(),
+            0,
+            transforms.len() as i32,
+        )
+        .check_err(session, || "Calling HAPI_GetInstanceTransformsOnPart")?;
+        Ok(transforms)
+    }
+}
+
 pub fn convert_transform(
     session: &Session,
     tr_in: &raw::HAPI_TransformEuler,
@@ -2868,15 +3082,28 @@ pub fn cook_pdg(
     pdg_node: NodeHandle,
     generate_only: bool,
     blocking: bool,
+    all_outputs: bool,
 ) -> Result<()> {
     unsafe {
-        raw::HAPI_CookPDG(
+        let cook_fn = if all_outputs {
+            raw::HAPI_CookPDGAllOutputs
+        } else {
+            raw::HAPI_CookPDG
+        };
+        cook_fn(
             session.ptr(),
             pdg_node.0,
             generate_only as i32,
             blocking as i32,
         )
         .check_err(session, || "Calling HAPI_CookPDG")
+    }
+}
+
+pub fn pause_pdg_cook(session: &Session, graph_context_id: i32) -> Result<()> {
+    unsafe {
+        raw::HAPI_PausePDGCook(session.ptr(), graph_context_id)
+            .check_err(session, || "Calling HAPI_PausePDGCook")
     }
 }
 
@@ -3003,6 +3230,7 @@ pub fn get_workitem_result(
 
 pub fn get_pdg_workitems(session: &Session, pdg_node: NodeHandle) -> Result<Vec<i32>> {
     unsafe {
+        let _lock = session.lock();
         let mut num = -1;
         raw::HAPI_GetNumWorkitems(session.ptr(), pdg_node.0, &mut num as *mut i32)
             .check_err(session, || "Calling HAPI_GetNumWorkitems")?;
@@ -3011,5 +3239,230 @@ pub fn get_pdg_workitems(session: &Session, pdg_node: NodeHandle) -> Result<Vec<
         raw::HAPI_GetWorkitems(session.ptr(), pdg_node.0, array.as_mut_ptr(), num)
             .check_err(session, || "Calling HAPI_GetWorkitems")?;
         Ok(array)
+    }
+}
+
+pub fn create_pdg_workitem(
+    session: &Session,
+    pdg_node: NodeHandle,
+    name: &CStr,
+    index: i32,
+) -> Result<i32> {
+    unsafe {
+        let mut handle = uninit!();
+        raw::HAPI_CreateWorkItem(
+            session.ptr(),
+            pdg_node.0,
+            handle.as_mut_ptr(),
+            name.as_ptr(),
+            index,
+        )
+        .check_err(session, || "Calling HAPI_CreateWorkItem")?;
+        Ok(handle.assume_init())
+    }
+}
+
+pub fn commit_pdg_workitems(session: &Session, node: NodeHandle) -> Result<()> {
+    unsafe {
+        raw::HAPI_CommitWorkItems(session.ptr(), node.0)
+            .check_err(session, || "Calling HAPI_CommitWorkItems")
+    }
+}
+
+pub fn get_workitem_data_length(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+) -> Result<i32> {
+    unsafe {
+        let mut length = uninit!();
+        raw::HAPI_GetWorkitemDataLength(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            length.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetWorkitemDataLength")?;
+        Ok(length.assume_init())
+    }
+}
+
+#[duplicate_item(
+[
+_rust_fn [get_workitem_attribute_size]
+_ffi_fn [HAPI_GetWorkItemAttributeSize]
+]
+[
+_rust_fn [get_workitem_data_size]
+_ffi_fn [HAPI_GetWorkitemDataLength]
+]
+)]
+pub fn _rust_fn(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    attribute_name: &CStr,
+) -> Result<i32> {
+    unsafe {
+        let mut size = uninit!();
+        raw::_ffi_fn(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            attribute_name.as_ptr(),
+            size.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetWorkItemAttributeSize")?;
+        Ok(size.assume_init())
+    }
+}
+
+#[duplicate_item(
+[
+_type [i32]
+_rust_fn [set_workitem_int_data]
+_ffi_fn [HAPI_SetWorkitemIntData]
+]
+[
+_type [i32]
+_rust_fn [set_workitem_int_attribute]
+_ffi_fn [HAPI_SetWorkItemIntAttribute]
+]
+[
+_type [f32]
+_rust_fn [set_workitem_float_data]
+_ffi_fn [HAPI_SetWorkitemFloatData]
+]
+[
+_type [f32]
+_rust_fn [set_workitem_float_attribute]
+_ffi_fn [HAPI_SetWorkItemFloatAttribute]
+]
+)]
+pub fn _rust_fn(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+    data: &[_type],
+) -> Result<()> {
+    unsafe {
+        raw::_ffi_fn(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            data.as_ptr(),
+            data.len() as i32,
+        )
+        .check_err(session, || stringify!(Calling _ffi_fn))
+    }
+}
+
+#[duplicate_item(
+[
+_type [i32]
+_rust_fn [get_workitem_int_data]
+_ffi_fn [HAPI_GetWorkitemIntData]
+]
+[
+_type [i32]
+_rust_fn [get_workitem_int_attribute]
+_ffi_fn [HAPI_GetWorkItemIntAttribute]
+]
+[
+_type [f32]
+_rust_fn [get_workitem_float_data]
+_ffi_fn [HAPI_GetWorkitemFloatData]
+]
+[
+_type [f32]
+_rust_fn [get_workitem_float_attribute]
+_ffi_fn [HAPI_GetWorkItemFloatAttribute]
+]
+)]
+pub fn _rust_fn(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+    data: &mut [_type],
+) -> Result<()> {
+    unsafe {
+        raw::_ffi_fn(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            data.as_mut_ptr(),
+            data.len() as i32,
+        )
+        .check_err(session, || stringify!(Calling _ffi_fn))
+    }
+}
+
+#[duplicate_item(
+[
+_rust_fn [set_workitem_string_attribute]
+_ffi_fn [HAPI_SetWorkItemStringAttribute]
+]
+[
+_rust_fn [set_workitem_string_data]
+_ffi_fn [HAPI_SetWorkitemStringData]
+]
+)]
+pub fn _rust_fn(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+    data_index: i32,
+    data: &CStr,
+) -> Result<()> {
+    unsafe {
+        raw::_ffi_fn(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            data_index,
+            data.as_ptr(),
+        )
+        .check_err(session, || stringify!(Calling _ffi_fn))
+    }
+}
+
+#[duplicate_item(
+[
+_rust_fn [get_workitem_string_attribute]
+_ffi_fn [HAPI_GetWorkItemStringAttribute]
+_size_fn [get_workitem_attribute_size]
+]
+[
+_rust_fn [get_workitem_string_data]
+_ffi_fn [HAPI_GetWorkitemStringData]
+_size_fn [get_workitem_data_size]
+]
+)]
+pub fn _rust_fn(
+    session: &Session,
+    node: NodeHandle,
+    workitem_id: i32,
+    data_name: &CStr,
+) -> Result<()> {
+    unsafe {
+        let length = _size_fn(session, node, workitem_id, data_name)?;
+        let mut handles = vec![0; length as usize];
+        raw::_ffi_fn(
+            session.ptr(),
+            node.0,
+            workitem_id,
+            data_name.as_ptr(),
+            handles.as_mut_ptr(),
+            length,
+        )
+        .check_err(session, || stringify!(Calling _ffi_fn))
     }
 }

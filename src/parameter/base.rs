@@ -138,8 +138,8 @@ pub trait ParmBaseTrait {
         crate::ffi::remove_parm_expression(inner.node, &inner.info.session, inner.info.id(), index)
     }
 
-    /// Revert parameter at index to its default value
-    fn revert_to_default(&self, index: i32) -> Result<()> {
+    /// Revert parameter at index to its default value. If `index` is None - reset all instances.
+    fn revert_to_default(&self, index: Option<i32>) -> Result<()> {
         let inner = self.inner();
         crate::ffi::revert_parameter_to_default(
             inner.node,
@@ -163,6 +163,24 @@ pub trait ParmBaseTrait {
             index,
             keys,
         )
+    }
+
+    fn has_tag(&self, tag: &str) -> Result<bool> {
+        let inner = self.inner();
+        let tag = CString::new(tag)?;
+        crate::ffi::parm_has_tag(&inner.info.session, inner.node, inner.info.id(), &tag)
+    }
+
+    /// Get parameter tag name by index. The number of tags is stored in `self.info().tag_count()`
+    fn get_tag_name(&self, tag_index: i32) -> Result<String> {
+        let inner = self.inner();
+        crate::ffi::get_parm_tag_name(&inner.info.session, inner.node, inner.info.id(), tag_index)
+    }
+
+    fn get_tag_value(&self, tag_name: &str) -> Result<String> {
+        let inner = self.inner();
+        let tag = CString::new(tag_name)?;
+        crate::ffi::get_parm_tag_value(&inner.info.session, inner.node, inner.info.id(), &tag)
     }
 
     #[doc(hidden)]

@@ -5,6 +5,8 @@ build
 backup
 otls/backup
 cmake-build-*
+bindgen/hapi-bindgen/bindings.rs
+env.ps1
 **/*target
 _build
 *.hip*

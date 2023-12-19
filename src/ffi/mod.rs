@@ -7,7 +7,7 @@ mod bindings;
 mod functions;
 pub mod structs;
 
-pub(crate) mod raw {
+pub mod raw {
     pub use super::bindings::*;
 }
 pub(crate) use functions::*;

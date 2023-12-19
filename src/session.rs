@@ -27,12 +27,12 @@ pub use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::{enums::*, CookOptions, ImageFileFormat, SessionSyncInfo, TimelineOptions, Viewport},
-    node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType},
+    node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType, Transform},
     parameter::Parameter,
     stringhandle::StringArray,
 };
 
-pub type SessionState = crate::ffi::enums::State;
+pub type SessionState = State;
 
 use crate::stringhandle::StringHandle;
 use crate::{ffi::raw, utils};
@@ -373,11 +373,11 @@ impl Session {
         debug_assert!(self.is_valid());
         debug!("Searching parameter at path: {}", path.as_ref());
         let Some((path, parm)) = path.as_ref().rsplit_once('/') else {
-            return Ok(None)
+            return Ok(None);
         };
         let Some(node) = self.get_node_from_path(path, None)? else {
             debug!("Node {} not found", path);
-            return Ok(None)
+            return Ok(None);
         };
         Ok(node.parameter(parm).ok())
     }
@@ -393,6 +393,23 @@ impl Session {
             handle: NodeHandle(handle),
             node_type: manager,
         })
+    }
+
+    /// Return a list of transforms for all object nodes under a given parent node.
+    pub fn get_composed_object_transform(
+        &self,
+        parent: impl AsRef<NodeHandle>,
+        rst_order: RSTOrder,
+    ) -> Result<Vec<Transform>> {
+        debug_assert!(self.is_valid());
+        crate::ffi::get_composed_object_transforms(self, *parent.as_ref(), rst_order).map(
+            |transforms| {
+                transforms
+                    .into_iter()
+                    .map(|tr| Transform { inner: tr })
+                    .collect()
+            },
+        )
     }
 
     /// Save current session to hip file
@@ -429,6 +446,24 @@ impl Session {
     pub fn load_asset_file(&self, file: impl AsRef<Path>) -> Result<AssetLibrary> {
         debug_assert!(self.is_valid());
         AssetLibrary::from_file(self.clone(), file)
+    }
+
+    /// Returns a list of loaded asset libraries including Houdini's default.
+    pub fn get_loaded_asset_libraries(&self) -> Result<Vec<AssetLibrary>> {
+        debug_assert!(self.is_valid());
+
+        crate::ffi::get_asset_library_ids(self)?
+            .into_iter()
+            .map(|library_id| {
+                crate::ffi::get_asset_library_file_path(self, library_id).map(|lib_file| {
+                    AssetLibrary {
+                        lib_id: library_id,
+                        session: self.clone(),
+                        file: Some(PathBuf::from(lib_file)),
+                    }
+                })
+            })
+            .collect::<Result<Vec<_>>>()
     }
 
     /// Interrupt session cooking
@@ -635,6 +670,30 @@ impl Session {
                 .collect()
         })
     }
+
+    pub fn get_active_cache_names(&self) -> Result<StringArray> {
+        debug_assert!(self.is_valid());
+        crate::ffi::get_active_cache_names(self)
+    }
+
+    pub fn get_cache_property_value(
+        &self,
+        cache_name: &str,
+        property: CacheProperty,
+    ) -> Result<i32> {
+        let cache_name = CString::new(cache_name)?;
+        crate::ffi::get_cache_property(self, &cache_name, property)
+    }
+
+    pub fn set_cache_property_value(
+        &self,
+        cache_name: &str,
+        property: CacheProperty,
+        value: i32,
+    ) -> Result<()> {
+        let cache_name = CString::new(cache_name)?;
+        crate::ffi::set_cache_property(self, &cache_name, property, value)
+    }
 }
 
 impl Drop for Session {
@@ -644,7 +703,7 @@ impl Drop for Session {
             if self.is_valid() {
                 if self.inner.options.cleanup {
                     if let Err(e) = self.cleanup() {
-                        error!("Cleanup failed in Drop: {}", e);
+                        error!("Session cleanup failed in Drop: {}", e);
                     }
                 }
                 if let Err(e) = crate::ffi::shutdown_session(self) {
@@ -966,6 +1025,7 @@ pub fn start_engine_pipe_server(
     };
     let log_file = log_file.map(CString::new).transpose()?;
     let c_str = utils::path_to_cstring(path)?;
+    crate::ffi::clear_connection_error()?;
     crate::ffi::start_thrift_pipe_server(&c_str, &opts, log_file.as_deref())
 }
 
@@ -984,6 +1044,7 @@ pub fn start_engine_socket_server(
         verbosity,
     };
     let log_file = log_file.map(CString::new).transpose()?;
+    crate::ffi::clear_connection_error()?;
     crate::ffi::start_thrift_socket_server(port as i32, &opts, log_file.as_deref())
 }
 
@@ -1000,6 +1061,9 @@ pub fn start_houdini_server(
         } else {
             "-core"
         })
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .spawn()
         .map_err(HapiError::from)
 }

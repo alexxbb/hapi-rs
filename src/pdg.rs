@@ -1,52 +1,194 @@
 use crate::ffi;
 use crate::ffi::{
     raw::{PdgEventType, PdgState},
-    PDGEventInfo, PDGWorkItemInfo, PDGWorkItemResult,
+    PDGEventInfo, PDGWorkItemInfo, PDGWorkItemOutputFile,
 };
-use crate::node::HoudiniNode;
+use crate::node::{HoudiniNode, NodeHandle};
 use crate::Result;
 use std::fmt::Formatter;
 use std::ops::ControlFlow;
 
 /// Represents a single work item.
-pub struct PDGWorkItem<'session> {
-    pub info: PDGWorkItemInfo,
-    pub id: i32,
+pub struct PDGWorkItem<'node> {
+    pub id: WorkItemId,
     pub context_id: i32,
-    pub node: &'session HoudiniNode,
+    pub node: &'node HoudiniNode,
 }
+
+#[derive(Debug, Copy, Clone)]
+#[repr(transparent)]
+pub struct WorkItemId(pub(crate) i32);
 
 impl std::fmt::Debug for PDGWorkItem<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PDGWorkItem")
             .field("id", &self.id)
             .field("context", &self.context_id)
-            .field("name", &self.info.name(&self.node.session))
             .finish()
     }
 }
 
+impl From<TopNode> for NodeHandle {
+    fn from(value: TopNode) -> Self {
+        value.node.handle
+    }
+}
+
 impl<'session> PDGWorkItem<'session> {
+    pub fn get_info(&self) -> Result<PDGWorkItemInfo> {
+        ffi::get_workitem_info(&self.node.session, self.context_id, self.id.0)
+            .map(|inner| PDGWorkItemInfo { inner })
+    }
     /// Retrieve the results of work, if the work item has any.
-    pub fn get_results(&self) -> Result<Vec<PDGWorkItemResult<'session>>> {
-        match self.info.output_file_count() {
+    pub fn get_results(&self) -> Result<Vec<PDGWorkItemOutputFile<'session>>> {
+        match self.get_info()?.output_file_count() {
             0 => Ok(Vec::new()),
-            _ => ffi::get_workitem_result(
-                &self.node.session,
-                self.node.handle,
-                self.id,
-                self.info.output_file_count(),
-            )
-            .map(|results| {
-                results
+            count => {
+                let results = ffi::get_workitem_result(
+                    &self.node.session,
+                    self.node.handle,
+                    self.id.0,
+                    count,
+                )?;
+                let results = results
                     .into_iter()
-                    .map(|result| PDGWorkItemResult {
-                        inner: result,
+                    .map(|inner| PDGWorkItemOutputFile {
+                        inner,
                         session: (&self.node.session).into(),
                     })
-                    .collect()
-            }),
+                    .collect();
+
+                Ok(results)
+            }
         }
+    }
+
+    pub fn get_data_length(&self, data_name: &str) -> Result<i32> {
+        let data_name = std::ffi::CString::new(data_name)?;
+        ffi::get_workitem_data_length(&self.node.session, self.node.handle, self.id.0, &data_name)
+    }
+
+    pub fn set_int_data(&self, data_name: &str, data: &[i32]) -> Result<()> {
+        let data_name = std::ffi::CString::new(data_name)?;
+        ffi::set_workitem_int_data(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &data_name,
+            data,
+        )
+    }
+
+    pub fn get_int_data(&self, data_name: &str) -> Result<Vec<i32>> {
+        let data_name = std::ffi::CString::new(data_name)?;
+        let data_size = ffi::get_workitem_data_length(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &data_name,
+        )?;
+        let mut buffer = Vec::new();
+        buffer.resize(data_size as usize, 0);
+        ffi::get_workitem_int_data(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &data_name,
+            buffer.as_mut_slice(),
+        )?;
+        Ok(buffer)
+    }
+
+    pub fn set_float_data(&self, data_name: &str, data: &[f32]) -> Result<()> {
+        let data_name = std::ffi::CString::new(data_name)?;
+        ffi::set_workitem_float_data(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &data_name,
+            data,
+        )
+    }
+
+    pub fn get_float_data(&self, data_name: &str) -> Result<Vec<f32>> {
+        let data_name = std::ffi::CString::new(data_name)?;
+        let data_size = ffi::get_workitem_data_length(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &data_name,
+        )?;
+        let mut buffer = Vec::new();
+        buffer.resize(data_size as usize, 0.0);
+        ffi::get_workitem_float_data(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &data_name,
+            buffer.as_mut_slice(),
+        )?;
+        Ok(buffer)
+    }
+
+    pub fn set_int_attribute(&self, attrib_name: &str, value: &[i32]) -> Result<()> {
+        let attrib_name = std::ffi::CString::new(attrib_name)?;
+        ffi::set_workitem_int_attribute(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &attrib_name,
+            value,
+        )
+    }
+    pub fn get_int_attribute(&self, attr_name: &str) -> Result<Vec<i32>> {
+        let attr_name = std::ffi::CString::new(attr_name)?;
+        let attr_size = ffi::get_workitem_attribute_size(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &attr_name,
+        )?;
+        let mut buffer = Vec::new();
+        buffer.resize(attr_size as usize, 0);
+        ffi::get_workitem_int_attribute(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &attr_name,
+            &mut buffer,
+        )?;
+        Ok(buffer)
+    }
+
+    pub fn set_float_attribute(&self, attrib_name: &str, value: &[f32]) -> Result<()> {
+        let attrib_name = std::ffi::CString::new(attrib_name)?;
+        ffi::set_workitem_float_attribute(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &attrib_name,
+            value,
+        )
+    }
+
+    pub fn get_float_attribute(&self, attr_name: &str) -> Result<Vec<f32>> {
+        let attr_name = std::ffi::CString::new(attr_name)?;
+        let attr_size = ffi::get_workitem_attribute_size(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &attr_name,
+        )?;
+        let mut buffer = Vec::new();
+        buffer.resize(attr_size as usize, 0.0);
+        ffi::get_workitem_float_attribute(
+            &self.node.session,
+            self.node.handle,
+            self.id.0,
+            &attr_name,
+            &mut buffer,
+        )?;
+        Ok(buffer)
     }
 }
 
@@ -57,6 +199,7 @@ pub struct TopNode {
 }
 
 /// A convenient wrapper for a single event generated by PDG.
+#[derive(Debug, Copy, Clone)]
 pub struct CookStep {
     pub event: PDGEventInfo,
     pub graph_id: i32,
@@ -92,14 +235,14 @@ impl TopNode {
     /// In case of [`ControlFlow::Continue(_)`] run until completion.
     ///
     /// See the `pdg_cook` example in the `/examples` folder.
-    pub fn cook_async<F>(&self, mut func: F) -> Result<()>
+    pub fn cook_async<F>(&self, all_outputs: bool, mut func: F) -> Result<()>
     where
         F: FnMut(CookStep) -> Result<ControlFlow<bool>>,
     {
         let session = &self.node.session;
         log::debug!("Start cooking PDG node: {}", self.node.path()?);
         debug_assert!(session.is_valid());
-        ffi::cook_pdg(session, self.node.handle, false, false)?;
+        ffi::cook_pdg(session, self.node.handle, false, false, all_outputs)?;
         let mut events = create_events();
         'main: loop {
             let (graph_ids, graph_names) = ffi::get_pdg_contexts(session)?;
@@ -133,26 +276,32 @@ impl TopNode {
         Ok(())
     }
 
+    pub fn cook_pdg_blocking(&self) -> Result<()> {
+        ffi::cook_pdg(&self.node.session, self.node.handle, false, true, false)
+    }
+
     // FIXME. Observing some weird behaviour. The output files are intermixed with tags
     #[allow(dead_code)]
     #[allow(unreachable_code)]
-    fn cook_blocking(&self) -> Result<Vec<PDGWorkItemResult<'_>>> {
+    fn cook_blocking_with_results(
+        &self,
+        _all_outputs: bool,
+    ) -> Result<Vec<PDGWorkItemOutputFile<'_>>> {
         unimplemented!();
-        ffi::cook_pdg(&self.node.session, self.node.handle, false, true)?;
+        ffi::cook_pdg(
+            &self.node.session,
+            self.node.handle,
+            false,
+            true,
+            _all_outputs,
+        )?;
         let workitems: Vec<PDGWorkItem> = {
             let context_id = self.get_context_id()?;
             ffi::get_pdg_workitems(&self.node.session, self.node.handle)?
                 .into_iter()
                 .map(|workitem_id| {
                     Ok(PDGWorkItem {
-                        info: PDGWorkItemInfo {
-                            inner: ffi::get_workitem_info(
-                                &self.node.session,
-                                context_id,
-                                workitem_id,
-                            )?,
-                        },
-                        id: workitem_id,
+                        id: WorkItemId(workitem_id),
                         context_id,
                         node: &self.node,
                     })
@@ -172,10 +321,17 @@ impl TopNode {
     }
 
     /// Cancel cooking.
-    pub fn cancel_cook(&self) -> Result<()> {
+    pub fn cancel_cooking(&self) -> Result<()> {
         log::debug!("Cancel PDG cooking {}", self.node.path()?);
         let context = self.get_context_id()?;
         ffi::cancel_pdg_cook(&self.node.session, context)
+    }
+
+    /// Pause cooking process
+    pub fn pause_cooking(&self) -> Result<()> {
+        log::debug!("Pause PDG cooking {}", self.node.path()?);
+        let context = self.get_context_id()?;
+        ffi::pause_pdg_cook(&self.node.session, context)
     }
 
     /// Dirty the node, forcing the work items to regenerate.
@@ -194,14 +350,48 @@ impl TopNode {
     }
 
     /// Get the work item by id and graph(context) id.
-    pub fn get_workitem(&self, workitem_id: i32, context_id: i32) -> Result<PDGWorkItem<'_>> {
-        ffi::get_workitem_info(&self.node.session, context_id, workitem_id).map(|inner| {
-            PDGWorkItem {
-                info: PDGWorkItemInfo { inner },
-                id: workitem_id,
-                context_id,
-                node: &self.node,
-            }
+    pub fn get_workitem(&self, workitem_id: WorkItemId) -> Result<PDGWorkItem<'_>> {
+        let context_id = self.get_context_id()?;
+        ffi::get_workitem_info(&self.node.session, context_id, workitem_id.0).map(|_| PDGWorkItem {
+            id: workitem_id,
+            context_id,
+            node: &self.node,
         })
+    }
+
+    pub fn get_all_workitems(&self) -> Result<Vec<PDGWorkItem<'_>>> {
+        let context_id = self.get_context_id()?;
+        ffi::get_pdg_workitems(&self.node.session, self.node.handle).map(|vec| {
+            vec.into_iter()
+                .map(|id| PDGWorkItem {
+                    id: WorkItemId(id),
+                    context_id,
+                    node: &self.node,
+                })
+                .collect()
+        })
+    }
+
+    pub fn create_workitem(
+        &self,
+        name: &str,
+        index: i32,
+        context_id: Option<i32>,
+    ) -> Result<PDGWorkItem> {
+        let name = std::ffi::CString::new(name)?;
+        let context_id = match context_id {
+            Some(c) => c,
+            None => self.get_context_id()?,
+        };
+        let id = ffi::create_pdg_workitem(&self.node.session, self.node.handle, &name, index)?;
+        Ok(PDGWorkItem {
+            id: WorkItemId(id),
+            context_id,
+            node: &self.node,
+        })
+    }
+
+    pub fn commit_workitems(&self) -> Result<()> {
+        ffi::commit_pdg_workitems(&self.node.session, self.node.handle)
     }
 }

@@ -3,6 +3,7 @@ use crate::{
     errors::Result,
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
+    pdg::WorkItemId,
     session::Session,
     stringhandle::StringHandle,
 };
@@ -74,16 +75,16 @@ macro_rules! get {
 // Example: Default CurveInfo [HAPI_CurveInfo_Create => HAPI_CurveInfo];
 //
 // Generate getters, setters and with ("builder") methods
-// [get|set|with] struct_field->ffiStructField->[ReturnType];
+// [get|set|with] struct_field->ffiStructField->[ValueType];
 //  get:
-//      fn get_struct_field(&self) -> ReturnType { self.ffiStructField }
+//      fn get_struct_field(&self) -> ValueType { self.ffiStructField }
 //  set:
-//      fn set_struct_field(&self, val: ReturnType)  { self.ffiStructField = val; }
+//      fn set_struct_field(&self, val: ValueType)  { self.ffiStructField = val; }
 //  with:
-//      fn with_struct_field(self, val: ReturnType) -> Self  { self.ffiStructField = val; self }
+//      fn with_struct_field(self, val: ValueType) -> Self  { self.ffiStructField = val; self }
 //
 // Special case for string handles:
-// [get+session] name->name->[ReturnType]
+// [get+session] name->name->[ValueType]
 // fn get_name(&self, session: &Session) -> Result<String> { session.get_string(self.inner.name) }
 //
 
@@ -377,7 +378,7 @@ impl AttributeInfo {
         name: &CStr,
     ) -> Result<Self> {
         Ok(Self {
-            inner: crate::ffi::get_attribute_info(&node, part_id, owner, name)?,
+            inner: crate::ffi::get_attribute_info(node, part_id, owner, name)?,
         })
     }
 }
@@ -616,7 +617,7 @@ fn _create_box_info() -> HAPI_BoxInfo {
 wrap!(
     Default BoxInfo [_create_box_info => HAPI_BoxInfo];
     [get|set|with] center->center->[[f32;3]];
-    [get|set|with] rotation->size->[[f32;3]];
+    [get|set|with] rotation->rotation->[[f32;3]];
     [get|set|with] size->size->[[f32;3]];
 );
 
@@ -755,13 +756,14 @@ wrap!(
     [get|set|with] breakpoint_parameterization->breakpointParameterization->[InputCurveParameterization];
 );
 
+#[derive(Debug, Copy, Clone)]
 pub struct PDGEventInfo {
     pub(crate) inner: HAPI_PDG_EventInfo,
 }
 
 impl PDGEventInfo {
     get!(node_id->nodeId->[handle: NodeHandle]);
-    get!(workitem_id->workItemId->i32);
+    get!(workitem_id->workItemId->[handle: WorkItemId]);
     get!(dependency_id->dependencyId->i32);
     get!(with_session message->msgSH->Result<String>);
     pub fn current_state(&self) -> PdgWorkItemState {
@@ -776,12 +778,12 @@ impl PDGEventInfo {
 }
 
 #[derive(Debug)]
-pub struct PDGWorkItemResult<'session> {
+pub struct PDGWorkItemOutputFile<'session> {
     pub(crate) inner: HAPI_PDG_WorkItemOutputFile,
     pub(crate) session: DebugIgnore<&'session Session>,
 }
 
-impl<'session> PDGWorkItemResult<'session> {
+impl<'session> PDGWorkItemOutputFile<'session> {
     get!(result->filePathSH->Result<String>);
     get!(tag->tagSH->Result<String>);
     get!(sha->hash->i64);
