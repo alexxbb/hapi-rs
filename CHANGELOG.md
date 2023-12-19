@@ -1,5 +1,12 @@
 # hapi-rs changelog
 
+## [0.9.3]
+- Bump Houdini version to `19.5.716`.
+- Add API for working with parameter tags.
+- String parameters of type Node can take `NodeHandle` values.
+- More PDG WorkItem APIs.
+- Expose cache APIs.
+
 ## [0.9.2]
 ### New
 - Add `NumericAttribute::read_into()` method for reusing a buffer when reading attribute data.
