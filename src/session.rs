@@ -162,6 +162,7 @@ pub(crate) struct SessionInner {
     pub(crate) handle: raw::HAPI_Session,
     pub(crate) options: SessionOptions,
     pub(crate) connection: ConnectionType,
+    pub(crate) pid: Option<u32>,
     pub(crate) lock: ReentrantMutex<()>,
 }
 
@@ -184,6 +185,7 @@ impl Session {
         handle: raw::HAPI_Session,
         connection: ConnectionType,
         options: SessionOptions,
+        pid: Option<u32>,
     ) -> Session {
         Session {
             inner: Arc::new(SessionInner {
@@ -191,6 +193,7 @@ impl Session {
                 options,
                 connection,
                 lock: ReentrantMutex::new(()),
+                pid,
             }),
         }
     }
@@ -203,6 +206,10 @@ impl Session {
     /// Return enum with extra connection data such as pipe file or socket.
     pub fn connection_type(&self) -> &ConnectionType {
         &self.inner.connection
+    }
+
+    pub fn server_pid(&self) -> Option<u32> {
+        self.inner.pid
     }
 
     #[inline(always)]
@@ -699,7 +706,7 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) {
         if Arc::strong_count(&self.inner) == 1 {
-            debug!("Dropping session");
+            debug!("Dropping session pid: {:?}", self.server_pid());
             if self.is_valid() {
                 if self.inner.options.cleanup {
                     if let Err(e) = self.cleanup() {
@@ -731,6 +738,7 @@ pub fn connect_to_pipe(
     pipe: impl AsRef<Path>,
     options: Option<&SessionOptions>,
     timeout: Option<Duration>,
+    pid: Option<u32>,
 ) -> Result<Session> {
     debug!("Connecting to Thrift session: {:?}", pipe.as_ref());
     let c_str = utils::path_to_cstring(&pipe)?;
@@ -755,7 +763,12 @@ pub fn connect_to_pipe(
         }
     };
     let connection = ConnectionType::ThriftPipe(pipe);
-    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
+    let session = Session::new(
+        handle,
+        connection,
+        options.cloned().unwrap_or_default(),
+        pid,
+    );
     session.initialize()?;
     Ok(session)
 }
@@ -769,7 +782,12 @@ pub fn connect_to_socket(
     let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
     let handle = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
     let connection = ConnectionType::ThriftSocket(addr);
-    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
+    let session = Session::new(
+        handle,
+        connection,
+        options.cloned().unwrap_or_default(),
+        None,
+    );
     session.initialize()?;
     Ok(session)
 }
@@ -779,7 +797,12 @@ pub fn new_in_process(options: Option<&SessionOptions>) -> Result<Session> {
     debug!("Creating new in-process session");
     let handle = crate::ffi::create_inprocess_session()?;
     let connection = ConnectionType::InProcess;
-    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
+    let session = Session::new(
+        handle,
+        connection,
+        options.cloned().unwrap_or_default(),
+        Some(std::process::id()),
+    );
     session.initialize()?;
     Ok(session)
 }
@@ -1076,8 +1099,9 @@ pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
         .tempfile()
         .expect("new temp file");
     let (_, file) = file.keep().expect("persistent temp file");
-    start_engine_pipe_server(&file, true, 4000.0, StatusVerbosity::Statusverbosity1, None)?;
-    connect_to_pipe(file, options, None)
+    let pid =
+        start_engine_pipe_server(&file, true, 4000.0, StatusVerbosity::Statusverbosity1, None)?;
+    connect_to_pipe(file, options, None, Some(pid))
 }
 
 #[cfg(test)]

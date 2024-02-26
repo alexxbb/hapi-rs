@@ -7,7 +7,7 @@ use hapi_rs::session::{
 };
 
 static SESSION: Lazy<Session> = Lazy::new(|| {
-    env_logger::init();
+    let _ = env_logger::try_init();
     let session = quick_session(None).expect("Could not create test session");
     session
         .load_asset_file("otls/hapi_geo.hda")
