@@ -86,6 +86,8 @@ fn session_set_viewport() {
         .with_rotation([0.7, 0.7, 0.7, 0.7])
         .with_position([0.0, 1.0, 0.0])
         .with_offset(3.5);
+    let pid = SESSION.server_pid().unwrap();
+    assert!(ensure_pid_is_running(pid));
     SESSION.set_viewport(&vp).expect("set_viewport");
     let vp2 = SESSION.get_viewport().expect("get_viewport");
     assert_eq!(vp.position(), vp2.position());
@@ -130,4 +132,18 @@ fn cache_properties() {
         .get_cache_property_value("SOP Cache", CacheProperty::CachepropMax)
         .unwrap();
     assert_eq!(cache_val, 2048);
+}
+
+
+fn ensure_pid_is_running(pid: u32) -> bool {
+    use sysinfo::System;
+
+    let mut sys = System::new_all();
+    sys.refresh_all();
+    for (_pid, process) in sys.processes() {
+        if _pid.as_u32() == pid {
+            return true;
+        }
+    }
+    false
 }
