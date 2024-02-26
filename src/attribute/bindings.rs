@@ -77,7 +77,7 @@ _set_array [HAPI_SetAttributeInt16ArrayData]
 [
 _val_type [i32]
 _storage [StorageType::Int]
-_storage_array [StorageType::Array]
+_storage_array [StorageType::IntArray]
 _get [HAPI_GetAttributeIntData]
 _set [HAPI_SetAttributeIntData]
 _get_array [HAPI_GetAttributeIntArrayData]

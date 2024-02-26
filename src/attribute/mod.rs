@@ -39,7 +39,7 @@ impl StorageType {
     pub(crate) fn type_matches(&self, other: StorageType) -> bool {
         use StorageType::*;
         match other {
-            Array | Uint8Array | Int8Array | Int16Array | Int64Array => {
+            IntArray | Uint8Array | Int8Array | Int16Array | Int64Array => {
                 matches!(*self, Int | Uint8 | Int16 | Int64)
             }
             FloatArray | Float64Array => matches!(*self, Float | Float64),

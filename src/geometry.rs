@@ -411,7 +411,7 @@ impl Geometry {
             StorageType::Uint8 => NumericAttr::<u8>::new(name, info, node).boxed(),
             StorageType::Int8 => NumericAttr::<i8>::new(name, info, node).boxed(),
             StorageType::Int16 => NumericAttr::<i16>::new(name, info, node).boxed(),
-            StorageType::Array => NumericArrayAttr::<i32>::new(name, info, node).boxed(),
+            StorageType::IntArray => NumericArrayAttr::<i32>::new(name, info, node).boxed(),
             StorageType::Int64Array => NumericArrayAttr::<i64>::new(name, info, node).boxed(),
             StorageType::FloatArray => NumericArrayAttr::<f32>::new(name, info, node).boxed(),
             StorageType::Float64Array => NumericArrayAttr::<f64>::new(name, info, node).boxed(),
@@ -419,6 +419,9 @@ impl Geometry {
             StorageType::Uint8Array => NumericArrayAttr::<u8>::new(name, info, node).boxed(),
             StorageType::Int8Array => NumericArrayAttr::<i8>::new(name, info, node).boxed(),
             StorageType::Int16Array => NumericArrayAttr::<i16>::new(name, info, node).boxed(),
+            StorageType::Dictionary | StorageType::DictionaryArray => {
+                todo!("Implement H20 Dictionary attribute type")
+            }
         };
         Ok(Some(Attribute::new(attr_obj)))
     }
