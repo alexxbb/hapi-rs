@@ -70,6 +70,10 @@ pub struct StringAttr(pub(crate) _StringAttrData);
 
 pub struct StringArrayAttr(pub(crate) _StringAttrData);
 
+pub struct DictionaryAttr(pub(crate) _StringAttrData);
+
+pub struct DictionaryArrayAttr(pub(crate) _StringAttrData);
+
 impl<T: AttribAccess> NumericArrayAttr<T>
 where
     [T]: ToOwned<Owned = Vec<T>>,
@@ -215,6 +219,38 @@ impl StringArrayAttr {
     }
 }
 
+impl DictionaryAttr {
+    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
+        DictionaryAttr(_StringAttrData { info, name, node })
+    }
+
+    pub fn get(&self, part_id: i32) -> Result<StringArray> {
+        debug_assert!(self.0.node.is_valid()?);
+        bindings::get_attribute_dictionary_data(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.inner,
+        )
+    }
+
+    /// Set dictionary attribute values where each string should be a JSON-encoded value.
+    pub fn set(&self, part_id: i32, values: &[&str]) -> Result<()> {
+        debug_assert!(self.0.node.is_valid()?);
+        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
+            values.iter().map(|s| CString::new(*s)).collect();
+        let cstr = cstr?;
+        let cstrings: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
+        bindings::set_attribute_dictionary_data(
+            &self.0.node,
+            part_id,
+            &self.0.name.as_c_str(),
+            &self.0.info.inner,
+            &cstrings,
+        )
+    }
+}
+
 #[doc(hidden)]
 pub trait AsAttribute {
     fn info(&self) -> &AttributeInfo;
@@ -286,6 +322,24 @@ impl AsAttribute for StringArrayAttr {
 
     fn storage(&self) -> StorageType {
         StorageType::StringArray
+    }
+
+    fn name(&self) -> &CStr {
+        &self.0.name
+    }
+
+    fn node(&self) -> &HoudiniNode {
+        &self.0.node
+    }
+}
+
+impl AsAttribute for DictionaryAttr {
+    fn info(&self) -> &AttributeInfo {
+        &self.0.info
+    }
+
+    fn storage(&self) -> StorageType {
+        StorageType::Dictionary
     }
 
     fn name(&self) -> &CStr {

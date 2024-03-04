@@ -69,7 +69,7 @@ fn _create_triangle(geo: &Geometry) {
 fn _load_test_geometry(session: &Session) -> Result<Geometry> {
     let node = session.create_node("Object/hapi_geo")?;
     let cook_result = node.cook_blocking().unwrap();
-    assert!(matches!(cook_result, CookResult::Succeeded));
+    assert_eq!(cook_result, CookResult::Succeeded);
     node.geometry()
         .map(|some| some.expect("must have geometry"))
 }
@@ -558,5 +558,31 @@ fn geometry_read_write_volume() {
             .unwrap();
         dest_geo.commit().unwrap();
         dest_geo.node.cook_blocking().unwrap();
+    })
+}
+
+#[test]
+fn geometry_test_dictionary_attributes() {
+    use std::collections::HashMap;
+    use tinyjson::JsonValue;
+
+    SESSION.with(|session| {
+        let geo = _load_test_geometry(&session).unwrap();
+        let dict_attr = geo
+            .get_attribute(0, AttributeOwner::Detail, "my_dict_attr")
+            .unwrap()
+            .expect("my_dict_attr found");
+
+        let dict_attr = dict_attr
+            .downcast::<DictionaryAttr>()
+            .expect("Attribute downcasted to DictionaryAttr");
+        let values: Vec<_> = dict_attr.get(0).unwrap().into_iter().collect();
+        let json_str = &values[0];
+        let parsed: JsonValue = json_str.parse().expect("Could not parse attrib value json");
+        let map: &HashMap<_, _> = parsed.get().expect("HashMap");
+        assert_eq!(map["str_key"], JsonValue::String(String::from("text")));
+        assert_eq!(map["int_key"], JsonValue::Number(1.0));
+        assert!(matches!(map["list"], JsonValue::Array(_)));
+        assert!(matches!(map["dict"], JsonValue::Object(_)));
     })
 }

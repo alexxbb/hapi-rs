@@ -234,7 +234,18 @@ impl AttribAccess for _val_type {
     }
 }
 
-pub(crate) fn get_attribute_string_data(
+#[duplicate_item(
+[
+_rust_fn [get_attribute_string_data]
+_ffi_fn [HAPI_GetAttributeStringData]
+]
+
+[
+_rust_fn [get_attribute_dictionary_data]
+_ffi_fn [HAPI_GetAttributeDictionaryData]
+]
+)]
+pub(crate) fn _rust_fn(
     node: &HoudiniNode,
     part_id: i32,
     name: &CStr,
@@ -249,7 +260,7 @@ pub(crate) fn get_attribute_string_data(
         // but for some reason it wants a mut pointer
         let attr_info = attr_info as *const _ as *mut HAPI_AttributeInfo;
         let handles_ptr = handles.as_mut_ptr() as *mut HAPI_StringHandle;
-        raw::HAPI_GetAttributeStringData(
+        raw::_ffi_fn(
             node.session.ptr(),
             node.handle.0,
             part_id,
@@ -259,12 +270,23 @@ pub(crate) fn get_attribute_string_data(
             0,
             count,
         )
-        .check_err(&node.session, || "Calling HAPI_GetAttributeStringData")?;
+        .check_err(&node.session, || stringify!(Calling _ffi_fn))?;
         crate::stringhandle::get_string_array(&handles, &node.session)
     }
 }
 
-pub fn set_attribute_string_data(
+#[duplicate_item(
+[
+_rust_fn [set_attribute_string_data]
+_ffi_fn [HAPI_SetAttributeStringData]
+]
+
+[
+_rust_fn [set_attribute_dictionary_data]
+_ffi_fn [HAPI_SetAttributeDictionaryData]
+]
+)]
+pub fn _rust_fn(
     node: &HoudiniNode,
     part_id: i32,
     name: &CStr,
@@ -274,7 +296,7 @@ pub fn set_attribute_string_data(
     debug_assert!(node.is_valid()?);
     unsafe {
         let mut array = Vec::from_iter(array.iter().map(|cs| cs.as_ptr()));
-        raw::HAPI_SetAttributeStringData(
+        raw::_ffi_fn(
             node.session.ptr(),
             node.handle.0,
             part_id,
@@ -284,7 +306,7 @@ pub fn set_attribute_string_data(
             0,
             array.len() as i32,
         )
-        .check_err(&node.session, || "Calling HAPI_SetAttributeStringData")
+        .check_err(&node.session, || stringify!(Calling _ffi_fn))
     }
 }
 

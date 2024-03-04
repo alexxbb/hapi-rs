@@ -115,7 +115,7 @@ fn node_transform() {
             .with_rotation([45.0, 0.0, 0.0]),
     )
     .unwrap();
-    obj.cook().unwrap();
+    obj.cook_blocking().unwrap();
     assert!(obj.get_object_info().unwrap().has_transform_changed());
     let t = obj.get_transform(None, None).unwrap();
     assert_eq!(t.position(), [0.0, 1.0, 0.0]);

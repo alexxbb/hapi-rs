@@ -430,7 +430,8 @@ impl Geometry {
             StorageType::Uint8Array => NumericArrayAttr::<u8>::new(name, info, node).boxed(),
             StorageType::Int8Array => NumericArrayAttr::<i8>::new(name, info, node).boxed(),
             StorageType::Int16Array => NumericArrayAttr::<i16>::new(name, info, node).boxed(),
-            StorageType::Dictionary | StorageType::DictionaryArray => {
+            StorageType::Dictionary => DictionaryAttr::new(name, info, node).boxed(),
+            StorageType::DictionaryArray => {
                 todo!("Implement H20 Dictionary attribute type")
             }
         };
@@ -480,7 +481,7 @@ impl Geometry {
         info: AttributeInfo,
     ) -> Result<StringAttr> {
         debug_assert!(self.node.is_valid()?);
-        debug_assert!(matches!(info.storage(), StorageType::String));
+        debug_assert_eq!(info.storage(), StorageType::String);
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(StringAttr::new(name, info, self.node.clone()))
@@ -494,7 +495,7 @@ impl Geometry {
         info: AttributeInfo,
     ) -> Result<StringArrayAttr> {
         debug_assert!(self.node.is_valid()?);
-        debug_assert!(matches!(info.storage(), StorageType::StringArray));
+        debug_assert_eq!(info.storage(), StorageType::StringArray);
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(StringArrayAttr::new(name, info, self.node.clone()))

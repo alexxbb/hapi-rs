@@ -139,7 +139,7 @@ impl EnvVariable for i32 {
 }
 
 /// Result of async cook operation [`Session::cook`]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum CookResult {
     Succeeded,
     /// Some nodes cooked with warnings
@@ -149,7 +149,7 @@ pub enum CookResult {
 }
 
 /// By which means the session communicates with the server.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ConnectionType {
     ThriftPipe(OsString),
     ThriftSocket(std::net::SocketAddrV4),
