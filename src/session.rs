@@ -1094,7 +1094,7 @@ pub fn start_houdini_server(
 }
 
 /// A quick drop-in session, useful for on-off jobs
-/// It starts a single-threaded pipe server and initialize a session with default options
+/// It starts a **single-threaded** pipe server and initialize a session with default options
 pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
     let file = tempfile::Builder::new()
         .suffix("-hars.pipe")

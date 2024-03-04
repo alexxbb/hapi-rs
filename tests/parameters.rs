@@ -2,7 +2,7 @@ use once_cell::sync::Lazy;
 
 use hapi_rs::{
     parameter::{KeyFrame, Parameter, ParmBaseTrait, ParmType},
-    session::{quick_session, Session, SessionOptionsBuilder},
+    session::{quick_session, Session},
     Result,
 };
 
