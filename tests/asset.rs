@@ -9,7 +9,7 @@ use hapi_rs::{
 static SESSION: Lazy<Mutex<Session>> = Lazy::new(|| {
     // Put session into Mutex for this test since there seem to be a race condition
     // IN Houdini which messes up string access, despite HAPI claims to be thread-safe.
-    env_logger::init();
+    env_logger::try_init().ok();
     let session = quick_session(None).expect("Could not create test session");
     session
         .load_asset_file("otls/hapi_geo.hda")

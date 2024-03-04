@@ -722,7 +722,7 @@ impl Drop for Session {
             } else {
                 // The server should automatically delete the pipe file when closed successfully,
                 // but we could try a cleanup just in case.
-                warn!("Session is invalid!");
+                debug!("Session was invalid in Drop!");
                 if let ConnectionType::ThriftPipe(f) = &self.inner.connection {
                     let _ = std::fs::remove_file(f);
                 }
@@ -734,6 +734,8 @@ impl Drop for Session {
 /// Connect to the engine process via a pipe file.
 /// If `timeout` is Some, function will try to connect to
 /// the server multiple times every 100ms until `timeout` is reached.
+/// Note: Default SessionOptions create a blocking session, non-threaded session,
+/// use [`SessionOptionsBuilder`] to configure this.
 pub fn connect_to_pipe(
     pipe: impl AsRef<Path>,
     options: Option<&SessionOptions>,
