@@ -1105,27 +1105,3 @@ pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
         start_engine_pipe_server(&file, true, 4000.0, StatusVerbosity::Statusverbosity1, None)?;
     connect_to_pipe(file, options, None, Some(pid))
 }
-
-#[cfg(test)]
-pub(crate) mod tests {
-    use crate::session::*;
-    use once_cell::sync::Lazy;
-
-    pub(crate) static SESSION: Lazy<Session> = Lazy::new(|| {
-        env_logger::init();
-        let session = quick_session(None).expect("Could not create test session");
-        session
-            .load_asset_file("otls/hapi_geo.hda")
-            .expect("load asset");
-        session
-            .load_asset_file("otls/hapi_vol.hda")
-            .expect("load asset");
-        session
-            .load_asset_file("otls/hapi_parms.hda")
-            .expect("load asset");
-        session
-            .load_asset_file("otls/sesi/SideFX_spaceship.hda")
-            .expect("load asset");
-        session
-    });
-}

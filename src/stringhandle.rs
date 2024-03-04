@@ -179,8 +179,14 @@ pub(crate) fn get_string_array(handles: &[StringHandle], session: &Session) -> R
 mod tests {
     use super::StringArray;
     use crate::ffi;
-    use crate::session::tests::SESSION;
+    use crate::session::Session;
+    use once_cell::sync::Lazy;
     use std::ffi::CString;
+
+    static SESSION: Lazy<Session> = Lazy::new(|| {
+        let _ = env_logger::try_init().ok();
+        crate::session::quick_session(None).expect("Could not create test session")
+    });
 
     #[test]
     fn get_string_api() {

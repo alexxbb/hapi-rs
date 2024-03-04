@@ -3,6 +3,7 @@ use once_cell::unsync::Lazy;
 use hapi_rs::{
     attribute::*,
     geometry::*,
+    node::CookResult,
     session::{quick_session, Session, SessionOptions},
     Result,
 };
@@ -67,7 +68,8 @@ fn _create_triangle(geo: &Geometry) {
 
 fn _load_test_geometry(session: &Session) -> Result<Geometry> {
     let node = session.create_node("Object/hapi_geo")?;
-    node.cook_blocking().unwrap();
+    let cook_result = node.cook_blocking().unwrap();
+    assert!(matches!(cook_result, CookResult::Succeeded));
     node.geometry()
         .map(|some| some.expect("must have geometry"))
 }
@@ -222,12 +224,45 @@ fn geometry_create_and_set_array_attributes() {
 }
 
 #[test]
+fn geometry_attribute_storage_type() -> Result<()> {
+    SESSION.with(|session| {
+        let geo = _load_test_geometry(session).expect("geometry");
+        let attrib_list = [
+            ("Cd", AttributeOwner::Point, StorageType::Float),
+            ("pscale", AttributeOwner::Point, StorageType::Float),
+            ("P", AttributeOwner::Point, StorageType::Float),
+            ("my_int_array", AttributeOwner::Point, StorageType::IntArray),
+            (
+                "my_float_array",
+                AttributeOwner::Point,
+                StorageType::FloatArray,
+            ),
+            (
+                "my_str_array",
+                AttributeOwner::Point,
+                StorageType::StringArray,
+            ),
+        ];
+        for (name, owner, expected_storage) in attrib_list {
+            let info = geo.get_attribute_info(0, owner, name)?;
+            let storage = info.storage();
+            assert_eq!(
+                expected_storage, storage,
+                "Attribute {} unexpected storage {:?} != {:?}",
+                name, storage, expected_storage
+            );
+        }
+        Ok(())
+    })
+}
+
+#[test]
 fn geometry_string_array_attribute() {
     SESSION.with(|session| {
         let geo = _load_test_geometry(session).expect("geometry");
         let attr = geo
             .get_attribute(0, AttributeOwner::Point, "my_str_array")
-            .expect("attribute")
+            .expect("my_str_array Point attribute")
             .unwrap();
         let attr = attr.downcast::<StringArrayAttr>().unwrap();
         let m_array = attr.get(0).unwrap();

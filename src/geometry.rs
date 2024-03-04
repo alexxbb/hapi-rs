@@ -381,6 +381,17 @@ impl Geometry {
         Ok(NumericAttr::new(name, info, self.node.clone()))
     }
 
+    /// Retrieve information about a geometry attribute.
+    pub fn get_attribute_info(
+        &self,
+        part_id: i32,
+        owner: AttributeOwner,
+        name: &str,
+    ) -> Result<AttributeInfo> {
+        let name = CString::new(name)?;
+        AttributeInfo::new(&self.node, part_id, owner, &name)
+    }
+
     /// Get geometry attribute by name and owner.
     pub fn get_attribute(
         &self,
