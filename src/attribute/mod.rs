@@ -178,13 +178,13 @@ impl StringAttr {
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
             values.iter().map(|s| CString::new(*s)).collect();
         let cstr = cstr?;
-        let ptrs: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
+        let mut ptrs: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
         bindings::set_attribute_string_data(
             &self.0.node,
             part_id,
             self.0.name.as_c_str(),
             &self.0.info.inner,
-            ptrs.as_ref(),
+            ptrs.as_mut(),
         )
     }
 }
@@ -207,13 +207,13 @@ impl StringArrayAttr {
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
             values.iter().map(|s| CString::new(*s)).collect();
         let cstr = cstr?;
-        let ptrs: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
+        let mut ptrs: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
         bindings::set_attribute_string_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
             part_id,
             &self.0.info.inner,
-            &ptrs,
+            ptrs.as_mut(),
             sizes,
         )
     }
@@ -240,13 +240,13 @@ impl DictionaryAttr {
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
             values.iter().map(|s| CString::new(*s)).collect();
         let cstr = cstr?;
-        let cstrings: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
+        let mut cstrings: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
         bindings::set_attribute_dictionary_data(
             &self.0.node,
             part_id,
             &self.0.name.as_c_str(),
             &self.0.info.inner,
-            &cstrings,
+            cstrings.as_mut(),
         )
     }
 }

@@ -291,11 +291,10 @@ pub fn _rust_fn(
     part_id: i32,
     name: &CStr,
     attr_info: &HAPI_AttributeInfo,
-    array: &[&CStr],
+    array: &mut [*const i8],
 ) -> Result<()> {
     debug_assert!(node.is_valid()?);
     unsafe {
-        let mut array = Vec::from_iter(array.iter().map(|cs| cs.as_ptr()));
         raw::_ffi_fn(
             node.session.ptr(),
             node.handle.0,

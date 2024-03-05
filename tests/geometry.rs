@@ -584,5 +584,12 @@ fn geometry_test_dictionary_attributes() {
         assert_eq!(map["int_key"], JsonValue::Number(1.0));
         assert!(matches!(map["list"], JsonValue::Array(_)));
         assert!(matches!(map["dict"], JsonValue::Object(_)));
+
+        let mut new_json = map.clone();
+        *new_json.get_mut("int_key").unwrap() = JsonValue::Number(3.0);
+
+        let new_value = tinyjson::stringify(&JsonValue::from(new_json)).expect("Json value");
+
+        dict_attr.set(0, &[&new_value]).unwrap();
     })
 }
