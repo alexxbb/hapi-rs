@@ -31,6 +31,7 @@ pub use bindings::AttribAccess;
 use std::any::Any;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
+use std::marker::PhantomData;
 
 impl StorageType {
     // Helper for matching array types to actual data type,
@@ -49,30 +50,23 @@ impl StorageType {
     }
 }
 
-pub(crate) struct _NumericAttrData<T: AttribAccess> {
-    pub(crate) info: AttributeInfo,
-    pub(crate) name: CString,
-    pub(crate) node: HoudiniNode,
-    pub(crate) _m: std::marker::PhantomData<T>,
-}
-
-pub(crate) struct _StringAttrData {
+pub(crate) struct AttributeBundle {
     pub(crate) info: AttributeInfo,
     pub(crate) name: CString,
     pub(crate) node: HoudiniNode,
 }
 
-pub struct NumericAttr<T: AttribAccess>(pub(crate) _NumericAttrData<T>);
+pub struct NumericAttr<T: AttribAccess>(pub(crate) AttributeBundle, PhantomData<T>);
 
-pub struct NumericArrayAttr<T: AttribAccess>(pub(crate) _NumericAttrData<T>);
+pub struct NumericArrayAttr<T: AttribAccess>(pub(crate) AttributeBundle, PhantomData<T>);
 
-pub struct StringAttr(pub(crate) _StringAttrData);
+pub struct StringAttr(pub(crate) AttributeBundle);
 
-pub struct StringArrayAttr(pub(crate) _StringAttrData);
+pub struct StringArrayAttr(pub(crate) AttributeBundle);
 
-pub struct DictionaryAttr(pub(crate) _StringAttrData);
+pub struct DictionaryAttr(pub(crate) AttributeBundle);
 
-pub struct DictionaryArrayAttr(pub(crate) _StringAttrData);
+pub struct DictionaryArrayAttr(pub(crate) AttributeBundle);
 
 impl<T: AttribAccess> NumericArrayAttr<T>
 where
@@ -83,12 +77,7 @@ where
         info: AttributeInfo,
         node: HoudiniNode,
     ) -> NumericArrayAttr<T> {
-        NumericArrayAttr(_NumericAttrData {
-            info,
-            name,
-            node,
-            _m: Default::default(),
-        })
+        NumericArrayAttr(AttributeBundle { info, name, node }, PhantomData)
     }
     pub fn get(&self, part_id: i32) -> Result<DataArray<T>> {
         debug_assert!(self.0.info.storage().type_matches(T::storage()));
@@ -119,12 +108,7 @@ where
 
 impl<T: AttribAccess> NumericAttr<T> {
     pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> NumericAttr<T> {
-        NumericAttr(_NumericAttrData {
-            info,
-            name,
-            node,
-            _m: Default::default(),
-        })
+        NumericAttr(AttributeBundle { info, name, node }, PhantomData)
     }
     /// Get attribute value. Allocates a new vector on every call
     pub fn get(&self, part_id: i32) -> Result<Vec<T>> {
@@ -162,7 +146,7 @@ impl<T: AttribAccess> NumericAttr<T> {
 
 impl StringAttr {
     pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringAttr {
-        StringAttr(_StringAttrData { info, name, node })
+        StringAttr(AttributeBundle { info, name, node })
     }
     pub fn get(&self, part_id: i32) -> Result<StringArray> {
         debug_assert!(self.0.node.is_valid()?);
@@ -191,7 +175,7 @@ impl StringAttr {
 
 impl StringArrayAttr {
     pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringArrayAttr {
-        StringArrayAttr(_StringAttrData { info, name, node })
+        StringArrayAttr(AttributeBundle { info, name, node })
     }
     pub fn get(&self, part_id: i32) -> Result<StringMultiArray> {
         debug_assert!(self.0.node.is_valid()?);
@@ -221,7 +205,7 @@ impl StringArrayAttr {
 
 impl DictionaryAttr {
     pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
-        DictionaryAttr(_StringAttrData { info, name, node })
+        DictionaryAttr(AttributeBundle { info, name, node })
     }
 
     pub fn get(&self, part_id: i32) -> Result<StringArray> {
