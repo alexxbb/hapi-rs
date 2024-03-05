@@ -446,6 +446,12 @@ impl Geometry {
         info: AttributeInfo,
     ) -> Result<NumericAttr<T>> {
         debug_assert_eq!(info.storage(), T::storage());
+        debug_assert!(
+            info.tuple_size() > 0,
+            "attribute \"{}\" tuple_size must be > 0",
+            name
+        );
+        log::debug!("Adding numeric geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(NumericAttr::<T>::new(name, info, self.node.clone()))
@@ -463,11 +469,11 @@ impl Geometry {
         [T]: ToOwned<Owned = Vec<T>>,
     {
         debug_assert_eq!(info.storage(), T::storage_array());
-        debug_assert_eq!(
-            info.tuple_size(),
-            1,
+        debug_assert!(
+            info.tuple_size() > 0,
             "AttributeInfo::tuple_size must be 1 for array attributes"
         );
+        log::debug!("Adding numeric array geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(NumericArrayAttr::<T>::new(name, info, self.node.clone()))
@@ -482,6 +488,12 @@ impl Geometry {
     ) -> Result<StringAttr> {
         debug_assert!(self.node.is_valid()?);
         debug_assert_eq!(info.storage(), StorageType::String);
+        debug_assert!(
+            info.tuple_size() > 0,
+            "attribute \"{}\" tuple_size must be > 0",
+            name
+        );
+        log::debug!("Adding string geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(StringAttr::new(name, info, self.node.clone()))
@@ -496,9 +508,35 @@ impl Geometry {
     ) -> Result<StringArrayAttr> {
         debug_assert!(self.node.is_valid()?);
         debug_assert_eq!(info.storage(), StorageType::StringArray);
+        debug_assert!(
+            info.tuple_size() > 0,
+            "attribute \"{}\" tuple_size must be > 0",
+            name
+        );
+        log::debug!("Adding string array geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(StringArrayAttr::new(name, info, self.node.clone()))
+    }
+
+    /// Add a new string attribute to geometry
+    pub fn add_dictionary_attribute(
+        &self,
+        name: &str,
+        part_id: i32,
+        info: AttributeInfo,
+    ) -> Result<DictionaryAttr> {
+        debug_assert!(self.node.is_valid()?);
+        debug_assert_eq!(info.storage(), StorageType::Dictionary);
+        debug_assert!(
+            info.tuple_size() > 0,
+            "attribute \"{}\" tuple_size must be > 0",
+            name
+        );
+        log::debug!("Adding dictionary geometry attriubute: {name}");
+        let name = CString::new(name)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        Ok(DictionaryAttr::new(name, info, self.node.clone()))
     }
 
     /// Create a new geometry group .
@@ -695,6 +733,7 @@ impl Geometry {
 
     pub fn commit(&self) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
+        log::debug!("Commiting geometry changes");
         crate::ffi::commit_geo(&self.node)
     }
 

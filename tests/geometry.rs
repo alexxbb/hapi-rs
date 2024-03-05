@@ -66,6 +66,24 @@ fn _create_triangle(geo: &Geometry) {
     geo.node.cook_blocking().unwrap();
 }
 
+fn _create_single_point_geo(session: &Session) -> Result<Geometry> {
+    let geo = session.create_input_node("dummy")?;
+    let part = PartInfo::default()
+        .with_part_type(PartType::Mesh)
+        .with_point_count(1);
+    geo.set_part_info(&part)?;
+    let p_info = AttributeInfo::default()
+        .with_count(part.point_count())
+        .with_tuple_size(3)
+        .with_owner(AttributeOwner::Point)
+        .with_storage(StorageType::Float);
+    let id_attr = geo.add_numeric_attribute::<f32>("P", part.part_id(), p_info)?;
+    id_attr.set(part.part_id(), &[0.0, 0.0, 0.0])?;
+    geo.commit().unwrap();
+    geo.node.cook_blocking().unwrap();
+    Ok(geo)
+}
+
 fn _load_test_geometry(session: &Session) -> Result<Geometry> {
     let node = session.create_node("Object/hapi_geo")?;
     let cook_result = node.cook_blocking().unwrap();
@@ -361,11 +379,15 @@ fn geometry_elements() {
         let num_pt = geo
             .get_attribute_count_by_owner(Some(&part), AttributeOwner::Point)
             .unwrap();
-        assert_eq!(num_pt, 7);
+        assert_eq!(num_pt, 8);
         let num_pr = geo
             .get_attribute_count_by_owner(Some(&part), AttributeOwner::Prim)
             .unwrap();
         assert_eq!(num_pr, 3);
+        let num_det = geo
+            .get_attribute_count_by_owner(Some(&part), AttributeOwner::Detail)
+            .unwrap();
+        assert_eq!(num_det, 4);
         let pr_groups = geo.get_group_names(GroupType::Prim).unwrap();
         let pt_groups = geo.get_group_names(GroupType::Point).unwrap();
         #[allow(clippy::needless_collect)]
@@ -489,17 +511,10 @@ fn geometry_create_input_curve() {
 fn geometry_multiple_input_curves() {
     SESSION.with(|session| {
         let geo = session.create_input_node("InputCurves").unwrap();
-        #[rustfmt::skip]
         let points = vec![
-        0.0, 0.0, 0.0,
-        0.0, 1.0, 0.0,
-
-        1.0, 0.0, 0.0,
-        1.0, 1.0, 0.0,
-
-        2.0, 0.0, 0.0,
-        2.0, 1.0, 0.0,
-    ];
+            0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 2.0, 0.0, 0.0, 2.0, 1.0,
+            0.0,
+        ];
         let point_count = (points.len() / 3) as i32;
         let part_info = PartInfo::default()
             .with_part_type(PartType::Curve)
@@ -589,11 +604,31 @@ fn geometry_test_get_dictionary_attributes() {
 
 #[test]
 fn geometry_test_set_dictionary_attributes() {
-    todo!()
-    // let mut new_json = map.clone();
-    // *new_json.get_mut("int_key").unwrap() = JsonValue::Number(3.0);
+    use std::collections::HashMap;
+    use tinyjson::JsonValue;
 
-    // let new_value = tinyjson::stringify(&JsonValue::from(new_json)).expect("Json value");
+    SESSION.with(|session| {
+        let geo = _create_single_point_geo(session).expect("Sphere geometry");
+        let info = AttributeInfo::default()
+            .with_count(1)
+            .with_tuple_size(1)
+            .with_owner(AttributeOwner::Detail)
+            .with_storage(StorageType::Dictionary);
+        let attr = geo
+            .add_dictionary_attribute("my_dict_attr", 0, info)
+            .expect("Dictionary attribute");
+        dbg!(attr.info());
 
-    // dict_attr.set(0, &[&new_value]).unwrap();
+        let data: HashMap<String, JsonValue> = [
+            ("number".to_string(), JsonValue::Number(1.0)),
+            ("string".to_string(), JsonValue::String("foo".to_string())),
+        ]
+        .into();
+
+        let data_str = tinyjson::stringify(&JsonValue::from(data)).expect("Json value");
+
+        attr.set(0, &[&data_str]).unwrap();
+        geo.commit().unwrap();
+        geo.node.cook_blocking().unwrap();
+    })
 }

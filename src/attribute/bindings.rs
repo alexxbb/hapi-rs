@@ -300,7 +300,7 @@ pub fn _rust_fn(
             node.handle.0,
             part_id,
             name.as_ptr(),
-            attr_info,
+            attr_info as *const _,
             array.as_mut_ptr(),
             0,
             array.len() as i32,
