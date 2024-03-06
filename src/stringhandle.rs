@@ -2,7 +2,7 @@
 use std::ffi::{CStr, CString};
 use std::fmt::Formatter;
 
-use crate::errors::Result;
+use crate::errors::{ErrorContext, Result};
 use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
@@ -140,13 +140,13 @@ impl IntoIterator for StringArray {
 }
 
 pub(crate) fn get_string(handle: StringHandle, session: &Session) -> Result<String> {
-    let bytes = get_string_bytes(handle, session)?;
+    let bytes = get_string_bytes(handle, session).context("Calling get_string_bytes")?;
     String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
 }
 
 pub(crate) fn get_cstring(handle: StringHandle, session: &Session) -> Result<CString> {
     unsafe {
-        let bytes = get_string_bytes(handle, session)?;
+        let bytes = get_string_bytes(handle, session).context("Calling get_string_bytes")?;
         // SAFETY: HAPI C API should not return strings with interior zero byte
         Ok(CString::from_vec_unchecked(bytes))
     }

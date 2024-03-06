@@ -242,7 +242,7 @@ impl Session {
         debug_assert!(self.is_valid());
         let count = crate::ffi::get_server_env_var_count(self)?;
         let handles = crate::ffi::get_server_env_var_list(self, count)?;
-        crate::stringhandle::get_string_array(&handles, self)
+        crate::stringhandle::get_string_array(&handles, self).context("Calling get_string_array")
     }
 
     /// Retrieve string data given a handle.

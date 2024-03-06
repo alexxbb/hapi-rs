@@ -286,7 +286,7 @@ _rust_fn [set_attribute_dictionary_data]
 _ffi_fn [HAPI_SetAttributeDictionaryData]
 ]
 )]
-pub fn _rust_fn(
+pub(crate) fn _rust_fn(
     node: &HoudiniNode,
     part_id: i32,
     name: &CStr,
@@ -309,7 +309,7 @@ pub fn _rust_fn(
     }
 }
 
-pub fn get_attribute_string_array_data(
+pub(crate) fn get_attribute_string_array_data(
     node: &HoudiniNode,
     name: &CStr,
     part_id: i32,
@@ -341,7 +341,7 @@ pub fn get_attribute_string_array_data(
     }
 }
 
-pub fn set_attribute_string_array_data(
+pub(crate) fn set_attribute_string_array_data(
     node: &HoudiniNode,
     name: &CStr,
     part_id: i32,

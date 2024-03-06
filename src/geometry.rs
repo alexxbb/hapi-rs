@@ -1,4 +1,4 @@
-//! Access to geometry data, attributes, reading and writing to disk
+//! Access to geometry data, attributes, reading and writing geometry to and from disk
 //!
 //!
 use std::ffi::{CStr, CString};
@@ -40,7 +40,7 @@ pub enum Materials {
 }
 
 impl GeoFormat {
-    fn as_cstr(&self) -> &'static CStr {
+    const fn as_cstr(&self) -> &'static CStr {
         unsafe {
             CStr::from_bytes_with_nul_unchecked(match *self {
                 GeoFormat::Geo => b".geo\0",
@@ -519,7 +519,7 @@ impl Geometry {
         Ok(StringArrayAttr::new(name, info, self.node.clone()))
     }
 
-    /// Add a new string attribute to geometry
+    /// Add a new dictionary attribute to geometry
     pub fn add_dictionary_attribute(
         &self,
         name: &str,
@@ -539,7 +539,7 @@ impl Geometry {
         Ok(DictionaryAttr::new(name, info, self.node.clone()))
     }
 
-    /// Create a new geometry group .
+    /// Create a new geometry group.
     pub fn add_group(
         &self,
         part_id: i32,
@@ -716,6 +716,7 @@ impl Geometry {
         .map(|vec| vec.into_iter().map(|inner| Transform { inner }).collect())
     }
 
+    /// Save geometry to a file.
     pub fn save_to_file(&self, filepath: &str) -> Result<()> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
@@ -725,23 +726,27 @@ impl Geometry {
         crate::ffi::save_geo_to_file(&self.node, &path)
     }
 
+    /// Load geometry from a file.
     pub fn load_from_file(&self, filepath: &str) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
         let path = CString::new(filepath)?;
         crate::ffi::load_geo_from_file(&self.node, &path)
     }
 
+    /// Commit geometry edits to the node.
     pub fn commit(&self) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
         log::debug!("Commiting geometry changes");
         crate::ffi::commit_geo(&self.node)
     }
 
+    /// Revert last geometry edits
     pub fn revert(&self) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
         crate::ffi::revert_geo(&self.node)
     }
 
+    /// Serialize node's geometry to bytes.
     pub fn save_to_memory(&self, format: GeoFormat) -> Result<Vec<i8>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
@@ -750,6 +755,7 @@ impl Geometry {
         crate::ffi::save_geo_to_memory(&self.node.session, self.node.handle, format.as_cstr())
     }
 
+    /// Load geometry from a given buffer into this node.
     pub fn load_from_memory(&self, data: &[i8], format: GeoFormat) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
         crate::ffi::load_geo_from_memory(
