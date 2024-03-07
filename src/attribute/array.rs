@@ -67,7 +67,8 @@ where
     }
 }
 
-/// Represents multi-array string data. Returned by [`crate::attribute::StringArrayAttr::get`]
+/// Represents multi-array string data. Used as storage for string and dictionary array attributes.
+/// Each element of this array is itself a [`StringArray`]
 pub struct StringMultiArray {
     pub(crate) handles: Vec<StringHandle>,
     pub(crate) sizes: Vec<i32>,
