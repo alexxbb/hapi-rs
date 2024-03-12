@@ -183,22 +183,21 @@ impl StringArrayAttr {
             &self.0.node,
             self.0.name.as_c_str(),
             part_id,
-            &self.0.info.inner,
+            &self.0.info,
         )
     }
-    pub fn set(&self, part_id: i32, values: &[&str], sizes: &[i32]) -> Result<()> {
+    pub fn set(&self, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
         debug_assert!(self.0.node.is_valid()?);
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(*s)).collect();
+            values.iter().map(|s| CString::new(s.as_ref())).collect();
         let cstr = cstr?;
-        let mut ptrs: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
+        let mut ptrs: Vec<_> = cstr.iter().map(|cs| cs.as_ptr()).collect();
         bindings::set_attribute_string_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
-            part_id,
             &self.0.info.inner,
             ptrs.as_mut(),
-            sizes,
+            &sizes,
         )
     }
 }
@@ -231,6 +230,35 @@ impl DictionaryAttr {
             &self.0.name.as_c_str(),
             &self.0.info.inner,
             cstrings.as_mut(),
+        )
+    }
+}
+
+impl DictionaryArrayAttr {
+    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
+        DictionaryArrayAttr(AttributeBundle { info, name, node })
+    }
+    pub fn get(&self, part_id: i32) -> Result<StringMultiArray> {
+        debug_assert!(self.0.node.is_valid()?);
+        bindings::get_attribute_dictionary_array_data(
+            &self.0.node,
+            &self.0.name,
+            part_id,
+            &self.0.info,
+        )
+    }
+    pub fn set(&self, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
+        debug_assert!(self.0.node.is_valid()?);
+        let cstrings: std::result::Result<Vec<CString>, std::ffi::NulError> =
+            values.iter().map(|s| CString::new(s.as_ref())).collect();
+        let cstrings = cstrings?;
+        let mut ptrs: Vec<_> = cstrings.iter().map(|cs| cs.as_ptr()).collect();
+        bindings::set_attribute_dictionary_array_data(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            &self.0.info.inner,
+            ptrs.as_mut(),
+            &sizes,
         )
     }
 }
@@ -324,6 +352,24 @@ impl AsAttribute for DictionaryAttr {
 
     fn storage(&self) -> StorageType {
         StorageType::Dictionary
+    }
+
+    fn name(&self) -> &CStr {
+        &self.0.name
+    }
+
+    fn node(&self) -> &HoudiniNode {
+        &self.0.node
+    }
+}
+
+impl AsAttribute for DictionaryArrayAttr {
+    fn info(&self) -> &AttributeInfo {
+        &self.0.info
+    }
+
+    fn storage(&self) -> StorageType {
+        StorageType::DictionaryArray
     }
 
     fn name(&self) -> &CStr {

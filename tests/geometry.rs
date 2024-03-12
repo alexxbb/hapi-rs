@@ -174,6 +174,37 @@ fn geometry_create_string_attrib() {
 }
 
 #[test]
+fn geometry_create_string_array_attrib() {
+    SESSION.with(|session| {
+        let geo = session.create_input_node("test").unwrap();
+        _create_triangle(&geo);
+        let part = geo.part_info(0).unwrap().expect("part 0");
+        let info = AttributeInfo::default()
+            .with_owner(AttributeOwner::Point)
+            .with_storage(StorageType::StringArray)
+            .with_tuple_size(1)
+            .with_total_array_elements(6)
+            .with_count(part.point_count());
+
+        let array_attr = geo
+            .add_string_array_attribute("my_array_a", 0, info)
+            .unwrap();
+        let attr_data = &["one", "two", "three", "four", "five", "six"];
+        array_attr.set(attr_data.as_slice(), &[1, 2, 3]).unwrap();
+        geo.commit().unwrap();
+        geo.node.cook_blocking().unwrap();
+        let (data, sizes) = array_attr.get(0).unwrap().flatten().unwrap();
+        assert_eq!(sizes.len(), 3);
+        assert_eq!(data.len(), 6);
+
+        assert_eq!(&data[0..sizes[0]], &attr_data[0..sizes[0]]);
+        assert_eq!(&data[sizes[0]..sizes[1]], &attr_data[sizes[0]..sizes[1]]);
+        assert_eq!(&data[sizes[1]..sizes[2]], &attr_data[sizes[1]..sizes[2]]);
+        geo.node.delete().unwrap();
+    })
+}
+
+#[test]
 fn geometry_read_array_attributes() {
     SESSION.with(|session| {
         let geo = _load_test_geometry(session).expect("geometry");
@@ -226,7 +257,7 @@ fn geometry_create_and_set_array_attributes() {
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::IntArray)
             .with_total_array_elements(data_arr.len() as i64) // == to # values in DataArray
-            .with_count(2)
+            .with_count(2) // point count
             .with_tuple_size(1);
         let array_attr = input
             .add_numeric_array_attribute::<i32>("int_array", 0, attr_info)
@@ -617,8 +648,6 @@ fn geometry_test_set_dictionary_attributes() {
         let attr = geo
             .add_dictionary_attribute("my_dict_attr", 0, info)
             .expect("Dictionary attribute");
-        dbg!(attr.info());
-
         let data: HashMap<String, JsonValue> = [
             ("number".to_string(), JsonValue::Number(1.0)),
             ("string".to_string(), JsonValue::String("foo".to_string())),
@@ -630,5 +659,43 @@ fn geometry_test_set_dictionary_attributes() {
         attr.set(0, &[&data_str]).unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
+    })
+}
+
+#[test]
+fn geometry_test_get_set_dictionary_array_attribute() {
+    use std::collections::HashMap;
+    use tinyjson::JsonValue;
+
+    SESSION.with(|session| {
+        let geo = _create_single_point_geo(session).expect("Sphere geometry");
+        let info = AttributeInfo::default()
+            .with_count(2)
+            .with_tuple_size(1)
+            .with_owner(AttributeOwner::Detail)
+            .with_storage(StorageType::DictionaryArray);
+        let attr = geo
+            .add_dictionary_array_attribute("my_dict_attr", 0, info)
+            .expect("Dictionary array attribute");
+        geo.commit().unwrap();
+        geo.node.cook_blocking().unwrap();
+
+        let dict_1: HashMap<String, JsonValue> = [
+            ("number".to_string(), JsonValue::Number(1.0)),
+            ("string".to_string(), JsonValue::String("foo".to_string())),
+        ]
+        .into();
+        let dict_2: HashMap<String, JsonValue> = [
+            ("number".to_string(), JsonValue::Number(3.0)),
+            ("string".to_string(), JsonValue::String("bar".to_string())),
+        ]
+        .into();
+
+        let data = vec![
+            tinyjson::stringify(&JsonValue::from(dict_1)).expect("Json value"),
+            tinyjson::stringify(&JsonValue::from(dict_2)).expect("Json value"),
+        ];
+        attr.set(&data, &[2])
+            .expect("Dictionary array attribute set");
     })
 }

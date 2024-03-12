@@ -309,48 +309,28 @@ pub(crate) fn _rust_fn(
     }
 }
 
-pub(crate) fn get_attribute_string_array_data(
-    node: &HoudiniNode,
-    name: &CStr,
-    part_id: i32,
-    info: &raw::HAPI_AttributeInfo,
-) -> Result<StringMultiArray> {
-    debug_assert!(node.is_valid()?);
-    unsafe {
-        let mut data_array = vec![StringHandle(0); info.totalArrayElements as usize];
-        let mut sizes_fixed_array = vec![0; info.count as usize];
-        raw::HAPI_GetAttributeStringArrayData(
-            node.session.ptr(),
-            node.handle.0,
-            part_id,
-            name.as_ptr(),
-            info as *const _ as *mut _,
-            data_array.as_mut_ptr() as *mut HAPI_StringHandle,
-            info.totalArrayElements as i32,
-            sizes_fixed_array.as_mut_ptr(),
-            0,
-            info.count,
-        )
-        .check_err(&node.session, || "Calling HAPI_GetAttributeStringArrayData")?;
+#[duplicate_item(
+[
+_rust_fn [get_attribute_string_array_data]
+_ffi_fn [HAPI_GetAttributeStringArrayData]
+]
 
-        Ok(StringMultiArray {
-            handles: data_array,
-            sizes: sizes_fixed_array,
-            session: node.session.clone(),
-        })
-    }
-}
-
-pub(crate) fn get_attribute_dictionary_array_data(
+[
+_rust_fn [get_attribute_dictionary_array_data]
+_ffi_fn [HAPI_GetAttributeDictionaryArrayData]
+]
+)]
+pub(crate) fn _rust_fn(
     node: &HoudiniNode,
     name: &CStr,
     part_id: i32,
     info: &AttributeInfo,
 ) -> Result<StringMultiArray> {
-    let mut data_array = vec![StringHandle(0); info.total_array_elements() as usize];
-    let mut sizes_fixed_array = vec![0; info.count() as usize];
+    debug_assert!(node.is_valid()?);
     unsafe {
-        raw::HAPI_GetAttributeDictionaryArrayData(
+        let mut data_array = vec![StringHandle(0); info.total_array_elements() as usize];
+        let mut sizes_fixed_array = vec![0; info.count() as usize];
+        raw::_ffi_fn(
             node.session.ptr(),
             node.handle.0,
             part_id,
@@ -360,42 +340,50 @@ pub(crate) fn get_attribute_dictionary_array_data(
             info.total_array_elements() as i32,
             sizes_fixed_array.as_mut_ptr(),
             0,
-            info.count(),
+            sizes_fixed_array.len() as i32,
         )
-        .check_err(&node.session, || {
-            "Calling HAPI_GetAttributeDictionaryArrayData"
-        })?;
+        .check_err(&node.session, || stringify!(Calling _ffi_fn))?;
+
+        Ok(StringMultiArray {
+            handles: data_array,
+            sizes: sizes_fixed_array,
+            session: node.session.clone(),
+        })
     }
-    Ok(StringMultiArray {
-        handles: data_array,
-        sizes: sizes_fixed_array,
-        session: node.session.clone(),
-    })
 }
 
-pub(crate) fn set_attribute_string_array_data(
+#[duplicate_item(
+[
+_rust_fn [set_attribute_string_array_data]
+_ffi_fn [HAPI_SetAttributeStringArrayData]
+]
+
+[
+_rust_fn [set_attribute_dictionary_array_data]
+_ffi_fn [HAPI_SetAttributeDictionaryArrayData]
+]
+)]
+pub(crate) fn _rust_fn(
     node: &HoudiniNode,
     name: &CStr,
-    part_id: i32,
     info: &raw::HAPI_AttributeInfo,
-    data: &[&CStr],
+    data: &mut [*const i8],
     sizes: &[i32],
 ) -> Result<()> {
     debug_assert!(node.is_valid()?);
-    let mut array = Vec::from_iter(data.iter().map(|cs| cs.as_ptr()));
     unsafe {
-        raw::HAPI_SetAttributeStringArrayData(
+        raw::_ffi_fn(
             node.session.ptr(),
             node.handle.0,
-            part_id,
+            0,
             name.as_ptr(),
             info as *const _ as *mut _,
-            array.as_mut_ptr(),
-            info.totalArrayElements as i32,
+            data.as_mut_ptr(),
+            data.len() as i32,
             sizes.as_ptr(),
             0,
-            info.count,
+            sizes.len() as i32,
         )
-        .check_err(&node.session, || "Calling HAPI_SetAttributeStringArrayData")
+        .check_err(&node.session, || stringify!(Calling _ffi_fn))
     }
 }

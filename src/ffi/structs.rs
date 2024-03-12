@@ -355,7 +355,8 @@ wrap!(
 
 #[derive(Debug, Clone)]
 pub struct AttributeInfo {
-    pub(crate) inner: HAPI_AttributeInfo,
+    // TODO: make private
+    pub inner: HAPI_AttributeInfo,
 }
 
 wrap!(

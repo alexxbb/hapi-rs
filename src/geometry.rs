@@ -539,6 +539,26 @@ impl Geometry {
         Ok(DictionaryAttr::new(name, info, self.node.clone()))
     }
 
+    /// Add a new dictionary attribute to geometry
+    pub fn add_dictionary_array_attribute(
+        &self,
+        name: &str,
+        part_id: i32,
+        info: AttributeInfo,
+    ) -> Result<DictionaryArrayAttr> {
+        debug_assert!(self.node.is_valid()?);
+        debug_assert_eq!(info.storage(), StorageType::DictionaryArray);
+        debug_assert!(
+            info.tuple_size() > 0,
+            "attribute \"{}\" tuple_size must be > 0",
+            name
+        );
+        log::debug!("Adding dictionary array geometry attriubute: {name}");
+        let name = CString::new(name)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        Ok(DictionaryArrayAttr::new(name, info, self.node.clone()))
+    }
+
     /// Create a new geometry group.
     pub fn add_group(
         &self,
