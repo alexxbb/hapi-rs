@@ -1,4 +1,3 @@
-import hou
 import hapi
 import json
 
@@ -16,6 +15,7 @@ def get_string(handle) -> str:
     return hapi.getString(session, handle, _len)
 
 
+# Create a node
 node = hapi.createInputNode(session, "input_node")
 
 part_info = hapi.PartInfo(
@@ -45,7 +45,7 @@ attr_info = hapi.AttributeInfo(
     tupleSize=1,
     storage=hapi.storageType.Dictionary,
     originalOwner=hapi.attributeOwner.Detail,
-    totalArrayElements=0,
+    totalArrayElements=1,
 )
 
 DICT_ATTR = "my_dict_attr"
@@ -71,13 +71,6 @@ hapi.cookNode(session, node, hapi.CookOptions())
 part_info = hapi.getPartInfo(session, node, 0)
 num_detail_attributes = part_info.attributeCounts[3]
 assert num_detail_attributes, "No detail attributes"
-
-
-# attr_info = hapi.getAttributeInfo(
-#     session, node, 0, DICT_ATTR, hapi.attributeOwner.Detail
-# )
-# print(attr_info)
-
 
 # From the docs: sanity check count. Must be equal to the appropriate attribute owner type count in hapi.PartInfo.
 for handle in hapi.getAttributeNames(
