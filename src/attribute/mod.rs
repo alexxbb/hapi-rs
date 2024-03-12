@@ -218,10 +218,10 @@ impl DictionaryAttr {
     }
 
     /// Set dictionary attribute values where each string should be a JSON-encoded value.
-    pub fn set(&self, part_id: i32, values: &[&str]) -> Result<()> {
+    pub fn set(&self, part_id: i32, values: &[impl AsRef<str>]) -> Result<()> {
         debug_assert!(self.0.node.is_valid()?);
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(*s)).collect();
+            values.iter().map(|s| CString::new(s.as_ref())).collect();
         let cstr = cstr?;
         let mut cstrings: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
         bindings::set_attribute_dictionary_data(

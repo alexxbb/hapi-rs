@@ -252,23 +252,21 @@ pub(crate) fn _rust_fn(
     attr_info: &HAPI_AttributeInfo,
 ) -> Result<StringArray> {
     debug_assert!(node.is_valid()?);
+    debug_assert!(attr_info.count > 0);
     unsafe {
-        let mut handles = Vec::new();
-        let count = attr_info.count;
-        handles.resize((count * attr_info.tupleSize) as usize, StringHandle(0));
+        let mut handles = vec![StringHandle(0); attr_info.count as usize];
         // SAFETY: Most likely an error in C API, it should not modify the info object,
         // but for some reason it wants a mut pointer
         let attr_info = attr_info as *const _ as *mut HAPI_AttributeInfo;
-        let handles_ptr = handles.as_mut_ptr() as *mut HAPI_StringHandle;
         raw::_ffi_fn(
             node.session.ptr(),
             node.handle.0,
             part_id,
             name.as_ptr(),
             attr_info,
-            handles_ptr,
+            handles.as_mut_ptr() as *mut HAPI_StringHandle,
             0,
-            count,
+            handles.len() as i32,
         )
         .check_err(&node.session, || stringify!(Calling _ffi_fn))?;
         crate::stringhandle::get_string_array(&handles, &node.session)

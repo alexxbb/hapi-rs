@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use once_cell::unsync::Lazy;
 
 use hapi_rs::{
@@ -191,6 +193,7 @@ fn geometry_create_string_array_attrib() {
             .unwrap();
         let attr_data = &["one", "two", "three", "four", "five", "six"];
         array_attr.set(attr_data.as_slice(), &[1, 2, 3]).unwrap();
+        // NOTE: ALWAYS remember to commit AND cook after creating and setting attributes.
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
         let (data, sizes) = array_attr.get(0).unwrap().flatten().unwrap();
@@ -644,21 +647,28 @@ fn geometry_test_set_dictionary_attributes() {
             .with_count(1)
             .with_tuple_size(1)
             .with_owner(AttributeOwner::Detail)
+            .with_total_array_elements(0)
             .with_storage(StorageType::Dictionary);
         let attr = geo
             .add_dictionary_attribute("my_dict_attr", 0, info)
             .expect("Dictionary attribute");
+
         let data: HashMap<String, JsonValue> = [
             ("number".to_string(), JsonValue::Number(1.0)),
             ("string".to_string(), JsonValue::String("foo".to_string())),
         ]
         .into();
 
-        let data_str = tinyjson::stringify(&JsonValue::from(data)).expect("Json value");
+        let data_str = tinyjson::stringify(&JsonValue::from(data.clone())).expect("Json value");
 
         attr.set(0, &[&data_str]).unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
+        let value: Vec<_> = attr.get(0).unwrap().into_iter().collect();
+        let new_data =
+            JsonValue::from_str(&value[0]).expect("Json value from string attriubute value");
+
+        assert_eq!(JsonValue::from(data), new_data);
     })
 }
 

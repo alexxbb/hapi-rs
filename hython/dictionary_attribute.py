@@ -38,18 +38,19 @@ hapi.addAttribute(session, node, 0, "P", p_info)
 hapi.setAttributeFloatData(session, node, 0, "P", p_info, [0.0, 0.0, 0.0], 0, 1)
 
 # Create Dictionary Attribute
-dict_attr = hapi.AttributeInfo(
+attr_info = hapi.AttributeInfo(
     exists=True,
     owner=hapi.attributeOwner.Detail,
     count=1,
     tupleSize=1,
     storage=hapi.storageType.Dictionary,
     originalOwner=hapi.attributeOwner.Detail,
+    totalArrayElements=0,
 )
 
 DICT_ATTR = "my_dict_attr"
 
-hapi.addAttribute(session, node, 0, DICT_ATTR, dict_attr)
+hapi.addAttribute(session, node, 0, DICT_ATTR, attr_info)
 
 in_data = {"foo": 7}
 
@@ -58,7 +59,7 @@ hapi.setAttributeDictionaryData(
     node,
     0,
     DICT_ATTR,
-    dict_attr,
+    attr_info,
     [json.dumps(in_data)],  # data
     0,  # start
     1,  # sizes length
@@ -68,15 +69,14 @@ hapi.commitGeo(session, node)
 hapi.cookNode(session, node, hapi.CookOptions())
 
 part_info = hapi.getPartInfo(session, node, 0)
-
-
-attr_info = hapi.getAttributeInfo(
-    session, node, 0, DICT_ATTR, hapi.attributeOwner.Detail
-)
-print(attr_info)
-
 num_detail_attributes = part_info.attributeCounts[3]
 assert num_detail_attributes, "No detail attributes"
+
+
+# attr_info = hapi.getAttributeInfo(
+#     session, node, 0, DICT_ATTR, hapi.attributeOwner.Detail
+# )
+# print(attr_info)
 
 
 # From the docs: sanity check count. Must be equal to the appropriate attribute owner type count in hapi.PartInfo.
