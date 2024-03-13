@@ -431,9 +431,7 @@ impl Geometry {
             StorageType::Int8Array => NumericArrayAttr::<i8>::new(name, info, node).boxed(),
             StorageType::Int16Array => NumericArrayAttr::<i16>::new(name, info, node).boxed(),
             StorageType::Dictionary => DictionaryAttr::new(name, info, node).boxed(),
-            StorageType::DictionaryArray => {
-                todo!("Implement H20 Dictionary attribute type")
-            }
+            StorageType::DictionaryArray => DictionaryArrayAttr::new(name, info, node).boxed(),
         };
         Ok(Some(Attribute::new(attr_obj)))
     }

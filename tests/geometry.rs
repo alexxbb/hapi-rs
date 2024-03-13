@@ -647,7 +647,6 @@ fn geometry_test_set_dictionary_attributes() {
             .with_count(1)
             .with_tuple_size(1)
             .with_owner(AttributeOwner::Detail)
-            .with_total_array_elements(0)
             .with_storage(StorageType::Dictionary);
         let attr = geo
             .add_dictionary_attribute("my_dict_attr", 0, info)

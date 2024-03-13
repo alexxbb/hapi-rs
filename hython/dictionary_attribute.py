@@ -45,8 +45,19 @@ attr_info = hapi.AttributeInfo(
     tupleSize=1,
     storage=hapi.storageType.Dictionary,
     originalOwner=hapi.attributeOwner.Detail,
-    totalArrayElements=1,
+    totalArrayElements=0,  # THIS MUST BE 0 FOR THIS EXAMPLE
 )
+
+# Uncomment to see getAttributeDictionaryData fail with error (Houdini 20.0.625):
+#   "hapi.InvalidArgumentError: Invalid argument given: Data array length must match AttributeInfo.totalArrayElements."
+# ================================
+# attr_info.totalArrayElements = 1
+# ================================
+
+# Uncomment to see Hython segmentation fault
+# =========================
+# attr_info.tupleSize = 7
+# =========================
 
 DICT_ATTR = "my_dict_attr"
 
@@ -68,21 +79,6 @@ hapi.setAttributeDictionaryData(
 hapi.commitGeo(session, node)
 hapi.cookNode(session, node, hapi.CookOptions())
 
-part_info = hapi.getPartInfo(session, node, 0)
-num_detail_attributes = part_info.attributeCounts[3]
-assert num_detail_attributes, "No detail attributes"
-
-# From the docs: sanity check count. Must be equal to the appropriate attribute owner type count in hapi.PartInfo.
-for handle in hapi.getAttributeNames(
-    session, node, 0, hapi.attributeOwner.Detail, num_detail_attributes
-):
-    attr_name = get_string(handle)
-    if attr_name == DICT_ATTR:
-        break
-else:
-    print(f"{DICT_ATTR} not found")
-    exit(1)
-
-val = hapi.getAttributeDictionaryData(session, node, 0, DICT_ATTR, attr_info, 0, 1)
-out_json = get_string(val[0])
+handles = hapi.getAttributeDictionaryData(session, node, 0, DICT_ATTR, attr_info, 0, 1)
+out_json = get_string(handles[0])
 assert in_data == json.loads(out_json)
