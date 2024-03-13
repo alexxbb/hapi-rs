@@ -3466,3 +3466,54 @@ pub fn _rust_fn(
         .check_err(session, || stringify!(Calling _ffi_fn))
     }
 }
+
+pub fn get_message_node_ids(node: &HoudiniNode) -> Result<Vec<NodeHandle>> {
+    let _lock = node.session.lock();
+    let mut count = uninit!();
+    unsafe {
+        raw::HAPI_GetMessageNodeCount(node.session.ptr(), node.handle.0, count.as_mut_ptr())
+            .check_err(&node.session, || "Calling HAPI_GetMessageNodeCount")?;
+        let count = count.assume_init();
+        debug_assert!(count >= 0);
+        if count == 0 {
+            return Ok(Vec::new());
+        }
+        let mut node_ids = vec![0; count as usize];
+        raw::HAPI_GetMessageNodeIds(
+            node.session.ptr(),
+            node.handle.0,
+            node_ids.as_mut_ptr(),
+            count,
+        )
+        .check_err(&node.session, || "Calling HAPI_GetMessageNodeIds")?;
+        // SAFETY: NodeHandle is [repr(transparent)] i32
+        Ok(std::mem::transmute(node_ids))
+    }
+}
+
+pub fn get_node_cook_result(
+    node: &HoudiniNode,
+    verbosity: raw::StatusVerbosity,
+) -> Result<Vec<u8>> {
+    unsafe {
+        let _lock = node.session.lock();
+        let mut length = uninit!();
+        raw::HAPI_GetNodeCookResultLength(
+            node.session.ptr(),
+            node.handle.0,
+            verbosity,
+            length.as_mut_ptr(),
+        )
+        .check_err(&node.session, || "Calling HAPI_GetNodeCookResultLength")?;
+        let length = length.assume_init() as usize;
+        if length == 0 {
+            return Ok(Vec::new());
+        }
+        let mut buf = vec![0i8; length];
+        raw::HAPI_GetNodeCookResult(node.session.ptr(), buf.as_mut_ptr(), length as i32)
+            .check_err(&node.session, || "Calling HAPI_GetNodeCookResult")?;
+
+        let buf = buf.into_iter().map(|ch| ch as u8).collect();
+        Ok(buf)
+    }
+}

@@ -145,6 +145,13 @@ fn node_number_of_geo_outputs() {
 }
 
 #[test]
+fn node_get_message_nodes() {
+    let node = SESSION.create_node("Object/hapi_geo").unwrap();
+    let message_nodes = node.get_message_nodes().unwrap();
+    assert!(message_nodes.is_empty());
+}
+
+#[test]
 fn node_output_names() {
     let node = SESSION.create_node("Object/hapi_parms").unwrap();
     let outputs = node.get_output_names().unwrap();
