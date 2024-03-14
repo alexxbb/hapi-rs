@@ -3506,10 +3506,10 @@ pub fn get_node_cook_result(
         )
         .check_err(&node.session, || "Calling HAPI_GetNodeCookResultLength")?;
         let length = length.assume_init() as usize;
-        if length == 0 {
+        if length <= 1 {
             return Ok(Vec::new());
         }
-        let mut buf = vec![0i8; length];
+        let mut buf = vec![0i8; length - 1];
         raw::HAPI_GetNodeCookResult(node.session.ptr(), buf.as_mut_ptr(), length as i32)
             .check_err(&node.session, || "Calling HAPI_GetNodeCookResult")?;
 
