@@ -7,6 +7,7 @@ use std::path::Path;
 fn raw_hapi_function_names() -> HashSet<Item> {
     const IGNORE_SUFFIX: &[&str] = &[
         "_IsString",
+        "_IsNonValue",
         "_IsFloat",
         "_IsInt",
         "_AreEqual",
@@ -16,9 +17,12 @@ fn raw_hapi_function_names() -> HashSet<Item> {
         "_Init",
         "HAPI_CreateCustomSession",
         "HAPI_SetCustomString",
+        "HAPI_RemoveCustomString",
         "HAPI_GetHandleInfo",
         "HAPI_BindCustomImplementation",
         "HAPI_GetImageFilePath",
+        "HAPI_GetHandleBindingInfo",
+        "HAPI_GetWorkitemResultInfo"
     ];
     let raw = Path::new("../../src/ffi/bindings.rs");
     let text = std::fs::read_to_string(&raw).expect("bindings.rs");

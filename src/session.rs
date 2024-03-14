@@ -701,6 +701,11 @@ impl Session {
         let cache_name = CString::new(cache_name)?;
         crate::ffi::set_cache_property(self, &cache_name, property, value)
     }
+
+    pub fn python_thread_interpreter_lock(&self, lock: bool) -> Result<()> {
+        debug_assert!(self.is_valid());
+        crate::ffi::python_thread_interpreter_lock(self, lock)
+    }
 }
 
 impl Drop for Session {

@@ -3216,14 +3216,14 @@ pub fn get_workitem_result(
     };
     let mut infos = vec![_info; count as usize];
     unsafe {
-        raw::HAPI_GetWorkitemResultInfo(
+        raw::HAPI_GetWorkItemOutputFiles(
             session.ptr(),
             pdg_node.0,
             workitem_id,
             infos.as_mut_ptr(),
             count,
         )
-        .check_err(session, || "Calling HAPI_GetWorkitemResultInfo")?;
+        .check_err(session, || "Calling HAPI_GetWorkItemOutputFiles")?;
     }
     Ok(infos)
 }
@@ -3515,5 +3515,12 @@ pub fn get_node_cook_result(
 
         let buf = buf.into_iter().map(|ch| ch as u8).collect();
         Ok(buf)
+    }
+}
+
+pub fn python_thread_interpreter_lock(session: &Session, lock: bool) -> Result<()> {
+    unsafe {
+        raw::HAPI_PythonThreadInterpreterLock(session.ptr(), lock as i8)
+            .check_err(session, || "Calling HAPI_PythonThreadInterpreterLock")
     }
 }
