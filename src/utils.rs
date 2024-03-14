@@ -18,7 +18,6 @@ macro_rules! unwrap_or_create {
 }
 
 #[allow(unused)]
-pub(crate) use cstr;
 pub(crate) use unwrap_or_create;
 
 pub(crate) fn path_to_cstring(

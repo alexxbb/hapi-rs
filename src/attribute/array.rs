@@ -67,7 +67,8 @@ where
     }
 }
 
-/// Represents multi-array string data. Returned by [`crate::attribute::StringArrayAttr::get`]
+/// Represents multi-array string data. Used as storage for string and dictionary array attributes.
+/// Each element of this array is itself a [`StringArray`]
 pub struct StringMultiArray {
     pub(crate) handles: Vec<StringHandle>,
     pub(crate) sizes: Vec<i32>,
@@ -139,6 +140,15 @@ impl StringMultiArray {
             session: &self.session,
             cursor: 0,
         }
+    }
+    /// Convenient method to flatten the multi-dimensional array into a single vector.
+    pub fn flatten(self) -> Result<(Vec<String>, Vec<usize>)> {
+        let mut flat_array = Vec::with_capacity(self.sizes.iter().sum::<i32>() as usize);
+        let mut iter = self.iter();
+        while let Some(Ok(string_array)) = iter.next() {
+            flat_array.extend(string_array.into_iter());
+        }
+        Ok((flat_array, self.sizes.iter().map(|v| *v as usize).collect()))
     }
 }
 
