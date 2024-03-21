@@ -2,7 +2,7 @@
 use std::ffi::{CStr, CString};
 use std::fmt::Formatter;
 
-use crate::errors::{ErrorContext, Result};
+use crate::errors::Result;
 use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
@@ -140,13 +140,13 @@ impl IntoIterator for StringArray {
 }
 
 pub(crate) fn get_string(handle: StringHandle, session: &Session) -> Result<String> {
-    let bytes = get_string_bytes(handle, session).context("Calling get_string_bytes")?;
+    let bytes = get_string_bytes(handle, session)?;
     String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
 }
 
 pub(crate) fn get_cstring(handle: StringHandle, session: &Session) -> Result<CString> {
     unsafe {
-        let bytes = get_string_bytes(handle, session).context("Calling get_string_bytes")?;
+        let bytes = get_string_bytes(handle, session)?;
         // SAFETY: HAPI C API should not return strings with interior zero byte
         Ok(CString::from_vec_unchecked(bytes))
     }
@@ -179,14 +179,8 @@ pub(crate) fn get_string_array(handles: &[StringHandle], session: &Session) -> R
 mod tests {
     use super::StringArray;
     use crate::ffi;
-    use crate::session::Session;
-    use once_cell::sync::Lazy;
+    use crate::session::tests::SESSION;
     use std::ffi::CString;
-
-    static SESSION: Lazy<Session> = Lazy::new(|| {
-        let _ = env_logger::try_init().ok();
-        crate::session::quick_session(None).expect("Could not create test session")
-    });
 
     #[test]
     fn get_string_api() {

@@ -230,9 +230,9 @@ impl HapiResult {
             _err => {
                 let server_message = session
                     .get_status_string(StatusType::CallResult, StatusVerbosity::All)
-                    .map(Cow::Owned)
-                    .unwrap_or_else(|_| Cow::Borrowed("Could not retrieve error message"));
-                let mut err = HapiError::new_hapi_with_server_message(self, server_message);
+                    .unwrap_or_else(|_| String::from("Could not retrieve error message"));
+                let mut err =
+                    HapiError::new_hapi_with_server_message(self, Cow::Owned(server_message));
                 err.contexts.push(context().into());
                 Err(err)
             }

@@ -31,7 +31,6 @@ pub use bindings::AttribAccess;
 use std::any::Any;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
-use std::marker::PhantomData;
 
 impl StorageType {
     // Helper for matching array types to actual data type,
@@ -40,7 +39,7 @@ impl StorageType {
     pub(crate) fn type_matches(&self, other: StorageType) -> bool {
         use StorageType::*;
         match other {
-            IntArray | Uint8Array | Int8Array | Int16Array | Int64Array => {
+            Array | Uint8Array | Int8Array | Int16Array | Int64Array => {
                 matches!(*self, Int | Uint8 | Int16 | Int64)
             }
             FloatArray | Float64Array => matches!(*self, Float | Float64),
@@ -50,23 +49,26 @@ impl StorageType {
     }
 }
 
-pub(crate) struct AttributeBundle {
+pub(crate) struct _NumericAttrData<T: AttribAccess> {
+    pub(crate) info: AttributeInfo,
+    pub(crate) name: CString,
+    pub(crate) node: HoudiniNode,
+    pub(crate) _m: std::marker::PhantomData<T>,
+}
+
+pub(crate) struct _StringAttrData {
     pub(crate) info: AttributeInfo,
     pub(crate) name: CString,
     pub(crate) node: HoudiniNode,
 }
 
-pub struct NumericAttr<T: AttribAccess>(pub(crate) AttributeBundle, PhantomData<T>);
+pub struct NumericAttr<T: AttribAccess>(pub(crate) _NumericAttrData<T>);
 
-pub struct NumericArrayAttr<T: AttribAccess>(pub(crate) AttributeBundle, PhantomData<T>);
+pub struct NumericArrayAttr<T: AttribAccess>(pub(crate) _NumericAttrData<T>);
 
-pub struct StringAttr(pub(crate) AttributeBundle);
+pub struct StringAttr(pub(crate) _StringAttrData);
 
-pub struct StringArrayAttr(pub(crate) AttributeBundle);
-
-pub struct DictionaryAttr(pub(crate) AttributeBundle);
-
-pub struct DictionaryArrayAttr(pub(crate) AttributeBundle);
+pub struct StringArrayAttr(pub(crate) _StringAttrData);
 
 impl<T: AttribAccess> NumericArrayAttr<T>
 where
@@ -77,7 +79,12 @@ where
         info: AttributeInfo,
         node: HoudiniNode,
     ) -> NumericArrayAttr<T> {
-        NumericArrayAttr(AttributeBundle { info, name, node }, PhantomData)
+        NumericArrayAttr(_NumericAttrData {
+            info,
+            name,
+            node,
+            _m: Default::default(),
+        })
     }
     pub fn get(&self, part_id: i32) -> Result<DataArray<T>> {
         debug_assert!(self.0.info.storage().type_matches(T::storage()));
@@ -108,7 +115,12 @@ where
 
 impl<T: AttribAccess> NumericAttr<T> {
     pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> NumericAttr<T> {
-        NumericAttr(AttributeBundle { info, name, node }, PhantomData)
+        NumericAttr(_NumericAttrData {
+            info,
+            name,
+            node,
+            _m: Default::default(),
+        })
     }
     /// Get attribute value. Allocates a new vector on every call
     pub fn get(&self, part_id: i32) -> Result<Vec<T>> {
@@ -146,7 +158,7 @@ impl<T: AttribAccess> NumericAttr<T> {
 
 impl StringAttr {
     pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringAttr {
-        StringAttr(AttributeBundle { info, name, node })
+        StringAttr(_StringAttrData { info, name, node })
     }
     pub fn get(&self, part_id: i32) -> Result<StringArray> {
         debug_assert!(self.0.node.is_valid()?);
@@ -162,20 +174,20 @@ impl StringAttr {
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
             values.iter().map(|s| CString::new(*s)).collect();
         let cstr = cstr?;
-        let mut ptrs: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
+        let ptrs: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
         bindings::set_attribute_string_data(
             &self.0.node,
             part_id,
             self.0.name.as_c_str(),
             &self.0.info.inner,
-            ptrs.as_mut(),
+            ptrs.as_ref(),
         )
     }
 }
 
 impl StringArrayAttr {
     pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringArrayAttr {
-        StringArrayAttr(AttributeBundle { info, name, node })
+        StringArrayAttr(_StringAttrData { info, name, node })
     }
     pub fn get(&self, part_id: i32) -> Result<StringMultiArray> {
         debug_assert!(self.0.node.is_valid()?);
@@ -183,91 +195,31 @@ impl StringArrayAttr {
             &self.0.node,
             self.0.name.as_c_str(),
             part_id,
-            &self.0.info,
+            &self.0.info.inner,
         )
     }
-    pub fn set(&self, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
+    pub fn set(&self, part_id: i32, values: &[&str], sizes: &[i32]) -> Result<()> {
         debug_assert!(self.0.node.is_valid()?);
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(s.as_ref())).collect();
+            values.iter().map(|s| CString::new(*s)).collect();
         let cstr = cstr?;
-        let mut ptrs: Vec<_> = cstr.iter().map(|cs| cs.as_ptr()).collect();
+        let ptrs: Vec<&CStr> = cstr.iter().map(|cs| cs.as_c_str()).collect();
         bindings::set_attribute_string_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
-            &self.0.info.inner,
-            ptrs.as_mut(),
-            &sizes,
-        )
-    }
-}
-
-impl DictionaryAttr {
-    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
-        DictionaryAttr(AttributeBundle { info, name, node })
-    }
-
-    pub fn get(&self, part_id: i32) -> Result<StringArray> {
-        debug_assert!(self.0.node.is_valid()?);
-        bindings::get_attribute_dictionary_data(
-            &self.0.node,
             part_id,
-            self.0.name.as_c_str(),
             &self.0.info.inner,
-        )
-    }
-
-    /// Set dictionary attribute values where each string should be a JSON-encoded value.
-    pub fn set(&self, part_id: i32, values: &[impl AsRef<str>]) -> Result<()> {
-        debug_assert!(self.0.node.is_valid()?);
-        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(s.as_ref())).collect();
-        let cstr = cstr?;
-        let mut cstrings: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
-        bindings::set_attribute_dictionary_data(
-            &self.0.node,
-            part_id,
-            &self.0.name.as_c_str(),
-            &self.0.info.inner,
-            cstrings.as_mut(),
-        )
-    }
-}
-
-impl DictionaryArrayAttr {
-    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
-        DictionaryArrayAttr(AttributeBundle { info, name, node })
-    }
-    pub fn get(&self, part_id: i32) -> Result<StringMultiArray> {
-        debug_assert!(self.0.node.is_valid()?);
-        bindings::get_attribute_dictionary_array_data(
-            &self.0.node,
-            &self.0.name,
-            part_id,
-            &self.0.info,
-        )
-    }
-    pub fn set(&self, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
-        debug_assert!(self.0.node.is_valid()?);
-        let cstrings: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(s.as_ref())).collect();
-        let cstrings = cstrings?;
-        let mut ptrs: Vec<_> = cstrings.iter().map(|cs| cs.as_ptr()).collect();
-        bindings::set_attribute_dictionary_array_data(
-            &self.0.node,
-            self.0.name.as_c_str(),
-            &self.0.info.inner,
-            ptrs.as_mut(),
-            &sizes,
+            &ptrs,
+            sizes,
         )
     }
 }
 
 #[doc(hidden)]
-pub trait AsAttribute: Send{
+pub trait AsAttribute: Send {
     fn info(&self) -> &AttributeInfo;
     fn storage(&self) -> StorageType;
-    fn boxed(self) -> Box<dyn AnyAttribWrapper + Send>
+    fn boxed(self) -> Box<dyn AnyAttribWrapper>
     where
         Self: Sized + 'static,
     {
@@ -345,57 +297,21 @@ impl AsAttribute for StringArrayAttr {
     }
 }
 
-impl AsAttribute for DictionaryAttr {
-    fn info(&self) -> &AttributeInfo {
-        &self.0.info
-    }
-
-    fn storage(&self) -> StorageType {
-        StorageType::Dictionary
-    }
-
-    fn name(&self) -> &CStr {
-        &self.0.name
-    }
-
-    fn node(&self) -> &HoudiniNode {
-        &self.0.node
-    }
-}
-
-impl AsAttribute for DictionaryArrayAttr {
-    fn info(&self) -> &AttributeInfo {
-        &self.0.info
-    }
-
-    fn storage(&self) -> StorageType {
-        StorageType::DictionaryArray
-    }
-
-    fn name(&self) -> &CStr {
-        &self.0.name
-    }
-
-    fn node(&self) -> &HoudiniNode {
-        &self.0.node
-    }
-}
-
 #[doc(hidden)]
 pub trait AnyAttribWrapper: Any + AsAttribute {
     fn as_any(&self) -> &dyn Any;
 }
 
-impl<T: AsAttribute + 'static> AnyAttribWrapper for T {
+impl<T: AsAttribute + Send + 'static> AnyAttribWrapper for T {
     fn as_any(&self) -> &dyn Any {
         self
     }
 }
 
-pub struct Attribute(Box<dyn AnyAttribWrapper + Send>);
+pub struct Attribute(Box<dyn AnyAttribWrapper>);
 
 impl Attribute {
-    pub(crate) fn new(attr_obj: Box<dyn AnyAttribWrapper + Send>) -> Self {
+    pub(crate) fn new(attr_obj: Box<dyn AnyAttribWrapper>) -> Self {
         Attribute(attr_obj)
     }
     pub fn downcast<T: AnyAttribWrapper>(&self) -> Option<&T> {

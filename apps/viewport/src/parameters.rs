@@ -2,7 +2,7 @@ use hapi_rs::node::ParmType;
 use hapi_rs::parameter::Parameter;
 use hapi_rs::parameter::ParmBaseTrait;
 use hapi_rs::Result;
-
+use std::collections::HashMap;
 
 pub struct UiParameter {
     pub parameter: Parameter,

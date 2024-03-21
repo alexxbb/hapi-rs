@@ -1,18 +1,15 @@
-#![allow(unused)]
-
 use bytemuck::cast_slice;
 use hapi_rs::attribute::NumericAttr;
 use hapi_rs::geometry::{AttributeOwner, Geometry, Materials};
 use hapi_rs::node::Session;
 use hapi_rs::session::HoudiniNode;
 use hapi_rs::Result;
-use image::ImageDecoder;
-use std::io::Cursor;
-
+use std::cell::Cell;
+use std::collections::HashMap;
 use std::default::Default;
-
+use std::fs;
 use std::mem::size_of;
-
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::camera::Camera;
@@ -54,11 +51,11 @@ impl Texture {
     }
 
     pub fn decode_png_from_data(data: impl AsRef<[u8]>) -> (Vec<u8>, u32, u32) {
-        let data = Cursor::new(data.as_ref());
-        let decoder = image::codecs::png::PngDecoder::new(data).expect("PNG reader");
-        let mut pixels = vec![0; decoder.total_bytes() as usize];
-        let (width, height) = decoder.dimensions();
-        decoder.read_image(&mut pixels).expect("PNG frame");
+        let decoder = png::Decoder::new(data.as_ref());
+        let mut reader = decoder.read_info().expect("png info");
+        let mut pixels = vec![0; reader.output_buffer_size()];
+        reader.next_frame(&mut pixels).unwrap();
+        let (width, height) = (reader.info().width, reader.info().height);
         (pixels, width, height)
     }
 
@@ -103,7 +100,7 @@ impl Texture {
 
         let Some(materials) = geo.get_materials(None)? else {
             eprintln!("No texture!");
-            return Ok(None);
+            return Ok(None)
         };
         let mat = match &materials {
             Materials::Single(mat) => mat,
@@ -224,11 +221,12 @@ pub struct Asset {
     pub renderable: Renderable,
     pub asset_node: HoudiniNode,
     pub geometry_node: Geometry,
+    pub gl: Arc<glow::Context>,
     pub stats: Stats,
 }
 
 impl MeshData {
-    pub unsafe fn setup_gl(&mut self, gl: &glow::Context, program: glow::Program) {
+    pub unsafe fn setup_gl(&mut self, gl: Arc<glow::Context>, program: glow::Program) {
         use glow::HasContext as _;
 
         // Create Vertex Array Object. This is the object that describes what and how to
@@ -569,27 +567,25 @@ unsafe fn compile_gl_program(gl: &glow::Context) -> glow::Program {
 }
 
 impl Asset {
-    pub fn load_hda(gl: &glow::Context, session: &Session, hda: &str) -> Result<Self> {
+    pub fn load_hda(gl: Arc<glow::Context>, session: &Session, hda: &str) -> Result<Self> {
         let lib = session.load_asset_file(hda)?;
         let asset = lib.try_create_first()?;
         let geo = asset.geometry()?.expect("Geometry");
         let _start = Instant::now();
-        let cook_result = geo.node.cook_blocking()?;
-        if let hapi_rs::session::CookResult::Errored(error) = cook_result {
-            eprintln!("Error cooking example asset: {error}")
-        }
+        geo.node.cook()?;
         let cooking_time = Instant::now().duration_since(_start);
-        let (mut mesh, _hapi_time, _vertex_processing_time) = MeshData::from_houdini_geo(&geo)?;
+        let (mut mesh, hapi_time, vertex_processing_time) = MeshData::from_houdini_geo(&geo)?;
         let texture = Texture::extract(&gl, &geo)?;
-        let _buffer_build_time = Instant::now().duration_since(_start);
+        let buffer_build_time = Instant::now().duration_since(_start);
         let program = unsafe {
             let program = compile_gl_program(&gl);
-            mesh.setup_gl(gl, program);
+            mesh.setup_gl(gl.clone(), program);
             program
         };
 
         let mesh_vertex_count = mesh.positions.len() as u64;
         Ok(Self {
+            gl,
             asset_node: asset,
             renderable: Renderable {
                 mesh,
@@ -632,13 +628,14 @@ impl Asset {
         Ok(())
     }
 
-    pub fn reload_texture(&mut self, gl: &glow::Context) -> Result<()> {
+    pub fn reload_texture(&mut self) -> Result<()> {
         // TODO: Cache textures when switching models
-        self.renderable.texture = Texture::extract(gl, &self.geometry_node)?;
+        let texture = Texture::extract(&self.gl, &self.geometry_node)?;
+        std::mem::replace(&mut self.renderable.texture, texture);
         Ok(())
     }
 
-    pub fn rebuild_mesh(&mut self, gl: &glow::Context) -> Result<()> {
+    pub fn rebuild_mesh(&mut self) -> Result<()> {
         let (mesh, hapi_time, processing_time) = MeshData::from_houdini_geo(&self.geometry_node)?;
         let BufferStats {
             avg_buffer_time,
@@ -664,31 +661,34 @@ impl Asset {
         }
         self.renderable.mesh = mesh;
         unsafe {
-            self.renderable.mesh.setup_gl(gl, self.renderable.program);
+            self.renderable
+                .mesh
+                .setup_gl(self.gl.clone(), self.renderable.program);
         }
         Ok(())
     }
 
-    pub fn draw(&self, camera: &Camera, gl: &glow::Context) {
+    pub fn draw(&self, camera: &Camera) {
         use glow::HasContext;
 
         unsafe {
-            gl.enable(glow::DEPTH_TEST);
-            gl.enable(glow::MULTISAMPLE);
+            self.gl.enable(glow::DEPTH_TEST);
+            self.gl.enable(glow::MULTISAMPLE);
             // self.gl
             //     .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
-            gl.clear(glow::DEPTH_BUFFER_BIT);
-            gl.front_face(glow::CW);
-            gl.bind_vertex_array(self.renderable.mesh.vao);
-            gl.active_texture(glow::TEXTURE0);
+            self.gl.clear(glow::DEPTH_BUFFER_BIT);
+            self.gl.front_face(glow::CW);
+            self.gl.bind_vertex_array(self.renderable.mesh.vao);
+            self.gl.active_texture(glow::TEXTURE0);
             if let Some(ref texture) = self.renderable.texture {
-                gl.bind_texture(glow::TEXTURE_2D, Some(texture.handle));
+                self.gl.bind_texture(glow::TEXTURE_2D, Some(texture.handle));
             }
-            gl.use_program(Some(self.renderable.program));
+            self.gl.use_program(Some(self.renderable.program));
 
             let push_matrix = |uniform, mat: Mat4| {
-                gl.uniform_matrix_4_f32_slice(
-                    gl.get_uniform_location(self.renderable.program, uniform)
+                self.gl.uniform_matrix_4_f32_slice(
+                    self.gl
+                        .get_uniform_location(self.renderable.program, uniform)
                         .as_ref(),
                     false,
                     mat.as_slice(),
@@ -699,20 +699,24 @@ impl Asset {
             push_matrix("view", camera.view_matrix());
             push_matrix("model", Mat4::identity());
 
-            let use_color_loc = gl.get_uniform_location(self.renderable.program, "use_point_color");
-            gl.uniform_1_i32(
+            let use_color_loc = self
+                .gl
+                .get_uniform_location(self.renderable.program, "use_point_color");
+            self.gl.uniform_1_i32(
                 use_color_loc.as_ref(),
                 self.renderable.mesh.colors.is_some() as i32,
             );
 
-            gl.uniform_3_f32_slice(
-                gl.get_uniform_location(self.renderable.program, "cameraPos")
+            self.gl.uniform_3_f32_slice(
+                self.gl
+                    .get_uniform_location(self.renderable.program, "cameraPos")
                     .as_ref(),
                 camera.position().as_slice(),
             );
 
-            gl.draw_arrays(glow::TRIANGLES, 0, self.renderable.mesh.num_vertices);
-            gl.bind_vertex_array(None);
+            self.gl
+                .draw_arrays(glow::TRIANGLES, 0, self.renderable.mesh.num_vertices);
+            self.gl.bind_vertex_array(None);
         }
     }
 }

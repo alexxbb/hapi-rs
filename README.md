@@ -19,8 +19,6 @@ of [hapi-sys](https://crates.io/crates/hapi-sys).
 # HDA Viewer Demo
 https://user-images.githubusercontent.com/10694389/227816361-b9ffa083-7932-40e4-afda-3cb400126eb5.mp4
 
-[Introduction Video On Youtube](https://youtu.be/D4-vXCzde28?si=WkKhq_N-gDDgtNSC)
-
 # Example
 
 ```rust

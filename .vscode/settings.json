@@ -1,10 +1,9 @@
 {
     "cSpell.enabled": false,
     "python.languageServer": "Pylance",
+
     "python.analysis.extraPaths": [
         "C:/Houdini/19.0.455/houdini/python3.7libs"
-    ],
-    "rust-analyzer.linkedProjects": [
-        ".\\apps\\viewport\\Cargo.toml"
-    ],
+],
+
 }

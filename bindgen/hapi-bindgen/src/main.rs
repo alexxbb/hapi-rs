@@ -59,7 +59,7 @@ impl StripMode {
 
 static ENUMS: Lazy<HashMap<&str, (&str, i32)>> = Lazy::new(|| {
     // -N translates to StripMode::StripFront(N)
-    // N translates to StripMode::KeepTail(N)
+    // N translates to StripMode::KeepFront(N)
     let mut map = HashMap::new();
     map.insert("HAPI_License", ("auto", -2));
     map.insert("HAPI_Result", ("HapiResult", 2));
@@ -93,7 +93,7 @@ static ENUMS: Lazy<HashMap<&str, (&str, i32)>> = Lazy::new(|| {
     map.insert("HAPI_InputType", ("auto", -1));
     map.insert("HAPI_GeoType", ("auto", -1));
     map.insert("HAPI_AttributeTypeInfo", ("auto", -1));
-    map.insert("HAPI_StorageType", ("auto", 2));
+    map.insert("HAPI_StorageType", ("auto", -1));
     map.insert("HAPI_VolumeVisualType", ("auto", -1));
     map.insert("HAPI_VolumeType", ("auto", -1));
     map.insert("HAPI_CurveType", ("auto", -1));

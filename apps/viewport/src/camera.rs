@@ -1,12 +1,13 @@
 use ultraviolet::{Mat4, Vec3};
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct Camera {
     eye: Vec3,
     look_at: Vec3,
     up_vec: Vec3,
     view: Mat4,
     aspect_ratio: f32,
+    zoom: f32,
 }
 
 impl Camera {
@@ -20,8 +21,10 @@ impl Camera {
             up_vec,
             view,
             aspect_ratio: 1.0,
+            zoom: 1.0,
         }
     }
+    pub fn reset(&mut self) {}
     pub fn turntable(&mut self, delta: f32) {
         let rot_y = -delta / 150.0;
         let rot_mat = Mat4::from_rotation_y(rot_y % 360.0);

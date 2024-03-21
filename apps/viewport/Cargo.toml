@@ -7,11 +7,10 @@ edition = "2021"
 
 [dependencies]
 hapi-rs = { path="../.." }
-eframe = "0.26.2"
-egui_glow = "0.26.2"
-glow = { version = "0.13.1", features = ["debug_automatic_glGetError"] }
+eframe = "0.21.3"
+egui_glow = "0.21.0"
+glow = { version = "0.12.1", features = ["debug_automatic_glGetError"] }
 ultraviolet = {version = "0.9.0", features=["bytemuck"]}
 bytemuck = "1.13.1"
+png = "0.17.7"
 path-absolutize = "3.0.14"
-env_logger = "0.11.3"
-image = {version = "0.25.0", features = ["png"]}

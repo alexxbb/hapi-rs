@@ -482,17 +482,10 @@ impl HoudiniNode {
         crate::ffi::check_for_specific_errors(self, error_bits)
     }
 
-    /// Compose the cook result (errors and warnings) of all nodes in the network into a string.
-    pub fn get_composed_cook_result_string(&self, verbosity: StatusVerbosity) -> Result<String> {
+    /// Compose the cook result string (errors and warnings).
+    pub fn cook_result(&self, verbosity: StatusVerbosity) -> Result<String> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         unsafe { crate::ffi::get_composed_cook_result(self, verbosity) }
-    }
-
-    /// Get the cook errors and warnings on this node as a string
-    pub fn get_cook_result_string(&self, verbosity: StatusVerbosity) -> Result<String> {
-        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        let bytes = crate::ffi::get_node_cook_result(self, verbosity)?;
-        Ok(String::from_utf8_lossy(&bytes).to_string())
     }
     /// Resets the simulation cache of the asset.
     pub fn reset_simulation(&self) -> Result<()> {
@@ -693,11 +686,5 @@ impl HoudiniNode {
     pub fn get_input_name(&self, input_index: i32) -> Result<String> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::get_node_input_name(self, input_index)
-    }
-
-    /// Get the ids of the message nodes specified in the HDA Type Properties
-    pub fn get_message_nodes(&self) -> Result<Vec<NodeHandle>> {
-        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        crate::ffi::get_message_node_ids(self)
     }
 }
