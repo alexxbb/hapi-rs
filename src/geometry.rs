@@ -410,7 +410,7 @@ impl Geometry {
             return Ok(None);
         }
         let node = self.node.clone();
-        let attr_obj: Box<dyn AnyAttribWrapper> = match storage {
+        let attr_obj: Box<dyn AnyAttribWrapper + Send> = match storage {
             s @ (StorageType::Invalid | StorageType::Max) => {
                 panic!("Invalid attribute storage {name:?}: {s:?}")
             }

@@ -264,10 +264,10 @@ impl DictionaryArrayAttr {
 }
 
 #[doc(hidden)]
-pub trait AsAttribute {
+pub trait AsAttribute: Send{
     fn info(&self) -> &AttributeInfo;
     fn storage(&self) -> StorageType;
-    fn boxed(self) -> Box<dyn AnyAttribWrapper>
+    fn boxed(self) -> Box<dyn AnyAttribWrapper + Send>
     where
         Self: Sized + 'static,
     {
@@ -277,7 +277,7 @@ pub trait AsAttribute {
     fn node(&self) -> &HoudiniNode;
 }
 
-impl<T: AttribAccess> AsAttribute for NumericAttr<T> {
+impl<T: AttribAccess + Send> AsAttribute for NumericAttr<T> {
     fn info(&self) -> &AttributeInfo {
         &self.0.info
     }
@@ -294,7 +294,7 @@ impl<T: AttribAccess> AsAttribute for NumericAttr<T> {
     }
 }
 
-impl<T: AttribAccess> AsAttribute for NumericArrayAttr<T> {
+impl<T: AttribAccess + Send> AsAttribute for NumericArrayAttr<T> {
     fn info(&self) -> &AttributeInfo {
         &self.0.info
     }
@@ -392,10 +392,10 @@ impl<T: AsAttribute + 'static> AnyAttribWrapper for T {
     }
 }
 
-pub struct Attribute(Box<dyn AnyAttribWrapper>);
+pub struct Attribute(Box<dyn AnyAttribWrapper + Send>);
 
 impl Attribute {
-    pub(crate) fn new(attr_obj: Box<dyn AnyAttribWrapper>) -> Self {
+    pub(crate) fn new(attr_obj: Box<dyn AnyAttribWrapper + Send>) -> Self {
         Attribute(attr_obj)
     }
     pub fn downcast<T: AnyAttribWrapper>(&self) -> Option<&T> {
