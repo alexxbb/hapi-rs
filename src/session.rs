@@ -139,7 +139,7 @@ impl EnvVariable for i32 {
 }
 
 /// Result of async cook operation [`Session::cook`]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum CookResult {
     Succeeded,
     /// Some nodes cooked with warnings
@@ -149,7 +149,7 @@ pub enum CookResult {
 }
 
 /// By which means the session communicates with the server.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ConnectionType {
     ThriftPipe(OsString),
     ThriftSocket(std::net::SocketAddrV4),
@@ -162,6 +162,7 @@ pub(crate) struct SessionInner {
     pub(crate) handle: raw::HAPI_Session,
     pub(crate) options: SessionOptions,
     pub(crate) connection: ConnectionType,
+    pub(crate) pid: Option<u32>,
     pub(crate) lock: ReentrantMutex<()>,
 }
 
@@ -184,6 +185,7 @@ impl Session {
         handle: raw::HAPI_Session,
         connection: ConnectionType,
         options: SessionOptions,
+        pid: Option<u32>,
     ) -> Session {
         Session {
             inner: Arc::new(SessionInner {
@@ -191,6 +193,7 @@ impl Session {
                 options,
                 connection,
                 lock: ReentrantMutex::new(()),
+                pid,
             }),
         }
     }
@@ -203,6 +206,10 @@ impl Session {
     /// Return enum with extra connection data such as pipe file or socket.
     pub fn connection_type(&self) -> &ConnectionType {
         &self.inner.connection
+    }
+
+    pub fn server_pid(&self) -> Option<u32> {
+        self.inner.pid
     }
 
     #[inline(always)]
@@ -235,7 +242,7 @@ impl Session {
         debug_assert!(self.is_valid());
         let count = crate::ffi::get_server_env_var_count(self)?;
         let handles = crate::ffi::get_server_env_var_list(self, count)?;
-        crate::stringhandle::get_string_array(&handles, self)
+        crate::stringhandle::get_string_array(&handles, self).context("Calling get_string_array")
     }
 
     /// Retrieve string data given a handle.
@@ -524,8 +531,8 @@ impl Session {
     /// In threaded mode wait for Session finishes cooking. In single-thread mode, immediately return
     /// See [Documentation](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html)
     pub fn cook(&self) -> Result<CookResult> {
-        debug!("Cooking session..");
         debug_assert!(self.is_valid());
+        debug!("Cooking session..");
         if self.inner.options.threaded {
             loop {
                 match self.get_status(StatusType::CookState)? {
@@ -694,12 +701,17 @@ impl Session {
         let cache_name = CString::new(cache_name)?;
         crate::ffi::set_cache_property(self, &cache_name, property, value)
     }
+
+    pub fn python_thread_interpreter_lock(&self, lock: bool) -> Result<()> {
+        debug_assert!(self.is_valid());
+        crate::ffi::python_thread_interpreter_lock(self, lock)
+    }
 }
 
 impl Drop for Session {
     fn drop(&mut self) {
         if Arc::strong_count(&self.inner) == 1 {
-            debug!("Dropping session");
+            debug!("Dropping session pid: {:?}", self.server_pid());
             if self.is_valid() {
                 if self.inner.options.cleanup {
                     if let Err(e) = self.cleanup() {
@@ -715,7 +727,7 @@ impl Drop for Session {
             } else {
                 // The server should automatically delete the pipe file when closed successfully,
                 // but we could try a cleanup just in case.
-                warn!("Session is invalid!");
+                debug!("Session was invalid in Drop!");
                 if let ConnectionType::ThriftPipe(f) = &self.inner.connection {
                     let _ = std::fs::remove_file(f);
                 }
@@ -727,10 +739,13 @@ impl Drop for Session {
 /// Connect to the engine process via a pipe file.
 /// If `timeout` is Some, function will try to connect to
 /// the server multiple times every 100ms until `timeout` is reached.
+/// Note: Default SessionOptions create a blocking session, non-threaded session,
+/// use [`SessionOptionsBuilder`] to configure this.
 pub fn connect_to_pipe(
     pipe: impl AsRef<Path>,
     options: Option<&SessionOptions>,
     timeout: Option<Duration>,
+    pid: Option<u32>,
 ) -> Result<Session> {
     debug!("Connecting to Thrift session: {:?}", pipe.as_ref());
     let c_str = utils::path_to_cstring(&pipe)?;
@@ -755,7 +770,12 @@ pub fn connect_to_pipe(
         }
     };
     let connection = ConnectionType::ThriftPipe(pipe);
-    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
+    let session = Session::new(
+        handle,
+        connection,
+        options.cloned().unwrap_or_default(),
+        pid,
+    );
     session.initialize()?;
     Ok(session)
 }
@@ -769,7 +789,12 @@ pub fn connect_to_socket(
     let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
     let handle = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
     let connection = ConnectionType::ThriftSocket(addr);
-    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
+    let session = Session::new(
+        handle,
+        connection,
+        options.cloned().unwrap_or_default(),
+        None,
+    );
     session.initialize()?;
     Ok(session)
 }
@@ -779,7 +804,12 @@ pub fn new_in_process(options: Option<&SessionOptions>) -> Result<Session> {
     debug!("Creating new in-process session");
     let handle = crate::ffi::create_inprocess_session()?;
     let connection = ConnectionType::InProcess;
-    let session = Session::new(handle, connection, options.cloned().unwrap_or_default());
+    let session = Session::new(
+        handle,
+        connection,
+        options.cloned().unwrap_or_default(),
+        Some(std::process::id()),
+    );
     session.initialize()?;
     Ok(session)
 }
@@ -1069,37 +1099,14 @@ pub fn start_houdini_server(
 }
 
 /// A quick drop-in session, useful for on-off jobs
-/// It starts a single-threaded pipe server and initialize a session with default options
+/// It starts a **single-threaded** pipe server and initialize a session with default options
 pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
     let file = tempfile::Builder::new()
         .suffix("-hars.pipe")
         .tempfile()
         .expect("new temp file");
     let (_, file) = file.keep().expect("persistent temp file");
-    start_engine_pipe_server(&file, true, 4000.0, StatusVerbosity::Statusverbosity1, None)?;
-    connect_to_pipe(file, options, None)
-}
-
-#[cfg(test)]
-pub(crate) mod tests {
-    use crate::session::*;
-    use once_cell::sync::Lazy;
-
-    pub(crate) static SESSION: Lazy<Session> = Lazy::new(|| {
-        env_logger::init();
-        let session = quick_session(None).expect("Could not create test session");
-        session
-            .load_asset_file("otls/hapi_geo.hda")
-            .expect("load asset");
-        session
-            .load_asset_file("otls/hapi_vol.hda")
-            .expect("load asset");
-        session
-            .load_asset_file("otls/hapi_parms.hda")
-            .expect("load asset");
-        session
-            .load_asset_file("otls/sesi/SideFX_spaceship.hda")
-            .expect("load asset");
-        session
-    });
+    let pid =
+        start_engine_pipe_server(&file, true, 4000.0, StatusVerbosity::Statusverbosity1, None)?;
+    connect_to_pipe(file, options, None, Some(pid))
 }

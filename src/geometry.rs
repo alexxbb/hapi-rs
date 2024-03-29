@@ -1,4 +1,4 @@
-//! Access to geometry data, attributes, reading and writing to disk
+//! Access to geometry data, attributes, reading and writing geometry to and from disk
 //!
 //!
 use std::ffi::{CStr, CString};
@@ -40,7 +40,7 @@ pub enum Materials {
 }
 
 impl GeoFormat {
-    fn as_cstr(&self) -> &'static CStr {
+    const fn as_cstr(&self) -> &'static CStr {
         unsafe {
             CStr::from_bytes_with_nul_unchecked(match *self {
                 GeoFormat::Geo => b".geo\0",
@@ -381,6 +381,17 @@ impl Geometry {
         Ok(NumericAttr::new(name, info, self.node.clone()))
     }
 
+    /// Retrieve information about a geometry attribute.
+    pub fn get_attribute_info(
+        &self,
+        part_id: i32,
+        owner: AttributeOwner,
+        name: &str,
+    ) -> Result<AttributeInfo> {
+        let name = CString::new(name)?;
+        AttributeInfo::new(&self.node, part_id, owner, &name)
+    }
+
     /// Get geometry attribute by name and owner.
     pub fn get_attribute(
         &self,
@@ -399,7 +410,7 @@ impl Geometry {
             return Ok(None);
         }
         let node = self.node.clone();
-        let attr_obj: Box<dyn AnyAttribWrapper> = match storage {
+        let attr_obj: Box<dyn AnyAttribWrapper + Send> = match storage {
             s @ (StorageType::Invalid | StorageType::Max) => {
                 panic!("Invalid attribute storage {name:?}: {s:?}")
             }
@@ -411,7 +422,7 @@ impl Geometry {
             StorageType::Uint8 => NumericAttr::<u8>::new(name, info, node).boxed(),
             StorageType::Int8 => NumericAttr::<i8>::new(name, info, node).boxed(),
             StorageType::Int16 => NumericAttr::<i16>::new(name, info, node).boxed(),
-            StorageType::Array => NumericArrayAttr::<i32>::new(name, info, node).boxed(),
+            StorageType::IntArray => NumericArrayAttr::<i32>::new(name, info, node).boxed(),
             StorageType::Int64Array => NumericArrayAttr::<i64>::new(name, info, node).boxed(),
             StorageType::FloatArray => NumericArrayAttr::<f32>::new(name, info, node).boxed(),
             StorageType::Float64Array => NumericArrayAttr::<f64>::new(name, info, node).boxed(),
@@ -419,6 +430,8 @@ impl Geometry {
             StorageType::Uint8Array => NumericArrayAttr::<u8>::new(name, info, node).boxed(),
             StorageType::Int8Array => NumericArrayAttr::<i8>::new(name, info, node).boxed(),
             StorageType::Int16Array => NumericArrayAttr::<i16>::new(name, info, node).boxed(),
+            StorageType::Dictionary => DictionaryAttr::new(name, info, node).boxed(),
+            StorageType::DictionaryArray => DictionaryArrayAttr::new(name, info, node).boxed(),
         };
         Ok(Some(Attribute::new(attr_obj)))
     }
@@ -431,6 +444,12 @@ impl Geometry {
         info: AttributeInfo,
     ) -> Result<NumericAttr<T>> {
         debug_assert_eq!(info.storage(), T::storage());
+        debug_assert!(
+            info.tuple_size() > 0,
+            "attribute \"{}\" tuple_size must be > 0",
+            name
+        );
+        log::debug!("Adding numeric geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(NumericAttr::<T>::new(name, info, self.node.clone()))
@@ -448,11 +467,11 @@ impl Geometry {
         [T]: ToOwned<Owned = Vec<T>>,
     {
         debug_assert_eq!(info.storage(), T::storage_array());
-        debug_assert_eq!(
-            info.tuple_size(),
-            1,
+        debug_assert!(
+            info.tuple_size() > 0,
             "AttributeInfo::tuple_size must be 1 for array attributes"
         );
+        log::debug!("Adding numeric array geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(NumericArrayAttr::<T>::new(name, info, self.node.clone()))
@@ -466,7 +485,13 @@ impl Geometry {
         info: AttributeInfo,
     ) -> Result<StringAttr> {
         debug_assert!(self.node.is_valid()?);
-        debug_assert!(matches!(info.storage(), StorageType::String));
+        debug_assert_eq!(info.storage(), StorageType::String);
+        debug_assert!(
+            info.tuple_size() > 0,
+            "attribute \"{}\" tuple_size must be > 0",
+            name
+        );
+        log::debug!("Adding string geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(StringAttr::new(name, info, self.node.clone()))
@@ -480,13 +505,59 @@ impl Geometry {
         info: AttributeInfo,
     ) -> Result<StringArrayAttr> {
         debug_assert!(self.node.is_valid()?);
-        debug_assert!(matches!(info.storage(), StorageType::StringArray));
+        debug_assert_eq!(info.storage(), StorageType::StringArray);
+        debug_assert!(
+            info.tuple_size() > 0,
+            "attribute \"{}\" tuple_size must be > 0",
+            name
+        );
+        log::debug!("Adding string array geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
         Ok(StringArrayAttr::new(name, info, self.node.clone()))
     }
 
-    /// Create a new geometry group .
+    /// Add a new dictionary attribute to geometry
+    pub fn add_dictionary_attribute(
+        &self,
+        name: &str,
+        part_id: i32,
+        info: AttributeInfo,
+    ) -> Result<DictionaryAttr> {
+        debug_assert!(self.node.is_valid()?);
+        debug_assert_eq!(info.storage(), StorageType::Dictionary);
+        debug_assert!(
+            info.tuple_size() > 0,
+            "attribute \"{}\" tuple_size must be > 0",
+            name
+        );
+        log::debug!("Adding dictionary geometry attriubute: {name}");
+        let name = CString::new(name)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        Ok(DictionaryAttr::new(name, info, self.node.clone()))
+    }
+
+    /// Add a new dictionary attribute to geometry
+    pub fn add_dictionary_array_attribute(
+        &self,
+        name: &str,
+        part_id: i32,
+        info: AttributeInfo,
+    ) -> Result<DictionaryArrayAttr> {
+        debug_assert!(self.node.is_valid()?);
+        debug_assert_eq!(info.storage(), StorageType::DictionaryArray);
+        debug_assert!(
+            info.tuple_size() > 0,
+            "attribute \"{}\" tuple_size must be > 0",
+            name
+        );
+        log::debug!("Adding dictionary array geometry attriubute: {name}");
+        let name = CString::new(name)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        Ok(DictionaryArrayAttr::new(name, info, self.node.clone()))
+    }
+
+    /// Create a new geometry group.
     pub fn add_group(
         &self,
         part_id: i32,
@@ -663,6 +734,7 @@ impl Geometry {
         .map(|vec| vec.into_iter().map(|inner| Transform { inner }).collect())
     }
 
+    /// Save geometry to a file.
     pub fn save_to_file(&self, filepath: &str) -> Result<()> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
@@ -672,22 +744,27 @@ impl Geometry {
         crate::ffi::save_geo_to_file(&self.node, &path)
     }
 
+    /// Load geometry from a file.
     pub fn load_from_file(&self, filepath: &str) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
         let path = CString::new(filepath)?;
         crate::ffi::load_geo_from_file(&self.node, &path)
     }
 
+    /// Commit geometry edits to the node.
     pub fn commit(&self) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
+        log::debug!("Commiting geometry changes");
         crate::ffi::commit_geo(&self.node)
     }
 
+    /// Revert last geometry edits
     pub fn revert(&self) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
         crate::ffi::revert_geo(&self.node)
     }
 
+    /// Serialize node's geometry to bytes.
     pub fn save_to_memory(&self, format: GeoFormat) -> Result<Vec<i8>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
@@ -696,6 +773,7 @@ impl Geometry {
         crate::ffi::save_geo_to_memory(&self.node.session, self.node.handle, format.as_cstr())
     }
 
+    /// Load geometry from a given buffer into this node.
     pub fn load_from_memory(&self, data: &[i8], format: GeoFormat) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
         crate::ffi::load_geo_from_memory(

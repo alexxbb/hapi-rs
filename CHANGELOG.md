@@ -1,5 +1,12 @@
 # hapi-rs changelog
 
+## [0.10.0]
+- **Minimal** Houdini version bumped to 20.0.625.
+- Support new attribute APIs and add some previously missing APIs.
+- **Serveral (minimal) public APIs changed**.
+- Other fixes and cleanup
+
+
 ## [0.9.3]
 - Bump Houdini version to `19.5.716`.
 - Add API for working with parameter tags.

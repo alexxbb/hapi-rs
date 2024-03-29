@@ -7,6 +7,7 @@ use std::path::Path;
 fn raw_hapi_function_names() -> HashSet<Item> {
     const IGNORE_SUFFIX: &[&str] = &[
         "_IsString",
+        "_IsNonValue",
         "_IsFloat",
         "_IsInt",
         "_AreEqual",
@@ -14,6 +15,14 @@ fn raw_hapi_function_names() -> HashSet<Item> {
         "_IsNode",
         "_Create",
         "_Init",
+        "HAPI_CreateCustomSession",
+        "HAPI_SetCustomString",
+        "HAPI_RemoveCustomString",
+        "HAPI_GetHandleInfo",
+        "HAPI_BindCustomImplementation",
+        "HAPI_GetImageFilePath",
+        "HAPI_GetHandleBindingInfo",
+        "HAPI_GetWorkitemResultInfo"
     ];
     let raw = Path::new("../../src/ffi/bindings.rs");
     let text = std::fs::read_to_string(&raw).expect("bindings.rs");
@@ -53,14 +62,18 @@ fn wrapped_rs_function_names() -> HashSet<Item> {
     let rx2 = Regex::new(r#"\[(HAPI\w+)\]"#).unwrap();
     let rx3 = Regex::new(r#".*raw::(HAPI\w+)\("#).unwrap();
 
-    let text = std::fs::read_to_string("../../src/ffi/functions.rs").expect("functions.rs");
+    let text = std::fs::read_to_string("../../src/ffi/functions.rs").expect("ffi/functions.rs");
     let it1 = rx1.captures_iter(&text).map(|c| Item(c[1].to_string()));
-
-    let text = std::fs::read_to_string("../../src/attribute/bindings.rs").expect("functions.rs");
     let it2 = rx2.captures_iter(&text).map(|c| Item(c[1].to_string()));
+    let ffi_functions = it1.chain(it2);
 
-    let it3 = rx3.captures_iter(&text).map(|c| Item(c[1].to_string()));
-    HashSet::from_iter(it1.chain(it2).chain(it3))
+    let text =
+        std::fs::read_to_string("../../src/attribute/bindings.rs").expect("attribute/bindings.rs");
+    let it1 = rx2.captures_iter(&text).map(|c| Item(c[1].to_string()));
+    let it2 = rx3.captures_iter(&text).map(|c| Item(c[1].to_string()));
+    let attribute_bindings = it1.chain(it2);
+
+    HashSet::from_iter(ffi_functions.chain(attribute_bindings))
 }
 
 fn main() {

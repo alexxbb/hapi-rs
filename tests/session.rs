@@ -1,40 +1,44 @@
 use hapi_rs::raw::CacheProperty;
-use once_cell::sync::Lazy;
+use once_cell::unsync::Lazy;
 
 use hapi_rs::session::{
     quick_session, ConnectionType, CookResult, ManagerType, Session, SessionOptions,
     SessionSyncInfo, TimelineOptions, Viewport,
 };
 
-static SESSION: Lazy<Session> = Lazy::new(|| {
-    env_logger::init();
-    let session = quick_session(None).expect("Could not create test session");
-    session
-        .load_asset_file("otls/hapi_geo.hda")
-        .expect("load asset");
-    session
-        .load_asset_file("otls/hapi_vol.hda")
-        .expect("load asset");
-    session
-        .load_asset_file("otls/hapi_parms.hda")
-        .expect("load asset");
-    session
-        .load_asset_file("otls/sesi/SideFX_spaceship.hda")
-        .expect("load asset");
-    session
-});
+thread_local! {
+    static SESSION: Lazy<Session> = Lazy::new(|| {
+        let _ = env_logger::try_init();
+        let session = quick_session(None).expect("Could not create test session");
+        session
+            .load_asset_file("otls/hapi_geo.hda")
+            .expect("load asset");
+        session
+            .load_asset_file("otls/hapi_vol.hda")
+            .expect("load asset");
+        session
+            .load_asset_file("otls/hapi_parms.hda")
+            .expect("load asset");
+        session
+            .load_asset_file("otls/sesi/SideFX_spaceship.hda")
+            .expect("load asset");
+        session
+    });
+}
 
 #[test]
 fn loaded_asset_libraries() {
-    let libs = SESSION.get_loaded_asset_libraries().unwrap();
-    assert!(libs
-        .iter()
-        .find(|lib| lib.file.as_ref().unwrap().ends_with("otls/hapi_geo.hda"))
-        .is_some());
-    assert!(libs
-        .iter()
-        .find(|lib| lib.file.as_ref().unwrap().ends_with("otls/hapi_parms.hda"))
-        .is_some());
+    SESSION.with(|session| {
+        let libs = session.get_loaded_asset_libraries().unwrap();
+        assert!(libs
+            .iter()
+            .find(|lib| lib.file.as_ref().unwrap().ends_with("otls/hapi_geo.hda"))
+            .is_some());
+        assert!(libs
+            .iter()
+            .find(|lib| lib.file.as_ref().unwrap().ends_with("otls/hapi_parms.hda"))
+            .is_some());
+    })
 }
 
 #[test]
@@ -82,52 +86,61 @@ fn session_server_variables() {
 
 #[test]
 fn session_set_viewport() {
-    let vp = Viewport::default()
-        .with_rotation([0.7, 0.7, 0.7, 0.7])
-        .with_position([0.0, 1.0, 0.0])
-        .with_offset(3.5);
-    SESSION.set_viewport(&vp).expect("set_viewport");
-    let vp2 = SESSION.get_viewport().expect("get_viewport");
-    assert_eq!(vp.position(), vp2.position());
-    assert_eq!(vp.rotation(), vp2.rotation());
-    assert_eq!(vp.offset(), vp2.offset());
+    SESSION.with(|session| {
+        let vp = Viewport::default()
+            .with_rotation([0.7, 0.7, 0.7, 0.7])
+            .with_position([0.0, 1.0, 0.0])
+            .with_offset(3.5);
+        session.set_viewport(&vp).expect("set_viewport");
+        let vp2 = session.get_viewport().expect("get_viewport");
+        assert_eq!(vp.position(), vp2.position());
+        assert_eq!(vp.rotation(), vp2.rotation());
+        assert_eq!(vp.offset(), vp2.offset());
+    })
 }
 
 #[test]
 fn session_sync() {
-    let info = SessionSyncInfo::default()
-        .with_sync_viewport(true)
-        .with_cook_using_houdini_time(true);
-    SESSION.set_sync_info(&info).unwrap();
-    SESSION.cook().unwrap();
-    let info = SESSION.get_sync_info().unwrap();
-    assert!(info.sync_viewport());
-    assert!(info.cook_using_houdini_time());
+    SESSION.with(|session| {
+        assert!(session.is_valid());
+        let info = SessionSyncInfo::default()
+            .with_sync_viewport(true)
+            .with_cook_using_houdini_time(true);
+        session.set_sync_info(&info).unwrap();
+        session.cook().unwrap();
+        let info = session.get_sync_info().unwrap();
+        assert!(info.sync_viewport());
+        assert!(info.cook_using_houdini_time());
+    })
 }
 
 #[test]
 fn session_manager_nodes() {
-    SESSION.get_manager_node(ManagerType::Obj).unwrap();
-    SESSION.get_manager_node(ManagerType::Chop).unwrap();
-    SESSION.get_manager_node(ManagerType::Cop).unwrap();
-    SESSION.get_manager_node(ManagerType::Rop).unwrap();
-    SESSION.get_manager_node(ManagerType::Top).unwrap();
+    SESSION.with(|session| {
+        session.get_manager_node(ManagerType::Obj).unwrap();
+        session.get_manager_node(ManagerType::Chop).unwrap();
+        session.get_manager_node(ManagerType::Cop).unwrap();
+        session.get_manager_node(ManagerType::Rop).unwrap();
+        session.get_manager_node(ManagerType::Top).unwrap();
+    })
 }
 
 #[test]
 fn cache_properties() {
-    let cache_names = SESSION
-        .get_active_cache_names()
-        .unwrap()
-        .into_iter()
-        .collect::<Vec<_>>();
-    assert!(cache_names.contains(&String::from("SOP Cache")));
-    assert!(cache_names.contains(&String::from("HDA Contents Cache")));
-    SESSION
-        .set_cache_property_value("SOP Cache", CacheProperty::CachepropMax, 2048)
-        .unwrap();
-    let cache_val = SESSION
-        .get_cache_property_value("SOP Cache", CacheProperty::CachepropMax)
-        .unwrap();
-    assert_eq!(cache_val, 2048);
+    SESSION.with(|session| {
+        let cache_names = session
+            .get_active_cache_names()
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert!(cache_names.contains(&String::from("SOP Cache")));
+        assert!(cache_names.contains(&String::from("HDA Contents Cache")));
+        session
+            .set_cache_property_value("SOP Cache", CacheProperty::CachepropMax, 2048)
+            .unwrap();
+        let cache_val = session
+            .get_cache_property_value("SOP Cache", CacheProperty::CachepropMax)
+            .unwrap();
+        assert_eq!(cache_val, 2048);
+    })
 }

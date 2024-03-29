@@ -358,17 +358,24 @@ pub struct AttributeInfo {
     pub(crate) inner: HAPI_AttributeInfo,
 }
 
-wrap!(
-    Default AttributeInfo [HAPI_AttributeInfo_Create => HAPI_AttributeInfo];
-    [get] exists->exists->[bool];
-    [get] original_owner->originalOwner->[AttributeOwner];
-    [get|set|with] total_array_elements->totalArrayElements->[i64];
-    [get|set|with] owner->owner->[AttributeOwner];
-    [get|set|with] storage->storage->[StorageType];
-    [get|set|with] tuple_size->tupleSize->[i32];
-    [get|set|with] type_info->typeInfo->[AttributeTypeInfo];
-    [get|set|with] count->count->[i32];
-);
+impl Default for AttributeInfo {
+    fn default() -> Self {
+        let mut inner = unsafe { HAPI_AttributeInfo_Create() };
+        // FIXME: Uninitialized variable in Houdini 20.0.625
+        inner.totalArrayElements = 0;
+        Self { inner }
+    }
+}
+wrap! {
+  _impl_methods_ AttributeInfo HAPI_AttributeInfo[get]exists->exists->[bool];
+  [get]original_owner->originalOwner->[AttributeOwner];
+  [get|set|with]total_array_elements->totalArrayElements->[i64];
+  [get|set|with]owner->owner->[AttributeOwner];
+  [get|set|with]storage->storage->[StorageType];
+  [get|set|with]tuple_size->tupleSize->[i32];
+  [get|set|with]type_info->typeInfo->[AttributeTypeInfo];
+  [get|set|with]count->count->[i32];
+}
 
 impl AttributeInfo {
     pub(crate) fn new(
