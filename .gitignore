@@ -1,6 +1,7 @@
 /target
 Cargo.lock
 .idea
+.vscode
 build
 backup
 otls/backup
@@ -9,6 +10,7 @@ bindgen/hapi-bindgen/bindings.rs
 env.ps1
 **/*target
 _build
+_tmp
 *.hip*
 .cargo
 _*

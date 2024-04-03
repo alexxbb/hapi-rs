@@ -70,7 +70,7 @@ static ENUMS: Lazy<HashMap<&str, (&str, i32)>> = Lazy::new(|| {
     map.insert("HAPI_PDG_State", ("PdgState", -1));
     map.insert("HAPI_CacheProperty", ("auto", -2));
     map.insert("HAPI_EnvIntType", ("auto", -2));
-    map.insert("HAPI_PrmScriptType", ("auto", -2));
+    map.insert("HAPI_PrmScriptType", ("auto", -1));
     map.insert("HAPI_Permissions", ("auto", -2));
     map.insert("HAPI_ParmType", ("auto", 2));
 

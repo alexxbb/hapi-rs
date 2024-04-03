@@ -4,6 +4,14 @@
 
     "python.analysis.extraPaths": [
         "C:/Houdini/19.0.455/houdini/python3.7libs"
+<<<<<<< Updated upstream
 ],
 
+=======
+    ],
+    "rust-analyzer.linkedProjects": [
+        ".\\apps\\viewport\\Cargo.toml"
+    ],
+    "rust-analyzer.showUnlinkedFileNotification": false,
+>>>>>>> Stashed changes
 }
