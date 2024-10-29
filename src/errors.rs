@@ -21,6 +21,7 @@ pub(crate) trait ErrorContext<T> {
     where
         C: Into<Cow<'static, str>>;
 
+    #[allow(unused)]
     fn with_context<C, F>(self, func: F) -> Result<T>
     where
         C: Into<Cow<'static, str>>,
@@ -220,13 +221,13 @@ impl From<std::string::FromUtf8Error> for HapiError {
 impl std::error::Error for HapiError {}
 
 impl HapiResult {
-    pub(crate) fn check_err<R: Default, F, M>(self, session: &Session, context: F) -> Result<R>
+    pub(crate) fn check_err<F, M>(self, session: &Session, context: F) -> Result<()>
     where
         M: Into<Cow<'static, str>>,
         F: FnOnce() -> M,
     {
         match self {
-            HapiResult::Success => Ok(R::default()),
+            HapiResult::Success => Ok(()),
             _err => {
                 let server_message = session
                     .get_status_string(StatusType::CallResult, StatusVerbosity::All)
@@ -239,12 +240,9 @@ impl HapiResult {
         }
     }
 
-    pub(crate) fn error_message<I: Into<Cow<'static, str>>, R: Default>(
-        self,
-        message: I,
-    ) -> Result<R> {
+    pub(crate) fn error_message<I: Into<Cow<'static, str>>>(self, message: I) -> Result<()> {
         match self {
-            HapiResult::Success => Ok(R::default()),
+            HapiResult::Success => Ok(()),
             _err => {
                 let mut err = HapiError::new_hapi_with_server_message(
                     self,
