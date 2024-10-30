@@ -13,7 +13,7 @@ fn cook_async(node: &TopNode) -> Result<()> {
     let mut num_tasks = 0;
     let mut tasks_done = 0;
     println!("Cooking PDG...");
-    node.cook_async(false, |step| {
+    node.cook_async(true, |step| {
         match step.event.event_type() {
             PdgEventType::EventWorkitemAdd => num_tasks += 1,
             PdgEventType::EventWorkitemRemove => num_tasks -= 1,
@@ -24,7 +24,7 @@ fn cook_async(node: &TopNode) -> Result<()> {
                     for wir in results {
                         // We only interested in geo files;;
                         if wir.tag().unwrap() == "file/geo" {
-                            let file = wir.result().unwrap();
+                            let file = wir.path().unwrap();
                             println!("Completed {file}");
                         }
                         tasks_done += 1;
@@ -79,6 +79,7 @@ fn main() -> Result<()> {
     let session = new_in_process(Some(&options))?;
     let lib = session.load_asset_file(otl)?;
     let asset = lib.try_create_first()?;
+    asset.cook_blocking()?;
     session.save_hip(out_dir.join("cook_pdg_example.hip"), true)?;
     let top_net = asset.find_top_networks()?[0].clone();
     let top_node = top_net.to_top_node().expect("TOP node");

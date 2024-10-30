@@ -276,32 +276,11 @@ impl TopNode {
         Ok(())
     }
 
+    /// Trigger PDG cooking and wait for completion.
+    /// If all_outputs is true and this TOP node is of topnet type, cook all network outptus.
+    /// Results can then be retrieved from workitems with get_all_workitems()
     pub fn cook_pdg_blocking(&self, all_outputs: bool) -> Result<()> {
-        /// Trigger PDG cooking and wait for completion.
-        /// If all_outputs is true and this TOP node is of topnet type, cook all network outptus.
         ffi::cook_pdg(&self.node.session, self.node.handle, false, true, all_outputs)
-    }
-
-    // FIXME. Observing some weird behaviour. The output files are intermixed with tags
-    // #[allow(dead_code)]
-    // #[allow(unreachable_code)]
-    pub fn cook_blocking_with_results(
-        &self,
-        all_outputs: bool,
-    ) -> Result<Vec<PDGWorkItemOutputFile<'_>>> {
-        ffi::cook_pdg(
-            &self.node.session,
-            self.node.handle,
-            false,
-            true,
-            all_outputs,
-        )?;
-        let workitems = self.get_all_workitems()?;
-        let mut all_results = Vec::with_capacity(workitems.len());
-        for wi in workitems {
-            all_results.extend(wi.get_results()?)
-        }
-        Ok(all_results)
     }
 
     /// Get the graph(context) id of this node in PDG.
@@ -348,7 +327,7 @@ impl TopNode {
         })
     }
 
-    pub fn get_all_workitems(&self) -> Result<Vec<PDGWorkItem<'_>>> {
+    pub fn get_all_workitems<'node>(&'node self) -> Result<Vec<PDGWorkItem<'node>>> {
         let context_id = self.get_context_id()?;
         ffi::get_pdg_workitems(&self.node.session, self.node.handle).map(|vec| {
             vec.into_iter()

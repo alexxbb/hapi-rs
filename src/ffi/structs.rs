@@ -791,7 +791,7 @@ pub struct PDGWorkItemOutputFile<'session> {
 }
 
 impl<'session> PDGWorkItemOutputFile<'session> {
-    get!(result->filePathSH->Result<String>);
+    get!(path->filePathSH->Result<String>);
     get!(tag->tagSH->Result<String>);
     get!(sha->hash->i64);
 }

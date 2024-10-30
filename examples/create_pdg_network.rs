@@ -31,7 +31,7 @@ fn main() -> anyhow::Result<()> {
     let workitem = generator.create_workitem("test_1", 0, None)?;
     workitem.set_int_data("my_int_data", &[1, 2, 3])?;
     generator.commit_workitems()?;
-    generator.cook_pdg_blocking()?;
+    generator.cook_pdg_blocking(false)?;
     let script_node = session
         .node_builder("pythonscript")
         .with_parent(topnet)
@@ -45,7 +45,7 @@ fn main() -> anyhow::Result<()> {
     script_node.connect_input(0, generator, 0)?;
     script_node.set_display_flag(true)?;
     let script_node = script_node.to_top_node().unwrap();
-    script_node.cook_pdg_blocking()?;
+    script_node.cook_pdg_blocking(false)?;
     let workitems = script_node.get_all_workitems()?;
     let data = workitems[0].get_int_data("my_int_data")?;
     assert_eq!(data, vec![1, 4, 27]);
