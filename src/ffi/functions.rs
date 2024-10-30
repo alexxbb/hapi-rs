@@ -3085,9 +3085,12 @@ pub fn cook_pdg(
     all_outputs: bool,
 ) -> Result<()> {
     unsafe {
+        let _fn_name;
         let cook_fn = if all_outputs {
+            _fn_name = "HAPI_CookPDGAllOutputs";
             raw::HAPI_CookPDGAllOutputs
         } else {
+            _fn_name = "HAPI_CookPDG";
             raw::HAPI_CookPDG
         };
         cook_fn(
@@ -3096,7 +3099,7 @@ pub fn cook_pdg(
             generate_only as i32,
             blocking as i32,
         )
-        .check_err(session, || "Calling HAPI_CookPDG")
+        .check_err(session, || std::borrow::Cow::Owned(format!("Calling {}", _fn_name)))
     }
 }
 
@@ -3209,23 +3212,19 @@ pub fn get_workitem_result(
     workitem_id: i32,
     count: i32,
 ) -> Result<Vec<raw::HAPI_PDG_WorkitemResultInfo>> {
-    let _info = raw::HAPI_PDG_WorkItemOutputFile {
-        filePathSH: -1,
-        tagSH: -1,
-        hash: -1,
-    };
-    let mut infos = vec![_info; count as usize];
+    let mut infos = Vec::<MaybeUninit<raw::HAPI_PDG_WorkItemOutputFile>>::with_capacity(count as usize);
     unsafe {
         raw::HAPI_GetWorkItemOutputFiles(
             session.ptr(),
             pdg_node.0,
             workitem_id,
-            infos.as_mut_ptr(),
+            infos.as_mut_ptr() as *mut raw::HAPI_PDG_WorkItemOutputFile,
             count,
         )
         .check_err(session, || "Calling HAPI_GetWorkItemOutputFiles")?;
+        infos.set_len(count as usize);
+        Ok(infos.into_iter().map(|mi| mi.assume_init()).collect())
     }
-    Ok(infos)
 }
 
 pub fn get_pdg_workitems(session: &Session, pdg_node: NodeHandle) -> Result<Vec<i32>> {
@@ -3234,7 +3233,9 @@ pub fn get_pdg_workitems(session: &Session, pdg_node: NodeHandle) -> Result<Vec<
         let mut num = -1;
         raw::HAPI_GetNumWorkitems(session.ptr(), pdg_node.0, &mut num as *mut i32)
             .check_err(session, || "Calling HAPI_GetNumWorkitems")?;
-        debug_assert!(num > 0);
+        if num <= 0 {
+            return Ok(vec![]);
+        }
         let mut array = vec![-1; num as usize];
         raw::HAPI_GetWorkitems(session.ptr(), pdg_node.0, array.as_mut_ptr(), num)
             .check_err(session, || "Calling HAPI_GetWorkitems")?;
