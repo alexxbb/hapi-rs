@@ -153,9 +153,7 @@ pub(crate) fn iterate_tiles(
     tile_size: usize,
     callback: impl Fn(Tile),
 ) -> Result<()> {
-    let mut tile = VolumeTileInfo {
-        inner: crate::ffi::get_volume_first_tile_info(node, part)?,
-    };
+    let mut tile = VolumeTileInfo(crate::ffi::get_volume_first_tile_info(node, part)?);
     let mut tile_num = 0;
     while tile.is_valid() {
         callback(Tile {
@@ -163,7 +161,7 @@ pub(crate) fn iterate_tiles(
             size: tile_size,
             index: tile_num,
         });
-        crate::ffi::get_volume_next_tile_info(node, part, &mut tile.inner)?;
+        crate::ffi::get_volume_next_tile_info(node, part, &mut tile.0)?;
         tile_num += 1;
     }
     Ok(())

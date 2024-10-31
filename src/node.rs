@@ -180,7 +180,7 @@ impl NodeHandle {
     /// Check if the handle is valid (node wasn't deleted)
     pub fn is_valid(&self, session: &Session) -> Result<bool> {
         let info = self.info(session)?;
-        crate::ffi::is_node_valid(session, &info.inner)
+        crate::ffi::is_node_valid(session, &info.0)
     }
 
     /// Upgrade the handle to HoudiniNode, which has more capabilities.
@@ -355,10 +355,8 @@ impl HoudiniNode {
     /// If the node is of Object type, get the information object about it.
     pub fn get_object_info(&self) -> Result<ObjectInfo<'_>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        crate::ffi::get_object_info(&self.session, self.handle).map(|info| ObjectInfo {
-            inner: info,
-            session: (&self.session).into(),
-        })
+        crate::ffi::get_object_info(&self.session, self.handle)
+            .map(|info| ObjectInfo(info, (&self.session).into()))
     }
 
     /// Get a new NodeInfo even for this node.
@@ -377,10 +375,7 @@ impl HoudiniNode {
         let infos = crate::ffi::get_composed_object_list(&self.session, parent)?;
         Ok(infos
             .into_iter()
-            .map(|inner| ObjectInfo {
-                inner,
-                session: (&self.session).into(),
-            })
+            .map(|inner| ObjectInfo(inner, (&self.session).into()))
             .collect())
     }
 
@@ -477,10 +472,10 @@ impl HoudiniNode {
     /// If node is an HDA, return [`AssetInfo'] about it.
     pub fn asset_info(&self) -> Result<AssetInfo> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        Ok(AssetInfo {
-            inner: crate::ffi::get_asset_info(self)?,
-            session: self.session.clone().into(),
-        })
+        Ok(AssetInfo(
+            crate::ffi::get_asset_info(self)?,
+            self.session.clone().into(),
+        ))
     }
     /// Recursively check all nodes for a specific error.
     pub fn check_for_specific_error(&self, error_bits: i32) -> Result<ErrorCode> {
@@ -572,7 +567,7 @@ impl HoudiniNode {
                 info: GeoInfo::from_node(self)?,
             })),
             NodeType::Obj => {
-                let info = crate::ffi::get_geo_display_info(self).map(|inner| GeoInfo { inner })?;
+                let info = crate::ffi::get_geo_display_info(self).map(GeoInfo)?;
                 Ok(Some(Geometry {
                     node: info.node_id().to_node(&self.session)?,
                     info,
@@ -609,7 +604,7 @@ impl HoudiniNode {
                         .to_node(&self.session)
                         .map(|node| Geometry {
                             node,
-                            info: GeoInfo { inner },
+                            info: GeoInfo(inner),
                         })
                 })
                 .collect::<Result<Vec<_>>>()
@@ -629,13 +624,13 @@ impl HoudiniNode {
             relative_to.into(),
             rst_order.unwrap_or(RSTOrder::Default),
         )
-        .map(|inner| Transform { inner })
+        .map(Transform)
     }
 
     /// Set transform on the Object
     pub fn set_transform(&self, transform: &TransformEuler) -> Result<()> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        crate::ffi::set_object_transform(&self.session, self.handle, &transform.inner)
+        crate::ffi::set_object_transform(&self.session, self.handle, &transform.0)
     }
 
     /// Set keyframes animation on the Object.

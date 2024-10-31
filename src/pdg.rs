@@ -36,8 +36,7 @@ impl From<TopNode> for NodeHandle {
 
 impl<'session> PDGWorkItem<'session> {
     pub fn get_info(&self) -> Result<PDGWorkItemInfo> {
-        ffi::get_workitem_info(&self.node.session, self.context_id, self.id.0)
-            .map(|inner| PDGWorkItemInfo { inner })
+        ffi::get_workitem_info(&self.node.session, self.context_id, self.id.0).map(PDGWorkItemInfo)
     }
     /// Retrieve the results of work, if the work item has any.
     pub fn get_results(&self) -> Result<Vec<PDGWorkItemOutputFile<'session>>> {
@@ -52,10 +51,7 @@ impl<'session> PDGWorkItem<'session> {
                 )?;
                 let results = results
                     .into_iter()
-                    .map(|inner| PDGWorkItemOutputFile {
-                        inner,
-                        session: (&self.node.session).into(),
-                    })
+                    .map(|inner| PDGWorkItemOutputFile(inner, (&self.node.session).into()))
                     .collect();
 
                 Ok(results)
@@ -249,7 +245,7 @@ impl TopNode {
             debug_assert_eq!(graph_ids.len(), graph_names.len());
             for (graph_id, graph_name) in graph_ids.into_iter().zip(graph_names) {
                 for event in ffi::get_pdg_events(session, graph_id, &mut events)? {
-                    let event = PDGEventInfo { inner: *event };
+                    let event = PDGEventInfo(*event);
                     match event.event_type() {
                         PdgEventType::EventCookComplete => break 'main,
                         _ => {
@@ -280,7 +276,13 @@ impl TopNode {
     /// If all_outputs is true and this TOP node is of topnet type, cook all network outptus.
     /// Results can then be retrieved from workitems with get_all_workitems()
     pub fn cook_pdg_blocking(&self, all_outputs: bool) -> Result<()> {
-        ffi::cook_pdg(&self.node.session, self.node.handle, false, true, all_outputs)
+        ffi::cook_pdg(
+            &self.node.session,
+            self.node.handle,
+            false,
+            true,
+            all_outputs,
+        )
     }
 
     /// Get the graph(context) id of this node in PDG.

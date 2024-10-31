@@ -1539,7 +1539,7 @@ pub fn get_output_geos(node: &HoudiniNode) -> Result<Vec<raw::HAPI_GeoInfo>> {
 pub fn get_group_count_by_type(geo_info: &GeoInfo, group_type: raw::GroupType) -> i32 {
     // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
     // actually shouldn't?
-    let ptr = (&geo_info.inner as *const _) as *mut raw::HAPI_GeoInfo;
+    let ptr = (&geo_info.0 as *const _) as *mut raw::HAPI_GeoInfo;
     unsafe { raw::HAPI_GeoInfo_GetGroupCountByType(ptr, group_type) }
 }
 
@@ -1550,7 +1550,7 @@ pub fn get_element_count_by_attribute_owner(
     unsafe {
         // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
         // actually shouldn't?
-        let ptr = (&part.inner as *const _) as *mut raw::HAPI_PartInfo;
+        let ptr = (&part.0 as *const _) as *mut raw::HAPI_PartInfo;
         Ok(raw::HAPI_PartInfo_GetElementCountByAttributeOwner(
             ptr, owner,
         ))
@@ -1561,7 +1561,7 @@ pub fn get_attribute_count_by_owner(part: &PartInfo, owner: raw::AttributeOwner)
     unsafe {
         // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
         // actually shouldn't?
-        let ptr = (&part.inner as *const _) as *mut raw::HAPI_PartInfo;
+        let ptr = (&part.0 as *const _) as *mut raw::HAPI_PartInfo;
         Ok(raw::HAPI_PartInfo_GetAttributeCountByOwner(ptr, owner))
     }
 }
@@ -1892,19 +1892,14 @@ pub fn create_heightfield_input_volume(
 
 pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {
     unsafe {
-        super::raw::HAPI_SetPartInfo(
-            node.session.ptr(),
-            node.handle.0,
-            info.part_id(),
-            &info.inner,
-        )
-        .check_err(&node.session, || "Calling HAPI_SetPartInfo")
+        super::raw::HAPI_SetPartInfo(node.session.ptr(), node.handle.0, info.part_id(), &info.0)
+            .check_err(&node.session, || "Calling HAPI_SetPartInfo")
     }
 }
 
 pub fn set_curve_info(node: &HoudiniNode, part_id: i32, info: &CurveInfo) -> Result<()> {
     unsafe {
-        super::raw::HAPI_SetCurveInfo(node.session.ptr(), node.handle.0, part_id, &info.inner)
+        super::raw::HAPI_SetCurveInfo(node.session.ptr(), node.handle.0, part_id, &info.0)
             .check_err(&node.session, || "Calling HAPI_SetCurveInfo")
     }
 }
@@ -2317,7 +2312,7 @@ pub fn get_face_counts(
 pub fn get_element_count_by_group(part_info: &PartInfo, group_type: raw::GroupType) -> i32 {
     // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
     // actually shouldn't?
-    let ptr = (&part_info.inner as *const raw::HAPI_PartInfo) as *mut raw::HAPI_PartInfo;
+    let ptr = (&part_info.0 as *const raw::HAPI_PartInfo) as *mut raw::HAPI_PartInfo;
     unsafe { raw::HAPI_PartInfo_GetElementCountByGroupType(ptr, group_type) }
 }
 

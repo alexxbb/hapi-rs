@@ -9,7 +9,7 @@ use crate::errors::Result;
 impl IntParameter {
     /// Set parameter value at index.
     pub fn set(&self, index: i32, value: i32) -> Result<()> {
-        let session = &self.0.info.session;
+        let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         let name = self.c_name()?;
         crate::ffi::set_parm_int_value(self.0.node, session, &name, index, value)
@@ -17,7 +17,7 @@ impl IntParameter {
 
     /// Get parameter value at index.
     pub fn get(&self, index: i32) -> Result<i32> {
-        let session = &self.0.info.session;
+        let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         let name = self.c_name()?;
         crate::ffi::get_parm_int_value(self.0.node, session, &name, index)
@@ -25,7 +25,7 @@ impl IntParameter {
 
     /// Set all parameter tuple values
     pub fn set_array(&self, val: impl AsRef<[i32]>) -> Result<()> {
-        let session = &self.0.info.session;
+        let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         crate::ffi::set_parm_int_values(
             self.0.node,
@@ -38,7 +38,7 @@ impl IntParameter {
 
     /// Set parameter tuple values
     pub fn get_array(&self) -> Result<Vec<i32>> {
-        let session = &self.0.info.session;
+        let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         crate::ffi::get_parm_int_values(
             self.0.node,
@@ -60,7 +60,7 @@ impl IntParameter {
 impl FloatParameter {
     /// Set parameter value at index.
     pub fn set(&self, index: i32, value: f32) -> Result<()> {
-        let session = &self.0.info.session;
+        let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         let name = self.c_name()?;
         crate::ffi::set_parm_float_value(self.0.node, session, &name, index, value)
@@ -68,7 +68,7 @@ impl FloatParameter {
 
     /// Get parameter value at index.
     pub fn get(&self, index: i32) -> Result<f32> {
-        let session = &self.0.info.session;
+        let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         let name = self.c_name()?;
         crate::ffi::get_parm_float_value(self.0.node, session, &name, index)
@@ -76,7 +76,7 @@ impl FloatParameter {
 
     /// Set all parameter tuple values
     pub fn set_array(&self, values: impl AsRef<[f32]>) -> Result<()> {
-        let session = &self.0.info.session;
+        let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         let mut size = self.0.info.size() as usize;
         let values = values.as_ref();
@@ -102,7 +102,7 @@ impl FloatParameter {
 
     /// Get all parameter tuple values
     pub fn get_array(&self) -> Result<Vec<f32>> {
-        let session = &self.0.info.session;
+        let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         crate::ffi::get_parm_float_values(
             self.0.node,
@@ -116,7 +116,7 @@ impl FloatParameter {
 impl StringParameter {
     /// Set parameter value at index.
     pub fn set(&self, index: i32, value: impl AsRef<str>) -> Result<()> {
-        let session = &self.0.info.session;
+        let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         let value = CString::new(value.as_ref())?;
         crate::ffi::set_parm_string_value(self.0.node, session, self.0.info.id(), index, &value)
@@ -124,14 +124,14 @@ impl StringParameter {
 
     /// Get parameter value at index.
     pub fn get(&self, index: i32) -> Result<String> {
-        let session = &self.0.info.session;
+        let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         let name = self.c_name()?;
         crate::ffi::get_parm_string_value(self.0.node, session, &name, index)
     }
     /// Set all parameter tuple values
     pub fn set_array<T: AsRef<str>>(&self, val: impl AsRef<[T]>) -> Result<()> {
-        let session = &self.0.info.session;
+        let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         let values = val
             .as_ref()
@@ -143,7 +143,7 @@ impl StringParameter {
 
     /// Get all parameter tuple values
     pub fn get_array(&self) -> Result<Vec<String>> {
-        let session = &self.0.info.session;
+        let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         crate::ffi::get_parm_string_values(
             self.0.node,
@@ -165,7 +165,7 @@ impl StringParameter {
         let dest_dir = crate::utils::path_to_cstring(destination_dir)?;
         let dest_file = CString::new(filename)?;
         crate::ffi::get_file_parm(
-            &self.0.info.session,
+            &self.0.info.1,
             self.0.node,
             &self.c_name()?,
             &dest_dir,

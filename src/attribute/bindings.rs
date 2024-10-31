@@ -127,13 +127,13 @@ impl AttribAccess for _val_type {
     ) -> Result<()> {
         debug_assert!(node.is_valid()?);
         buffer.resize(
-            (info.inner.count * info.inner.tupleSize) as usize,
+            (info.0.count * info.0.tupleSize) as usize,
             _val_type::default(),
         );
         unsafe {
             // SAFETY: Most likely an error in C API, it should not modify the info object,
             // but for some reason it wants a mut pointer
-            let attr_info = &info.inner as *const _ as *mut HAPI_AttributeInfo;
+            let attr_info = &info.0 as *const _ as *mut HAPI_AttributeInfo;
             raw::_get(
                 node.session.ptr(),
                 node.handle.0,
@@ -143,7 +143,7 @@ impl AttribAccess for _val_type {
                 -1,
                 buffer.as_mut_ptr(),
                 0,
-                info.inner.count,
+                info.0.count,
             )
             .check_err(&node.session, || stringify!(Calling _get))
         }
@@ -164,7 +164,7 @@ impl AttribAccess for _val_type {
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                &info.inner,
+                &info.0,
                 data.as_ptr(),
                 start,
                 len,
@@ -182,20 +182,20 @@ impl AttribAccess for _val_type {
         [Self]: ToOwned<Owned = Vec<Self>>,
     {
         debug_assert!(node.is_valid()?);
-        let mut data = vec![_val_type::default(); info.inner.totalArrayElements as usize];
-        let mut sizes = vec![0; info.inner.count as usize];
+        let mut data = vec![_val_type::default(); info.0.totalArrayElements as usize];
+        let mut sizes = vec![0; info.0.count as usize];
         unsafe {
             raw::_get_array(
                 node.session.ptr(),
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                &info.inner as *const _ as *mut _,
+                &info.0 as *const _ as *mut _,
                 data.as_mut_ptr(),
-                info.inner.totalArrayElements as i32,
+                info.0.totalArrayElements as i32,
                 sizes.as_mut_ptr(),
                 0,
-                info.inner.count,
+                info.0.count,
             )
             .check_err(&node.session, || stringify!(Calling _get_array))?;
         }
@@ -220,12 +220,12 @@ impl AttribAccess for _val_type {
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                &info.inner,
+                &info.0,
                 data.as_ptr(),
-                info.inner.totalArrayElements as i32,
+                info.0.totalArrayElements as i32,
                 sizes.as_ptr(),
                 0,
-                info.inner.count,
+                info.0.count,
             )
             .check_err(&node.session, || stringify!(Calling _set_array))?;
         }

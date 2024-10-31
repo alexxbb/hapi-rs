@@ -154,7 +154,7 @@ impl StringAttr {
             &self.0.node,
             part_id,
             self.0.name.as_c_str(),
-            &self.0.info.inner,
+            &self.0.info.0,
         )
     }
     pub fn set(&self, part_id: i32, values: &[&str]) -> Result<()> {
@@ -167,7 +167,7 @@ impl StringAttr {
             &self.0.node,
             part_id,
             self.0.name.as_c_str(),
-            &self.0.info.inner,
+            &self.0.info.0,
             ptrs.as_mut(),
         )
     }
@@ -195,7 +195,7 @@ impl StringArrayAttr {
         bindings::set_attribute_string_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
-            &self.0.info.inner,
+            &self.0.info.0,
             ptrs.as_mut(),
             &sizes,
         )
@@ -213,7 +213,7 @@ impl DictionaryAttr {
             &self.0.node,
             part_id,
             self.0.name.as_c_str(),
-            &self.0.info.inner,
+            &self.0.info.0,
         )
     }
 
@@ -228,7 +228,7 @@ impl DictionaryAttr {
             &self.0.node,
             part_id,
             &self.0.name.as_c_str(),
-            &self.0.info.inner,
+            &self.0.info.0,
             cstrings.as_mut(),
         )
     }
@@ -256,7 +256,7 @@ impl DictionaryArrayAttr {
         bindings::set_attribute_dictionary_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
-            &self.0.info.inner,
+            &self.0.info.0,
             ptrs.as_mut(),
             &sizes,
         )
@@ -411,6 +411,6 @@ impl Attribute {
         self.0.info()
     }
     pub fn delete(self, part_id: i32) -> Result<()> {
-        crate::ffi::delete_attribute(self.0.node(), part_id, self.0.name(), &self.0.info().inner)
+        crate::ffi::delete_attribute(self.0.node(), part_id, self.0.name(), &self.0.info().0)
     }
 }

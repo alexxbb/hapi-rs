@@ -70,8 +70,7 @@ impl Material {
 
     pub fn get_image_info(&self) -> Result<ImageInfo> {
         debug_assert!(self.session.is_valid());
-        crate::ffi::get_image_info(&self.session, self.node_handle())
-            .map(|inner| ImageInfo { inner })
+        crate::ffi::get_image_info(&self.session, self.node_handle()).map(ImageInfo)
     }
 
     pub fn get_image_planes(&self) -> Result<Vec<String>> {

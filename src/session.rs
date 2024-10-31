@@ -420,14 +420,8 @@ impl Session {
         rst_order: RSTOrder,
     ) -> Result<Vec<Transform>> {
         debug_assert!(self.is_valid());
-        crate::ffi::get_composed_object_transforms(self, *parent.as_ref(), rst_order).map(
-            |transforms| {
-                transforms
-                    .into_iter()
-                    .map(|tr| Transform { inner: tr })
-                    .collect()
-            },
-        )
+        crate::ffi::get_composed_object_transforms(self, *parent.as_ref(), rst_order)
+            .map(|transforms| transforms.into_iter().map(Transform).collect())
     }
 
     /// Save current session to hip file
@@ -592,13 +586,13 @@ impl Session {
     /// Set Houdini timeline options
     pub fn set_timeline_options(&self, options: TimelineOptions) -> Result<()> {
         debug_assert!(self.is_valid());
-        crate::ffi::set_timeline_options(self, &options.inner)
+        crate::ffi::set_timeline_options(self, &options.0)
     }
 
     /// Get Houdini timeline options
     pub fn get_timeline_options(&self) -> Result<TimelineOptions> {
         debug_assert!(self.is_valid());
-        crate::ffi::get_timeline_options(self).map(|opt| TimelineOptions { inner: opt })
+        crate::ffi::get_timeline_options(self).map(TimelineOptions)
     }
 
     /// Set session to use Houdini time
@@ -616,7 +610,7 @@ impl Session {
     /// Get the viewport(camera) position
     pub fn get_viewport(&self) -> Result<Viewport> {
         debug_assert!(self.is_valid());
-        crate::ffi::get_viewport(self).map(|inner| Viewport { inner })
+        crate::ffi::get_viewport(self).map(Viewport)
     }
 
     /// Set the viewport(camera) position
@@ -633,13 +627,13 @@ impl Session {
     /// Get session sync info
     pub fn get_sync_info(&self) -> Result<SessionSyncInfo> {
         debug_assert!(self.is_valid());
-        crate::ffi::get_session_sync_info(self).map(|inner| SessionSyncInfo { inner })
+        crate::ffi::get_session_sync_info(self).map(SessionSyncInfo)
     }
 
     /// Set session sync info
     pub fn set_sync_info(&self, info: &SessionSyncInfo) -> Result<()> {
         debug_assert!(self.is_valid());
-        crate::ffi::set_session_sync_info(self, &info.inner)
+        crate::ffi::set_session_sync_info(self, &info.0)
     }
 
     /// Get license type used by this session
@@ -681,10 +675,7 @@ impl Session {
         debug_assert!(self.is_valid());
         crate::ffi::get_supported_image_file_formats(self).map(|v| {
             v.into_iter()
-                .map(|inner| ImageFileFormat {
-                    inner,
-                    session: self.into(),
-                })
+                .map(|inner| ImageFileFormat(inner, self.into()))
                 .collect()
         })
     }
@@ -718,11 +709,11 @@ impl Session {
         crate::ffi::python_thread_interpreter_lock(self, lock)
     }
     pub fn get_compositor_options(&self) -> Result<CompositorOptions> {
-        crate::ffi::get_compositor_options(self).map(|opts| CompositorOptions { inner: opts })
+        crate::ffi::get_compositor_options(self).map(CompositorOptions)
     }
 
     pub fn set_compositor_options(&self, options: &CompositorOptions) -> Result<()> {
-        crate::ffi::set_compositor_options(self, &options.inner)
+        crate::ffi::set_compositor_options(self, &options.0)
     }
 }
 
@@ -775,7 +766,7 @@ pub fn connect_to_pipe(
     let handle = loop {
         let mut last_error = None;
         debug!("Trying to connect to pipe server");
-        match crate::ffi::new_thrift_piped_session(&c_str, &options.session_info.inner) {
+        match crate::ffi::new_thrift_piped_session(&c_str, &options.session_info.0) {
             Ok(handle) => break handle,
             Err(e) => {
                 last_error.replace(e);
@@ -802,11 +793,8 @@ pub fn connect_to_socket(
     debug!("Connecting to socket server: {:?}", addr);
     let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
     let options = options.cloned().unwrap_or_default();
-    let handle = crate::ffi::new_thrift_socket_session(
-        addr.port() as i32,
-        &host,
-        &options.session_info.inner,
-    )?;
+    let handle =
+        crate::ffi::new_thrift_socket_session(addr.port() as i32, &host, &options.session_info.0)?;
     let connection = ConnectionType::ThriftSocket(addr);
     let session = Session::new(handle, connection, options, None);
     session.initialize()?;
@@ -817,7 +805,7 @@ pub fn connect_to_socket(
 pub fn new_in_process(options: Option<&SessionOptions>) -> Result<Session> {
     debug!("Creating new in-process session");
     let options = options.cloned().unwrap_or_default();
-    let handle = crate::ffi::create_inprocess_session(&options.session_info.inner)?;
+    let handle = crate::ffi::create_inprocess_session(&options.session_info.0)?;
     let connection = ConnectionType::InProcess;
     let session = Session::new(handle, connection, options, Some(std::process::id()));
     session.initialize()?;
@@ -1070,7 +1058,7 @@ pub fn start_engine_pipe_server(
     let log_file = log_file.map(CString::new).transpose()?;
     let c_str = utils::path_to_cstring(path)?;
     crate::ffi::clear_connection_error()?;
-    crate::ffi::start_thrift_pipe_server(&c_str, &options.inner, log_file.as_deref())
+    crate::ffi::start_thrift_pipe_server(&c_str, &options.0, log_file.as_deref())
 }
 
 /// Spawn a new socket Engine server and return its PID
@@ -1082,7 +1070,7 @@ pub fn start_engine_socket_server(
     debug!("Starting socket server on port: {}", port);
     let log_file = log_file.map(CString::new).transpose()?;
     crate::ffi::clear_connection_error()?;
-    crate::ffi::start_thrift_socket_server(port as i32, &options.inner, log_file.as_deref())
+    crate::ffi::start_thrift_socket_server(port as i32, &options.0, log_file.as_deref())
 }
 
 /// Start an interactive Houdini session with engine server embedded.
