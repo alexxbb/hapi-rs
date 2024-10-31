@@ -69,7 +69,7 @@ fn _create_triangle(geo: &Geometry) {
 }
 
 fn _create_single_point_geo(session: &Session) -> Result<Geometry> {
-    let geo = session.create_input_node("dummy")?;
+    let geo = session.create_input_node("dummy", None)?;
     let part = PartInfo::default()
         .with_part_type(PartType::Mesh)
         .with_point_count(1);
@@ -128,7 +128,7 @@ fn geometry_attribute_names() {
 #[test]
 fn geometry_numeric_attributes() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("test").unwrap();
+        let geo = session.create_input_node("test", None).unwrap();
         _create_triangle(&geo);
         // Generic way to get an attribute
         let _attr_p = geo
@@ -147,7 +147,7 @@ fn geometry_numeric_attributes() {
 #[test]
 fn geometry_create_string_attrib() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("test").unwrap();
+        let geo = session.create_input_node("test", None).unwrap();
         _create_triangle(&geo);
         let part = geo.part_info(0).unwrap().expect("part 0");
         let info = AttributeInfo::default()
@@ -178,7 +178,7 @@ fn geometry_create_string_attrib() {
 #[test]
 fn geometry_create_string_array_attrib() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("test").unwrap();
+        let geo = session.create_input_node("test", None).unwrap();
         _create_triangle(&geo);
         let part = geo.part_info(0).unwrap().expect("part 0");
         let info = AttributeInfo::default()
@@ -238,7 +238,7 @@ fn geometry_read_array_attributes() {
 #[test]
 fn geometry_create_and_set_array_attributes() {
     SESSION.with(|session| {
-        let input = session.create_input_node("test").unwrap();
+        let input = session.create_input_node("test", None).unwrap();
         let part = PartInfo::default()
             .with_part_type(PartType::Mesh)
             .with_face_count(0)
@@ -337,14 +337,14 @@ fn geometry_string_array_attribute() {
 #[test]
 fn geometry_save_and_load_to_file() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("triangle").unwrap();
+        let geo = session.create_input_node("triangle", None).unwrap();
         _create_triangle(&geo);
         let tmp_file = std::env::temp_dir().join("triangle.geo");
         geo.save_to_file(&tmp_file.to_string_lossy())
             .expect("save_to_file");
         geo.node.delete().unwrap();
 
-        let geo = session.create_input_node("dummy").unwrap();
+        let geo = session.create_input_node("dummy", None).unwrap();
         geo.load_from_file(&tmp_file.to_string_lossy())
             .expect("load_from_file");
         geo.node.cook().unwrap();
@@ -356,14 +356,14 @@ fn geometry_save_and_load_to_file() {
 #[test]
 fn geometry_save_and_load_to_memory() {
     SESSION.with(|session| {
-        let src_geo = session.create_input_node("source").unwrap();
+        let src_geo = session.create_input_node("source", None).unwrap();
         _create_triangle(&src_geo);
         let blob = src_geo
             .save_to_memory(GeoFormat::Geo)
             .expect("save_geo_to_memory");
         src_geo.node.delete().unwrap();
 
-        let dest_geo = session.create_input_node("dest").unwrap();
+        let dest_geo = session.create_input_node("dest", None).unwrap();
         _create_triangle(&dest_geo);
         dest_geo
             .load_from_memory(&blob, GeoFormat::Geo)
@@ -375,7 +375,7 @@ fn geometry_save_and_load_to_memory() {
 #[test]
 fn geometry_commit_and_revert() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("input").unwrap();
+        let geo = session.create_input_node("input", None).unwrap();
         _create_triangle(&geo);
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
@@ -437,7 +437,7 @@ fn geometry_elements() {
 #[test]
 fn geometry_delete_attribute() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("input").unwrap();
+        let geo = session.create_input_node("input", None).unwrap();
         _create_triangle(&geo);
         let id_attr = geo
             .get_attribute(0, AttributeOwner::Point, "id")
@@ -456,7 +456,7 @@ fn geometry_delete_attribute() {
 #[test]
 fn geometry_partitions() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("input").unwrap();
+        let geo = session.create_input_node("input", None).unwrap();
         _create_triangle(&geo);
         assert_eq!(geo.partitions().unwrap().len(), 1);
         assert!(matches!(geo.part_info(100), Ok(None)));
@@ -466,7 +466,7 @@ fn geometry_partitions() {
 #[test]
 fn geometry_add_and_delete_group() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("input").unwrap();
+        let geo = session.create_input_node("input", None).unwrap();
         _create_triangle(&geo);
         geo.add_group(0, GroupType::Point, "test", Some(&[1, 1, 1]))
             .unwrap();
@@ -494,26 +494,25 @@ fn geometry_basic_instancing() {
         let opt =
             CookOptions::default().with_packed_prim_instancing_mode(PackedPrimInstancingMode::Flat);
         node.cook_with_options(&opt, true).unwrap();
-        let outputs = node.geometry_output_nodes().unwrap();
-        let instancer = outputs.get(1).unwrap();
-        let ids = instancer.get_instanced_part_ids(None).unwrap();
+        let instancer = node
+            .get_child_by_path("instance")
+            .unwrap()
+            .expect("instance node");
+        let geo = instancer.geometry().unwrap().expect("geometry");
+        let ids = geo.get_instanced_part_ids(None).unwrap();
         assert_eq!(ids.len(), 1);
-        let names = instancer
+        let names = geo
             .get_instance_part_groups_names(GroupType::Prim, ids[0])
             .unwrap();
         let names: Vec<String> = names.into_iter().collect();
-        assert_eq!(names.first().unwrap(), "group_1");
-        assert_eq!(names.last().unwrap(), "group_6");
-        let transforms = instancer
+        assert!(names.contains(&String::from("group_1")));
+        assert!(names.contains(&String::from("group_6")));
+        let transforms = geo
             .get_instance_part_transforms(None, RSTOrder::Srt)
             .unwrap();
         assert_eq!(
             transforms.len() as i32,
-            instancer
-                .part_info(0)
-                .unwrap()
-                .expect("part 0")
-                .instance_count()
+            geo.part_info(0).unwrap().expect("part 0").instance_count()
         );
     })
 }
@@ -532,7 +531,7 @@ fn geometry_get_face_materials() {
 #[test]
 fn geometry_create_input_curve() {
     SESSION.with(|session| {
-        let geo = session.create_input_curve_node("InputCurve").unwrap();
+        let geo = session.create_input_curve_node("InputCurve", None).unwrap();
         let positions = &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
         geo.set_input_curve_positions(0, positions).unwrap();
         let p = geo.get_position_attribute(0).unwrap();
@@ -544,7 +543,7 @@ fn geometry_create_input_curve() {
 #[test]
 fn geometry_multiple_input_curves() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("InputCurves").unwrap();
+        let geo = session.create_input_node("InputCurves", None).unwrap();
         let points = vec![
             0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 2.0, 0.0, 0.0, 2.0, 1.0,
             0.0,
@@ -589,7 +588,7 @@ fn geometry_read_write_volume() {
         let source = node.geometry().unwrap().unwrap();
         let source_part = source.part_info(0).unwrap().expect("part 0");
         let vol_info = source.volume_info(0).unwrap();
-        let dest_geo = session.create_input_node("volume_copy").unwrap();
+        let dest_geo = session.create_input_node("volume_copy", None).unwrap();
         dest_geo.node.cook_blocking().unwrap();
         dest_geo.set_part_info(&source_part).unwrap();
         dest_geo.set_volume_info(0, &vol_info).unwrap();

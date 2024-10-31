@@ -8,6 +8,7 @@ use std::vec;
 
 use raw::HAPI_PDG_EventInfo;
 
+use super::raw;
 use crate::ffi::bindings::HAPI_StringHandle;
 use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId, RSTOrder};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
@@ -18,8 +19,6 @@ use crate::{
     session::{Session, SessionOptions},
     stringhandle::{StringArray, StringHandle},
 };
-
-use super::raw;
 
 macro_rules! uninit {
     () => {
@@ -771,10 +770,10 @@ pub fn set_cache_property(
     }
 }
 
-pub fn create_inprocess_session() -> Result<raw::HAPI_Session> {
+pub fn create_inprocess_session(info: &raw::HAPI_SessionInfo) -> Result<raw::HAPI_Session> {
     let mut ses = uninit!();
     unsafe {
-        match raw::HAPI_CreateInProcessSession(ses.as_mut_ptr()) {
+        match raw::HAPI_CreateInProcessSession(ses.as_mut_ptr(), info as *const _) {
             err @ raw::HapiResult::Failure => Err(HapiError::new(
                 Kind::Hapi(err),
                 None,
@@ -873,21 +872,37 @@ pub fn start_thrift_socket_server(
     }
 }
 
-pub fn new_thrift_piped_session(path: &CStr) -> Result<raw::HAPI_Session> {
+pub fn new_thrift_piped_session(
+    path: &CStr,
+    info: &raw::HAPI_SessionInfo,
+) -> Result<raw::HAPI_Session> {
     let mut handle = uninit!();
     let session = unsafe {
-        raw::HAPI_CreateThriftNamedPipeSession(handle.as_mut_ptr(), path.as_ptr())
-            .error_message("Calling HAPI_CreateThriftNamedPipeSession: failed")?;
+        raw::HAPI_CreateThriftNamedPipeSession(
+            handle.as_mut_ptr(),
+            path.as_ptr(),
+            info as *const _,
+        )
+        .error_message("Calling HAPI_CreateThriftNamedPipeSession: failed")?;
         handle.assume_init()
     };
     Ok(session)
 }
 
-pub fn new_thrift_socket_session(port: i32, host: &CStr) -> Result<raw::HAPI_Session> {
+pub fn new_thrift_socket_session(
+    port: i32,
+    host: &CStr,
+    info: &raw::HAPI_SessionInfo,
+) -> Result<raw::HAPI_Session> {
     let mut handle = uninit!();
     let session = unsafe {
-        raw::HAPI_CreateThriftSocketSession(handle.as_mut_ptr(), host.as_ptr(), port)
-            .error_message("Calling HAPI_CreateThriftSocketSession: failed")?;
+        raw::HAPI_CreateThriftSocketSession(
+            handle.as_mut_ptr(),
+            host.as_ptr(),
+            port,
+            info as *const _,
+        )
+        .error_message("Calling HAPI_CreateThriftSocketSession: failed")?;
         handle.assume_init()
     };
     Ok(session)
@@ -1085,20 +1100,38 @@ pub fn create_node(
     }
 }
 
-pub fn create_input_node(session: &Session, name: &CStr) -> Result<raw::HAPI_NodeId> {
+pub fn create_input_node(
+    session: &Session,
+    name: &CStr,
+    parent: Option<NodeHandle>,
+) -> Result<raw::HAPI_NodeId> {
     let mut id = uninit!();
     unsafe {
-        raw::HAPI_CreateInputNode(session.ptr(), id.as_mut_ptr(), name.as_ptr())
-            .check_err(session, || "Calling HAPI_CreateInputNode")?;
+        raw::HAPI_CreateInputNode(
+            session.ptr(),
+            parent.unwrap_or_default().0,
+            id.as_mut_ptr(),
+            name.as_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_CreateInputNode")?;
         Ok(id.assume_init())
     }
 }
 
-pub fn create_input_curve_node(session: &Session, name: &CStr) -> Result<raw::HAPI_NodeId> {
+pub fn create_input_curve_node(
+    session: &Session,
+    name: &CStr,
+    parent: Option<NodeHandle>,
+) -> Result<raw::HAPI_NodeId> {
     let mut id = uninit!();
     unsafe {
-        raw::HAPI_CreateInputCurveNode(session.ptr(), id.as_mut_ptr(), name.as_ptr())
-            .check_err(session, || "Calling HAPI_CreateInputCurveNode")?;
+        raw::HAPI_CreateInputCurveNode(
+            session.ptr(),
+            parent.unwrap_or_default().0,
+            id.as_mut_ptr(),
+            name.as_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_CreateInputCurveNode")?;
         Ok(id.assume_init())
     }
 }
@@ -3099,7 +3132,9 @@ pub fn cook_pdg(
             generate_only as i32,
             blocking as i32,
         )
-        .check_err(session, || std::borrow::Cow::Owned(format!("Calling {}", _fn_name)))
+        .check_err(session, || {
+            std::borrow::Cow::Owned(format!("Calling {}", _fn_name))
+        })
     }
 }
 
@@ -3212,7 +3247,8 @@ pub fn get_workitem_result(
     workitem_id: i32,
     count: i32,
 ) -> Result<Vec<raw::HAPI_PDG_WorkitemResultInfo>> {
-    let mut infos = Vec::<MaybeUninit<raw::HAPI_PDG_WorkItemOutputFile>>::with_capacity(count as usize);
+    let mut infos =
+        Vec::<MaybeUninit<raw::HAPI_PDG_WorkItemOutputFile>>::with_capacity(count as usize);
     unsafe {
         raw::HAPI_GetWorkItemOutputFiles(
             session.ptr(),

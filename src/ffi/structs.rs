@@ -94,7 +94,7 @@ macro_rules! wrap {
             pub fn [<with_ $method>](mut self, val: bool) -> Self {self.inner.$field = val as i8; self}
         }
     };
-    (_with_ $method:ident->$field:ident->$tp:ty) => {
+(_with_ $method:ident->$field:ident->$tp:ty) => {
         paste!{
             pub fn [<with_ $method>](mut self, val: $tp) -> Self {self.inner.$field = val; self}
         }
@@ -174,6 +174,44 @@ macro_rules! wrap {
         }
     };
 }
+
+/// Configurations for sessions
+#[derive(Clone, Debug)]
+pub struct SessionInfo {
+    pub(crate) inner: HAPI_SessionInfo,
+}
+
+wrap! {
+    Default SessionInfo [HAPI_SessionInfo_Create => HAPI_SessionInfo];
+    [get] connection_count->connectionCount->[i32];
+    [get|set|with] port_type->portType->[TcpPortType];
+    [get] min_port->minPort->[i32];
+    [get] max_port->maxPort->[i32];
+    [get] ports->ports->[[i32;128usize]];
+    [get|set|with] shared_memory_buffer_type->sharedMemoryBufferType->[ThriftSharedMemoryBufferType];
+    [get|set|with] shared_memory_buffer_size->sharedMemoryBufferSize->[i64];
+}
+
+/// Options to configure a Thrift server being started from HARC.
+#[derive(Clone)]
+pub struct ThriftServerOptions {
+    pub(crate) inner: HAPI_ThriftServerOptions,
+}
+
+wrap! {
+    Default ThriftServerOptions [HAPI_ThriftServerOptions_Create => HAPI_ThriftServerOptions];
+    [get|set|with] auto_close->autoClose->[bool];
+    [get|set|with] timeout_ms->timeoutMs->[f32];
+    [get|set|with] verbosity->verbosity->[StatusVerbosity];
+    [get|set|with] shared_memory_buffer_type->sharedMemoryBufferType->[ThriftSharedMemoryBufferType];
+    [get|set|with] shared_memory_buffer_size->sharedMemoryBufferSize->[i64];
+}
+
+// pub autoClose: HAPI_Bool,
+// pub timeoutMs: f32,
+// pub verbosity: StatusVerbosity,
+// pub sharedMemoryBufferType: ThriftSharedMemoryBufferType,
+// pub sharedMemoryBufferSize: HAPI_Int64,
 
 /// Menu parameter label and value
 #[derive(Clone)]

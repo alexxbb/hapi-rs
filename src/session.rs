@@ -26,7 +26,10 @@ use std::{ffi::CString, path::Path, sync::Arc};
 pub use crate::{
     asset::AssetLibrary,
     errors::*,
-    ffi::{enums::*, CookOptions, ImageFileFormat, SessionSyncInfo, TimelineOptions, Viewport},
+    ffi::{
+        enums::*, CookOptions, ImageFileFormat, SessionInfo, SessionSyncInfo, ThriftServerOptions,
+        TimelineOptions, Viewport,
+    },
     node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType, Transform},
     parameter::Parameter,
     stringhandle::StringArray,
@@ -282,22 +285,30 @@ impl Session {
     }
 
     /// Create an input geometry node which can accept modifications
-    pub fn create_input_node(&self, name: &str) -> Result<crate::geometry::Geometry> {
+    pub fn create_input_node(
+        &self,
+        name: &str,
+        parent: Option<NodeHandle>,
+    ) -> Result<crate::geometry::Geometry> {
         debug!("Creating input node: {}", name);
         debug_assert!(self.is_valid());
         let name = CString::new(name)?;
-        let id = crate::ffi::create_input_node(self, &name)?;
+        let id = crate::ffi::create_input_node(self, &name, parent)?;
         let node = HoudiniNode::new(self.clone(), NodeHandle(id), None)?;
         let info = crate::geometry::GeoInfo::from_node(&node)?;
         Ok(crate::geometry::Geometry { node, info })
     }
 
     /// Create an input geometry node with [`crate::enums::PartType`] set to `Curve`
-    pub fn create_input_curve_node(&self, name: &str) -> Result<crate::geometry::Geometry> {
+    pub fn create_input_curve_node(
+        &self,
+        name: &str,
+        parent: Option<NodeHandle>,
+    ) -> Result<crate::geometry::Geometry> {
         debug!("Creating input curve node: {}", name);
         debug_assert!(self.is_valid());
         let name = CString::new(name)?;
-        let id = crate::ffi::create_input_curve_node(self, &name)?;
+        let id = crate::ffi::create_input_curve_node(self, &name, parent)?;
         let node = HoudiniNode::new(self.clone(), NodeHandle(id), None)?;
         let info = crate::geometry::GeoInfo::from_node(&node)?;
         Ok(crate::geometry::Geometry { node, info })
@@ -751,12 +762,13 @@ pub fn connect_to_pipe(
     let c_str = utils::path_to_cstring(&pipe)?;
     let pipe = pipe.as_ref().as_os_str().to_os_string();
     let timeout = timeout.unwrap_or_default();
+    let options = options.cloned().unwrap_or_default();
     let mut waited = Duration::from_secs(0);
     let wait_ms = Duration::from_millis(100);
     let handle = loop {
         let mut last_error = None;
         debug!("Trying to connect to pipe server");
-        match crate::ffi::new_thrift_piped_session(&c_str) {
+        match crate::ffi::new_thrift_piped_session(&c_str, &options.session_info.inner) {
             Ok(handle) => break handle,
             Err(e) => {
                 last_error.replace(e);
@@ -770,12 +782,7 @@ pub fn connect_to_pipe(
         }
     };
     let connection = ConnectionType::ThriftPipe(pipe);
-    let session = Session::new(
-        handle,
-        connection,
-        options.cloned().unwrap_or_default(),
-        pid,
-    );
+    let session = Session::new(handle, connection, options, pid);
     session.initialize()?;
     Ok(session)
 }
@@ -787,14 +794,14 @@ pub fn connect_to_socket(
 ) -> Result<Session> {
     debug!("Connecting to socket server: {:?}", addr);
     let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
-    let handle = crate::ffi::new_thrift_socket_session(addr.port() as i32, &host)?;
+    let options = options.cloned().unwrap_or_default();
+    let handle = crate::ffi::new_thrift_socket_session(
+        addr.port() as i32,
+        &host,
+        &options.session_info.inner,
+    )?;
     let connection = ConnectionType::ThriftSocket(addr);
-    let session = Session::new(
-        handle,
-        connection,
-        options.cloned().unwrap_or_default(),
-        None,
-    );
+    let session = Session::new(handle, connection, options, None);
     session.initialize()?;
     Ok(session)
 }
@@ -802,14 +809,10 @@ pub fn connect_to_socket(
 /// Create in-process session
 pub fn new_in_process(options: Option<&SessionOptions>) -> Result<Session> {
     debug!("Creating new in-process session");
-    let handle = crate::ffi::create_inprocess_session()?;
+    let options = options.cloned().unwrap_or_default();
+    let handle = crate::ffi::create_inprocess_session(&options.session_info.inner)?;
     let connection = ConnectionType::InProcess;
-    let session = Session::new(
-        handle,
-        connection,
-        options.cloned().unwrap_or_default(),
-        Some(std::process::id()),
-    );
+    let session = Session::new(handle, connection, options, Some(std::process::id()));
     session.initialize()?;
     Ok(session)
 }
@@ -819,6 +822,8 @@ pub fn new_in_process(options: Option<&SessionOptions>) -> Result<Session> {
 pub struct SessionOptions {
     /// Session cook options
     pub cook_opt: CookOptions,
+    /// Session connection options
+    pub session_info: SessionInfo,
     /// Create a Threaded server connection
     pub threaded: bool,
     /// Cleanup session upon close
@@ -837,6 +842,7 @@ impl Default for SessionOptions {
     fn default() -> Self {
         SessionOptions {
             cook_opt: CookOptions::default(),
+            session_info: SessionInfo::default(),
             threaded: false,
             cleanup: false,
             ignore_already_init: true,
@@ -854,6 +860,7 @@ impl Default for SessionOptions {
 /// A build for SessionOptions.
 pub struct SessionOptionsBuilder {
     cook_opt: CookOptions,
+    session_info: SessionInfo,
     threaded: bool,
     cleanup: bool,
     ignore_already_init: bool,
@@ -956,6 +963,12 @@ impl SessionOptionsBuilder {
         self
     }
 
+    /// Session init options [`SessionInfo`]
+    pub fn session_info(mut self, info: SessionInfo) -> Self {
+        self.session_info = info;
+        self
+    }
+
     /// Makes the server operate in threaded mode. See the official docs for more info.
     pub fn threaded(mut self, threaded: bool) -> Self {
         self.threaded = threaded;
@@ -973,6 +986,7 @@ impl SessionOptionsBuilder {
         self.write_temp_env_file();
         SessionOptions {
             cook_opt: self.cook_opt,
+            session_info: self.session_info,
             threaded: self.threaded,
             cleanup: self.cleanup,
             ignore_already_init: self.cleanup,
@@ -1042,43 +1056,29 @@ impl From<i32> for SessionState {
 /// Spawn a new pipe Engine process and return its PID
 pub fn start_engine_pipe_server(
     path: impl AsRef<Path>,
-    auto_close: bool,
-    timeout: f32,
-    verbosity: StatusVerbosity,
     log_file: Option<&str>,
+    options: &ThriftServerOptions,
 ) -> Result<u32> {
     debug!("Starting named pipe server: {:?}", path.as_ref());
-    let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
-        autoClose: auto_close as i8,
-        timeoutMs: timeout,
-        verbosity,
-    };
     let log_file = log_file.map(CString::new).transpose()?;
     let c_str = utils::path_to_cstring(path)?;
     crate::ffi::clear_connection_error()?;
-    crate::ffi::start_thrift_pipe_server(&c_str, &opts, log_file.as_deref())
+    crate::ffi::start_thrift_pipe_server(&c_str, &options.inner, log_file.as_deref())
 }
 
 /// Spawn a new socket Engine server and return its PID
 pub fn start_engine_socket_server(
     port: u16,
-    auto_close: bool,
-    timeout: i32,
-    verbosity: StatusVerbosity,
     log_file: Option<&str>,
+    options: &ThriftServerOptions,
 ) -> Result<u32> {
     debug!("Starting socket server on port: {}", port);
-    let opts = crate::ffi::raw::HAPI_ThriftServerOptions {
-        autoClose: auto_close as i8,
-        timeoutMs: timeout as f32,
-        verbosity,
-    };
     let log_file = log_file.map(CString::new).transpose()?;
     crate::ffi::clear_connection_error()?;
-    crate::ffi::start_thrift_socket_server(port as i32, &opts, log_file.as_deref())
+    crate::ffi::start_thrift_socket_server(port as i32, &options.inner, log_file.as_deref())
 }
 
-/// Start a interactive Houdini session with engine server embedded.
+/// Start an interactive Houdini session with engine server embedded.
 pub fn start_houdini_server(
     pipe_name: impl AsRef<str>,
     houdini_executable: impl AsRef<Path>,
@@ -1106,7 +1106,10 @@ pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
         .tempfile()
         .expect("new temp file");
     let (_, file) = file.keep().expect("persistent temp file");
-    let pid =
-        start_engine_pipe_server(&file, true, 4000.0, StatusVerbosity::Statusverbosity1, None)?;
+    let server_options = ThriftServerOptions::default()
+        .with_auto_close(true)
+        .with_timeout_ms(4000f32)
+        .with_verbosity(StatusVerbosity::Statusverbosity1);
+    let pid = start_engine_pipe_server(&file, None, &server_options)?;
     connect_to_pipe(file, options, None, Some(pid))
 }

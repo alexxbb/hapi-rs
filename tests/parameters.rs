@@ -145,9 +145,9 @@ fn parameter_tags() {
         if let Ok(Parameter::Button(parm)) = node.parameter("button") {
             assert!(parm.has_tag("script_callback").unwrap());
             let tag_name = parm.get_tag_name(0).unwrap();
-            assert_eq!(tag_name, "script_callback");
-            let tag_value = parm.get_tag_value("script_callback").unwrap();
-            assert_eq!(tag_value, "hou.phm().callback(kwargs)");
+            assert_eq!(tag_name, "script_callback_language");
+            let tag_value = parm.get_tag_value("script_callback_language").unwrap();
+            assert_eq!(tag_value, "python");
         }
     })
 }

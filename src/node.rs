@@ -165,6 +165,12 @@ impl AsRef<NodeHandle> for NodeHandle {
     }
 }
 
+impl Default for NodeHandle {
+    fn default() -> Self {
+        NodeHandle(-1)
+    }
+}
+
 impl NodeHandle {
     /// Retrieve info about the node this handle belongs to
     pub fn info(&self, session: &Session) -> Result<NodeInfo> {
