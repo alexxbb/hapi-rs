@@ -22,7 +22,8 @@ fn raw_hapi_function_names() -> HashSet<Item> {
         "HAPI_BindCustomImplementation",
         "HAPI_GetImageFilePath",
         "HAPI_GetHandleBindingInfo",
-        "HAPI_GetWorkitemResultInfo"
+        "HAPI_GetWorkitemResultInfo",
+        "HAPI_ParmInfo_GetFloatValueCount",
     ];
     let raw = Path::new("../../src/ffi/bindings.rs");
     let text = std::fs::read_to_string(&raw).expect("bindings.rs");
@@ -79,9 +80,12 @@ fn wrapped_rs_function_names() -> HashSet<Item> {
 fn main() {
     let raw = raw_hapi_function_names();
     let rs = wrapped_rs_function_names();
+    let mut num_missed: i32 = 0;
     for r in raw.iter() {
         if !rs.contains(r) {
             println!("Missing {r:?}");
+            num_missed += 1;
         }
     }
+    println!("Missed {} functions", num_missed);
 }

@@ -3561,3 +3561,22 @@ pub fn python_thread_interpreter_lock(session: &Session, lock: bool) -> Result<(
             .check_err(session, || "Calling HAPI_PythonThreadInterpreterLock")
     }
 }
+
+pub fn set_compositor_options(
+    session: &Session,
+    options: &raw::HAPI_CompositorOptions,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetCompositorOptions(session.ptr(), options as *const _)
+            .check_err(&session, || "Calling HAPI_SetCompositorOptions")
+    }
+}
+
+pub fn get_compositor_options(session: &Session) -> Result<raw::HAPI_CompositorOptions> {
+    unsafe {
+        let mut opts = raw::HAPI_CompositorOptions_Create();
+        raw::HAPI_GetCompositorOptions(session.ptr(), &mut opts as *mut _)
+            .check_err(&session, || "Calling HAPI_GetCompositorOptions")?;
+        Ok(opts)
+    }
+}

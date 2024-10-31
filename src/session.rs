@@ -27,8 +27,8 @@ pub use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::{
-        enums::*, CookOptions, ImageFileFormat, SessionInfo, SessionSyncInfo, ThriftServerOptions,
-        TimelineOptions, Viewport,
+        enums::*, CompositorOptions, CookOptions, ImageFileFormat, SessionInfo, SessionSyncInfo,
+        ThriftServerOptions, TimelineOptions, Viewport,
     },
     node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType, Transform},
     parameter::Parameter,
@@ -716,6 +716,13 @@ impl Session {
     pub fn python_thread_interpreter_lock(&self, lock: bool) -> Result<()> {
         debug_assert!(self.is_valid());
         crate::ffi::python_thread_interpreter_lock(self, lock)
+    }
+    pub fn get_compositor_options(&self) -> Result<CompositorOptions> {
+        crate::ffi::get_compositor_options(self).map(|opts| CompositorOptions { inner: opts })
+    }
+
+    pub fn set_compositor_options(&self, options: &CompositorOptions) -> Result<()> {
+        crate::ffi::set_compositor_options(self, &options.inner)
     }
 }
 

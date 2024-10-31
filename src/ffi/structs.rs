@@ -207,11 +207,16 @@ wrap! {
     [get|set|with] shared_memory_buffer_size->sharedMemoryBufferSize->[i64];
 }
 
-// pub autoClose: HAPI_Bool,
-// pub timeoutMs: f32,
-// pub verbosity: StatusVerbosity,
-// pub sharedMemoryBufferType: ThriftSharedMemoryBufferType,
-// pub sharedMemoryBufferSize: HAPI_Int64,
+#[derive(Clone)]
+pub struct CompositorOptions {
+    pub(crate) inner: HAPI_CompositorOptions,
+}
+
+wrap! {
+    Default CompositorOptions [HAPI_CompositorOptions_Create => HAPI_CompositorOptions];
+    [get|set] max_resolution_x->maximumResolutionX->[i32];
+    [get|set] max_resolution_y->maximumResolutionY->[i32];
+}
 
 /// Menu parameter label and value
 #[derive(Clone)]
