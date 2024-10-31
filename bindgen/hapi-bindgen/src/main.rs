@@ -73,7 +73,9 @@ static ENUMS: Lazy<HashMap<&str, (&str, i32)>> = Lazy::new(|| {
     map.insert("HAPI_PrmScriptType", ("auto", -1));
     map.insert("HAPI_Permissions", ("auto", -2));
     map.insert("HAPI_ParmType", ("auto", 2));
-
+    map.insert("HAPI_JobStatus", ("auto", -1));
+    map.insert("HAPI_TCP_PortType", ("TcpPortType", -1));
+    map.insert("HAPI_ThriftSharedMemoryBufferType", ("auto", -1));
     map.insert("HAPI_PartType", ("auto", -1));
     map.insert("HAPI_StatusVerbosity", ("auto", -1));
     map.insert("HAPI_SessionType", ("auto", -1));
@@ -111,18 +113,17 @@ struct Rustifier {
     visited: RefCell<HashMap<String, Vec<String>>>,
 }
 
-impl ParseCallbacks for Rustifier {
-    fn enum_variant_name(
-        &self,
+impl Rustifier {
+    fn parse_enum_variant(&self, 
         _enum_name: Option<&str>,
         _variant_name: &str,
-        _variant_value: EnumVariantValue,
-    ) -> Option<String> {
+        _variant_value: EnumVariantValue) -> Result<Option<String>, String> {
+        
         if _enum_name.is_none() {
-            return None;
+            return Ok(None);
         };
         let name = _enum_name
-            .unwrap()
+            .ok_or("empty _enum_name".to_string())?
             .strip_prefix("enum ")
             .expect("Not enum?");
         self.visited
@@ -130,21 +131,42 @@ impl ParseCallbacks for Rustifier {
             .entry(name.to_string())
             .and_modify(|variants| variants.push(_variant_name.to_string()))
             .or_default();
-        let (_, _mode) = ENUMS.get(name).expect(&format!("Missing enum: {}", name));
+        let (_, _mode) = ENUMS.get(name).ok_or_else(|| format!("Missing enum: {}", name))?;
         let mode = StripMode::new(*_mode);
         let mut striped = mode.strip_long_name(_variant_name);
-        // Two stripped variant names can collide with each other. We take a dumb approach by
+        // Two stripped variant names can collide with each other. We take a naive approach by
         // attempting to strip one more time with increased step
         if let Some(vars) = self.visited.borrow_mut().get_mut(name) {
             let _stripped = striped.to_string();
             if vars.contains(&_stripped) {
+                println!("enum {name}::{_variant_name} stripped down to \"{striped}\" is not unique. \
+                Incrementing step by 1");
                 let mode = StripMode::new(*_mode - 1);
                 striped = mode.strip_long_name(_variant_name);
+                println!("-> new name is {striped}");
             } else {
                 vars.push(_stripped);
             }
         }
-        Some(heck::AsUpperCamelCase(striped).to_string())
+        Ok(Some(heck::AsUpperCamelCase(striped).to_string()))
+
+        }
+}
+
+impl ParseCallbacks for Rustifier {
+    fn enum_variant_name(
+        &self,
+        _enum_name: Option<&str>,
+        _variant_name: &str,
+        _variant_value: EnumVariantValue,
+    ) -> Option<String> {
+        match self.parse_enum_variant(_enum_name, _variant_name, _variant_value) {
+            Err(e) => {
+                eprintln!("Error parsing enum variant: {e}");
+                std::process::exit(1);
+            }
+            Ok(v) => v
+        }
     }
 
     fn item_name(&self, _item_name: &str) -> Option<String> {
