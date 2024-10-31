@@ -46,7 +46,9 @@ impl ViewportApp {
         let gl = cc.gl.as_ref().expect("Could not init gl Context").clone();
         let options = SessionOptions::default();
         let session = if cfg!(debug_assertions) {
-            if let Ok(session) = hapi_rs::session::connect_to_pipe("hapi", Some(&options), None) {
+            if let Ok(session) =
+                hapi_rs::session::connect_to_pipe("hapi", Some(&options), None, None)
+            {
                 session
             } else {
                 eprintln!("Could not connect to HARS server, starting new in-process");
@@ -293,7 +295,7 @@ impl eframe::App for ViewportApp {
 fn load_icon() -> Option<eframe::IconData> {
     let Ok(file) = std::fs::File::open(ICON) else {
         eprintln!("Could not load app icon");
-        return None
+        return None;
     };
     let decoder = png::Decoder::new(file);
     let mut reader = decoder.read_info().expect("png reader");
