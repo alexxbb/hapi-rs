@@ -883,16 +883,15 @@ impl SessionOptionsBuilder {
     /// Set the server environment variables. See also [`Session::set_server_var`].
     /// The difference is this method writes out a temp file with the variables and
     /// implicitly pass it to the engine (as if [`Self::houdini_env_files`] was used.
-    pub fn env_variables<I, K, V>(mut self, variables: I) -> Self
+    pub fn env_variables<'a, I, K, V>(mut self, variables: I) -> Self
     where
-        I: IntoIterator<Item = (K, V)>,
-        K: Into<String>,
-        V: Into<String>,
+        I: Iterator<Item = &'a (K, V)>,
+        K: ToString + 'a,
+        V: ToString + 'a,
     {
         self.env_variables.replace(
             variables
-                .into_iter()
-                .map(|(k, v)| (k.into(), v.into()))
+                .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
         );
         self
@@ -1043,7 +1042,7 @@ impl From<i32> for SessionState {
             5 => SessionState::StartingLoad,
             6 => SessionState::Loading,
             7 => SessionState::Max,
-            _ => unreachable!(),
+            _ => panic!("Unmatched SessionState - {s}"),
         }
     }
 }
