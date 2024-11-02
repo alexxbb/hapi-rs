@@ -23,7 +23,9 @@ fn raw_hapi_function_names() -> HashSet<Item> {
         "HAPI_GetImageFilePath",
         "HAPI_GetHandleBindingInfo",
         "HAPI_GetWorkitemResultInfo",
+        "HAPI_ParmInfo_GetIntValueCount",
         "HAPI_ParmInfo_GetFloatValueCount",
+        "HAPI_ParmInfo_GetStringValueCount",
     ];
     let raw = Path::new("../../src/ffi/bindings.rs");
     let text = std::fs::read_to_string(&raw).expect("bindings.rs");

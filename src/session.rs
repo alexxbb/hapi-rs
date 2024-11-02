@@ -38,6 +38,7 @@ pub use crate::{
 pub type SessionState = State;
 
 use crate::stringhandle::StringHandle;
+use crate::utils::path_to_cstring;
 use crate::{ffi::raw, utils};
 
 /// Builder struct for [`Session::node_builder`] API
@@ -714,6 +715,11 @@ impl Session {
 
     pub fn set_compositor_options(&self, options: &CompositorOptions) -> Result<()> {
         crate::ffi::set_compositor_options(self, &options.0)
+    }
+
+    pub fn get_preset_names(&self, preset_file: &Path) -> Result<StringArray> {
+        let path = path_to_cstring(preset_file)?;
+        crate::ffi::get_preset_names(self, &path)
     }
 }
 

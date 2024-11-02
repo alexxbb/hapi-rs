@@ -153,3 +153,13 @@ fn test_license_set_via_environment() {
     let plugin_lic_opt = session.get_server_var::<str>(&env[0].0).unwrap();
     assert_eq!(plugin_lic_opt, env[0].1.to_string());
 }
+
+#[test]
+fn test_get_preset_names() {
+    use std::path::Path;
+    SESSION.with(|session| {
+        let path = r#"C:\Temp\null.idx"#;
+        let res = session.get_preset_names(Path::new(path)).unwrap();
+        assert!(res.is_empty())
+    })
+}

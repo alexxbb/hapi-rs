@@ -82,6 +82,9 @@ impl Geometry {
         );
         crate::ffi::get_volume_bounds(&self.node, part_id)
     }
+    pub fn get_volume_visual_info(&self, part_id: i32) -> Result<VolumeVisualInfo> {
+        crate::ffi::get_volume_visual_info(&self.node, part_id).map(VolumeVisualInfo)
+    }
 
     /// Get information about Node's geometry.
     /// Note: The node must be cooked before calling this method.
@@ -852,6 +855,15 @@ impl Geometry {
         );
         let tile_size = (info.tile_size().pow(3) * info.tuple_size()) as usize;
         crate::volume::iterate_tiles(&self.node, part, tile_size, callback)
+    }
+
+    pub fn get_heightfield_data(&self, part_id: i32, volume_info: &VolumeInfo) -> Result<Vec<f32>> {
+        let length = volume_info.x_length() * volume_info.y_length();
+        crate::ffi::get_heightfield_data(&self.node, part_id, length)
+    }
+
+    pub fn set_heightfield_data(&self, part_id: i32, name: &str, data: &[f32]) -> Result<()> {
+        crate::ffi::set_heightfield_data(&self.node, part_id, &CString::new(name)?, data)
     }
 
     pub fn create_heightfield_input(

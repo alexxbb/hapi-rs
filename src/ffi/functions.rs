@@ -1890,9 +1890,45 @@ pub fn create_heightfield_input_volume(
     Ok(NodeHandle(volume_node))
 }
 
+pub fn get_heightfield_data(node: &HoudiniNode, part_id: i32, length: i32) -> Result<Vec<f32>> {
+    unsafe {
+        let mut buffer = vec![0f32; length as usize];
+        raw::HAPI_GetHeightFieldData(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            buffer.as_mut_ptr(),
+            0,
+            length,
+        )
+        .check_err(&node.session, || "Calling HAPI_GetHeightFieldData")?;
+        Ok(buffer)
+    }
+}
+
+pub fn set_heightfield_data(
+    node: &HoudiniNode,
+    part_id: i32,
+    name: &CStr,
+    values: &[f32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetHeightFieldData(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            values.as_ptr(),
+            0,
+            values.len() as i32,
+        )
+        .check_err(&node.session, || "Calling HAPI_SetHeightFieldData")
+    }
+}
+
 pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {
     unsafe {
-        super::raw::HAPI_SetPartInfo(node.session.ptr(), node.handle.0, info.part_id(), &info.0)
+        raw::HAPI_SetPartInfo(node.session.ptr(), node.handle.0, info.part_id(), &info.0)
             .check_err(&node.session, || "Calling HAPI_SetPartInfo")
     }
 }
@@ -2762,6 +2798,33 @@ pub fn set_preset(
     }
 }
 
+pub fn get_preset_names(session: &Session, preset_file: &CStr) -> Result<StringArray> {
+    unsafe {
+        let mut count = -1;
+        let len = preset_file.to_bytes().len();
+        raw::HAPI_GetPresetCount(
+            session.ptr(),
+            preset_file.as_ptr(),
+            len as i32,
+            &mut count as *mut _,
+        )
+        .check_err(session, || "Calling HAPI_GetPresetCount")?;
+        if count < 1 {
+            return Ok(StringArray::empty());
+        }
+        let mut handles = vec![StringHandle(-1); count as usize];
+        raw::HAPI_GetPresetNames(
+            session.ptr(),
+            preset_file.as_ptr(),
+            len as i32,
+            handles.as_mut_ptr() as *mut HAPI_StringHandle,
+            count,
+        )
+        .check_err(session, || "Calling HAPI_GetPresetNames")?;
+        crate::stringhandle::get_string_array(&handles, session)
+    }
+}
+
 pub fn get_material_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_MaterialInfo> {
     unsafe {
         let mut mat = uninit!();
@@ -3573,5 +3636,22 @@ pub fn get_compositor_options(session: &Session) -> Result<raw::HAPI_CompositorO
         raw::HAPI_GetCompositorOptions(session.ptr(), &mut opts as *mut _)
             .check_err(&session, || "Calling HAPI_GetCompositorOptions")?;
         Ok(opts)
+    }
+}
+
+pub fn get_volume_visual_info(
+    node: &HoudiniNode,
+    part_id: i32,
+) -> Result<raw::HAPI_VolumeVisualInfo> {
+    unsafe {
+        let mut info = uninit!();
+        raw::HAPI_GetVolumeVisualInfo(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            info.as_mut_ptr(),
+        )
+        .check_err(&node.session, || "Calling HAPI_GetVolumeVisualInfo")?;
+        Ok(info.assume_init())
     }
 }
