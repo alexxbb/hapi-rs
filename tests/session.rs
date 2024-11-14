@@ -156,10 +156,9 @@ fn test_license_set_via_environment() {
 
 #[test]
 fn test_get_preset_names() {
-    use std::path::Path;
+    let bytes = std::fs::read("tests/data/bone.idx").expect("read file");
     SESSION.with(|session| {
-        let path = r#"C:\Temp\null.idx"#;
-        let res = session.get_preset_names(Path::new(path)).unwrap();
-        assert!(res.is_empty())
+        log::info!("Reading preset file");
+        session.get_preset_names(&bytes).expect("2 presets");
     })
 }
