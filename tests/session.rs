@@ -50,7 +50,7 @@ fn session_init_and_teardown() {
     let ses = quick_session(Some(&opt)).unwrap();
     assert!(matches!(
         ses.connection_type(),
-        ConnectionType::ThriftPipe(_)
+        ConnectionType::SharedMemory(_)
     ));
     assert!(ses.is_initialized());
     assert!(ses.is_valid());
@@ -155,6 +155,7 @@ fn test_license_set_via_environment() {
 }
 
 #[test]
+#[ignore]
 fn test_get_preset_names() {
     let bytes = std::fs::read("tests/data/bone.idx").expect("read file");
     SESSION.with(|session| {

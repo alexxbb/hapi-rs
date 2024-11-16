@@ -156,6 +156,7 @@ pub enum CookResult {
 pub enum ConnectionType {
     ThriftPipe(OsString),
     ThriftSocket(std::net::SocketAddrV4),
+    SharedMemory(String),
     InProcess,
     Custom,
 }
@@ -795,6 +796,24 @@ pub fn connect_to_pipe(
     Ok(session)
 }
 
+pub fn connect_to_memory_server(
+    memory_name: &str,
+    options: Option<&SessionOptions>,
+    pid: Option<u32>,
+) -> Result<Session> {
+    let mem_name = String::from(memory_name);
+    let mem_name_cstr = CString::new(memory_name)?;
+
+    let options = options.cloned().unwrap_or_default();
+    let handle =
+        crate::ffi::new_thrift_shared_memory_session(&mem_name_cstr, &options.session_info.0)?;
+
+    let connection = ConnectionType::SharedMemory(mem_name);
+    let session = Session::new(handle, connection, options, pid);
+    session.initialize()?;
+    Ok(session)
+}
+
 /// Connect to the engine process via a Unix socket
 pub fn connect_to_socket(
     addr: std::net::SocketAddrV4,
@@ -1102,18 +1121,27 @@ pub fn start_houdini_server(
         .map_err(HapiError::from)
 }
 
+/// Spawn a new Engine server utilizing shared memory to transfer data.
+pub fn start_shared_memory_server(
+    memory_name: &str,
+    options: &ThriftServerOptions,
+    log_file: Option<&str>,
+) -> Result<u32> {
+    debug!("Starting shared memory server name: {memory_name}");
+    let memory_name = CString::new(memory_name)?;
+    let log_file = log_file.map(CString::new).transpose()?;
+    crate::ffi::clear_connection_error()?;
+    crate::ffi::start_thrift_shared_memory_server(&memory_name, &options.0, log_file.as_deref())
+}
+
 /// A quick drop-in session, useful for on-off jobs
-/// It starts a **single-threaded** pipe server and initialize a session with default options
+/// It starts a **single-threaded** shared memory server and initialize a session with default options
 pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
-    let file = tempfile::Builder::new()
-        .suffix("-hars.pipe")
-        .tempfile()
-        .expect("new temp file");
-    let (_, file) = file.keep().expect("persistent temp file");
     let server_options = ThriftServerOptions::default()
         .with_auto_close(true)
         .with_timeout_ms(4000f32)
         .with_verbosity(StatusVerbosity::Statusverbosity1);
-    let pid = start_engine_pipe_server(&file, None, &server_options)?;
-    connect_to_pipe(file, options, None, Some(pid))
+    let rand_memory_name = format!("shared-memory-{}", utils::random_string(16));
+    let pid = start_shared_memory_server(&rand_memory_name, &server_options, None)?;
+    connect_to_memory_server(&rand_memory_name, options, Some(pid))
 }

@@ -44,3 +44,16 @@ where
     }
     buf
 }
+
+/// Generates a random ascii a-z sequence of specified length
+pub fn random_string(len: usize) -> String {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
+
+    let mut seed = RandomState::new().build_hasher().finish();
+    let next = || {
+        seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
+        ((seed % 26) + 97) as u8 as char
+    };
+    std::iter::repeat_with(next).take(len).collect()
+}

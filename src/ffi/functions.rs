@@ -691,7 +691,6 @@ pub fn get_string_buff_len(session: &Session, handle: i32) -> Result<i32> {
 
 pub fn get_string(session: &Session, handle: i32, length: i32) -> Result<Vec<u8>> {
     let mut buffer = vec![0u8; length as usize];
-    dbg!(&buffer.len());
     unsafe {
         raw::HAPI_GetString(session.ptr(), handle, buffer.as_mut_ptr() as *mut _, length)
             .check_err(session, || "Calling HAPI_GetString")?;
@@ -873,6 +872,24 @@ pub fn start_thrift_socket_server(
     }
 }
 
+pub fn start_thrift_shared_memory_server(
+    mem_name: &CStr,
+    options: &raw::HAPI_ThriftServerOptions,
+    log_file: Option<&CStr>,
+) -> Result<u32> {
+    let mut pid = uninit!();
+    unsafe {
+        raw::HAPI_StartThriftSharedMemoryServer(
+            options as *const _,
+            mem_name.as_ptr(),
+            pid.as_mut_ptr(),
+            log_file.map_or(null(), CStr::as_ptr),
+        )
+        .error_message("Calling HAPI_StartThriftSharedMemoryServer")?;
+        Ok(pid.assume_init())
+    }
+}
+
 pub fn new_thrift_piped_session(
     path: &CStr,
     info: &raw::HAPI_SessionInfo,
@@ -904,6 +921,23 @@ pub fn new_thrift_socket_session(
             info as *const _,
         )
         .error_message("Calling HAPI_CreateThriftSocketSession: failed")?;
+        handle.assume_init()
+    };
+    Ok(session)
+}
+
+pub fn new_thrift_shared_memory_session(
+    mem_name: &CStr,
+    info: &raw::HAPI_SessionInfo,
+) -> Result<raw::HAPI_Session> {
+    let mut handle = uninit!();
+    let session = unsafe {
+        raw::HAPI_CreateThriftSharedMemorySession(
+            handle.as_mut_ptr(),
+            mem_name.as_ptr(),
+            info as *const _,
+        )
+        .error_message("Calling HAPI_CreateThriftSharedMemorySession")?;
         handle.assume_init()
     };
     Ok(session)
