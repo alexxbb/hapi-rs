@@ -1,0 +1,8 @@
+[package]
+name = "shared-memory"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+hapi-rs = { path = "../.." }

@@ -218,6 +218,12 @@ impl From<std::string::FromUtf8Error> for HapiError {
     }
 }
 
+impl From<&str> for HapiError {
+    fn from(value: &str) -> Self {
+        HapiError::new(Kind::Internal(Cow::Owned(value.to_string())), None, None)
+    }
+}
+
 impl std::error::Error for HapiError {}
 
 impl HapiResult {

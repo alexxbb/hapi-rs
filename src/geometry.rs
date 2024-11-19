@@ -928,3 +928,59 @@ impl PartInfo {
         crate::ffi::get_element_count_by_group(self, group_type)
     }
 }
+
+pub mod extra {
+    use super::*;
+    pub trait GeometryExtension {
+        fn create_position_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>>;
+        fn create_point_color_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>>;
+
+        fn get_point_color_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>>;
+        fn get_position_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>>;
+    }
+
+    impl GeometryExtension for Geometry {
+        fn create_position_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>> {
+            create_tuple3_attribute(self, part, c"P")
+        }
+
+        fn create_point_color_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>> {
+            create_tuple3_attribute(self, part, c"Cd")
+        }
+
+        fn get_point_color_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>> {
+            get_tuple3_attribute(self, part, c"Cd", AttributeOwner::Point)
+        }
+        fn get_position_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>> {
+            get_tuple3_attribute(self, part, c"P", AttributeOwner::Point)
+        }
+    }
+
+    #[inline]
+    fn create_tuple3_attribute(
+        geo: &Geometry,
+        part: &PartInfo,
+        name: &CStr,
+    ) -> Result<NumericAttr<f32>> {
+        let attr_info = AttributeInfo::default()
+            .with_count(part.point_count())
+            .with_tuple_size(3)
+            .with_owner(AttributeOwner::Point)
+            .with_storage(StorageType::Float);
+        crate::ffi::add_attribute(&geo.node, part.part_id(), &name, &attr_info.0)
+            .map(|_| NumericAttr::new(name.to_owned(), attr_info, geo.node.clone()))
+    }
+
+    #[inline]
+    fn get_tuple3_attribute<'a>(
+        geo: &'a Geometry,
+        part: &PartInfo,
+        name: &CStr,
+        owner: AttributeOwner,
+    ) -> Result<Option<NumericAttr<f32>>> {
+        AttributeInfo::new(&geo.node, part.part_id(), owner, &name).map(|info| {
+            info.exists()
+                .then(|| NumericAttr::new(name.to_owned(), info, geo.node.clone()))
+        })
+    }
+}
