@@ -11,6 +11,7 @@ env.ps1
 **/*target
 _build
 _tmp
+cpp
 *.hip*
 .cargo
 _*

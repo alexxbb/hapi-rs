@@ -941,11 +941,11 @@ pub mod extra {
 
     impl GeometryExtension for Geometry {
         fn create_position_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>> {
-            create_tuple3_attribute(self, part, c"P")
+            create_point_tuple_attribute::<3>(self, part, c"P")
         }
 
         fn create_point_color_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>> {
-            create_tuple3_attribute(self, part, c"Cd")
+            create_point_tuple_attribute::<3>(self, part, c"Cd")
         }
 
         fn get_point_color_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>> {
@@ -957,14 +957,14 @@ pub mod extra {
     }
 
     #[inline]
-    fn create_tuple3_attribute(
+    fn create_point_tuple_attribute<const N: usize>(
         geo: &Geometry,
         part: &PartInfo,
         name: &CStr,
     ) -> Result<NumericAttr<f32>> {
         let attr_info = AttributeInfo::default()
             .with_count(part.point_count())
-            .with_tuple_size(3)
+            .with_tuple_size(N as i32)
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::Float);
         crate::ffi::add_attribute(&geo.node, part.part_id(), &name, &attr_info.0)
