@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 
 hapi-rs = { path = "../.." }
+nanorand = "0.7.0"

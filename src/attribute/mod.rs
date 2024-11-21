@@ -171,6 +171,16 @@ impl StringAttr {
             ptrs.as_mut(),
         )
     }
+    pub fn set_cstr<'a>(&self, part_id: i32, values: impl Iterator<Item = &'a CStr>) -> Result<()> {
+        let mut ptrs: Vec<*const i8> = values.map(|cs| cs.as_ptr()).collect();
+        bindings::set_attribute_string_data(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+            ptrs.as_mut(),
+        )
+    }
 }
 
 impl StringArrayAttr {
