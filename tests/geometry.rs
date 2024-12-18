@@ -111,14 +111,17 @@ fn geometry_attribute_names() {
         let node = session.create_node("Object/hapi_geo").unwrap();
         node.cook_blocking().unwrap();
         let geo = node.geometry().unwrap().expect("geometry");
+        let part = geo.part_info(0).unwrap().unwrap();
         let iter = geo
-            .get_attribute_names(AttributeOwner::Point, None)
+            .get_attribute_names(AttributeOwner::Point, &part)
             .unwrap();
         let names: Vec<_> = iter.iter_str().collect();
         assert!(names.contains(&"Cd"));
         assert!(names.contains(&"my_float_array"));
         assert!(names.contains(&"pscale"));
-        let iter = geo.get_attribute_names(AttributeOwner::Prim, None).unwrap();
+        let iter = geo
+            .get_attribute_names(AttributeOwner::Prim, &part)
+            .unwrap();
         let names: Vec<_> = iter.iter_str().collect();
         assert!(names.contains(&"primname"));
         assert!(names.contains(&"shop_materialpath"));
@@ -396,30 +399,30 @@ fn geometry_elements() {
         let part = geo.part_info(0).unwrap().expect("part 0");
         // Cube
         let points = geo
-            .get_element_count_by_owner(Some(&part), AttributeOwner::Point)
+            .get_element_count_by_owner(&part, AttributeOwner::Point)
             .unwrap();
         assert_eq!(points, 8);
         assert_eq!(points, part.point_count());
         let prims = geo
-            .get_element_count_by_owner(Some(&part), AttributeOwner::Prim)
+            .get_element_count_by_owner(&part, AttributeOwner::Prim)
             .unwrap();
         assert_eq!(prims, 6);
         assert_eq!(prims, part.face_count());
         let vtx = geo
-            .get_element_count_by_owner(Some(&part), AttributeOwner::Vertex)
+            .get_element_count_by_owner(&part, AttributeOwner::Vertex)
             .unwrap();
         assert_eq!(vtx, 24);
         assert_eq!(vtx, part.vertex_count());
         let num_pt = geo
-            .get_attribute_count_by_owner(Some(&part), AttributeOwner::Point)
+            .get_attribute_count_by_owner(&part, AttributeOwner::Point)
             .unwrap();
         assert_eq!(num_pt, 8);
         let num_pr = geo
-            .get_attribute_count_by_owner(Some(&part), AttributeOwner::Prim)
+            .get_attribute_count_by_owner(&part, AttributeOwner::Prim)
             .unwrap();
         assert_eq!(num_pr, 3);
         let num_det = geo
-            .get_attribute_count_by_owner(Some(&part), AttributeOwner::Detail)
+            .get_attribute_count_by_owner(&part, AttributeOwner::Detail)
             .unwrap();
         assert_eq!(num_det, 4);
         let pr_groups = geo.get_group_names(GroupType::Prim).unwrap();
@@ -499,7 +502,8 @@ fn geometry_basic_instancing() {
             .unwrap()
             .expect("instance node");
         let geo = instancer.geometry().unwrap().expect("geometry");
-        let ids = geo.get_instanced_part_ids(None).unwrap();
+        let part = geo.part_info(0).unwrap().expect("part id=0");
+        let ids = geo.get_instanced_part_ids(&part).unwrap();
         assert_eq!(ids.len(), 1);
         let names = geo
             .get_instance_part_groups_names(GroupType::Prim, ids[0])
@@ -508,7 +512,7 @@ fn geometry_basic_instancing() {
         assert!(names.contains(&String::from("group_1")));
         assert!(names.contains(&String::from("group_6")));
         let transforms = geo
-            .get_instance_part_transforms(None, RSTOrder::Srt)
+            .get_instance_part_transforms(&part, RSTOrder::Srt)
             .unwrap();
         assert_eq!(
             transforms.len() as i32,
@@ -523,7 +527,8 @@ fn geometry_get_face_materials() {
         let node = session.create_node("Object/spaceship").unwrap();
         node.cook_blocking().unwrap();
         let geo = node.geometry().expect("geometry").unwrap();
-        let mats = geo.get_materials(None).expect("materials");
+        let part = geo.part_info(0).unwrap().expect("part id=0");
+        let mats = geo.get_materials(&part).expect("materials");
         assert!(matches!(mats, Some(Materials::Single(_))));
     })
 }
@@ -678,15 +683,13 @@ fn geometry_test_get_set_dictionary_array_attribute() {
     SESSION.with(|session| {
         let geo = _create_single_point_geo(session).expect("Sphere geometry");
         let info = AttributeInfo::default()
-            .with_count(2)
+            .with_count(1)
             .with_tuple_size(1)
             .with_owner(AttributeOwner::Detail)
             .with_storage(StorageType::DictionaryArray);
         let attr = geo
             .add_dictionary_array_attribute("my_dict_attr", 0, info)
             .expect("Dictionary array attribute");
-        geo.commit().unwrap();
-        geo.node.cook_blocking().unwrap();
 
         let dict_1: HashMap<String, JsonValue> = [
             ("number".to_string(), JsonValue::Number(1.0)),
@@ -705,5 +708,6 @@ fn geometry_test_get_set_dictionary_array_attribute() {
         ];
         attr.set(&data, &[2])
             .expect("Dictionary array attribute set");
+        geo.commit().unwrap();
     })
 }

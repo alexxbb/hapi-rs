@@ -215,14 +215,11 @@ impl Geometry {
     /// Get array containing the vertex-point associations where the
     /// ith element in the array is the point index the ith vertex
     /// associates with.
-    pub fn vertex_list(&self, part: Option<&PartInfo>) -> Result<Vec<i32>> {
-        // TODO: Consider taking a ref to an existing PartInfo instead of Option
+    pub fn vertex_list(&self, part: &PartInfo) -> Result<Vec<i32>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_geo_vertex_list(
             &self.node.session,
             self.node.handle,
@@ -242,13 +239,11 @@ impl Geometry {
             .collect()
     }
 
-    pub fn get_face_counts(&self, part: Option<&PartInfo>) -> Result<Vec<i32>> {
+    pub fn get_face_counts(&self, part: &PartInfo) -> Result<Vec<i32>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_face_counts(
             &self.node.session,
             self.node.handle,
@@ -259,13 +254,11 @@ impl Geometry {
     }
 
     /// Return material nodes applied to geometry.
-    pub fn get_materials(&self, part: Option<&PartInfo>) -> Result<Option<Materials>> {
+    pub fn get_materials(&self, part: &PartInfo) -> Result<Option<Materials>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         let (all_the_same, mats) = crate::ffi::get_material_node_ids_on_faces(
             &self.node.session,
             self.node.handle,
@@ -329,36 +322,30 @@ impl Geometry {
     /// Get num geometry elements by type (points, prims, vertices).
     pub fn get_element_count_by_owner(
         &self,
-        part: Option<&PartInfo>,
+        part: &PartInfo,
         owner: AttributeOwner,
     ) -> Result<i32> {
-        let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_element_count_by_attribute_owner(part, owner)
     }
 
     /// Get number of attributes by type.
     pub fn get_attribute_count_by_owner(
         &self,
-        part: Option<&PartInfo>,
+        part: &PartInfo,
         owner: AttributeOwner,
     ) -> Result<i32> {
-        let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_attribute_count_by_owner(part, owner)
     }
 
     pub fn get_attribute_names(
         &self,
         owner: AttributeOwner,
-        part: Option<&PartInfo>,
+        part: &PartInfo,
     ) -> Result<StringArray> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         let counts = part.attribute_counts();
         let count = match owner {
             AttributeOwner::Invalid => panic!("Invalid AttributeOwner"),
@@ -629,7 +616,7 @@ impl Geometry {
     /// Get element membership for a group.
     pub fn get_group_membership(
         &self,
-        part_info: Option<&PartInfo>,
+        part: &PartInfo,
         group_type: GroupType,
         group_name: &str,
     ) -> Result<Vec<i32>> {
@@ -637,8 +624,6 @@ impl Geometry {
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?.expect("partition id=0"));
         let group_name = CString::new(group_name)?;
         crate::ffi::get_group_membership(
             &self.node.session,
@@ -665,13 +650,11 @@ impl Geometry {
         Ok(crate::ffi::get_group_count_by_type(info, group_type))
     }
 
-    pub fn get_instanced_part_ids(&self, part_info: Option<&PartInfo>) -> Result<Vec<i32>> {
+    pub fn get_instanced_part_ids(&self, part: &PartInfo) -> Result<Vec<i32>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_instanced_part_ids(
             &self.node.session,
             self.node.handle,
@@ -680,16 +663,11 @@ impl Geometry {
         )
     }
 
-    pub fn get_group_count_on_packed_instance(
-        &self,
-        part_info: Option<&PartInfo>,
-    ) -> Result<(i32, i32)> {
+    pub fn get_group_count_on_packed_instance(&self, part: &PartInfo) -> Result<(i32, i32)> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_group_count_on_instance_part(
             &self.node.session,
             self.node.handle,
@@ -716,15 +694,13 @@ impl Geometry {
 
     pub fn get_instance_part_transforms(
         &self,
-        part_info: Option<&PartInfo>,
+        part: &PartInfo,
         order: RSTOrder,
     ) -> Result<Vec<Transform>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_instanced_part_transforms(
             &self.node.session,
             self.node.handle,

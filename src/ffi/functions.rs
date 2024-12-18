@@ -1537,6 +1537,7 @@ pub fn get_output_geo_count(node: &HoudiniNode) -> Result<i32> {
 
 pub fn get_output_names(node: &HoudiniNode) -> Result<Vec<String>> {
     let mut names = Vec::new();
+    let _ = node.session.lock();
     for output_idx in 0..node.info.output_count() {
         let mut handle = uninit!();
         unsafe {
@@ -3688,5 +3689,25 @@ pub fn get_volume_visual_info(
         )
         .check_err(&node.session, || "Calling HAPI_GetVolumeVisualInfo")?;
         Ok(info.assume_init())
+    }
+}
+
+pub fn start_performance_monitor_profile(session: &Session, title: &CStr) -> Result<i32> {
+    unsafe {
+        let mut id = -1;
+        raw::HAPI_StartPerformanceMonitorProfile(session.ptr(), title.as_ptr(), &mut id)
+            .check_err(&session, || "Calling HAPI_StartPerformanceMonitorProfile")?;
+        Ok(id)
+    }
+}
+
+pub fn stop_performance_monitor_profile(
+    session: &Session,
+    profile_id: i32,
+    file_path: &CStr,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_StopPerformanceMonitorProfile(session.ptr(), profile_id, file_path.as_ptr())
+            .check_err(&session, || "Calling HAPI_StopPerformanceMonitorProfile")
     }
 }

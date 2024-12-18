@@ -71,10 +71,13 @@ fn main() -> Result<()> {
     std::env::set_current_dir(&out_dir).unwrap();
     let options = SessionOptionsBuilder::default()
         .threaded(true)
-        .env_variables([
-            ("PDG_DIR", out_dir.to_string_lossy()),
-            ("JOB", out_dir.to_string_lossy()),
-        ])
+        .env_variables(
+            [
+                ("PDG_DIR", out_dir.to_string_lossy()),
+                ("JOB", out_dir.to_string_lossy()),
+            ]
+            .iter(),
+        )
         .build();
     let session = new_in_process(Some(&options))?;
     let lib = session.load_asset_file(otl)?;

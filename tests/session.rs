@@ -155,7 +155,6 @@ fn test_license_set_via_environment() {
 }
 
 #[test]
-#[ignore]
 fn test_get_preset_names() {
     let bytes = std::fs::read("tests/data/bone.idx").expect("read file");
     SESSION.with(|session| {

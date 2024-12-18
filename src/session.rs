@@ -726,6 +726,20 @@ impl Session {
         }
         Ok(handles)
     }
+
+    pub fn start_performance_monitor_profile(&self, title: &str) -> Result<i32> {
+        let title = CString::new(title)?;
+        crate::ffi::start_performance_monitor_profile(self, &title)
+    }
+
+    pub fn stop_performance_monitor_profile(
+        &self,
+        profile_id: i32,
+        output_file: &str,
+    ) -> Result<()> {
+        let output_file = CString::new(output_file)?;
+        crate::ffi::stop_performance_monitor_profile(self, profile_id, &output_file)
+    }
 }
 
 impl Drop for Session {
