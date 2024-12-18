@@ -181,6 +181,18 @@ impl StringAttr {
             ptrs.as_mut(),
         )
     }
+    pub fn set_unique(&self, part: i32, value: &str) -> Result<()> {
+        let value = CString::new(value)?;
+        unsafe {
+            bindings::set_attribute_string_unique_data(
+                &self.0.node,
+                self.0.name.as_c_str(),
+                &self.0.info.0,
+                part,
+                value.as_ptr(),
+            )
+        }
+    }
 }
 
 impl StringArrayAttr {

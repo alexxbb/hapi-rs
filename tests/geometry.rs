@@ -174,6 +174,16 @@ fn geometry_create_string_attrib() {
         let mut iter = str_array.iter_str();
         assert_eq!(iter.next(), Some("pt0"));
         assert_eq!(iter.last(), Some("pt2"));
+
+        str_attr.set_unique(part.part_id(), "unique").unwrap();
+        geo.commit().unwrap();
+        geo.node.cook_blocking().unwrap();
+
+        let str_array = str_attr.get(part.part_id()).unwrap();
+        let mut iter = str_array.iter_str();
+        assert_eq!(iter.next(), Some("unique"));
+        assert_eq!(iter.last(), Some("unique"));
+
         geo.node.delete().unwrap();
     })
 }

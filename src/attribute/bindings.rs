@@ -364,7 +364,7 @@ _ffi_fn [HAPI_SetAttributeDictionaryArrayData]
 pub(crate) fn _rust_fn(
     node: &HoudiniNode,
     name: &CStr,
-    info: &raw::HAPI_AttributeInfo,
+    info: &HAPI_AttributeInfo,
     data: &mut [*const i8],
     sizes: &[i32],
 ) -> Result<()> {
@@ -384,4 +384,34 @@ pub(crate) fn _rust_fn(
         )
         .check_err(&node.session, || stringify!(Calling _ffi_fn))
     }
+}
+
+#[duplicate_item(
+[
+_rust_fn [set_attribute_string_unique_data]
+_ffi_fn [HAPI_SetAttributeStringUniqueData]
+_val_type [*const ::std::os::raw::c_char]
+]
+
+)]
+
+pub(crate) unsafe fn _rust_fn(
+    node: &HoudiniNode,
+    name: &CStr,
+    info: &HAPI_AttributeInfo,
+    part: i32,
+    data: _val_type,
+) -> Result<()> {
+    raw::_ffi_fn(
+        node.session.ptr(),
+        node.handle.0,
+        part,
+        name.as_ptr(),
+        info as *const _,
+        data,
+        info.tupleSize,
+        0,
+        info.count,
+    )
+    .check_err(&node.session, || stringify!(Calling _ffi_fn))
 }
