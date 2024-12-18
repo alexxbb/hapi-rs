@@ -26,6 +26,16 @@ pub trait AttribAccess: Sized + 'static {
         start: i32,
         len: i32,
     ) -> Result<()>;
+
+    fn set_unique(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part_id: i32,
+        data: &Self,
+        start: i32,
+    ) -> Result<()>;
+
     fn get_array(
         name: &CStr,
         node: &HoudiniNode,
@@ -53,6 +63,7 @@ _storage [StorageType::Uint8]
 _storage_array [StorageType::Uint8Array]
 _get [HAPI_GetAttributeUInt8Data]
 _set [HAPI_SetAttributeUInt8Data]
+_set_unique [HAPI_SetAttributeUInt8UniqueData]
 _get_array [HAPI_GetAttributeUInt8ArrayData]
 _set_array [HAPI_SetAttributeUInt8ArrayData]
 ]
@@ -62,6 +73,7 @@ _storage [StorageType::Int8]
 _storage_array [StorageType::Int8Array]
 _get [HAPI_GetAttributeInt8Data]
 _set [HAPI_SetAttributeInt8Data]
+_set_unique [HAPI_SetAttributeInt8UniqueData]
 _get_array [HAPI_GetAttributeInt8ArrayData]
 _set_array [HAPI_SetAttributeInt8ArrayData]
 ]
@@ -71,6 +83,7 @@ _storage [StorageType::Int16]
 _storage_array [StorageType::Int16Array]
 _get [HAPI_GetAttributeInt16Data]
 _set [HAPI_SetAttributeInt16Data]
+_set_unique [HAPI_SetAttributeInt16UniqueData]
 _get_array [HAPI_GetAttributeInt16ArrayData]
 _set_array [HAPI_SetAttributeInt16ArrayData]
 ]
@@ -80,6 +93,7 @@ _storage [StorageType::Int]
 _storage_array [StorageType::IntArray]
 _get [HAPI_GetAttributeIntData]
 _set [HAPI_SetAttributeIntData]
+_set_unique [HAPI_SetAttributeIntUniqueData]
 _get_array [HAPI_GetAttributeIntArrayData]
 _set_array [HAPI_SetAttributeIntArrayData]
 ]
@@ -89,6 +103,7 @@ _storage [StorageType::Int64]
 _storage_array [StorageType::Int64Array]
 _get [HAPI_GetAttributeInt64Data]
 _set [HAPI_SetAttributeInt64Data]
+_set_unique [HAPI_SetAttributeInt64UniqueData]
 _get_array [HAPI_GetAttributeInt64ArrayData]
 _set_array [HAPI_SetAttributeInt64ArrayData]
 ]
@@ -98,6 +113,7 @@ _storage [StorageType::Float]
 _storage_array [StorageType::FloatArray]
 _get [HAPI_GetAttributeFloatData]
 _set [HAPI_SetAttributeFloatData]
+_set_unique [HAPI_SetAttributeFloatUniqueData]
 _get_array [HAPI_GetAttributeFloatArrayData]
 _set_array [HAPI_SetAttributeFloatArrayData]
 ]
@@ -107,6 +123,7 @@ _storage [StorageType::Float64]
 _storage_array [StorageType::Float64Array]
 _get [HAPI_GetAttributeFloat64Data]
 _set [HAPI_SetAttributeFloat64Data]
+_set_unique [HAPI_SetAttributeFloat64UniqueData]
 _get_array [HAPI_GetAttributeFloat64ArrayData]
 _set_array [HAPI_SetAttributeFloat64ArrayData]
 ]
@@ -170,6 +187,30 @@ impl AttribAccess for _val_type {
                 len,
             )
             .check_err(&node.session, || stringify!(Calling _set))
+        }
+    }
+
+    fn set_unique(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part_id: i32,
+        data: &_val_type,
+        start: i32,
+    ) -> Result<()> {
+        unsafe {
+            raw::_set_unique(
+                node.session.ptr(),
+                node.handle.0,
+                part_id,
+                name.as_ptr(),
+                info.ptr(),
+                data as *const _,
+                info.0.tupleSize,
+                start,
+                info.0.count,
+            )
+            .check_err(&node.session, || stringify!(Calling _set_unique))
         }
     }
     fn get_array(

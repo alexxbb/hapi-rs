@@ -175,16 +175,60 @@ fn geometry_create_string_attrib() {
         assert_eq!(iter.next(), Some("pt0"));
         assert_eq!(iter.last(), Some("pt2"));
 
-        str_attr.set_unique(part.part_id(), "unique").unwrap();
+        geo.node.delete().unwrap();
+    })
+}
+
+#[test]
+fn geometry_set_unique_str_attrib_value() {
+    SESSION.with(|session| {
+        let geo = session
+            .create_input_node("unique-attr-value", None)
+            .unwrap();
+        _create_triangle(&geo);
+        let part = geo.part_info(0).unwrap().expect("part 0");
+        let info = AttributeInfo::default()
+            .with_owner(AttributeOwner::Point)
+            .with_storage(StorageType::String)
+            .with_tuple_size(1)
+            .with_count(part.point_count());
+
+        let attr = geo.add_string_attribute("name", 0, info).unwrap();
+        attr.set_unique(part.part_id(), "unique").unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
 
-        let str_array = str_attr.get(part.part_id()).unwrap();
+        let str_array = attr.get(part.part_id()).unwrap();
         let mut iter = str_array.iter_str();
         assert_eq!(iter.next(), Some("unique"));
         assert_eq!(iter.last(), Some("unique"));
+    })
+}
 
-        geo.node.delete().unwrap();
+#[test]
+fn geometry_set_unique_int_attrib_value() {
+    SESSION.with(|session| {
+        let geo = session
+            .create_input_node("unique-int-attr-value", None)
+            .unwrap();
+        _create_triangle(&geo);
+        let part = geo.part_info(0).unwrap().expect("part 0");
+        let info = AttributeInfo::default()
+            .with_owner(AttributeOwner::Point)
+            .with_storage(StorageType::Int)
+            .with_tuple_size(1)
+            .with_count(part.point_count());
+
+        let attr = geo.add_numeric_attribute::<i32>("value", 0, info).unwrap();
+        attr.set_unique(part.part_id(), 8).unwrap();
+        geo.commit().unwrap();
+        geo.node.cook_blocking().unwrap();
+
+        let str_array = attr.get(part.part_id()).unwrap();
+        let mut iter = str_array.into_iter();
+        assert_eq!(iter.next(), Some(8));
+        assert_eq!(iter.last(), Some(8));
+        session.save_hip("c:/Temp/foo.hip", true).unwrap();
     })
 }
 

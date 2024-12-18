@@ -142,6 +142,10 @@ impl<T: AttribAccess> NumericAttr<T> {
             self.0.info.count(),
         )
     }
+
+    pub fn set_unique(&self, part_id: i32, value: T) -> Result<()> {
+        T::set_unique(&self.0.name, &self.0.node, &self.0.info, part_id, &value, 0)
+    }
 }
 
 impl StringAttr {
