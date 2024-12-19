@@ -143,8 +143,12 @@ impl<T: AttribAccess> NumericAttr<T> {
         )
     }
 
-    pub fn set_unique(&self, part_id: i32, value: T) -> Result<()> {
-        T::set_unique(&self.0.name, &self.0.node, &self.0.info, part_id, &value, 0)
+    /// Set multiple attribute data to the same value.
+    /// value length must be less or equal to attribute tuple size.
+    pub fn set_unique(&self, part_id: i32, value: &[T]) -> Result<()> {
+        debug_assert_eq!(self.0.info.storage(), T::storage());
+        debug_assert!(value.len() <= self.0.info.tuple_size() as usize);
+        T::set_unique(&self.0.name, &self.0.node, &self.0.info, part_id, value, 0)
     }
 }
 
@@ -185,6 +189,8 @@ impl StringAttr {
             ptrs.as_mut(),
         )
     }
+    /// Set multiple attribute data to the same value.
+    /// value length must be less or equal to attribute tuple size.
     pub fn set_unique(&self, part: i32, value: &str) -> Result<()> {
         let value = CString::new(value)?;
         unsafe {

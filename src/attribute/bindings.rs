@@ -32,7 +32,7 @@ pub trait AttribAccess: Sized + 'static {
         node: &HoudiniNode,
         info: &AttributeInfo,
         part_id: i32,
-        data: &Self,
+        data: &[Self],
         start: i32,
     ) -> Result<()>;
 
@@ -148,15 +148,12 @@ impl AttribAccess for _val_type {
             _val_type::default(),
         );
         unsafe {
-            // SAFETY: Most likely an error in C API, it should not modify the info object,
-            // but for some reason it wants a mut pointer
-            let attr_info = &info.0 as *const _ as *mut HAPI_AttributeInfo;
             raw::_get(
                 node.session.ptr(),
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                attr_info,
+                info.ptr() as *mut _,
                 -1,
                 buffer.as_mut_ptr(),
                 0,
@@ -195,7 +192,7 @@ impl AttribAccess for _val_type {
         node: &HoudiniNode,
         info: &AttributeInfo,
         part_id: i32,
-        data: &_val_type,
+        data: &[_val_type],
         start: i32,
     ) -> Result<()> {
         unsafe {
@@ -205,7 +202,7 @@ impl AttribAccess for _val_type {
                 part_id,
                 name.as_ptr(),
                 info.ptr(),
-                data as *const _,
+                data.as_ptr(),
                 info.0.tupleSize,
                 start,
                 info.0.count,

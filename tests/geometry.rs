@@ -216,19 +216,18 @@ fn geometry_set_unique_int_attrib_value() {
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::Int)
-            .with_tuple_size(1)
+            .with_tuple_size(2)
             .with_count(part.point_count());
 
+        let data_size = (info.tuple_size() * info.count()) as usize;
         let attr = geo.add_numeric_attribute::<i32>("value", 0, info).unwrap();
-        attr.set_unique(part.part_id(), 8).unwrap();
+        attr.set_unique(part.part_id(), &[8, 1]).unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
 
         let str_array = attr.get(part.part_id()).unwrap();
-        let mut iter = str_array.into_iter();
-        assert_eq!(iter.next(), Some(8));
-        assert_eq!(iter.last(), Some(8));
-        session.save_hip("c:/Temp/foo.hip", true).unwrap();
+        assert_eq!(str_array.len(), data_size);
+        assert_eq!(&str_array[0..=1], &[8, 1]);
     })
 }
 
