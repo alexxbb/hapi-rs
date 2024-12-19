@@ -740,6 +740,10 @@ impl Session {
         let output_file = CString::new(output_file)?;
         crate::ffi::stop_performance_monitor_profile(self, profile_id, &output_file)
     }
+
+    pub fn get_job_status(&self, job_id: i32) -> Result<JobStatus> {
+        crate::ffi::get_job_status(self, job_id)
+    }
 }
 
 impl Drop for Session {

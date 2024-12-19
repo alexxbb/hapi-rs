@@ -20,7 +20,7 @@ pub mod enums {
     pub use super::bindings::{
         AttributeOwner, AttributeTypeInfo, CacheProperty, ChoiceListType, CurveOrders, CurveType,
         EnvIntType, GeoType, GroupType, HapiResult, HeightFieldSampling, ImageDataFormat,
-        ImagePacking, InputType, License, PackedPrimInstancingMode, ParmType, PartType,
+        ImagePacking, InputType, JobStatus, License, PackedPrimInstancingMode, ParmType, PartType,
         PdgEventType, PdgState, PdgWorkItemState, Permissions, PresetType, PrmScriptType, RSTOrder,
         RampType, SessionEnvIntType, SessionType, State, StatusType, StatusVerbosity, StorageType,
         TransformComponent, VolumeType, VolumeVisualType, XYZOrder,

@@ -694,6 +694,46 @@ fn geometry_test_get_dictionary_attributes() {
 }
 
 #[test]
+#[ignore]
+fn geometry_test_get_numeric_attribute_async() {
+    SESSION.with(|session| {
+        let geo = _load_test_geometry(&session).unwrap();
+        let float_attr = geo
+            .get_attribute(0, AttributeOwner::Point, "pscale")
+            .unwrap()
+            .unwrap();
+        let Some(attr) = float_attr.downcast::<NumericAttr<f32>>() else {
+            panic!("Not a numeric attribute");
+        };
+
+        let mut buf = Vec::new();
+        let job = attr.get_async(0, &mut buf).unwrap();
+        while JobStatus::Idle != session.get_job_status(job).unwrap() {
+            println!("Cooking");
+        }
+        dbg!(buf);
+    })
+}
+
+#[test]
+fn geometry_test_get_string_attribute_async() {
+    SESSION.with(|session| {
+        let geo = _load_test_geometry(&session).unwrap();
+        let str_attr = geo
+            .get_attribute(0, AttributeOwner::Point, "ptname")
+            .unwrap()
+            .unwrap();
+        let Some(attr) = str_attr.downcast::<StringAttr>() else {
+            panic!("Not a numeric attribute");
+        };
+
+        let result = attr.get_async(0).unwrap();
+        let data = result.wait().unwrap();
+        dbg!("Hello");
+    })
+}
+
+#[test]
 fn geometry_test_set_dictionary_attributes() {
     use std::collections::HashMap;
     use tinyjson::JsonValue;

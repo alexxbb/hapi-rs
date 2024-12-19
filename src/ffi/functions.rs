@@ -3711,3 +3711,12 @@ pub fn stop_performance_monitor_profile(
             .check_err(&session, || "Calling HAPI_StopPerformanceMonitorProfile")
     }
 }
+
+pub fn get_job_status(session: &Session, job_id: i32) -> Result<raw::JobStatus> {
+    unsafe {
+        let mut job_status = uninit!();
+        raw::HAPI_GetJobStatus(session.ptr(), job_id, job_status.as_mut_ptr())
+            .check_err(&session, || "Calling HAPI_GetJobStatus")?;
+        Ok(job_status.assume_init())
+    }
+}

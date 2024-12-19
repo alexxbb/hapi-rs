@@ -21,6 +21,7 @@
 mod array;
 mod bindings;
 
+use crate::attribute::bindings::AsyncResult;
 use crate::errors::Result;
 pub use crate::ffi::enums::StorageType;
 pub use crate::ffi::AttributeInfo;
@@ -123,6 +124,9 @@ impl<T: AttribAccess> NumericAttr<T> {
         )?;
         Ok(buffer)
     }
+    pub fn get_async(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<i32> {
+        T::get_async(&self.0.name, &self.0.node, &self.0.info, part_id, buffer)
+    }
     /// Read the attribute data into a provided buffer. The buffer will be auto-resized
     /// from the attribute info.
     pub fn read_into(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<()> {
@@ -159,6 +163,15 @@ impl StringAttr {
     pub fn get(&self, part_id: i32) -> Result<StringArray> {
         debug_assert!(self.0.node.is_valid()?);
         bindings::get_attribute_string_data(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+        )
+    }
+
+    pub fn get_async(&self, part_id: i32) -> Result<AsyncResult<StringArray>> {
+        bindings::get_attribute_string_data_async(
             &self.0.node,
             part_id,
             self.0.name.as_c_str(),
