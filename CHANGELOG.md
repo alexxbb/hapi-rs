@@ -1,78 +1,25 @@
 # hapi-rs changelog
 
-648e42e (HEAD -> dev) Cleanup
-dad1f61 Adding Async attr access (not working yet)
-44dfada Set unique attrib value for NumericAttr
-745bbbb Set unique attrib value for i32
-37d49af Set unique attrib value for string
-66de225 Update to Houdini 20.5.445
-95e456f benchmark.hda
-b040068 Add memory shared server
-6c26968 Add memory shared server
-637747c Add memory shared server
-779ca99 Debugging presets
-d244bec Add more missing APIs
-0b5d9a9 Experiment with env_variables
-8cdf3e4 BIG change: Wrapper structs are now tuples!
-74d1384 Add compositor options
-08cf10a Update examples
-dfc9b94 Tests pass
-adec07d Generate bindings with 20.5.370
-d09a0f7 Update all deps
-bb615c1 Fix blocking PDG cooking with results
-6b18a3e Fixing PDG blocking cook
-4ff0765 Fix upcomin Rust 2024 edition warnings
-2338484 (tag: back-on-track) Regenerate bindings with struct namke prefix fixed
-a0bb206 Cleanup
-d86eb95 Add a test for get_cook_result_string
-f973c3c Add HAPI_GetMessageNodeIds and HAPI_GetNodeCookResult APIs
-02b6099 Attrib dict issue hython example for SESI
-5f191c7 Fixed dict attribute count vs totalArrayElements issue
-8988dbd Fixed dict attribute count vs totalArrayElements issue
-5c96a65 Improving attribute array handling
-648e42e (HEAD -> dev) Cleanup
-dad1f61 Adding Async attr access (not working yet)
-44dfada Set unique attrib value for NumericAttr
-745bbbb Set unique attrib value for i32
-37d49af Set unique attrib value for string
-66de225 Update to Houdini 20.5.445
-95e456f benchmark.hda
-b040068 Add memory shared server
-6c26968 Add memory shared server
-637747c Add memory shared server
-779ca99 Debugging presets
-d244bec Add more missing APIs
-0b5d9a9 Experiment with env_variables
-8cdf3e4 BIG change: Wrapper structs are now tuples!
-74d1384 Add compositor options
-08cf10a Update examples
-dfc9b94 Tests pass
-adec07d Generate bindings with 20.5.370
-d09a0f7 Update all deps
-bb615c1 Fix blocking PDG cooking with results
-6b18a3e Fixing PDG blocking cook
-4ff0765 Fix upcomin Rust 2024 edition warnings
-2338484 (tag: back-on-track) Regenerate bindings with struct namke prefix fixed
-a0bb206 Cleanup
-d86eb95 Add a test for get_cook_result_string
-f973c3c Add HAPI_GetMessageNodeIds and HAPI_GetNodeCookResult APIs
-02b6099 Attrib dict issue hython example for SESI
-5f191c7 Fixed dict attribute count vs totalArrayElements issue
-8988dbd Fixed dict attribute count vs totalArrayElements issue
-5c96a65 Improving attribute array handling
-1b0dd50 Add get_attribute_dictionary_array_data
-f98bdef Pre-release cleanup 1
-b8264ab Geometry attributes more asserts and cleanup
-6aad7fd Cleanup
-c8459ee Wip on setting dictionary attribute type
-adc20a2 Set attribute dictionary type
-4866a9d Reading single dict attribute value
-e56f275 Add geometry attribute storage test
-3cc196b Cleanup
-4bdbea0 Revert "Add server pid to the session struct"
-3ea82c2 Using threadlocal in tests
-00daec5 Add server pid to the session struct
-0a6bc64 Add server pid to the session struct
+## [0.11.0]
+
+- Update to Houdini 20.5.445
+- (new in 20.5) Add APIs for setting/getting of unique attribute values
+- (new in 20.5) Add initial support for async attribute access (new in 20.5). WIP and not working properly yet.
+- (new in 20.5) Add new shared-memory HARS server type
+- (new in 20.5) Add HAPI_GetMessageNodeIds and HAPI_GetNodeCookResult APIs
+- (new in 20.5) Add performance monitor APIs
+- Fixed some issue with PDG blocking cooking
+- `quick_session` now uses shared-memory server type instead of named-pipe.
+- Bunch os other small improvements and cleanups
+
+**Some public API have been changed (both on the SideFX and this library side)**
+
+## [0.10.0]
+
+- **Minimal** Houdini version bumped to 20.0.625.
+- Support new attribute APIs and add some previously missing APIs.
+- **Serveral (minimal) public APIs changed**.
+- Other fixes and cleanup
 
 ## [0.9.3]
 

@@ -27,7 +27,7 @@
 //! Add a cargo config file to your project: `.cargo/config`
 //!```text
 //! [target.'cfg(target_os = "linux")']
-//! rustflags = ["-C", "link-arg=-Wl,-rpath=/opt/hfs/19.5.368/dsolib"]
+//! rustflags = ["-C", "link-arg=-Wl,-rpath=/opt/hfs/20.5.445/dsolib"]
 //! [target.x86_64-apple-darwin]
 //! rustflags = ["-C",
 //!     "link-arg=-Wl,-rpath,/Applications/Houdini/Current/Frameworks/Houdini.framework/Versions/Current/Libraries",
