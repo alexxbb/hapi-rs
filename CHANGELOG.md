@@ -10,6 +10,7 @@
 - (new in 20.5) Add performance monitor APIs
 - Fixed some issue with PDG blocking cooking
 - `quick_session` now uses shared-memory server type instead of named-pipe.
+- An experimental Bevy example app.
 - Bunch os other small improvements and cleanups
 
 **Some public API have been changed (both on the SideFX and this library side)**
