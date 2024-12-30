@@ -12,6 +12,7 @@
 - `quick_session` now uses shared-memory server type instead of named-pipe.
 - An experimental Bevy example app.
 - Bunch os other small improvements and cleanups
+- Mark `Attribute: Send` (by @BerKai97)
 
 **Some public API have been changed (both on the SideFX and this library side)**
 

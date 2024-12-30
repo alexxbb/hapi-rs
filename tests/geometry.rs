@@ -725,7 +725,7 @@ fn geometry_test_get_string_attribute_async() {
             .unwrap()
             .unwrap();
         let Some(attr) = str_attr.downcast::<StringAttr>() else {
-            panic!("Not a numeric attribute");
+            panic!("Not a string attribute");
         };
 
         let result = attr.get_async(0).unwrap();
@@ -802,5 +802,23 @@ fn geometry_test_get_set_dictionary_array_attribute() {
         attr.set(&data, &[2])
             .expect("Dictionary array attribute set");
         geo.commit().unwrap();
+    })
+}
+
+#[test]
+fn test_attribute_send() {
+    SESSION.with(|session| {
+        let geo = _load_test_geometry(&session).unwrap();
+        let str_attr = geo
+            .get_attribute(0, AttributeOwner::Point, "pscale")
+            .unwrap()
+            .unwrap();
+        std::thread::spawn(move || {
+            if let Some(attr) = str_attr.downcast::<NumericAttr<f32>>() {
+                let _ = attr.get(0);
+            }
+        })
+        .join()
+        .unwrap();
     })
 }

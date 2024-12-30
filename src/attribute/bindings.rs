@@ -9,7 +9,7 @@ use duplicate::duplicate_item;
 use std::ffi::CStr;
 
 // TODO make this trait sealed and mark functions unsafe (vs using unsafe blocks in the impl)
-pub trait AttribAccess: Sized + 'static {
+pub trait AttribAccess: Send + Sized + 'static {
     fn storage() -> StorageType;
     fn storage_array() -> StorageType;
     fn get(

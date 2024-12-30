@@ -309,7 +309,7 @@ impl DictionaryArrayAttr {
 }
 
 #[doc(hidden)]
-pub trait AsAttribute {
+pub trait AsAttribute: Send {
     fn info(&self) -> &AttributeInfo;
     fn storage(&self) -> StorageType;
     fn boxed(self) -> Box<dyn AnyAttribWrapper>
