@@ -69,7 +69,7 @@ fn _create_triangle(geo: &Geometry) {
 }
 
 fn _create_single_point_geo(session: &Session) -> Result<Geometry> {
-    let geo = session.create_input_node("dummy")?;
+    let geo = session.create_input_node("dummy", None)?;
     let part = PartInfo::default()
         .with_part_type(PartType::Mesh)
         .with_point_count(1);
@@ -111,14 +111,17 @@ fn geometry_attribute_names() {
         let node = session.create_node("Object/hapi_geo").unwrap();
         node.cook_blocking().unwrap();
         let geo = node.geometry().unwrap().expect("geometry");
+        let part = geo.part_info(0).unwrap().unwrap();
         let iter = geo
-            .get_attribute_names(AttributeOwner::Point, None)
+            .get_attribute_names(AttributeOwner::Point, &part)
             .unwrap();
         let names: Vec<_> = iter.iter_str().collect();
         assert!(names.contains(&"Cd"));
         assert!(names.contains(&"my_float_array"));
         assert!(names.contains(&"pscale"));
-        let iter = geo.get_attribute_names(AttributeOwner::Prim, None).unwrap();
+        let iter = geo
+            .get_attribute_names(AttributeOwner::Prim, &part)
+            .unwrap();
         let names: Vec<_> = iter.iter_str().collect();
         assert!(names.contains(&"primname"));
         assert!(names.contains(&"shop_materialpath"));
@@ -128,7 +131,7 @@ fn geometry_attribute_names() {
 #[test]
 fn geometry_numeric_attributes() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("test").unwrap();
+        let geo = session.create_input_node("test", None).unwrap();
         _create_triangle(&geo);
         // Generic way to get an attribute
         let _attr_p = geo
@@ -147,7 +150,7 @@ fn geometry_numeric_attributes() {
 #[test]
 fn geometry_create_string_attrib() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("test").unwrap();
+        let geo = session.create_input_node("test", None).unwrap();
         _create_triangle(&geo);
         let part = geo.part_info(0).unwrap().expect("part 0");
         let info = AttributeInfo::default()
@@ -171,14 +174,67 @@ fn geometry_create_string_attrib() {
         let mut iter = str_array.iter_str();
         assert_eq!(iter.next(), Some("pt0"));
         assert_eq!(iter.last(), Some("pt2"));
+
         geo.node.delete().unwrap();
+    })
+}
+
+#[test]
+fn geometry_set_unique_str_attrib_value() {
+    SESSION.with(|session| {
+        let geo = session
+            .create_input_node("unique-attr-value", None)
+            .unwrap();
+        _create_triangle(&geo);
+        let part = geo.part_info(0).unwrap().expect("part 0");
+        let info = AttributeInfo::default()
+            .with_owner(AttributeOwner::Point)
+            .with_storage(StorageType::String)
+            .with_tuple_size(1)
+            .with_count(part.point_count());
+
+        let attr = geo.add_string_attribute("name", 0, info).unwrap();
+        attr.set_unique(part.part_id(), "unique").unwrap();
+        geo.commit().unwrap();
+        geo.node.cook_blocking().unwrap();
+
+        let str_array = attr.get(part.part_id()).unwrap();
+        let mut iter = str_array.iter_str();
+        assert_eq!(iter.next(), Some("unique"));
+        assert_eq!(iter.last(), Some("unique"));
+    })
+}
+
+#[test]
+fn geometry_set_unique_int_attrib_value() {
+    SESSION.with(|session| {
+        let geo = session
+            .create_input_node("unique-int-attr-value", None)
+            .unwrap();
+        _create_triangle(&geo);
+        let part = geo.part_info(0).unwrap().expect("part 0");
+        let info = AttributeInfo::default()
+            .with_owner(AttributeOwner::Point)
+            .with_storage(StorageType::Int)
+            .with_tuple_size(2)
+            .with_count(part.point_count());
+
+        let data_size = (info.tuple_size() * info.count()) as usize;
+        let attr = geo.add_numeric_attribute::<i32>("value", 0, info).unwrap();
+        attr.set_unique(part.part_id(), &[8, 1]).unwrap();
+        geo.commit().unwrap();
+        geo.node.cook_blocking().unwrap();
+
+        let str_array = attr.get(part.part_id()).unwrap();
+        assert_eq!(str_array.len(), data_size);
+        assert_eq!(&str_array[0..=1], &[8, 1]);
     })
 }
 
 #[test]
 fn geometry_create_string_array_attrib() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("test").unwrap();
+        let geo = session.create_input_node("test", None).unwrap();
         _create_triangle(&geo);
         let part = geo.part_info(0).unwrap().expect("part 0");
         let info = AttributeInfo::default()
@@ -238,7 +294,7 @@ fn geometry_read_array_attributes() {
 #[test]
 fn geometry_create_and_set_array_attributes() {
     SESSION.with(|session| {
-        let input = session.create_input_node("test").unwrap();
+        let input = session.create_input_node("test", None).unwrap();
         let part = PartInfo::default()
             .with_part_type(PartType::Mesh)
             .with_face_count(0)
@@ -337,14 +393,14 @@ fn geometry_string_array_attribute() {
 #[test]
 fn geometry_save_and_load_to_file() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("triangle").unwrap();
+        let geo = session.create_input_node("triangle", None).unwrap();
         _create_triangle(&geo);
         let tmp_file = std::env::temp_dir().join("triangle.geo");
         geo.save_to_file(&tmp_file.to_string_lossy())
             .expect("save_to_file");
         geo.node.delete().unwrap();
 
-        let geo = session.create_input_node("dummy").unwrap();
+        let geo = session.create_input_node("dummy", None).unwrap();
         geo.load_from_file(&tmp_file.to_string_lossy())
             .expect("load_from_file");
         geo.node.cook().unwrap();
@@ -356,14 +412,14 @@ fn geometry_save_and_load_to_file() {
 #[test]
 fn geometry_save_and_load_to_memory() {
     SESSION.with(|session| {
-        let src_geo = session.create_input_node("source").unwrap();
+        let src_geo = session.create_input_node("source", None).unwrap();
         _create_triangle(&src_geo);
         let blob = src_geo
             .save_to_memory(GeoFormat::Geo)
             .expect("save_geo_to_memory");
         src_geo.node.delete().unwrap();
 
-        let dest_geo = session.create_input_node("dest").unwrap();
+        let dest_geo = session.create_input_node("dest", None).unwrap();
         _create_triangle(&dest_geo);
         dest_geo
             .load_from_memory(&blob, GeoFormat::Geo)
@@ -375,7 +431,7 @@ fn geometry_save_and_load_to_memory() {
 #[test]
 fn geometry_commit_and_revert() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("input").unwrap();
+        let geo = session.create_input_node("input", None).unwrap();
         _create_triangle(&geo);
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
@@ -396,30 +452,30 @@ fn geometry_elements() {
         let part = geo.part_info(0).unwrap().expect("part 0");
         // Cube
         let points = geo
-            .get_element_count_by_owner(Some(&part), AttributeOwner::Point)
+            .get_element_count_by_owner(&part, AttributeOwner::Point)
             .unwrap();
         assert_eq!(points, 8);
         assert_eq!(points, part.point_count());
         let prims = geo
-            .get_element_count_by_owner(Some(&part), AttributeOwner::Prim)
+            .get_element_count_by_owner(&part, AttributeOwner::Prim)
             .unwrap();
         assert_eq!(prims, 6);
         assert_eq!(prims, part.face_count());
         let vtx = geo
-            .get_element_count_by_owner(Some(&part), AttributeOwner::Vertex)
+            .get_element_count_by_owner(&part, AttributeOwner::Vertex)
             .unwrap();
         assert_eq!(vtx, 24);
         assert_eq!(vtx, part.vertex_count());
         let num_pt = geo
-            .get_attribute_count_by_owner(Some(&part), AttributeOwner::Point)
+            .get_attribute_count_by_owner(&part, AttributeOwner::Point)
             .unwrap();
         assert_eq!(num_pt, 8);
         let num_pr = geo
-            .get_attribute_count_by_owner(Some(&part), AttributeOwner::Prim)
+            .get_attribute_count_by_owner(&part, AttributeOwner::Prim)
             .unwrap();
         assert_eq!(num_pr, 3);
         let num_det = geo
-            .get_attribute_count_by_owner(Some(&part), AttributeOwner::Detail)
+            .get_attribute_count_by_owner(&part, AttributeOwner::Detail)
             .unwrap();
         assert_eq!(num_det, 4);
         let pr_groups = geo.get_group_names(GroupType::Prim).unwrap();
@@ -437,7 +493,7 @@ fn geometry_elements() {
 #[test]
 fn geometry_delete_attribute() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("input").unwrap();
+        let geo = session.create_input_node("input", None).unwrap();
         _create_triangle(&geo);
         let id_attr = geo
             .get_attribute(0, AttributeOwner::Point, "id")
@@ -456,7 +512,7 @@ fn geometry_delete_attribute() {
 #[test]
 fn geometry_partitions() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("input").unwrap();
+        let geo = session.create_input_node("input", None).unwrap();
         _create_triangle(&geo);
         assert_eq!(geo.partitions().unwrap().len(), 1);
         assert!(matches!(geo.part_info(100), Ok(None)));
@@ -466,7 +522,7 @@ fn geometry_partitions() {
 #[test]
 fn geometry_add_and_delete_group() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("input").unwrap();
+        let geo = session.create_input_node("input", None).unwrap();
         _create_triangle(&geo);
         geo.add_group(0, GroupType::Point, "test", Some(&[1, 1, 1]))
             .unwrap();
@@ -494,26 +550,26 @@ fn geometry_basic_instancing() {
         let opt =
             CookOptions::default().with_packed_prim_instancing_mode(PackedPrimInstancingMode::Flat);
         node.cook_with_options(&opt, true).unwrap();
-        let outputs = node.geometry_output_nodes().unwrap();
-        let instancer = outputs.get(1).unwrap();
-        let ids = instancer.get_instanced_part_ids(None).unwrap();
+        let instancer = node
+            .get_child_by_path("instance")
+            .unwrap()
+            .expect("instance node");
+        let geo = instancer.geometry().unwrap().expect("geometry");
+        let part = geo.part_info(0).unwrap().expect("part id=0");
+        let ids = geo.get_instanced_part_ids(&part).unwrap();
         assert_eq!(ids.len(), 1);
-        let names = instancer
+        let names = geo
             .get_instance_part_groups_names(GroupType::Prim, ids[0])
             .unwrap();
         let names: Vec<String> = names.into_iter().collect();
-        assert_eq!(names.first().unwrap(), "group_1");
-        assert_eq!(names.last().unwrap(), "group_6");
-        let transforms = instancer
-            .get_instance_part_transforms(None, RSTOrder::Srt)
+        assert!(names.contains(&String::from("group_1")));
+        assert!(names.contains(&String::from("group_6")));
+        let transforms = geo
+            .get_instance_part_transforms(&part, RSTOrder::Srt)
             .unwrap();
         assert_eq!(
             transforms.len() as i32,
-            instancer
-                .part_info(0)
-                .unwrap()
-                .expect("part 0")
-                .instance_count()
+            geo.part_info(0).unwrap().expect("part 0").instance_count()
         );
     })
 }
@@ -524,7 +580,8 @@ fn geometry_get_face_materials() {
         let node = session.create_node("Object/spaceship").unwrap();
         node.cook_blocking().unwrap();
         let geo = node.geometry().expect("geometry").unwrap();
-        let mats = geo.get_materials(None).expect("materials");
+        let part = geo.part_info(0).unwrap().expect("part id=0");
+        let mats = geo.get_materials(&part).expect("materials");
         assert!(matches!(mats, Some(Materials::Single(_))));
     })
 }
@@ -532,7 +589,7 @@ fn geometry_get_face_materials() {
 #[test]
 fn geometry_create_input_curve() {
     SESSION.with(|session| {
-        let geo = session.create_input_curve_node("InputCurve").unwrap();
+        let geo = session.create_input_curve_node("InputCurve", None).unwrap();
         let positions = &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
         geo.set_input_curve_positions(0, positions).unwrap();
         let p = geo.get_position_attribute(0).unwrap();
@@ -544,7 +601,7 @@ fn geometry_create_input_curve() {
 #[test]
 fn geometry_multiple_input_curves() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("InputCurves").unwrap();
+        let geo = session.create_input_node("InputCurves", None).unwrap();
         let points = vec![
             0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 2.0, 0.0, 0.0, 2.0, 1.0,
             0.0,
@@ -589,7 +646,7 @@ fn geometry_read_write_volume() {
         let source = node.geometry().unwrap().unwrap();
         let source_part = source.part_info(0).unwrap().expect("part 0");
         let vol_info = source.volume_info(0).unwrap();
-        let dest_geo = session.create_input_node("volume_copy").unwrap();
+        let dest_geo = session.create_input_node("volume_copy", None).unwrap();
         dest_geo.node.cook_blocking().unwrap();
         dest_geo.set_part_info(&source_part).unwrap();
         dest_geo.set_volume_info(0, &vol_info).unwrap();
@@ -637,6 +694,46 @@ fn geometry_test_get_dictionary_attributes() {
 }
 
 #[test]
+#[ignore]
+fn geometry_test_get_numeric_attribute_async() {
+    SESSION.with(|session| {
+        let geo = _load_test_geometry(&session).unwrap();
+        let float_attr = geo
+            .get_attribute(0, AttributeOwner::Point, "pscale")
+            .unwrap()
+            .unwrap();
+        let Some(attr) = float_attr.downcast::<NumericAttr<f32>>() else {
+            panic!("Not a numeric attribute");
+        };
+
+        let mut buf = Vec::new();
+        let job = attr.get_async(0, &mut buf).unwrap();
+        while JobStatus::Idle != session.get_job_status(job).unwrap() {
+            println!("Cooking");
+        }
+        dbg!(buf);
+    })
+}
+
+#[test]
+#[ignore]
+fn geometry_test_get_string_attribute_async() {
+    SESSION.with(|session| {
+        let geo = _load_test_geometry(&session).unwrap();
+        let str_attr = geo
+            .get_attribute(0, AttributeOwner::Point, "ptname")
+            .unwrap()
+            .unwrap();
+        let Some(attr) = str_attr.downcast::<StringAttr>() else {
+            panic!("Not a string attribute");
+        };
+
+        let result = attr.get_async(0).unwrap();
+        let _data = result.wait().unwrap();
+    })
+}
+
+#[test]
 fn geometry_test_set_dictionary_attributes() {
     use std::collections::HashMap;
     use tinyjson::JsonValue;
@@ -679,15 +776,13 @@ fn geometry_test_get_set_dictionary_array_attribute() {
     SESSION.with(|session| {
         let geo = _create_single_point_geo(session).expect("Sphere geometry");
         let info = AttributeInfo::default()
-            .with_count(2)
+            .with_count(1)
             .with_tuple_size(1)
             .with_owner(AttributeOwner::Detail)
             .with_storage(StorageType::DictionaryArray);
         let attr = geo
             .add_dictionary_array_attribute("my_dict_attr", 0, info)
             .expect("Dictionary array attribute");
-        geo.commit().unwrap();
-        geo.node.cook_blocking().unwrap();
 
         let dict_1: HashMap<String, JsonValue> = [
             ("number".to_string(), JsonValue::Number(1.0)),
@@ -706,5 +801,24 @@ fn geometry_test_get_set_dictionary_array_attribute() {
         ];
         attr.set(&data, &[2])
             .expect("Dictionary array attribute set");
+        geo.commit().unwrap();
+    })
+}
+
+#[test]
+fn test_attribute_send() {
+    SESSION.with(|session| {
+        let geo = _load_test_geometry(&session).unwrap();
+        let str_attr = geo
+            .get_attribute(0, AttributeOwner::Point, "pscale")
+            .unwrap()
+            .unwrap();
+        std::thread::spawn(move || {
+            if let Some(attr) = str_attr.downcast::<NumericAttr<f32>>() {
+                let _ = attr.get(0);
+            }
+        })
+        .join()
+        .unwrap();
     })
 }

@@ -16,7 +16,7 @@ macro_rules! get {
     ($method:ident->$field:ident->bool) => {
         #[inline]
         pub fn $method(&self) -> bool {
-            self.inner.$field == 1
+            self.0.$field == 1
         }
     };
 
@@ -24,7 +24,7 @@ macro_rules! get {
     ($method:ident->$field:ident->[handle: $hdl:ident]) => {
         #[inline]
         pub fn $method(&self) -> $hdl {
-            $hdl(self.inner.$field)
+            $hdl(self.0.$field)
         }
     };
 
@@ -39,7 +39,7 @@ macro_rules! get {
         #[inline]
         pub fn $method(&self) -> Result<String> {
             use crate::stringhandle::StringHandle;
-            crate::stringhandle::get_string(StringHandle(self.inner.$field), &self.session)
+            crate::stringhandle::get_string(StringHandle(self.0.$field), &self.1)
         }
     };
 
@@ -47,7 +47,7 @@ macro_rules! get {
         #[inline]
         pub fn $method(&self, session: &Session) -> Result<String> {
             use crate::stringhandle::StringHandle;
-            crate::stringhandle::get_string(StringHandle(self.inner.$field), session)
+            crate::stringhandle::get_string(StringHandle(self.0.$field), session)
         }
     };
 
@@ -55,14 +55,14 @@ macro_rules! get {
         #[inline]
         pub fn $method(&self) -> Result<CString> {
             use crate::stringhandle::StringHandle;
-            crate::stringhandle::get_cstring(StringHandle(self.inner.$field), &self.session)
+            crate::stringhandle::get_cstring(StringHandle(self.0.$field), &self.1)
         }
     };
 
     ($method:ident->$field:ident->$tp:ty) => {
         #[inline]
         pub fn $method(&self) -> $tp {
-            self.inner.$field
+            self.0.$field
         }
     };
 
@@ -85,28 +85,28 @@ macro_rules! get {
 //
 // Special case for string handles:
 // [get+session] name->name->[ValueType]
-// fn get_name(&self, session: &Session) -> Result<String> { session.get_string(self.inner.name) }
+// fn get_name(&self, session: &Session) -> Result<String> { session.get_string(self.0.name) }
 //
 
 macro_rules! wrap {
     (_with_ $method:ident->$field:ident->bool) => {
         paste!{
-            pub fn [<with_ $method>](mut self, val: bool) -> Self {self.inner.$field = val as i8; self}
+            pub fn [<with_ $method>](mut self, val: bool) -> Self {self.0.$field = val as i8; self}
         }
     };
     (_with_ $method:ident->$field:ident->$tp:ty) => {
         paste!{
-            pub fn [<with_ $method>](mut self, val: $tp) -> Self {self.inner.$field = val; self}
+            pub fn [<with_ $method>](mut self, val: $tp) -> Self {self.0.$field = val; self}
         }
     };
     (_set_ $method:ident->$field:ident->bool) => {
         paste!{
-            pub fn [<set_ $method>](&mut self, val: bool)  {self.inner.$field = val as i8}
+            pub fn [<set_ $method>](&mut self, val: bool)  {self.0.$field = val as i8}
         }
     };
     (_set_ $method:ident->$field:ident->$tp:ty) => {
         paste!{
-            pub fn [<set_ $method>](&mut self, val: $tp)  {self.inner.$field = val}
+            pub fn [<set_ $method>](&mut self, val: $tp)  {self.0.$field = val}
         }
     };
 
@@ -137,20 +137,11 @@ macro_rules! wrap {
         $(wrap!{_with_ $method->$field->$tp})*
     };
 
-    (New $object:ident [$create_func:path=>$ffi_tp:ty]; $($rest:tt)*) => {
-        impl $object {
-            pub fn new(session: Session) -> Self {
-                Self{inner:  $create_func() , session}
-            }
-        }
-        wrap!{_impl_methods_ $object $ffi_tp $($rest)*}
-    };
-
     (Default $object:ident [$create_func:path=>$ffi_tp:ty]; $($rest:tt)*) => {
         impl Default for $object {
             fn default() -> Self {
                 #[allow(unused_unsafe)]
-                Self{inner: unsafe { $create_func() }}
+                Self(unsafe { $create_func() })
             }
         }
         wrap!{_impl_methods_ $object $ffi_tp $($rest)*}
@@ -169,25 +160,59 @@ macro_rules! wrap {
 
             #[inline]
             pub fn ptr(&self) -> *const $ffi_tp {
-                &self.inner as *const _
+                &self.0 as *const _
             }
         }
     };
 }
 
+/// Configurations for sessions
+#[derive(Clone, Debug)]
+pub struct SessionInfo(pub(crate) HAPI_SessionInfo);
+
+wrap! {
+    Default SessionInfo [HAPI_SessionInfo_Create => HAPI_SessionInfo];
+    [get] connection_count->connectionCount->[i32];
+    [get|set|with] port_type->portType->[TcpPortType];
+    [get] min_port->minPort->[i32];
+    [get] max_port->maxPort->[i32];
+    [get] ports->ports->[[i32;128usize]];
+    [get|set|with] shared_memory_buffer_type->sharedMemoryBufferType->[ThriftSharedMemoryBufferType];
+    [get|set|with] shared_memory_buffer_size->sharedMemoryBufferSize->[i64];
+}
+
+/// Options to configure a Thrift server being started from HARC.
+#[derive(Clone)]
+pub struct ThriftServerOptions(pub(crate) HAPI_ThriftServerOptions);
+
+wrap! {
+    Default ThriftServerOptions [HAPI_ThriftServerOptions_Create => HAPI_ThriftServerOptions];
+    [get|set|with] auto_close->autoClose->[bool];
+    [get|set|with] timeout_ms->timeoutMs->[f32];
+    [get|set|with] verbosity->verbosity->[StatusVerbosity];
+    [get|set|with] shared_memory_buffer_type->sharedMemoryBufferType->[ThriftSharedMemoryBufferType];
+    [get|set|with] shared_memory_buffer_size->sharedMemoryBufferSize->[i64];
+}
+
+#[derive(Clone)]
+pub struct CompositorOptions(pub(crate) HAPI_CompositorOptions);
+
+wrap! {
+    Default CompositorOptions [HAPI_CompositorOptions_Create => HAPI_CompositorOptions];
+    [get|set] max_resolution_x->maximumResolutionX->[i32];
+    [get|set] max_resolution_y->maximumResolutionY->[i32];
+}
+
 /// Menu parameter label and value
 #[derive(Clone)]
-pub struct ParmChoiceInfo {
-    pub(crate) inner: HAPI_ParmChoiceInfo,
-    pub(crate) session: Session,
-}
+pub struct ParmChoiceInfo(pub(crate) HAPI_ParmChoiceInfo, pub(crate) Session);
 
 impl std::fmt::Debug for ParmChoiceInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use std::borrow::Cow;
 
         let get_str = |h: i32| -> Cow<str> {
-            match crate::stringhandle::get_string_bytes(StringHandle(h), &self.session) {
+            match crate::stringhandle::get_string_bytes(StringHandle(h), &self.1) {
                 // SAFETY: Don't care about utf in Debug
                 Ok(bytes) => unsafe { Cow::Owned(String::from_utf8_unchecked(bytes)) },
                 Err(_) => Cow::Borrowed("!!! Could not retrieve string"),
@@ -195,8 +220,8 @@ impl std::fmt::Debug for ParmChoiceInfo {
         };
 
         f.debug_struct("ParmChoiceInfo")
-            .field("label", &get_str(self.inner.labelSH))
-            .field("value", &get_str(self.inner.valueSH))
+            .field("label", &get_str(self.0.labelSH))
+            .field("value", &get_str(self.0.valueSH))
             .finish()
     }
 }
@@ -208,19 +233,15 @@ impl ParmChoiceInfo {
 
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___parm_info.html)
 #[derive(Debug)]
-pub struct ParmInfo {
-    pub(crate) inner: HAPI_ParmInfo,
-    pub(crate) session: DebugIgnore<Session>,
-    pub(crate) name: Option<CString>,
-}
+pub struct ParmInfo(
+    pub(crate) HAPI_ParmInfo,
+    pub(crate) DebugIgnore<Session>,
+    pub(crate) Option<CString>,
+);
 
 impl ParmInfo {
     pub(crate) fn new(inner: HAPI_ParmInfo, session: Session, name: Option<CString>) -> Self {
-        Self {
-            inner,
-            session: DebugIgnore(session),
-            name,
-        }
+        Self(inner, DebugIgnore(session), name)
     }
 }
 
@@ -272,10 +293,7 @@ impl ParmInfo {
 
 // #[derive(Clone)]
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___node_info.html)
-pub struct NodeInfo {
-    pub(crate) inner: HAPI_NodeInfo,
-    pub(crate) session: DebugIgnore<Session>,
-}
+pub struct NodeInfo(pub(crate) HAPI_NodeInfo, pub(crate) DebugIgnore<Session>);
 
 impl NodeInfo {
     get!(name->nameSH->Result<String>);
@@ -300,10 +318,7 @@ impl NodeInfo {
     pub(crate) fn new(session: &Session, node: NodeHandle) -> Result<Self> {
         let session = session.clone();
         let inner = crate::ffi::get_node_info(node, &session)?;
-        Ok(Self {
-            inner,
-            session: DebugIgnore(session),
-        })
+        Ok(Self(inner, DebugIgnore(session)))
     }
 }
 
@@ -330,9 +345,7 @@ impl std::fmt::Debug for NodeInfo {
 
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___cook_options.html)
 #[derive(Debug, Clone)]
-pub struct CookOptions {
-    pub(crate) inner: HAPI_CookOptions,
-}
+pub struct CookOptions(pub(crate) HAPI_CookOptions);
 
 wrap!(
     Default CookOptions [HAPI_CookOptions_Create => HAPI_CookOptions];
@@ -354,16 +367,14 @@ wrap!(
 );
 
 #[derive(Debug, Clone)]
-pub struct AttributeInfo {
-    pub(crate) inner: HAPI_AttributeInfo,
-}
+pub struct AttributeInfo(pub(crate) HAPI_AttributeInfo);
 
 impl Default for AttributeInfo {
     fn default() -> Self {
         let mut inner = unsafe { HAPI_AttributeInfo_Create() };
         // FIXME: Uninitialized variable in Houdini 20.0.625
         inner.totalArrayElements = 0;
-        Self { inner }
+        Self(inner)
     }
 }
 wrap! {
@@ -384,18 +395,15 @@ impl AttributeInfo {
         owner: AttributeOwner,
         name: &CStr,
     ) -> Result<Self> {
-        Ok(Self {
-            inner: crate::ffi::get_attribute_info(node, part_id, owner, name)?,
-        })
+        Ok(Self(crate::ffi::get_attribute_info(
+            node, part_id, owner, name,
+        )?))
     }
 }
 
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___asset_info.html)
 #[derive(Debug)]
-pub struct AssetInfo {
-    pub(crate) inner: HAPI_AssetInfo,
-    pub session: DebugIgnore<Session>,
-}
+pub struct AssetInfo(pub(crate) HAPI_AssetInfo, pub DebugIgnore<Session>);
 
 impl AssetInfo {
     get!(node_id->nodeId->[handle: NodeHandle]);
@@ -419,10 +427,10 @@ impl AssetInfo {
 
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___object_info.html)
 #[derive(Debug)]
-pub struct ObjectInfo<'session> {
-    pub(crate) inner: HAPI_ObjectInfo,
-    pub session: DebugIgnore<&'session Session>,
-}
+pub struct ObjectInfo<'session>(
+    pub(crate) HAPI_ObjectInfo,
+    pub DebugIgnore<&'session Session>,
+);
 
 impl<'s> ObjectInfo<'s> {
     get!(name->nameSH->Result<String>);
@@ -436,15 +444,13 @@ impl<'s> ObjectInfo<'s> {
     get!(node_id->nodeId->[handle: NodeHandle]);
     get!(object_to_instance_id->objectToInstanceId->[handle: NodeHandle]);
     pub fn to_node(&self) -> Result<HoudiniNode> {
-        self.node_id().to_node(&self.session)
+        self.node_id().to_node(&self.1)
     }
 }
 
 #[derive(Debug, Clone)]
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___geo_info.html)
-pub struct GeoInfo {
-    pub(crate) inner: HAPI_GeoInfo,
-}
+pub struct GeoInfo(pub(crate) HAPI_GeoInfo);
 
 impl<'s> GeoInfo {
     get!(geo_type->type_->GeoType);
@@ -464,14 +470,13 @@ impl<'s> GeoInfo {
         GeoInfo::from_handle(node.handle, &node.session)
     }
     pub fn from_handle(handle: NodeHandle, session: &'s Session) -> Result<GeoInfo> {
-        crate::ffi::get_geo_info(session, handle).map(|inner| GeoInfo { inner })
+        crate::ffi::get_geo_info(session, handle).map(|inner| GeoInfo(inner))
     }
 }
 
 #[derive(Debug)]
-pub struct PartInfo {
-    pub(crate) inner: HAPI_PartInfo,
-}
+pub struct PartInfo(pub(crate) HAPI_PartInfo);
+
 wrap!(
     Default PartInfo [HAPI_PartInfo_Create => HAPI_PartInfo];
     [get] part_id->id->[i32];
@@ -488,9 +493,7 @@ wrap!(
 );
 
 #[derive(Debug, Clone)]
-pub struct TimelineOptions {
-    pub(crate) inner: HAPI_TimelineOptions,
-}
+pub struct TimelineOptions(pub(crate) HAPI_TimelineOptions);
 
 wrap!(
     Default TimelineOptions [HAPI_TimelineOptions_Create => HAPI_TimelineOptions];
@@ -500,9 +503,7 @@ wrap!(
 );
 
 #[derive(Debug, Clone)]
-pub struct CurveInfo {
-    pub(crate) inner: HAPI_CurveInfo,
-}
+pub struct CurveInfo(pub(crate) HAPI_CurveInfo);
 
 wrap!(
     Default CurveInfo [HAPI_CurveInfo_Create => HAPI_CurveInfo];
@@ -518,9 +519,7 @@ wrap!(
 );
 
 #[derive(Debug, Clone)]
-pub struct Viewport {
-    pub(crate) inner: HAPI_Viewport,
-}
+pub struct Viewport(pub(crate) HAPI_Viewport);
 
 wrap!(
     Default Viewport [HAPI_Viewport_Create => HAPI_Viewport];
@@ -531,9 +530,7 @@ wrap!(
 
 #[derive(Debug, Clone)]
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___transform.html)
-pub struct Transform {
-    pub(crate) inner: HAPI_Transform,
-}
+pub struct Transform(pub(crate) HAPI_Transform);
 
 wrap!(
     Default Transform [HAPI_Transform_Create => HAPI_Transform];
@@ -546,20 +543,17 @@ wrap!(
 
 impl Transform {
     pub fn from_matrix(session: &Session, matrix: &[f32; 16], rst_order: RSTOrder) -> Result<Self> {
-        crate::ffi::convert_matrix_to_quat(session, matrix, rst_order)
-            .map(|inner| Transform { inner })
+        crate::ffi::convert_matrix_to_quat(session, matrix, rst_order).map(|inner| Transform(inner))
     }
 
     pub fn convert_to_matrix(&self, session: &Session) -> Result<[f32; 16]> {
-        crate::ffi::convert_transform_quat_to_matrix(session, &self.inner)
+        crate::ffi::convert_transform_quat_to_matrix(session, &self.0)
     }
 }
 
 #[derive(Debug, Clone)]
 /// [Documentation](https://www.sidefx.com/docs/hengine/struct_h_a_p_i___transform_euler.html)
-pub struct TransformEuler {
-    pub(crate) inner: HAPI_TransformEuler,
-}
+pub struct TransformEuler(pub(crate) HAPI_TransformEuler);
 
 wrap!(
     Default TransformEuler [HAPI_TransformEuler_Create => HAPI_TransformEuler];
@@ -578,8 +572,8 @@ impl TransformEuler {
         rst_order: RSTOrder,
         rot_order: XYZOrder,
     ) -> Result<Self> {
-        crate::ffi::convert_transform(session, &self.inner, rst_order, rot_order)
-            .map(|inner| TransformEuler { inner })
+        crate::ffi::convert_transform(session, &self.0, rst_order, rot_order)
+            .map(|inner| TransformEuler(inner))
     }
 
     pub fn from_matrix(
@@ -589,18 +583,16 @@ impl TransformEuler {
         rot_order: XYZOrder,
     ) -> Result<Self> {
         crate::ffi::convert_matrix_to_euler(session, matrix, rst_order, rot_order)
-            .map(|inner| TransformEuler { inner })
+            .map(|inner| TransformEuler(inner))
     }
 
     pub fn convert_to_matrix(&self, session: &Session) -> Result<[f32; 16]> {
-        crate::ffi::convert_transform_euler_to_matrix(session, &self.inner)
+        crate::ffi::convert_transform_euler_to_matrix(session, &self.0)
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct SessionSyncInfo {
-    pub(crate) inner: HAPI_SessionSyncInfo,
-}
+pub struct SessionSyncInfo(pub(crate) HAPI_SessionSyncInfo);
 
 wrap!(
     Default SessionSyncInfo [HAPI_SessionSyncInfo_Create => HAPI_SessionSyncInfo];
@@ -609,10 +601,9 @@ wrap!(
 );
 
 #[derive(Debug, Clone)]
-pub struct BoxInfo {
-    pub(crate) inner: HAPI_BoxInfo,
-}
+pub struct BoxInfo(pub(crate) HAPI_BoxInfo);
 
+// TODO: Why not impl Default?
 fn _create_box_info() -> HAPI_BoxInfo {
     HAPI_BoxInfo {
         center: Default::default(),
@@ -629,10 +620,9 @@ wrap!(
 );
 
 #[derive(Debug, Clone)]
-pub struct SphereInfo {
-    pub(crate) inner: HAPI_SphereInfo,
-}
+pub struct SphereInfo(pub(crate) HAPI_SphereInfo);
 
+// TODO: Why not impl Default?
 fn _create_sphere_info() -> HAPI_SphereInfo {
     HAPI_SphereInfo {
         center: Default::default(),
@@ -648,9 +638,7 @@ wrap!(
 
 #[repr(C)]
 #[derive(Debug, Clone)]
-pub struct ImageInfo {
-    pub(crate) inner: HAPI_ImageInfo,
-}
+pub struct ImageInfo(pub(crate) HAPI_ImageInfo);
 
 wrap!(
     Default ImageInfo [HAPI_ImageInfo_Create => HAPI_ImageInfo];
@@ -674,10 +662,10 @@ pub struct KeyFrame {
 }
 
 #[derive(Debug, Clone)]
-pub struct ImageFileFormat<'a> {
-    pub(crate) inner: HAPI_ImageFileFormat,
-    pub(crate) session: DebugIgnore<&'a Session>,
-}
+pub struct ImageFileFormat<'a>(
+    pub(crate) HAPI_ImageFileFormat,
+    pub(crate) DebugIgnore<&'a Session>,
+);
 
 impl<'a> ImageFileFormat<'a> {
     get!(name->nameSH->Result<String>);
@@ -686,9 +674,7 @@ impl<'a> ImageFileFormat<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct VolumeInfo {
-    pub(crate) inner: HAPI_VolumeInfo,
-}
+pub struct VolumeInfo(pub(crate) HAPI_VolumeInfo);
 
 wrap!(
     impl VolumeInfo => HAPI_VolumeInfo;
@@ -710,23 +696,19 @@ wrap!(
 
 impl VolumeInfo {
     fn transform(&self) -> Transform {
-        Transform {
-            inner: self.inner.transform,
-        }
+        Transform(self.0.transform)
     }
     fn set_transform(&mut self, transform: Transform) {
-        self.inner.transform = transform.inner
+        self.0.transform = transform.0
     }
     fn with_transform(mut self, transform: Transform) -> Self {
-        self.inner.transform = transform.inner;
+        self.0.transform = transform.0;
         self
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct VolumeTileInfo {
-    pub(crate) inner: HAPI_VolumeTileInfo,
-}
+pub struct VolumeTileInfo(pub(crate) HAPI_VolumeTileInfo);
 
 wrap!(
     impl VolumeTileInfo => HAPI_VolumeTileInfo;
@@ -737,9 +719,7 @@ wrap!(
 );
 
 #[derive(Debug, Clone)]
-pub struct VolumeVisualInfo {
-    pub(crate) inner: HAPI_VolumeVisualInfo,
-}
+pub struct VolumeVisualInfo(pub(crate) HAPI_VolumeVisualInfo);
 
 wrap!(
     impl VolumeVisualInfo => HAPI_VolumeVisualInfo;
@@ -749,9 +729,7 @@ wrap!(
 );
 
 #[derive(Debug, Clone)]
-pub struct InputCurveInfo {
-    pub(crate) inner: HAPI_InputCurveInfo,
-}
+pub struct InputCurveInfo(pub(crate) HAPI_InputCurveInfo);
 
 wrap!(
     Default InputCurveInfo [HAPI_InputCurveInfo_Create => HAPI_InputCurveInfo];
@@ -764,9 +742,7 @@ wrap!(
 );
 
 #[derive(Debug, Copy, Clone)]
-pub struct PDGEventInfo {
-    pub(crate) inner: HAPI_PDG_EventInfo,
-}
+pub struct PDGEventInfo(pub(crate) HAPI_PDG_EventInfo);
 
 impl PDGEventInfo {
     get!(node_id->nodeId->[handle: NodeHandle]);
@@ -774,31 +750,29 @@ impl PDGEventInfo {
     get!(dependency_id->dependencyId->i32);
     get!(with_session message->msgSH->Result<String>);
     pub fn current_state(&self) -> PdgWorkItemState {
-        unsafe { std::mem::transmute::<i32, PdgWorkItemState>(self.inner.currentState) }
+        unsafe { std::mem::transmute::<i32, PdgWorkItemState>(self.0.currentState) }
     }
     pub fn last_state(&self) -> PdgWorkItemState {
-        unsafe { std::mem::transmute::<i32, PdgWorkItemState>(self.inner.lastState) }
+        unsafe { std::mem::transmute::<i32, PdgWorkItemState>(self.0.lastState) }
     }
     pub fn event_type(&self) -> PdgEventType {
-        unsafe { std::mem::transmute::<i32, PdgEventType>(self.inner.eventType) }
+        unsafe { std::mem::transmute::<i32, PdgEventType>(self.0.eventType) }
     }
 }
 
 #[derive(Debug)]
-pub struct PDGWorkItemOutputFile<'session> {
-    pub(crate) inner: HAPI_PDG_WorkItemOutputFile,
-    pub(crate) session: DebugIgnore<&'session Session>,
-}
+pub struct PDGWorkItemOutputFile<'session>(
+    pub(crate) HAPI_PDG_WorkItemOutputFile,
+    pub(crate) DebugIgnore<&'session Session>,
+);
 
 impl<'session> PDGWorkItemOutputFile<'session> {
-    get!(result->filePathSH->Result<String>);
+    get!(path->filePathSH->Result<String>);
     get!(tag->tagSH->Result<String>);
     get!(sha->hash->i64);
 }
 
-pub struct PDGWorkItemInfo {
-    pub(crate) inner: HAPI_PDG_WorkItemInfo,
-}
+pub struct PDGWorkItemInfo(pub(crate) HAPI_PDG_WorkItemInfo);
 
 wrap! {
     impl PDGWorkItemInfo => HAPI_PDG_WorkItemInfo;

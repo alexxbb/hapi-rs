@@ -69,6 +69,10 @@ pub struct CStringIter<'a> {
 }
 
 impl<'a> StringArray {
+    /// Create an empty StringArray
+    pub fn empty() -> StringArray {
+        StringArray(vec![])
+    }
     /// Return an iterator over &str
     pub fn iter_str(&'a self) -> StringIter<'a> {
         StringIter { inner: &self.0 }

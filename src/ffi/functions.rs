@@ -8,6 +8,7 @@ use std::vec;
 
 use raw::HAPI_PDG_EventInfo;
 
+use super::raw;
 use crate::ffi::bindings::HAPI_StringHandle;
 use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId, RSTOrder};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
@@ -18,8 +19,6 @@ use crate::{
     session::{Session, SessionOptions},
     stringhandle::{StringArray, StringHandle},
 };
-
-use super::raw;
 
 macro_rules! uninit {
     () => {
@@ -695,8 +694,8 @@ pub fn get_string(session: &Session, handle: i32, length: i32) -> Result<Vec<u8>
     unsafe {
         raw::HAPI_GetString(session.ptr(), handle, buffer.as_mut_ptr() as *mut _, length)
             .check_err(session, || "Calling HAPI_GetString")?;
-        buffer.truncate(length as usize - 1);
     }
+    buffer.truncate(length as usize - 1);
     Ok(buffer)
 }
 
@@ -771,10 +770,10 @@ pub fn set_cache_property(
     }
 }
 
-pub fn create_inprocess_session() -> Result<raw::HAPI_Session> {
+pub fn create_inprocess_session(info: &raw::HAPI_SessionInfo) -> Result<raw::HAPI_Session> {
     let mut ses = uninit!();
     unsafe {
-        match raw::HAPI_CreateInProcessSession(ses.as_mut_ptr()) {
+        match raw::HAPI_CreateInProcessSession(ses.as_mut_ptr(), info as *const _) {
             err @ raw::HapiResult::Failure => Err(HapiError::new(
                 Kind::Hapi(err),
                 None,
@@ -873,21 +872,72 @@ pub fn start_thrift_socket_server(
     }
 }
 
-pub fn new_thrift_piped_session(path: &CStr) -> Result<raw::HAPI_Session> {
+pub fn start_thrift_shared_memory_server(
+    mem_name: &CStr,
+    options: &raw::HAPI_ThriftServerOptions,
+    log_file: Option<&CStr>,
+) -> Result<u32> {
+    let mut pid = uninit!();
+    unsafe {
+        raw::HAPI_StartThriftSharedMemoryServer(
+            options as *const _,
+            mem_name.as_ptr(),
+            pid.as_mut_ptr(),
+            log_file.map_or(null(), CStr::as_ptr),
+        )
+        .error_message("Calling HAPI_StartThriftSharedMemoryServer")?;
+        Ok(pid.assume_init())
+    }
+}
+
+pub fn new_thrift_piped_session(
+    path: &CStr,
+    info: &raw::HAPI_SessionInfo,
+) -> Result<raw::HAPI_Session> {
     let mut handle = uninit!();
     let session = unsafe {
-        raw::HAPI_CreateThriftNamedPipeSession(handle.as_mut_ptr(), path.as_ptr())
-            .error_message("Calling HAPI_CreateThriftNamedPipeSession: failed")?;
+        raw::HAPI_CreateThriftNamedPipeSession(
+            handle.as_mut_ptr(),
+            path.as_ptr(),
+            info as *const _,
+        )
+        .error_message("Calling HAPI_CreateThriftNamedPipeSession: failed")?;
         handle.assume_init()
     };
     Ok(session)
 }
 
-pub fn new_thrift_socket_session(port: i32, host: &CStr) -> Result<raw::HAPI_Session> {
+pub fn new_thrift_socket_session(
+    port: i32,
+    host: &CStr,
+    info: &raw::HAPI_SessionInfo,
+) -> Result<raw::HAPI_Session> {
     let mut handle = uninit!();
     let session = unsafe {
-        raw::HAPI_CreateThriftSocketSession(handle.as_mut_ptr(), host.as_ptr(), port)
-            .error_message("Calling HAPI_CreateThriftSocketSession: failed")?;
+        raw::HAPI_CreateThriftSocketSession(
+            handle.as_mut_ptr(),
+            host.as_ptr(),
+            port,
+            info as *const _,
+        )
+        .error_message("Calling HAPI_CreateThriftSocketSession: failed")?;
+        handle.assume_init()
+    };
+    Ok(session)
+}
+
+pub fn new_thrift_shared_memory_session(
+    mem_name: &CStr,
+    info: &raw::HAPI_SessionInfo,
+) -> Result<raw::HAPI_Session> {
+    let mut handle = uninit!();
+    let session = unsafe {
+        raw::HAPI_CreateThriftSharedMemorySession(
+            handle.as_mut_ptr(),
+            mem_name.as_ptr(),
+            info as *const _,
+        )
+        .error_message("Calling HAPI_CreateThriftSharedMemorySession")?;
         handle.assume_init()
     };
     Ok(session)
@@ -1085,20 +1135,38 @@ pub fn create_node(
     }
 }
 
-pub fn create_input_node(session: &Session, name: &CStr) -> Result<raw::HAPI_NodeId> {
+pub fn create_input_node(
+    session: &Session,
+    name: &CStr,
+    parent: Option<NodeHandle>,
+) -> Result<raw::HAPI_NodeId> {
     let mut id = uninit!();
     unsafe {
-        raw::HAPI_CreateInputNode(session.ptr(), id.as_mut_ptr(), name.as_ptr())
-            .check_err(session, || "Calling HAPI_CreateInputNode")?;
+        raw::HAPI_CreateInputNode(
+            session.ptr(),
+            parent.unwrap_or_default().0,
+            id.as_mut_ptr(),
+            name.as_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_CreateInputNode")?;
         Ok(id.assume_init())
     }
 }
 
-pub fn create_input_curve_node(session: &Session, name: &CStr) -> Result<raw::HAPI_NodeId> {
+pub fn create_input_curve_node(
+    session: &Session,
+    name: &CStr,
+    parent: Option<NodeHandle>,
+) -> Result<raw::HAPI_NodeId> {
     let mut id = uninit!();
     unsafe {
-        raw::HAPI_CreateInputCurveNode(session.ptr(), id.as_mut_ptr(), name.as_ptr())
-            .check_err(session, || "Calling HAPI_CreateInputCurveNode")?;
+        raw::HAPI_CreateInputCurveNode(
+            session.ptr(),
+            parent.unwrap_or_default().0,
+            id.as_mut_ptr(),
+            name.as_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_CreateInputCurveNode")?;
         Ok(id.assume_init())
     }
 }
@@ -1469,6 +1537,7 @@ pub fn get_output_geo_count(node: &HoudiniNode) -> Result<i32> {
 
 pub fn get_output_names(node: &HoudiniNode) -> Result<Vec<String>> {
     let mut names = Vec::new();
+    let _ = node.session.lock();
     for output_idx in 0..node.info.output_count() {
         let mut handle = uninit!();
         unsafe {
@@ -1506,7 +1575,7 @@ pub fn get_output_geos(node: &HoudiniNode) -> Result<Vec<raw::HAPI_GeoInfo>> {
 pub fn get_group_count_by_type(geo_info: &GeoInfo, group_type: raw::GroupType) -> i32 {
     // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
     // actually shouldn't?
-    let ptr = (&geo_info.inner as *const _) as *mut raw::HAPI_GeoInfo;
+    let ptr = (&geo_info.0 as *const _) as *mut raw::HAPI_GeoInfo;
     unsafe { raw::HAPI_GeoInfo_GetGroupCountByType(ptr, group_type) }
 }
 
@@ -1517,7 +1586,7 @@ pub fn get_element_count_by_attribute_owner(
     unsafe {
         // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
         // actually shouldn't?
-        let ptr = (&part.inner as *const _) as *mut raw::HAPI_PartInfo;
+        let ptr = (&part.0 as *const _) as *mut raw::HAPI_PartInfo;
         Ok(raw::HAPI_PartInfo_GetElementCountByAttributeOwner(
             ptr, owner,
         ))
@@ -1528,7 +1597,7 @@ pub fn get_attribute_count_by_owner(part: &PartInfo, owner: raw::AttributeOwner)
     unsafe {
         // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
         // actually shouldn't?
-        let ptr = (&part.inner as *const _) as *mut raw::HAPI_PartInfo;
+        let ptr = (&part.0 as *const _) as *mut raw::HAPI_PartInfo;
         Ok(raw::HAPI_PartInfo_GetAttributeCountByOwner(ptr, owner))
     }
 }
@@ -1857,21 +1926,52 @@ pub fn create_heightfield_input_volume(
     Ok(NodeHandle(volume_node))
 }
 
-pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {
+pub fn get_heightfield_data(node: &HoudiniNode, part_id: i32, length: i32) -> Result<Vec<f32>> {
     unsafe {
-        super::raw::HAPI_SetPartInfo(
+        let mut buffer = vec![0f32; length as usize];
+        raw::HAPI_GetHeightFieldData(
             node.session.ptr(),
             node.handle.0,
-            info.part_id(),
-            &info.inner,
+            part_id,
+            buffer.as_mut_ptr(),
+            0,
+            length,
         )
-        .check_err(&node.session, || "Calling HAPI_SetPartInfo")
+        .check_err(&node.session, || "Calling HAPI_GetHeightFieldData")?;
+        Ok(buffer)
+    }
+}
+
+pub fn set_heightfield_data(
+    node: &HoudiniNode,
+    part_id: i32,
+    name: &CStr,
+    values: &[f32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetHeightFieldData(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            values.as_ptr(),
+            0,
+            values.len() as i32,
+        )
+        .check_err(&node.session, || "Calling HAPI_SetHeightFieldData")
+    }
+}
+
+pub fn set_part_info(node: &HoudiniNode, info: &PartInfo) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetPartInfo(node.session.ptr(), node.handle.0, info.part_id(), &info.0)
+            .check_err(&node.session, || "Calling HAPI_SetPartInfo")
     }
 }
 
 pub fn set_curve_info(node: &HoudiniNode, part_id: i32, info: &CurveInfo) -> Result<()> {
     unsafe {
-        super::raw::HAPI_SetCurveInfo(node.session.ptr(), node.handle.0, part_id, &info.inner)
+        super::raw::HAPI_SetCurveInfo(node.session.ptr(), node.handle.0, part_id, &info.0)
             .check_err(&node.session, || "Calling HAPI_SetCurveInfo")
     }
 }
@@ -2284,7 +2384,7 @@ pub fn get_face_counts(
 pub fn get_element_count_by_group(part_info: &PartInfo, group_type: raw::GroupType) -> i32 {
     // SAFETY: Not sure why but many HAPI functions take a mutable pointer where they
     // actually shouldn't?
-    let ptr = (&part_info.inner as *const raw::HAPI_PartInfo) as *mut raw::HAPI_PartInfo;
+    let ptr = (&part_info.0 as *const raw::HAPI_PartInfo) as *mut raw::HAPI_PartInfo;
     unsafe { raw::HAPI_PartInfo_GetElementCountByGroupType(ptr, group_type) }
 }
 
@@ -2734,6 +2834,33 @@ pub fn set_preset(
     }
 }
 
+pub fn get_preset_names(session: &Session, preset_bytes: &[u8]) -> Result<Vec<StringHandle>> {
+    let _lock = session.lock();
+    unsafe {
+        let mut count = -1;
+        raw::HAPI_GetPresetCount(
+            session.ptr(),
+            preset_bytes.as_ptr() as *const i8,
+            preset_bytes.len() as i32,
+            &mut count as *mut _,
+        )
+        .check_err(session, || "Calling HAPI_GetPresetCount")?;
+        if count < 1 {
+            return Ok(vec![]);
+        }
+        let mut handles = vec![StringHandle(0); count as usize];
+        raw::HAPI_GetPresetNames(
+            session.ptr(),
+            preset_bytes.as_ptr() as *const i8,
+            preset_bytes.len() as i32,
+            handles.as_mut_ptr() as *mut HAPI_StringHandle,
+            count,
+        )
+        .check_err(session, || "Calling HAPI_GetPresetNames")?;
+        Ok(handles)
+    }
+}
+
 pub fn get_material_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_MaterialInfo> {
     unsafe {
         let mut mat = uninit!();
@@ -3085,9 +3212,12 @@ pub fn cook_pdg(
     all_outputs: bool,
 ) -> Result<()> {
     unsafe {
+        let _fn_name;
         let cook_fn = if all_outputs {
+            _fn_name = "HAPI_CookPDGAllOutputs";
             raw::HAPI_CookPDGAllOutputs
         } else {
+            _fn_name = "HAPI_CookPDG";
             raw::HAPI_CookPDG
         };
         cook_fn(
@@ -3096,7 +3226,9 @@ pub fn cook_pdg(
             generate_only as i32,
             blocking as i32,
         )
-        .check_err(session, || "Calling HAPI_CookPDG")
+        .check_err(session, || {
+            std::borrow::Cow::Owned(format!("Calling {}", _fn_name))
+        })
     }
 }
 
@@ -3209,23 +3341,20 @@ pub fn get_workitem_result(
     workitem_id: i32,
     count: i32,
 ) -> Result<Vec<raw::HAPI_PDG_WorkitemResultInfo>> {
-    let _info = raw::HAPI_PDG_WorkItemOutputFile {
-        filePathSH: -1,
-        tagSH: -1,
-        hash: -1,
-    };
-    let mut infos = vec![_info; count as usize];
+    let mut infos =
+        Vec::<MaybeUninit<raw::HAPI_PDG_WorkItemOutputFile>>::with_capacity(count as usize);
     unsafe {
         raw::HAPI_GetWorkItemOutputFiles(
             session.ptr(),
             pdg_node.0,
             workitem_id,
-            infos.as_mut_ptr(),
+            infos.as_mut_ptr() as *mut raw::HAPI_PDG_WorkItemOutputFile,
             count,
         )
         .check_err(session, || "Calling HAPI_GetWorkItemOutputFiles")?;
+        infos.set_len(count as usize);
+        Ok(infos.into_iter().map(|mi| mi.assume_init()).collect())
     }
-    Ok(infos)
 }
 
 pub fn get_pdg_workitems(session: &Session, pdg_node: NodeHandle) -> Result<Vec<i32>> {
@@ -3234,7 +3363,9 @@ pub fn get_pdg_workitems(session: &Session, pdg_node: NodeHandle) -> Result<Vec<
         let mut num = -1;
         raw::HAPI_GetNumWorkitems(session.ptr(), pdg_node.0, &mut num as *mut i32)
             .check_err(session, || "Calling HAPI_GetNumWorkitems")?;
-        debug_assert!(num > 0);
+        if num <= 0 {
+            return Ok(vec![]);
+        }
         let mut array = vec![-1; num as usize];
         raw::HAPI_GetWorkitems(session.ptr(), pdg_node.0, array.as_mut_ptr(), num)
             .check_err(session, || "Calling HAPI_GetWorkitems")?;
@@ -3522,5 +3653,70 @@ pub fn python_thread_interpreter_lock(session: &Session, lock: bool) -> Result<(
     unsafe {
         raw::HAPI_PythonThreadInterpreterLock(session.ptr(), lock as i8)
             .check_err(session, || "Calling HAPI_PythonThreadInterpreterLock")
+    }
+}
+
+pub fn set_compositor_options(
+    session: &Session,
+    options: &raw::HAPI_CompositorOptions,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetCompositorOptions(session.ptr(), options as *const _)
+            .check_err(&session, || "Calling HAPI_SetCompositorOptions")
+    }
+}
+
+pub fn get_compositor_options(session: &Session) -> Result<raw::HAPI_CompositorOptions> {
+    unsafe {
+        let mut opts = raw::HAPI_CompositorOptions_Create();
+        raw::HAPI_GetCompositorOptions(session.ptr(), &mut opts as *mut _)
+            .check_err(&session, || "Calling HAPI_GetCompositorOptions")?;
+        Ok(opts)
+    }
+}
+
+pub fn get_volume_visual_info(
+    node: &HoudiniNode,
+    part_id: i32,
+) -> Result<raw::HAPI_VolumeVisualInfo> {
+    unsafe {
+        let mut info = uninit!();
+        raw::HAPI_GetVolumeVisualInfo(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            info.as_mut_ptr(),
+        )
+        .check_err(&node.session, || "Calling HAPI_GetVolumeVisualInfo")?;
+        Ok(info.assume_init())
+    }
+}
+
+pub fn start_performance_monitor_profile(session: &Session, title: &CStr) -> Result<i32> {
+    unsafe {
+        let mut id = -1;
+        raw::HAPI_StartPerformanceMonitorProfile(session.ptr(), title.as_ptr(), &mut id)
+            .check_err(&session, || "Calling HAPI_StartPerformanceMonitorProfile")?;
+        Ok(id)
+    }
+}
+
+pub fn stop_performance_monitor_profile(
+    session: &Session,
+    profile_id: i32,
+    file_path: &CStr,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_StopPerformanceMonitorProfile(session.ptr(), profile_id, file_path.as_ptr())
+            .check_err(&session, || "Calling HAPI_StopPerformanceMonitorProfile")
+    }
+}
+
+pub fn get_job_status(session: &Session, job_id: i32) -> Result<raw::JobStatus> {
+    unsafe {
+        let mut job_status = uninit!();
+        raw::HAPI_GetJobStatus(session.ptr(), job_id, job_status.as_mut_ptr())
+            .check_err(&session, || "Calling HAPI_GetJobStatus")?;
+        Ok(job_status.assume_init())
     }
 }

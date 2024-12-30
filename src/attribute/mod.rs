@@ -21,6 +21,7 @@
 mod array;
 mod bindings;
 
+use crate::attribute::bindings::AsyncResult;
 use crate::errors::Result;
 pub use crate::ffi::enums::StorageType;
 pub use crate::ffi::AttributeInfo;
@@ -123,6 +124,9 @@ impl<T: AttribAccess> NumericAttr<T> {
         )?;
         Ok(buffer)
     }
+    pub fn get_async(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<i32> {
+        T::get_async(&self.0.name, &self.0.node, &self.0.info, part_id, buffer)
+    }
     /// Read the attribute data into a provided buffer. The buffer will be auto-resized
     /// from the attribute info.
     pub fn read_into(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<()> {
@@ -142,6 +146,14 @@ impl<T: AttribAccess> NumericAttr<T> {
             self.0.info.count(),
         )
     }
+
+    /// Set multiple attribute data to the same value.
+    /// value length must be less or equal to attribute tuple size.
+    pub fn set_unique(&self, part_id: i32, value: &[T]) -> Result<()> {
+        debug_assert_eq!(self.0.info.storage(), T::storage());
+        debug_assert!(value.len() <= self.0.info.tuple_size() as usize);
+        T::set_unique(&self.0.name, &self.0.node, &self.0.info, part_id, value, 0)
+    }
 }
 
 impl StringAttr {
@@ -154,7 +166,16 @@ impl StringAttr {
             &self.0.node,
             part_id,
             self.0.name.as_c_str(),
-            &self.0.info.inner,
+            &self.0.info.0,
+        )
+    }
+
+    pub fn get_async(&self, part_id: i32) -> Result<AsyncResult<StringArray>> {
+        bindings::get_attribute_string_data_async(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
         )
     }
     pub fn set(&self, part_id: i32, values: &[&str]) -> Result<()> {
@@ -167,9 +188,33 @@ impl StringAttr {
             &self.0.node,
             part_id,
             self.0.name.as_c_str(),
-            &self.0.info.inner,
+            &self.0.info.0,
             ptrs.as_mut(),
         )
+    }
+    pub fn set_cstr<'a>(&self, part_id: i32, values: impl Iterator<Item = &'a CStr>) -> Result<()> {
+        let mut ptrs: Vec<*const i8> = values.map(|cs| cs.as_ptr()).collect();
+        bindings::set_attribute_string_data(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+            ptrs.as_mut(),
+        )
+    }
+    /// Set multiple attribute data to the same value.
+    /// value length must be less or equal to attribute tuple size.
+    pub fn set_unique(&self, part: i32, value: &str) -> Result<()> {
+        let value = CString::new(value)?;
+        unsafe {
+            bindings::set_attribute_string_unique_data(
+                &self.0.node,
+                self.0.name.as_c_str(),
+                &self.0.info.0,
+                part,
+                value.as_ptr(),
+            )
+        }
     }
 }
 
@@ -195,7 +240,7 @@ impl StringArrayAttr {
         bindings::set_attribute_string_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
-            &self.0.info.inner,
+            &self.0.info.0,
             ptrs.as_mut(),
             &sizes,
         )
@@ -213,7 +258,7 @@ impl DictionaryAttr {
             &self.0.node,
             part_id,
             self.0.name.as_c_str(),
-            &self.0.info.inner,
+            &self.0.info.0,
         )
     }
 
@@ -228,7 +273,7 @@ impl DictionaryAttr {
             &self.0.node,
             part_id,
             &self.0.name.as_c_str(),
-            &self.0.info.inner,
+            &self.0.info.0,
             cstrings.as_mut(),
         )
     }
@@ -256,7 +301,7 @@ impl DictionaryArrayAttr {
         bindings::set_attribute_dictionary_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
-            &self.0.info.inner,
+            &self.0.info.0,
             ptrs.as_mut(),
             &sizes,
         )
@@ -264,7 +309,7 @@ impl DictionaryArrayAttr {
 }
 
 #[doc(hidden)]
-pub trait AsAttribute {
+pub trait AsAttribute: Send {
     fn info(&self) -> &AttributeInfo;
     fn storage(&self) -> StorageType;
     fn boxed(self) -> Box<dyn AnyAttribWrapper>
@@ -411,6 +456,6 @@ impl Attribute {
         self.0.info()
     }
     pub fn delete(self, part_id: i32) -> Result<()> {
-        crate::ffi::delete_attribute(self.0.node(), part_id, self.0.name(), &self.0.info().inner)
+        crate::ffi::delete_attribute(self.0.node(), part_id, self.0.name(), &self.0.info().0)
     }
 }

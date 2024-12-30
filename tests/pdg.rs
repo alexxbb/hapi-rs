@@ -27,7 +27,7 @@ fn pdg_create_workitems() -> Result<()> {
     workitem.set_int_data("my_int_data", &[1, 2, 3])?;
     workitem.set_float_data("my_float_data", &[1.0, 2.0, 3.0])?;
     generator.commit_workitems()?;
-    generator.cook_pdg_blocking()?;
+    generator.cook_pdg_blocking(false)?;
     let i_data = workitem.get_int_data("my_int_data")?;
     assert_eq!(&i_data, &[1, 2, 3]);
     let f_data = workitem.get_float_data("my_float_data")?;

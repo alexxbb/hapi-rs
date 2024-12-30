@@ -7,6 +7,8 @@ use hapi_rs::Result;
 fn main() -> Result<()> {
     let session = quick_session(None)?;
 
+    let profile = session.start_performance_monitor_profile("hapi-rs")?;
+
     let lib = session.load_asset_file("otls/sesi/SideFX_spaceship.hda")?;
     let node = lib.try_create_first()?;
     node.cook_blocking()?;
@@ -24,8 +26,7 @@ fn main() -> Result<()> {
                 geometry.node.path_relative(Some(obj_node.handle))?,
                 part_info.part_id()
             );
-            let attrib_names =
-                geometry.get_attribute_names(AttributeOwner::Point, Some(&part_info))?;
+            let attrib_names = geometry.get_attribute_names(AttributeOwner::Point, &part_info)?;
             println!(
                 "{}",
                 &attrib_names.iter_str().collect::<Vec<&str>>().join("\n")
@@ -43,14 +44,14 @@ fn main() -> Result<()> {
             }
 
             println!("Number of Faces: {}", part_info.face_count());
-            let faces = geometry.get_face_counts(Some(&part_info))?;
+            let faces = geometry.get_face_counts(&part_info)?;
             if part_info.part_type() != PartType::Curve {
                 for face in faces.iter() {
                     print!("{}, ", face);
                 }
                 println!();
             }
-            let vertices = geometry.vertex_list(Some(&part_info))?;
+            let vertices = geometry.vertex_list(&part_info)?;
             println!("Vertex Indices Into Points Array");
             let mut curr_idx = 0;
             assert!(curr_idx < vertices.len());
@@ -67,5 +68,13 @@ fn main() -> Result<()> {
             }
         }
     }
+    let tmp_file = tempfile::Builder::new()
+        .suffix("perf-monitor.json")
+        .tempfile()
+        .expect("per-monitor temp file created");
+    let (_, tmp_file) = tmp_file.keep().unwrap();
+    let out_file = tmp_file.to_string_lossy();
+    session.stop_performance_monitor_profile(profile, &out_file)?;
+    println!("Performance monitor data saved: {}", &out_file);
     Ok(())
 }

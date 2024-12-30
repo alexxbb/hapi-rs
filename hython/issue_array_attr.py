@@ -1,10 +1,12 @@
 import hou
 import hapi
 
+info = hapi.SessionInfo()
+
 try:
     session = hapi.createThriftSocketSession('localhost', 9090)
 except:
-    session = hapi.createInProcessSession()
+    session = hapi.createInProcessSession(info)
 
 cook_options = hapi.CookOptions()
 try:
@@ -13,7 +15,7 @@ except hapi.AlreadyInitializedError:
     pass
 
 
-node = hapi.createInputNode(session, "input_node")
+node = hapi.createInputNode(session, -1, "input_node")
 
 part_info = hapi.PartInfo(
     vertexCount = 0,
@@ -58,9 +60,10 @@ hapi.setAttributeIntArrayData(
         array_info,
         [1, 2, 3, 4, 5],   # data
         5,              # data length
-        [2, 3],         # sizes array
+        [1, 1],         # sizes array
         0,              # start
         2               # sizes length
 )
 
 hapi.commitGeo(session, node)
+hapi.saveHIPFile(session, r"c:/Temp/junk/shit.hip", True)

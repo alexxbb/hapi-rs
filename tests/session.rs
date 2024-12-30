@@ -50,7 +50,7 @@ fn session_init_and_teardown() {
     let ses = quick_session(Some(&opt)).unwrap();
     assert!(matches!(
         ses.connection_type(),
-        ConnectionType::ThriftPipe(_)
+        ConnectionType::SharedMemory(_)
     ));
     assert!(ses.is_initialized());
     assert!(ses.is_valid());
@@ -142,5 +142,23 @@ fn cache_properties() {
             .get_cache_property_value("SOP Cache", CacheProperty::CachepropMax)
             .unwrap();
         assert_eq!(cache_val, 2048);
+    })
+}
+
+#[test]
+fn test_license_set_via_environment() {
+    let env = [("HOUDINI_PLUGIN_LIC_OPT", "--check-licenses=Engine")];
+    let options = SessionOptions::builder().env_variables(env.iter()).build();
+    let session = quick_session(Some(&options)).expect("Could not start session");
+    let plugin_lic_opt = session.get_server_var::<str>(&env[0].0).unwrap();
+    assert_eq!(plugin_lic_opt, env[0].1.to_string());
+}
+
+#[test]
+fn test_get_preset_names() {
+    let bytes = std::fs::read("tests/data/bone.idx").expect("read file");
+    SESSION.with(|session| {
+        log::info!("Reading preset file");
+        session.get_preset_names(&bytes).expect("2 presets");
     })
 }

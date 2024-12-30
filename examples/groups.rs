@@ -9,7 +9,7 @@ use hapi_rs::session::{quick_session, Session};
 use hapi_rs::Result;
 
 fn create_cube(session: &Session) -> Result<HoudiniNode> {
-    let geometry = session.create_input_node("Cube")?;
+    let geometry = session.create_input_node("Cube", None)?;
     geometry.node.cook()?;
 
     let part_info = PartInfo::default()
@@ -84,7 +84,7 @@ fn main() -> Result<()> {
     let num_points = part.element_count_by_group(GroupType::Point);
     println!("{} points in pointGroup", num_points);
 
-    let membership = geo.get_group_membership(Some(&part), GroupType::Point, "pointGroup")?;
+    let membership = geo.get_group_membership(&part, GroupType::Point, "pointGroup")?;
 
     for (pt, member) in membership.into_iter().enumerate() {
         if member > 0 {

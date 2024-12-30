@@ -1,0 +1,33 @@
+[package]
+name = "hapi-bevy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hapi-rs = { path = "../..", version = "*" }
+bevy_panorbit_camera = "0.21.2"
+
+
+[features]
+dev = ["bevy/dynamic_linking"]
+
+
+[dependencies.bevy]
+version = "0.15.0"
+default-features = false
+features = [
+    "bevy_window",
+    "bevy_winit",
+    "bevy_pbr",
+    "bevy_ui",
+    "default_font",
+    "tonemapping_luts",
+    "ktx2",
+    "png",
+    "bevy_state",
+    "bevy_dev_tools",
+    "multi_threaded"
+]
+
+[profile.dev.package."*"]
+opt-level = 3

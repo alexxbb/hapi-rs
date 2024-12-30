@@ -101,7 +101,8 @@ impl Texture {
     pub fn extract(gl: &glow::Context, geo: &Geometry) -> Result<Option<Self>> {
         use glow::HasContext as _;
 
-        let Some(materials) = geo.get_materials(None)? else {
+        let part = geo.part_info(0)?.unwrap();
+        let Some(materials) = geo.get_materials(&part)? else {
             eprintln!("No texture!");
             return Ok(None);
         };
@@ -308,8 +309,8 @@ impl MeshData {
         let _part = geo.part_info(0)?.expect("Geometry to have partition");
         let _part_id = _part.part_id();
         let positions = geo.get_position_attribute(_part_id)?.get(_part_id)?;
-        let face_counts = geo.get_face_counts(Some(&_part))?;
-        let vertex_list = geo.vertex_list(Some(&_part))?;
+        let face_counts = geo.get_face_counts(&_part)?;
+        let vertex_list = geo.vertex_list(&_part)?;
         let uvs = {
             match geo.get_attribute(_part_id, AttributeOwner::Vertex, "uv")? {
                 Some(uv_attr) => Some(

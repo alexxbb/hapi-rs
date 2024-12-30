@@ -101,17 +101,13 @@ impl Parameter {
     /// Parameter parent if any (examples are multi-parm or Folder type parameters)
     pub fn parent(&self) -> Result<Option<ParmInfo>> {
         let wrap = self.base();
-        debug_assert!(wrap.info.session.is_valid());
+        debug_assert!(wrap.info.1.is_valid());
         match wrap.info.parent_id() {
             ParmHandle(-1) => Ok(None),
             handle => {
-                let session = wrap.info.session.clone();
+                let session = wrap.info.1.clone();
                 let info = crate::ffi::get_parm_info(wrap.node, &session, handle)?;
-                Ok(Some(ParmInfo {
-                    inner: info,
-                    session,
-                    name: None,
-                }))
+                Ok(Some(ParmInfo(info, session, None)))
             }
         }
     }

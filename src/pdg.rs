@@ -28,6 +28,12 @@ impl std::fmt::Debug for PDGWorkItem<'_> {
     }
 }
 
+impl From<WorkItemId> for i32 {
+    fn from(value: WorkItemId) -> Self {
+        value.0
+    }
+}
+
 impl From<TopNode> for NodeHandle {
     fn from(value: TopNode) -> Self {
         value.node.handle
@@ -36,8 +42,7 @@ impl From<TopNode> for NodeHandle {
 
 impl<'session> PDGWorkItem<'session> {
     pub fn get_info(&self) -> Result<PDGWorkItemInfo> {
-        ffi::get_workitem_info(&self.node.session, self.context_id, self.id.0)
-            .map(|inner| PDGWorkItemInfo { inner })
+        ffi::get_workitem_info(&self.node.session, self.context_id, self.id.0).map(PDGWorkItemInfo)
     }
     /// Retrieve the results of work, if the work item has any.
     pub fn get_results(&self) -> Result<Vec<PDGWorkItemOutputFile<'session>>> {
@@ -52,10 +57,7 @@ impl<'session> PDGWorkItem<'session> {
                 )?;
                 let results = results
                     .into_iter()
-                    .map(|inner| PDGWorkItemOutputFile {
-                        inner,
-                        session: (&self.node.session).into(),
-                    })
+                    .map(|inner| PDGWorkItemOutputFile(inner, (&self.node.session).into()))
                     .collect();
 
                 Ok(results)
@@ -249,7 +251,7 @@ impl TopNode {
             debug_assert_eq!(graph_ids.len(), graph_names.len());
             for (graph_id, graph_name) in graph_ids.into_iter().zip(graph_names) {
                 for event in ffi::get_pdg_events(session, graph_id, &mut events)? {
-                    let event = PDGEventInfo { inner: *event };
+                    let event = PDGEventInfo(*event);
                     match event.event_type() {
                         PdgEventType::EventCookComplete => break 'main,
                         _ => {
@@ -276,43 +278,17 @@ impl TopNode {
         Ok(())
     }
 
-    pub fn cook_pdg_blocking(&self) -> Result<()> {
-        ffi::cook_pdg(&self.node.session, self.node.handle, false, true, false)
-    }
-
-    // FIXME. Observing some weird behaviour. The output files are intermixed with tags
-    #[allow(dead_code)]
-    #[allow(unreachable_code)]
-    fn cook_blocking_with_results(
-        &self,
-        _all_outputs: bool,
-    ) -> Result<Vec<PDGWorkItemOutputFile<'_>>> {
-        unimplemented!();
+    /// Trigger PDG cooking and wait for completion.
+    /// If all_outputs is true and this TOP node is of topnet type, cook all network outptus.
+    /// Results can then be retrieved from workitems with get_all_workitems()
+    pub fn cook_pdg_blocking(&self, all_outputs: bool) -> Result<()> {
         ffi::cook_pdg(
             &self.node.session,
             self.node.handle,
             false,
             true,
-            _all_outputs,
-        )?;
-        let workitems: Vec<PDGWorkItem> = {
-            let context_id = self.get_context_id()?;
-            ffi::get_pdg_workitems(&self.node.session, self.node.handle)?
-                .into_iter()
-                .map(|workitem_id| {
-                    Ok(PDGWorkItem {
-                        id: WorkItemId(workitem_id),
-                        context_id,
-                        node: &self.node,
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?
-        };
-        let mut all_results = Vec::new();
-        for wi in workitems {
-            all_results.extend(wi.get_results()?)
-        }
-        Ok(all_results)
+            all_outputs,
+        )
     }
 
     /// Get the graph(context) id of this node in PDG.

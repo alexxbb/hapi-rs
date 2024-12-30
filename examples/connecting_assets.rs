@@ -4,7 +4,7 @@ use hapi_rs::Result;
 
 fn main() -> Result<()> {
     let session = quick_session(None)?;
-    let geom = session.create_input_node("Cube")?;
+    let geom = session.create_input_node("Cube", None)?;
     geom.node.cook_blocking()?;
     let part_info = PartInfo::default()
         .with_part_type(PartType::Mesh)

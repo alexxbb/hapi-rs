@@ -1,7 +1,6 @@
 //! Access to geometry data, attributes, reading and writing geometry to and from disk
 //!
 //!
-use std::ffi::{CStr, CString};
 
 use crate::attribute::*;
 use crate::errors::Result;
@@ -14,6 +13,7 @@ use crate::node::{HoudiniNode, NodeHandle};
 use crate::stringhandle::StringArray;
 use crate::utils::unwrap_or_create;
 use crate::volume::{Tile, VolumeBounds, VolumeStorage};
+use std::ffi::{CStr, CString};
 
 #[derive(Debug, Clone)]
 /// Represents a SOP node with methods for manipulating geometry.
@@ -51,6 +51,55 @@ impl GeoFormat {
     }
 }
 
+/// Common geometry attribute names
+#[derive(Debug)]
+pub enum AttributeName {
+    Cd,
+    P,
+    N,
+    Uv,
+    TangentU,
+    TangentV,
+    Scale,
+    User(CString),
+}
+
+impl TryFrom<&str> for AttributeName {
+    type Error = std::ffi::NulError;
+
+    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+        CString::new(value).map(AttributeName::User)
+    }
+}
+
+impl TryFrom<String> for AttributeName {
+    type Error = std::ffi::NulError;
+
+    fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
+        CString::new(value).map(AttributeName::User)
+    }
+}
+
+impl From<AttributeName> for CString {
+    fn from(name: AttributeName) -> Self {
+        macro_rules! cstr {
+            ($attr:expr) => {
+                unsafe { CStr::from_bytes_with_nul_unchecked($attr).to_owned() }
+            };
+        }
+        match name {
+            AttributeName::Cd => cstr!(crate::raw::HAPI_ATTRIB_COLOR),
+            AttributeName::P => cstr!(crate::raw::HAPI_ATTRIB_POSITION),
+            AttributeName::N => cstr!(crate::raw::HAPI_ATTRIB_NORMAL),
+            AttributeName::Uv => cstr!(crate::raw::HAPI_ATTRIB_UV),
+            AttributeName::TangentU => cstr!(crate::raw::HAPI_ATTRIB_TANGENT),
+            AttributeName::TangentV => cstr!(crate::raw::HAPI_ATTRIB_TANGENT2),
+            AttributeName::Scale => cstr!(crate::raw::HAPI_ATTRIB_SCALE),
+            AttributeName::User(val) => val,
+        }
+    }
+}
+
 impl Geometry {
     /// Get geometry partition info by index.
     /// Returns an Option if given an incorrect part id.
@@ -58,21 +107,22 @@ impl Geometry {
     /// after node created or after calling `[Geometry::commit]`
     pub fn part_info(&self, part_id: i32) -> Result<Option<PartInfo>> {
         // TODO: Consider taking a u32 and cast to i32 for ffi.
+        // FIXME: Rething returning Option. Why?
         use crate::errors::Kind;
         match crate::ffi::get_part_info(&self.node, part_id) {
-            Ok(inner) => Ok(Some(PartInfo { inner })),
+            Ok(inner) => Ok(Some(PartInfo(inner))),
             Err(err) if matches!(err.kind, Kind::Hapi(HapiResult::InvalidArgument)) => Ok(None),
             Err(err) => Err(err),
         }
     }
 
     pub fn volume_info(&self, part_id: i32) -> Result<VolumeInfo> {
-        crate::ffi::get_volume_info(&self.node, part_id).map(|inner| VolumeInfo { inner })
+        crate::ffi::get_volume_info(&self.node, part_id).map(VolumeInfo)
     }
 
     pub fn set_volume_info(&self, part_id: i32, info: &VolumeInfo) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
-        crate::ffi::set_volume_info(&self.node, part_id, &info.inner)
+        crate::ffi::set_volume_info(&self.node, part_id, &info.0)
     }
 
     pub fn volume_bounds(&self, part_id: i32) -> Result<VolumeBounds> {
@@ -81,6 +131,9 @@ impl Geometry {
             "Node not cooked"
         );
         crate::ffi::get_volume_bounds(&self.node, part_id)
+    }
+    pub fn get_volume_visual_info(&self, part_id: i32) -> Result<VolumeVisualInfo> {
+        crate::ffi::get_volume_visual_info(&self.node, part_id).map(VolumeVisualInfo)
     }
 
     /// Get information about Node's geometry.
@@ -103,8 +156,7 @@ impl Geometry {
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id)
-            .map(|inner| BoxInfo { inner })
+        crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id).map(BoxInfo)
     }
 
     pub fn sphere_info(&self, part_id: i32) -> Result<BoxInfo> {
@@ -112,8 +164,7 @@ impl Geometry {
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id)
-            .map(|inner| BoxInfo { inner })
+        crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id).map(BoxInfo)
     }
 
     pub fn set_curve_info(&self, part_id: i32, info: &CurveInfo) -> Result<()> {
@@ -128,7 +179,7 @@ impl Geometry {
 
     pub fn get_input_curve_info(&self, part_id: i32) -> Result<InputCurveInfo> {
         debug_assert!(self.node.is_valid()?);
-        crate::ffi::get_input_curve_info(&self.node, part_id).map(|inner| InputCurveInfo { inner })
+        crate::ffi::get_input_curve_info(&self.node, part_id).map(InputCurveInfo)
     }
 
     pub fn set_input_curve_positions(&self, part_id: i32, positions: &[f32]) -> Result<()> {
@@ -181,7 +232,7 @@ impl Geometry {
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        crate::ffi::get_curve_info(&self.node, part_id).map(|inner| CurveInfo { inner })
+        crate::ffi::get_curve_info(&self.node, part_id).map(CurveInfo)
     }
 
     /// Retrieve the number of vertices for each curve in the part.
@@ -214,14 +265,11 @@ impl Geometry {
     /// Get array containing the vertex-point associations where the
     /// ith element in the array is the point index the ith vertex
     /// associates with.
-    pub fn vertex_list(&self, part: Option<&PartInfo>) -> Result<Vec<i32>> {
-        // TODO: Consider taking a ref to an existing PartInfo instead of Option
+    pub fn vertex_list(&self, part: &PartInfo) -> Result<Vec<i32>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_geo_vertex_list(
             &self.node.session,
             self.node.handle,
@@ -241,13 +289,11 @@ impl Geometry {
             .collect()
     }
 
-    pub fn get_face_counts(&self, part: Option<&PartInfo>) -> Result<Vec<i32>> {
+    pub fn get_face_counts(&self, part: &PartInfo) -> Result<Vec<i32>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_face_counts(
             &self.node.session,
             self.node.handle,
@@ -258,13 +304,11 @@ impl Geometry {
     }
 
     /// Return material nodes applied to geometry.
-    pub fn get_materials(&self, part: Option<&PartInfo>) -> Result<Option<Materials>> {
+    pub fn get_materials(&self, part: &PartInfo) -> Result<Option<Materials>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         let (all_the_same, mats) = crate::ffi::get_material_node_ids_on_faces(
             &self.node.session,
             self.node.handle,
@@ -328,36 +372,30 @@ impl Geometry {
     /// Get num geometry elements by type (points, prims, vertices).
     pub fn get_element_count_by_owner(
         &self,
-        part: Option<&PartInfo>,
+        part: &PartInfo,
         owner: AttributeOwner,
     ) -> Result<i32> {
-        let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_element_count_by_attribute_owner(part, owner)
     }
 
     /// Get number of attributes by type.
     pub fn get_attribute_count_by_owner(
         &self,
-        part: Option<&PartInfo>,
+        part: &PartInfo,
         owner: AttributeOwner,
     ) -> Result<i32> {
-        let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_attribute_count_by_owner(part, owner)
     }
 
     pub fn get_attribute_names(
         &self,
         owner: AttributeOwner,
-        part: Option<&PartInfo>,
+        part: &PartInfo,
     ) -> Result<StringArray> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part, self.part_info(0)?.expect("partition id=0"));
         let counts = part.attribute_counts();
         let count = match owner {
             AttributeOwner::Invalid => panic!("Invalid AttributeOwner"),
@@ -376,7 +414,9 @@ impl Geometry {
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let name = CString::new("P")?;
+        let name = unsafe {
+            CStr::from_bytes_with_nul_unchecked(crate::raw::HAPI_ATTRIB_POSITION).to_owned()
+        };
         let info = AttributeInfo::new(&self.node, part_id, AttributeOwner::Point, name.as_c_str())?;
         Ok(NumericAttr::new(name, info, self.node.clone()))
     }
@@ -393,17 +433,22 @@ impl Geometry {
     }
 
     /// Get geometry attribute by name and owner.
-    pub fn get_attribute(
+    pub fn get_attribute<T>(
         &self,
         part_id: i32,
         owner: AttributeOwner,
-        name: &str,
-    ) -> Result<Option<Attribute>> {
+        name: T,
+    ) -> Result<Option<Attribute>>
+    where
+        T: TryInto<AttributeName>,
+        T::Error: Into<crate::HapiError>,
+    {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let name = CString::new(name)?;
+        let name: AttributeName = name.try_into().map_err(Into::into)?;
+        let name: CString = name.into();
         let info = AttributeInfo::new(&self.node, part_id, owner, &name)?;
         let storage = info.storage();
         if !info.exists() {
@@ -451,7 +496,7 @@ impl Geometry {
         );
         log::debug!("Adding numeric geometry attriubute: {name}");
         let name = CString::new(name)?;
-        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
         Ok(NumericAttr::<T>::new(name, info, self.node.clone()))
     }
 
@@ -473,7 +518,7 @@ impl Geometry {
         );
         log::debug!("Adding numeric array geometry attriubute: {name}");
         let name = CString::new(name)?;
-        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
         Ok(NumericArrayAttr::<T>::new(name, info, self.node.clone()))
     }
 
@@ -493,7 +538,7 @@ impl Geometry {
         );
         log::debug!("Adding string geometry attriubute: {name}");
         let name = CString::new(name)?;
-        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
         Ok(StringAttr::new(name, info, self.node.clone()))
     }
 
@@ -513,7 +558,7 @@ impl Geometry {
         );
         log::debug!("Adding string array geometry attriubute: {name}");
         let name = CString::new(name)?;
-        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
         Ok(StringArrayAttr::new(name, info, self.node.clone()))
     }
 
@@ -533,7 +578,7 @@ impl Geometry {
         );
         log::debug!("Adding dictionary geometry attriubute: {name}");
         let name = CString::new(name)?;
-        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
         Ok(DictionaryAttr::new(name, info, self.node.clone()))
     }
 
@@ -553,7 +598,7 @@ impl Geometry {
         );
         log::debug!("Adding dictionary array geometry attriubute: {name}");
         let name = CString::new(name)?;
-        crate::ffi::add_attribute(&self.node, part_id, &name, &info.inner)?;
+        crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
         Ok(DictionaryArrayAttr::new(name, info, self.node.clone()))
     }
 
@@ -628,7 +673,7 @@ impl Geometry {
     /// Get element membership for a group.
     pub fn get_group_membership(
         &self,
-        part_info: Option<&PartInfo>,
+        part: &PartInfo,
         group_type: GroupType,
         group_name: &str,
     ) -> Result<Vec<i32>> {
@@ -636,8 +681,6 @@ impl Geometry {
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?.expect("partition id=0"));
         let group_name = CString::new(group_name)?;
         crate::ffi::get_group_membership(
             &self.node.session,
@@ -664,13 +707,11 @@ impl Geometry {
         Ok(crate::ffi::get_group_count_by_type(info, group_type))
     }
 
-    pub fn get_instanced_part_ids(&self, part_info: Option<&PartInfo>) -> Result<Vec<i32>> {
+    pub fn get_instanced_part_ids(&self, part: &PartInfo) -> Result<Vec<i32>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_instanced_part_ids(
             &self.node.session,
             self.node.handle,
@@ -679,16 +720,11 @@ impl Geometry {
         )
     }
 
-    pub fn get_group_count_on_packed_instance(
-        &self,
-        part_info: Option<&PartInfo>,
-    ) -> Result<(i32, i32)> {
+    pub fn get_group_count_on_packed_instance(&self, part: &PartInfo) -> Result<(i32, i32)> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_group_count_on_instance_part(
             &self.node.session,
             self.node.handle,
@@ -715,15 +751,13 @@ impl Geometry {
 
     pub fn get_instance_part_transforms(
         &self,
-        part_info: Option<&PartInfo>,
+        part: &PartInfo,
         order: RSTOrder,
     ) -> Result<Vec<Transform>> {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let tmp;
-        let part = unwrap_or_create!(tmp, part_info, self.part_info(0)?.expect("partition id=0"));
         crate::ffi::get_instanced_part_transforms(
             &self.node.session,
             self.node.handle,
@@ -731,7 +765,7 @@ impl Geometry {
             order,
             part.instance_count(),
         )
-        .map(|vec| vec.into_iter().map(|inner| Transform { inner }).collect())
+        .map(|vec| vec.into_iter().map(Transform).collect())
     }
 
     /// Save geometry to a file.
@@ -795,7 +829,7 @@ impl Geometry {
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        T::read_tile(&self.node, part, fill, values, &tile.inner)
+        T::read_tile(&self.node, part, fill, values, &tile.0)
     }
 
     pub fn write_volume_tile<T: VolumeStorage>(
@@ -808,7 +842,7 @@ impl Geometry {
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        T::write_tile(&self.node, part, values, &tile.inner)
+        T::write_tile(&self.node, part, values, &tile.0)
     }
 
     pub fn read_volume_voxel<T: VolumeStorage>(
@@ -854,6 +888,15 @@ impl Geometry {
         );
         let tile_size = (info.tile_size().pow(3) * info.tuple_size()) as usize;
         crate::volume::iterate_tiles(&self.node, part, tile_size, callback)
+    }
+
+    pub fn get_heightfield_data(&self, part_id: i32, volume_info: &VolumeInfo) -> Result<Vec<f32>> {
+        let length = volume_info.x_length() * volume_info.y_length();
+        crate::ffi::get_heightfield_data(&self.node, part_id, length)
+    }
+
+    pub fn set_heightfield_data(&self, part_id: i32, name: &str, data: &[f32]) -> Result<()> {
+        crate::ffi::set_heightfield_data(&self.node, part_id, &CString::new(name)?, data)
     }
 
     pub fn create_heightfield_input(
@@ -916,5 +959,92 @@ pub struct HeightfieldNodes {
 impl PartInfo {
     pub fn element_count_by_group(&self, group_type: GroupType) -> i32 {
         crate::ffi::get_element_count_by_group(self, group_type)
+    }
+}
+
+/// Geometry extension trait with some useful utilities
+pub mod extra {
+    use super::*;
+    pub trait GeometryExtension {
+        fn create_position_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>>;
+        fn create_point_color_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>>;
+        fn get_color_attribute(
+            &self,
+            part: &PartInfo,
+            owner: AttributeOwner,
+        ) -> Result<Option<NumericAttr<f32>>>;
+        fn get_normal_attribute(
+            &self,
+            part: &PartInfo,
+            owner: AttributeOwner,
+        ) -> Result<Option<NumericAttr<f32>>>;
+        fn get_position_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>>;
+    }
+
+    impl GeometryExtension for Geometry {
+        fn create_position_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>> {
+            create_point_tuple_attribute::<3>(self, part, AttributeName::P)
+        }
+
+        fn create_point_color_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>> {
+            create_point_tuple_attribute::<3>(self, part, AttributeName::Cd)
+        }
+
+        fn get_color_attribute(
+            &self,
+            part: &PartInfo,
+            owner: AttributeOwner,
+        ) -> Result<Option<NumericAttr<f32>>> {
+            debug_assert!(matches!(
+                owner,
+                AttributeOwner::Point | AttributeOwner::Vertex
+            ));
+            get_tuple3_attribute(self, part, AttributeName::Cd, owner)
+        }
+        fn get_normal_attribute(
+            &self,
+            part: &PartInfo,
+            owner: AttributeOwner,
+        ) -> Result<Option<NumericAttr<f32>>> {
+            debug_assert!(matches!(
+                owner,
+                AttributeOwner::Point | AttributeOwner::Vertex
+            ));
+            get_tuple3_attribute(self, part, AttributeName::N, owner)
+        }
+        fn get_position_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>> {
+            get_tuple3_attribute(self, part, AttributeName::P, AttributeOwner::Point)
+        }
+    }
+
+    #[inline]
+    fn create_point_tuple_attribute<const N: usize>(
+        geo: &Geometry,
+        part: &PartInfo,
+        name: AttributeName,
+    ) -> Result<NumericAttr<f32>> {
+        log::debug!("Creating point attriute {:?}", name);
+        let name: CString = name.try_into()?;
+        let attr_info = AttributeInfo::default()
+            .with_count(part.point_count())
+            .with_tuple_size(N as i32)
+            .with_owner(AttributeOwner::Point)
+            .with_storage(StorageType::Float);
+        crate::ffi::add_attribute(&geo.node, part.part_id(), &name, &attr_info.0)
+            .map(|_| NumericAttr::new(name, attr_info, geo.node.clone()))
+    }
+
+    #[inline]
+    fn get_tuple3_attribute<'a>(
+        geo: &'a Geometry,
+        part: &PartInfo,
+        name: AttributeName,
+        owner: AttributeOwner,
+    ) -> Result<Option<NumericAttr<f32>>> {
+        let name: CString = name.try_into()?;
+        AttributeInfo::new(&geo.node, part.part_id(), owner, &name).map(|info| {
+            info.exists()
+                .then(|| NumericAttr::new(name, info, geo.node.clone()))
+        })
     }
 }

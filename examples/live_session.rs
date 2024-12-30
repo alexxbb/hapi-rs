@@ -68,7 +68,7 @@ fn main() -> Result<()> {
     let curve_info = InputCurveInfo::default()
         .with_curve_type(CurveType::Nurbs)
         .with_order(3);
-    let geo = session.create_input_curve_node("curvy")?;
+    let geo = session.create_input_curve_node("curvy", None)?;
     geo.set_input_curve_info(0, &curve_info)?;
     let running = Arc::new(AtomicBool::new(true));
     let flag = running.clone();

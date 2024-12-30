@@ -1,5 +1,7 @@
 use hapi_rs::attribute::*;
-use hapi_rs::geometry::{AttributeOwner, CurveOrders, CurveType, Geometry, PartInfo, PartType};
+use hapi_rs::geometry::{
+    AttributeName, AttributeOwner, CurveOrders, CurveType, Geometry, PartInfo, PartType,
+};
 use hapi_rs::node::{NodeFlags, NodeType, ObjectInfo};
 use hapi_rs::session::{quick_session, SessionOptions};
 use hapi_rs::Result;
@@ -68,7 +70,7 @@ fn print_curve_info(geo: &Geometry, obj: &ObjectInfo, part: &PartInfo) -> Result
             continue;
         }
         let attrib = geo
-            .get_attribute(part_id, AttributeOwner::Point, "P")?
+            .get_attribute(part_id, AttributeOwner::Point, AttributeName::P)?
             .unwrap();
         let attrib = attrib.downcast::<NumericAttr<f32>>().unwrap();
         let positions = attrib.get(part_id)?;
