@@ -1,7 +1,6 @@
 {
     "cSpell.enabled": false,
     "python.languageServer": "Pylance",
-
     "python.analysis.extraPaths": [
         "C:/Houdini/20.5.445/houdini/python3.11libs"
     ],

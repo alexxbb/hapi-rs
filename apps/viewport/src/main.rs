@@ -1,30 +1,31 @@
-#![allow(unused)]
-
 mod setup;
 mod camera;
 mod parameters;
 
 use camera::Camera;
-use eframe::egui::{Color32, Context, Key, Modifiers, PointerButton, Sense, Visuals};
-use eframe::epaint::Vertex;
-use eframe::{egui, CreationContext, Frame};
+use eframe::egui::{
+    Context, Key, Modifiers, PointerButton, Sense, ViewportBuilder, ViewportCommand,
+};
+
+use eframe::{egui, Frame};
 use egui::mutex::Mutex;
+use egui::viewport::IconData;
 use egui_glow::CallbackFn;
 use glow::HasContext;
-use hapi_rs::node::CookOptions;
+
 use path_absolutize::Absolutize;
 use std::default::Default;
-use std::ops::{BitXorAssign, Sub};
+use std::io::Read;
+use std::ops::BitXorAssign;
 use std::sync::Arc;
-use std::time::Duration;
-use ultraviolet as uv;
-use ultraviolet::{Mat4, Vec3};
+
+use ultraviolet::Vec3;
 
 use hapi_rs::parameter::{Parameter, ParmBaseTrait};
 use hapi_rs::session::SessionOptions;
 
 use crate::parameters::{ParmKind, UiParameter};
-use setup::{Asset, AssetParameters, BufferStats, CookingStats, MeshData, Stats};
+use setup::{Asset, AssetParameters, BufferStats, CookingStats, Stats};
 
 static OTL: &str = "otls/hapi_opengl.hda";
 static ICON: &str = "maps/icon.png";
@@ -35,10 +36,10 @@ struct ViewportApp {
     asset: Arc<Mutex<Asset>>,
     asset_parameters: Arc<Mutex<AssetParameters>>,
     should_refresh_parms: bool,
-    scale: f32,
+    should_close: bool,
     turntable: bool,
     camera: Camera,
-    movement: egui::Vec2,
+    gl: Arc<glow::Context>,
 }
 
 impl ViewportApp {
@@ -60,7 +61,8 @@ impl ViewportApp {
         };
         let otl = std::path::Path::new(OTL).absolutize().expect("OTL path");
         let otl = otl.to_string_lossy();
-        let asset = Asset::load_hda(gl, &session, &otl).expect("Load HDA");
+
+        let asset = Asset::load_hda(&gl, &session, &otl).expect("Load HDA");
         let asset_parameters =
             AssetParameters::from_node(&asset.asset_node).expect("Asset parameters");
 
@@ -69,16 +71,16 @@ impl ViewportApp {
             asset: Arc::new(Mutex::new(asset)),
             asset_parameters: Arc::new(Mutex::new(asset_parameters)),
             should_refresh_parms: false,
-            scale: 1.0,
+            should_close: false,
             turntable: true,
             camera: Camera::new(Vec3::new(0.0, 1.0, -2.5)),
-            movement: egui::Vec2::splat(0.0),
+            gl,
         }
     }
 }
 
 impl eframe::App for ViewportApp {
-    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+    fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         egui::SidePanel::left("parameters")
             .resizable(true)
             .default_width(200.0)
@@ -96,16 +98,16 @@ impl eframe::App for ViewportApp {
                         asset.stats.reset();
                     }
                     asset.cook().expect("Cook");
-                    asset.rebuild_mesh().expect("rebuild");
+                    asset.rebuild_mesh(&self.gl).expect("rebuild");
                     if reload_texture {
-                        asset.reload_texture();
+                        asset.reload_texture(&self.gl).unwrap();
                     }
                     ctx.request_repaint();
                 };
 
                 if self.should_refresh_parms {
                     for (_, parm) in self.asset_parameters.lock().0.iter_mut() {
-                        parm.parameter.update();
+                        parm.parameter.update().unwrap();
                     }
                     self.should_refresh_parms = false;
                 }
@@ -161,7 +163,6 @@ impl eframe::App for ViewportApp {
                                 self.should_refresh_parms = true;
                             }
                         }
-                        _ => {}
                     }
                 }
                 ui.separator();
@@ -172,7 +173,7 @@ impl eframe::App for ViewportApp {
                     let Stats { cooking, buffer } = &asset.stats;
                     use egui::ecolor::Color32;
                     use egui::epaint::text::TextFormat;
-                    use egui::epaint::Stroke;
+
                     use egui::text::LayoutJob;
 
                     macro_rules! stat {
@@ -229,9 +230,9 @@ impl eframe::App for ViewportApp {
                 });
             });
         egui::CentralPanel::default().show(ctx, |ui| {
-            let mut style = ui.style_mut();
+            let style = ui.style_mut();
             style.visuals.extreme_bg_color = egui::Rgba::from_rgb(0.02, 0.02, 0.03).into();
-            egui::Frame::canvas(&style).show(ui, |ui| {
+            egui::Frame::canvas(style).show(ui, |ui| {
                 ui.allocate_rect(ui.max_rect(), Sense::click());
                 let rect = ui.max_rect();
 
@@ -254,23 +255,18 @@ impl eframe::App for ViewportApp {
                 self.camera.set_aspect_ratio(rect.aspect_ratio());
                 self.camera.set_zoom(camera_zoom);
                 if self.turntable {
-                    // TODO rotate camera
-                    // let time = self
-                    //     .turntable
-                    //     .then_some(ui.ctx().input(|input| input.time))
-                    //     .unwrap_or(0.0);
-                    self.camera.turntable(2.0 as f32);
+                    self.camera.turntable(2.0_f32);
                 } else {
                     self.camera.orbit(mouse_movement.x, mouse_movement.y);
                 }
 
                 let asset = Arc::clone(&self.asset);
-                let mut camera = self.camera.clone();
+                let camera = self.camera.clone();
                 let callback = egui::PaintCallback {
                     rect: ui.max_rect(),
-                    callback: Arc::new(CallbackFn::new(move |info, painter| {
-                        // unsafe { painter.gl().clear_color(0.2, 0.2, 0.2, 1.0) };
-                        asset.lock().draw(&camera);
+                    callback: Arc::new(CallbackFn::new(move |_info, painter| {
+                        unsafe { painter.gl().clear_color(0.2, 0.2, 0.2, 1.0) };
+                        asset.lock().draw(&camera, painter.gl());
                     })),
                 };
                 ui.painter().add(callback);
@@ -282,45 +278,44 @@ impl eframe::App for ViewportApp {
 
         ctx.input(|input| {
             if input.key_pressed(Key::Escape) {
-                frame.close()
+                self.should_close = true;
             }
-            if input.modifiers.matches(Modifiers::CTRL) && input.key_pressed(Key::F) {
+            if input.modifiers.matches_exact(Modifiers::CTRL) && input.key_pressed(Key::F) {
                 self.full_screen.bitxor_assign(true);
             }
-            frame.set_fullscreen(self.full_screen);
         });
+        if self.should_close {
+            ctx.send_viewport_cmd(ViewportCommand::Close);
+        }
+        ctx.send_viewport_cmd(ViewportCommand::Fullscreen(self.full_screen));
     }
 }
 
-fn load_icon() -> Option<eframe::IconData> {
-    let Ok(file) = std::fs::File::open(ICON) else {
+fn load_icon() -> Option<IconData> {
+    let Ok(mut file) = std::fs::File::open(ICON) else {
         eprintln!("Could not load app icon");
         return None;
     };
-    let decoder = png::Decoder::new(file);
-    let mut reader = decoder.read_info().expect("png reader");
-    let mut pixels = vec![0; reader.output_buffer_size()];
-    let width = reader.info().width;
-    let height = reader.info().height;
-    reader.next_frame(&mut pixels).unwrap();
-
-    Some(eframe::IconData {
-        rgba: pixels,
-        width,
-        height,
-    })
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)
+        .expect("Could not read PNG icon image");
+    let icon_data = eframe::icon_data::from_png_bytes(&bytes).expect("Could not load egui icon");
+    Some(icon_data)
 }
 
 fn main() {
+    let _ = env_logger::try_init().ok();
+    let viewport = ViewportBuilder::default()
+        .with_inner_size((1200.0, 800.0))
+        .with_position((1000.0, 500.0))
+        .with_icon(load_icon().expect("ICON image"));
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(1200.0, 800.0)),
-        initial_window_pos: Some(egui::Pos2::new(1000.0, 500.0)),
+        viewport: viewport,
         multisampling: 16,
         follow_system_theme: false,
         default_theme: eframe::Theme::Dark,
         renderer: eframe::Renderer::Glow,
         depth_buffer: 24,
-        icon_data: load_icon(),
         ..Default::default()
     };
     let creator: eframe::AppCreator = Box::new(move |cc| Box::new(ViewportApp::new(cc)));
@@ -329,5 +324,5 @@ fn main() {
     } else {
         WIN_TITLE.to_string()
     };
-    eframe::run_native(&title, options, creator);
+    eframe::run_native(&title, options, creator).unwrap()
 }

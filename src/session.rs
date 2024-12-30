@@ -542,8 +542,8 @@ impl Session {
     /// In threaded mode wait for Session finishes cooking. In single-thread mode, immediately return
     /// See [Documentation](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html)
     pub fn cook(&self) -> Result<CookResult> {
-        debug!("Cooking session..");
         debug_assert!(self.is_valid());
+        debug!("Cooking session..");
         if self.inner.options.threaded {
             loop {
                 match self.get_status(StatusType::CookState)? {
