@@ -1,7 +1,6 @@
 //! Access to geometry data, attributes, reading and writing geometry to and from disk
 //!
 //!
-use std::ffi::{CStr, CString};
 
 use crate::attribute::*;
 use crate::errors::Result;
@@ -14,6 +13,7 @@ use crate::node::{HoudiniNode, NodeHandle};
 use crate::stringhandle::StringArray;
 use crate::utils::unwrap_or_create;
 use crate::volume::{Tile, VolumeBounds, VolumeStorage};
+use std::ffi::{CStr, CString};
 
 #[derive(Debug, Clone)]
 /// Represents a SOP node with methods for manipulating geometry.
@@ -51,6 +51,55 @@ impl GeoFormat {
     }
 }
 
+/// Common geometry attribute names
+#[derive(Debug)]
+pub enum AttributeName {
+    Cd,
+    P,
+    N,
+    Uv,
+    TangentU,
+    TangentV,
+    Scale,
+    User(CString),
+}
+
+impl TryFrom<&str> for AttributeName {
+    type Error = std::ffi::NulError;
+
+    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+        CString::new(value).map(AttributeName::User)
+    }
+}
+
+impl TryFrom<String> for AttributeName {
+    type Error = std::ffi::NulError;
+
+    fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
+        CString::new(value).map(AttributeName::User)
+    }
+}
+
+impl From<AttributeName> for CString {
+    fn from(name: AttributeName) -> Self {
+        macro_rules! cstr {
+            ($attr:expr) => {
+                unsafe { CStr::from_bytes_with_nul_unchecked($attr).to_owned() }
+            };
+        }
+        match name {
+            AttributeName::Cd => cstr!(crate::raw::HAPI_ATTRIB_COLOR),
+            AttributeName::P => cstr!(crate::raw::HAPI_ATTRIB_POSITION),
+            AttributeName::N => cstr!(crate::raw::HAPI_ATTRIB_NORMAL),
+            AttributeName::Uv => cstr!(crate::raw::HAPI_ATTRIB_UV),
+            AttributeName::TangentU => cstr!(crate::raw::HAPI_ATTRIB_TANGENT),
+            AttributeName::TangentV => cstr!(crate::raw::HAPI_ATTRIB_TANGENT2),
+            AttributeName::Scale => cstr!(crate::raw::HAPI_ATTRIB_SCALE),
+            AttributeName::User(val) => val,
+        }
+    }
+}
+
 impl Geometry {
     /// Get geometry partition info by index.
     /// Returns an Option if given an incorrect part id.
@@ -58,6 +107,7 @@ impl Geometry {
     /// after node created or after calling `[Geometry::commit]`
     pub fn part_info(&self, part_id: i32) -> Result<Option<PartInfo>> {
         // TODO: Consider taking a u32 and cast to i32 for ffi.
+        // FIXME: Rething returning Option. Why?
         use crate::errors::Kind;
         match crate::ffi::get_part_info(&self.node, part_id) {
             Ok(inner) => Ok(Some(PartInfo(inner))),
@@ -364,7 +414,9 @@ impl Geometry {
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let name = CString::new("P")?;
+        let name = unsafe {
+            CStr::from_bytes_with_nul_unchecked(crate::raw::HAPI_ATTRIB_POSITION).to_owned()
+        };
         let info = AttributeInfo::new(&self.node, part_id, AttributeOwner::Point, name.as_c_str())?;
         Ok(NumericAttr::new(name, info, self.node.clone()))
     }
@@ -381,17 +433,22 @@ impl Geometry {
     }
 
     /// Get geometry attribute by name and owner.
-    pub fn get_attribute(
+    pub fn get_attribute<T>(
         &self,
         part_id: i32,
         owner: AttributeOwner,
-        name: &str,
-    ) -> Result<Option<Attribute>> {
+        name: T,
+    ) -> Result<Option<Attribute>>
+    where
+        T: TryInto<AttributeName>,
+        T::Error: Into<crate::HapiError>,
+    {
         debug_assert!(
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let name = CString::new(name)?;
+        let name: AttributeName = name.try_into().map_err(Into::into)?;
+        let name: CString = name.into();
         let info = AttributeInfo::new(&self.node, part_id, owner, &name)?;
         let storage = info.storage();
         if !info.exists() {
@@ -905,30 +962,58 @@ impl PartInfo {
     }
 }
 
+/// Geometry extension trait with some useful utilities
 pub mod extra {
     use super::*;
     pub trait GeometryExtension {
         fn create_position_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>>;
         fn create_point_color_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>>;
-
-        fn get_point_color_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>>;
+        fn get_color_attribute(
+            &self,
+            part: &PartInfo,
+            owner: AttributeOwner,
+        ) -> Result<Option<NumericAttr<f32>>>;
+        fn get_normal_attribute(
+            &self,
+            part: &PartInfo,
+            owner: AttributeOwner,
+        ) -> Result<Option<NumericAttr<f32>>>;
         fn get_position_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>>;
     }
 
     impl GeometryExtension for Geometry {
         fn create_position_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>> {
-            create_point_tuple_attribute::<3>(self, part, c"P")
+            create_point_tuple_attribute::<3>(self, part, AttributeName::P)
         }
 
         fn create_point_color_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>> {
-            create_point_tuple_attribute::<3>(self, part, c"Cd")
+            create_point_tuple_attribute::<3>(self, part, AttributeName::Cd)
         }
 
-        fn get_point_color_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>> {
-            get_tuple3_attribute(self, part, c"Cd", AttributeOwner::Point)
+        fn get_color_attribute(
+            &self,
+            part: &PartInfo,
+            owner: AttributeOwner,
+        ) -> Result<Option<NumericAttr<f32>>> {
+            debug_assert!(matches!(
+                owner,
+                AttributeOwner::Point | AttributeOwner::Vertex
+            ));
+            get_tuple3_attribute(self, part, AttributeName::Cd, owner)
+        }
+        fn get_normal_attribute(
+            &self,
+            part: &PartInfo,
+            owner: AttributeOwner,
+        ) -> Result<Option<NumericAttr<f32>>> {
+            debug_assert!(matches!(
+                owner,
+                AttributeOwner::Point | AttributeOwner::Vertex
+            ));
+            get_tuple3_attribute(self, part, AttributeName::N, owner)
         }
         fn get_position_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>> {
-            get_tuple3_attribute(self, part, c"P", AttributeOwner::Point)
+            get_tuple3_attribute(self, part, AttributeName::P, AttributeOwner::Point)
         }
     }
 
@@ -936,27 +1021,30 @@ pub mod extra {
     fn create_point_tuple_attribute<const N: usize>(
         geo: &Geometry,
         part: &PartInfo,
-        name: &CStr,
+        name: AttributeName,
     ) -> Result<NumericAttr<f32>> {
+        log::debug!("Creating point attriute {:?}", name);
+        let name: CString = name.try_into()?;
         let attr_info = AttributeInfo::default()
             .with_count(part.point_count())
             .with_tuple_size(N as i32)
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::Float);
         crate::ffi::add_attribute(&geo.node, part.part_id(), &name, &attr_info.0)
-            .map(|_| NumericAttr::new(name.to_owned(), attr_info, geo.node.clone()))
+            .map(|_| NumericAttr::new(name, attr_info, geo.node.clone()))
     }
 
     #[inline]
     fn get_tuple3_attribute<'a>(
         geo: &'a Geometry,
         part: &PartInfo,
-        name: &CStr,
+        name: AttributeName,
         owner: AttributeOwner,
     ) -> Result<Option<NumericAttr<f32>>> {
+        let name: CString = name.try_into()?;
         AttributeInfo::new(&geo.node, part.part_id(), owner, &name).map(|info| {
             info.exists()
-                .then(|| NumericAttr::new(name.to_owned(), info, geo.node.clone()))
+                .then(|| NumericAttr::new(name, info, geo.node.clone()))
         })
     }
 }

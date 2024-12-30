@@ -3,15 +3,10 @@
     "python.languageServer": "Pylance",
 
     "python.analysis.extraPaths": [
-        "C:/Houdini/19.0.455/houdini/python3.7libs"
-<<<<<<< Updated upstream
-],
-
-=======
+        "C:/Houdini/20.5.445/houdini/python3.11libs"
     ],
     "rust-analyzer.linkedProjects": [
         ".\\apps\\viewport\\Cargo.toml"
     ],
     "rust-analyzer.showUnlinkedFileNotification": false,
->>>>>>> Stashed changes
 }

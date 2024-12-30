@@ -391,7 +391,7 @@ _get_async_ffi_fn [HAPI_GetAttributeDictionaryDataAsync]
 ]
 
 )]
-
+#[allow(unused)] // FIXME
 pub(crate) fn _get_async_rust_fn(
     node: &HoudiniNode,
     part_id: i32,

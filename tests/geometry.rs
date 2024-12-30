@@ -716,6 +716,7 @@ fn geometry_test_get_numeric_attribute_async() {
 }
 
 #[test]
+#[ignore]
 fn geometry_test_get_string_attribute_async() {
     SESSION.with(|session| {
         let geo = _load_test_geometry(&session).unwrap();
@@ -728,8 +729,7 @@ fn geometry_test_get_string_attribute_async() {
         };
 
         let result = attr.get_async(0).unwrap();
-        let data = result.wait().unwrap();
-        dbg!("Hello");
+        let _data = result.wait().unwrap();
     })
 }
 

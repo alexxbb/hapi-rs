@@ -28,6 +28,12 @@ impl std::fmt::Debug for PDGWorkItem<'_> {
     }
 }
 
+impl From<WorkItemId> for i32 {
+    fn from(value: WorkItemId) -> Self {
+        value.0
+    }
+}
+
 impl From<TopNode> for NodeHandle {
     fn from(value: TopNode) -> Self {
         value.node.handle
@@ -329,7 +335,7 @@ impl TopNode {
         })
     }
 
-    pub fn get_all_workitems<'node>(&'node self) -> Result<Vec<PDGWorkItem<'node>>> {
+    pub fn get_all_workitems(&self) -> Result<Vec<PDGWorkItem<'_>>> {
         let context_id = self.get_context_id()?;
         ffi::get_pdg_workitems(&self.node.session, self.node.handle).map(|vec| {
             vec.into_iter()

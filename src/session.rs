@@ -37,6 +37,7 @@ pub use crate::{
 
 pub type SessionState = State;
 
+use crate::ffi::ImageInfo;
 use crate::stringhandle::StringHandle;
 use crate::{ffi::raw, utils};
 
@@ -387,14 +388,18 @@ impl Session {
         }
     }
 
-    /// Find a parameter by its absolute path
-    pub fn find_parameter_from_path(&self, path: impl AsRef<str>) -> Result<Option<Parameter>> {
+    /// Find a parameter by path, absolute or relative to a start node.
+    pub fn find_parameter_from_path(
+        &self,
+        path: impl AsRef<str>,
+        start: impl Into<Option<NodeHandle>>,
+    ) -> Result<Option<Parameter>> {
         debug_assert!(self.is_valid());
         debug!("Searching parameter at path: {}", path.as_ref());
         let Some((path, parm)) = path.as_ref().rsplit_once('/') else {
             return Ok(None);
         };
-        let Some(node) = self.get_node_from_path(path, None)? else {
+        let Some(node) = self.get_node_from_path(path, start)? else {
             debug!("Node {} not found", path);
             return Ok(None);
         };
@@ -655,6 +660,43 @@ impl Session {
         debug_assert!(cop_node.is_valid(self)?);
         crate::ffi::render_cop_to_image(self, cop_node)?;
         crate::material::extract_image_to_file(self, cop_node, image_planes, path)
+    }
+
+    pub fn render_texture_to_image(
+        &self,
+        node: impl Into<NodeHandle>,
+        parm_name: &str,
+    ) -> Result<()> {
+        debug_assert!(self.is_valid());
+        let name = CString::new(parm_name)?;
+        let node = node.into();
+        let id = crate::ffi::get_parm_id_from_name(&name, node, self)?;
+        crate::ffi::render_texture_to_image(&self, node, crate::parameter::ParmHandle(id))
+    }
+
+    pub fn extract_image_to_file(
+        &self,
+        node: impl Into<NodeHandle>,
+        image_planes: &str,
+        path: impl AsRef<Path>,
+    ) -> Result<String> {
+        crate::material::extract_image_to_file(self, node.into(), image_planes, path)
+    }
+
+    pub fn extract_image_to_memory(
+        &self,
+        node: impl Into<NodeHandle>,
+        buffer: &mut Vec<u8>,
+        image_planes: impl AsRef<str>,
+        format: impl AsRef<str>,
+    ) -> Result<()> {
+        debug_assert!(self.is_valid());
+        crate::material::extract_image_to_memory(self, node.into(), buffer, image_planes, format)
+    }
+
+    pub fn get_image_info(&self, node: impl Into<NodeHandle>) -> Result<ImageInfo> {
+        debug_assert!(self.is_valid());
+        crate::ffi::get_image_info(self, node.into()).map(ImageInfo)
     }
 
     /// Render a COP node to a memory buffer
