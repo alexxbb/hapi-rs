@@ -8,8 +8,10 @@ use crate::{node::HoudiniNode, Result};
 use duplicate::duplicate_item;
 use std::ffi::CStr;
 
-// TODO make this trait sealed and mark functions unsafe (vs using unsafe blocks in the impl)
-pub trait AttribAccess: Send + Sized + 'static {
+mod private {
+    pub trait Sealed {}
+}
+pub trait AttribAccess: private::Sealed + Send + Sized + 'static {
     fn storage() -> StorageType;
     fn storage_array() -> StorageType;
     fn get(
@@ -64,6 +66,14 @@ pub trait AttribAccess: Send + Sized + 'static {
     where
         [Self]: ToOwned<Owned = Vec<Self>>;
 }
+
+macro_rules! impl_sealed {
+    ($($x:ident),+ $(,)?) => {
+        $(impl private::Sealed for $x {})+
+    }
+}
+
+impl_sealed!(u8, i8, i16, u16, i32, i64, f32, f64);
 
 #[duplicate_item(
 [
