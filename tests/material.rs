@@ -27,7 +27,7 @@ fn image_extract_api() {
     let node = SESSION.create_node("Object/spaceship").unwrap();
     node.cook_blocking().unwrap();
     let geo = node.geometry().expect("geometry").unwrap();
-    let part = geo.part_info(0).unwrap().unwrap();
+    let part = geo.part_info(0).unwrap();
     let mats = geo.get_materials(&part).unwrap().expect("materials");
     if let Materials::Single(mat) = mats {
         let mut info = mat.get_image_info().unwrap();

@@ -111,7 +111,7 @@ fn geometry_attribute_names() {
         let node = session.create_node("Object/hapi_geo").unwrap();
         node.cook_blocking().unwrap();
         let geo = node.geometry().unwrap().expect("geometry");
-        let part = geo.part_info(0).unwrap().unwrap();
+        let part = geo.part_info(0).unwrap();
         let iter = geo
             .get_attribute_names(AttributeOwner::Point, &part)
             .unwrap();
@@ -152,7 +152,7 @@ fn geometry_create_string_attrib() {
     SESSION.with(|session| {
         let geo = session.create_input_node("test", None).unwrap();
         _create_triangle(&geo);
-        let part = geo.part_info(0).unwrap().expect("part 0");
+        let part = geo.part_info(0).unwrap();
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::String)
@@ -186,7 +186,7 @@ fn geometry_set_unique_str_attrib_value() {
             .create_input_node("unique-attr-value", None)
             .unwrap();
         _create_triangle(&geo);
-        let part = geo.part_info(0).unwrap().expect("part 0");
+        let part = geo.part_info(0).unwrap();
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::String)
@@ -212,7 +212,7 @@ fn geometry_set_unique_int_attrib_value() {
             .create_input_node("unique-int-attr-value", None)
             .unwrap();
         _create_triangle(&geo);
-        let part = geo.part_info(0).unwrap().expect("part 0");
+        let part = geo.part_info(0).unwrap();
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::Int)
@@ -236,7 +236,7 @@ fn geometry_create_string_array_attrib() {
     SESSION.with(|session| {
         let geo = session.create_input_node("test", None).unwrap();
         _create_triangle(&geo);
-        let part = geo.part_info(0).unwrap().expect("part 0");
+        let part = geo.part_info(0).unwrap();
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::StringArray)
@@ -404,7 +404,7 @@ fn geometry_save_and_load_to_file() {
         geo.load_from_file(&tmp_file.to_string_lossy())
             .expect("load_from_file");
         geo.node.cook().unwrap();
-        assert_eq!(geo.part_info(0).unwrap().expect("part 0").point_count(), 3);
+        assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
         geo.node.delete().unwrap();
     })
 }
@@ -435,10 +435,10 @@ fn geometry_commit_and_revert() {
         _create_triangle(&geo);
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
-        assert_eq!(geo.part_info(0).unwrap().expect("part 0").point_count(), 3);
+        assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
         geo.revert().unwrap();
         geo.node.cook_blocking().unwrap();
-        assert_eq!(geo.part_info(0).unwrap().expect("part 0").point_count(), 0);
+        assert_eq!(geo.part_info(0).unwrap().point_count(), 0);
         geo.node.delete().unwrap();
     })
 }
@@ -449,7 +449,7 @@ fn geometry_elements() {
         let node = session.create_node("Object/hapi_geo").unwrap();
         node.cook_blocking().unwrap();
         let geo = node.geometry().unwrap().expect("Geometry");
-        let part = geo.part_info(0).unwrap().expect("part 0");
+        let part = geo.part_info(0).unwrap();
         // Cube
         let points = geo
             .get_element_count_by_owner(&part, AttributeOwner::Point)
@@ -515,7 +515,7 @@ fn geometry_partitions() {
         let geo = session.create_input_node("input", None).unwrap();
         _create_triangle(&geo);
         assert_eq!(geo.partitions().unwrap().len(), 1);
-        assert!(matches!(geo.part_info(100), Ok(None)));
+        assert!(matches!(geo.part_info(100), Err(_)));
     })
 }
 
@@ -555,7 +555,7 @@ fn geometry_basic_instancing() {
             .unwrap()
             .expect("instance node");
         let geo = instancer.geometry().unwrap().expect("geometry");
-        let part = geo.part_info(0).unwrap().expect("part id=0");
+        let part = geo.part_info(0).unwrap();
         let ids = geo.get_instanced_part_ids(&part).unwrap();
         assert_eq!(ids.len(), 1);
         let names = geo
@@ -569,7 +569,7 @@ fn geometry_basic_instancing() {
             .unwrap();
         assert_eq!(
             transforms.len() as i32,
-            geo.part_info(0).unwrap().expect("part 0").instance_count()
+            geo.part_info(0).unwrap().instance_count()
         );
     })
 }
@@ -580,7 +580,7 @@ fn geometry_get_face_materials() {
         let node = session.create_node("Object/spaceship").unwrap();
         node.cook_blocking().unwrap();
         let geo = node.geometry().expect("geometry").unwrap();
-        let part = geo.part_info(0).unwrap().expect("part id=0");
+        let part = geo.part_info(0).unwrap();
         let mats = geo.get_materials(&part).expect("materials");
         assert!(matches!(mats, Some(Materials::Single(_))));
     })
@@ -644,7 +644,7 @@ fn geometry_read_write_volume() {
         let node = session.create_node("Object/hapi_vol").unwrap();
         node.cook_blocking().unwrap();
         let source = node.geometry().unwrap().unwrap();
-        let source_part = source.part_info(0).unwrap().expect("part 0");
+        let source_part = source.part_info(0).unwrap();
         let vol_info = source.volume_info(0).unwrap();
         let dest_geo = session.create_input_node("volume_copy", None).unwrap();
         dest_geo.node.cook_blocking().unwrap();

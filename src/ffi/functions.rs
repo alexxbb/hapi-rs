@@ -3021,7 +3021,7 @@ pub fn convert_transform(
 pub fn convert_matrix_to_euler(
     session: &Session,
     matrix: &[f32; 16],
-    rst_order: raw::RSTOrder,
+    rst_order: RSTOrder,
     rot_order: raw::XYZOrder,
 ) -> Result<raw::HAPI_TransformEuler> {
     unsafe {
@@ -3041,7 +3041,7 @@ pub fn convert_matrix_to_euler(
 pub fn convert_matrix_to_quat(
     session: &Session,
     matrix: &[f32; 16],
-    rst_order: raw::RSTOrder,
+    rst_order: RSTOrder,
 ) -> Result<raw::HAPI_Transform> {
     unsafe {
         let mut out = raw::HAPI_Transform_Create();
