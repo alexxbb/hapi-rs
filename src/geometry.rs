@@ -482,28 +482,22 @@ impl Geometry {
     }
 
     /// Add a new numeric attribute to geometry.
-    pub fn add_numeric_attribute<N, A>(
+    pub fn add_numeric_attribute<T: AttribAccess>(
         &self,
-        name: N,
+        name: &str,
         part_id: i32,
         info: AttributeInfo,
-    ) -> Result<NumericAttr<A>>
-    where
-        N: TryInto<AttributeName>,
-        N::Error: Into<crate::HapiError>,
-        A: AttribAccess,
-    {
-        debug_assert_eq!(info.storage(), A::storage());
-        let name: AttributeName = name.try_into().map_err(Into::into)?;
+    ) -> Result<NumericAttr<T>> {
+        debug_assert_eq!(info.storage(), T::storage());
         debug_assert!(
             info.tuple_size() > 0,
-            "attribute \"{:?}\" tuple_size must be > 0",
+            "attribute \"{}\" tuple_size must be > 0",
             name
         );
-        let name: CString = name.into();
-        log::debug!("Adding numeric geometry attriubute: {name:?}");
+        log::debug!("Adding numeric geometry attriubute: {name}");
+        let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
-        Ok(NumericAttr::<A>::new(name, info, self.node.clone()))
+        Ok(NumericAttr::<T>::new(name, info, self.node.clone()))
     }
 
     /// Add a new numeric array attribute to geometry.
