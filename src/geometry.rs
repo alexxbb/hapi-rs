@@ -6,7 +6,7 @@ use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
     enums::*, AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, InputCurveInfo, PartInfo,
-    Transform, VolumeInfo, VolumeTileInfo, VolumeVisualInfo,
+    SphereInfo, Transform, VolumeInfo, VolumeTileInfo, VolumeVisualInfo,
 };
 use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
@@ -164,7 +164,7 @@ impl Geometry {
 
     pub fn sphere_info(&self, part_id: i32) -> Result<BoxInfo> {
         self.assert_node_cooked();
-        crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id).map(BoxInfo)
+        crate::ffi::get_sphere_info(self.node.handle, &self.node.session, part_id).map(SphereInfo)
     }
 
     pub fn set_curve_info(&self, part_id: i32, info: &CurveInfo) -> Result<()> {
