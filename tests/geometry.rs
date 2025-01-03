@@ -99,7 +99,7 @@ fn geometry_wrong_attribute() {
     SESSION.with(|session| {
         let geo = _load_test_geometry(&session).unwrap();
         let foo_bar = geo
-            .get_attribute(0, AttributeOwner::Prim, "foo_bar")
+            .get_attribute(0, AttributeOwner::Prim, c"foo_bar")
             .expect("attribute");
         assert!(foo_bar.is_none());
     })
@@ -135,7 +135,7 @@ fn geometry_numeric_attributes() {
         _create_triangle(&geo);
         // Generic way to get an attribute
         let _attr_p = geo
-            .get_attribute(0, AttributeOwner::Point, "P")
+            .get_attribute(0, AttributeOwner::Point, AttributeName::P)
             .unwrap()
             .unwrap();
         let _attr_p = _attr_p.downcast::<NumericAttr<f32>>().unwrap();
@@ -164,7 +164,7 @@ fn geometry_create_string_attrib() {
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
         let str_attr = geo
-            .get_attribute(0, AttributeOwner::Point, "name")
+            .get_attribute(0, AttributeOwner::Point, AttributeName::Name)
             .unwrap()
             .unwrap();
         let Some(str_attr) = str_attr.downcast::<StringAttr>() else {
@@ -269,7 +269,7 @@ fn geometry_read_array_attributes() {
         let geo = _load_test_geometry(session).expect("geometry");
 
         let attr = geo
-            .get_attribute(0, AttributeOwner::Point, "my_int_array")
+            .get_attribute(0, AttributeOwner::Point, c"my_int_array")
             .expect("attribute")
             .unwrap();
         let attr = attr.downcast::<NumericArrayAttr<i32>>().unwrap();
@@ -279,7 +279,7 @@ fn geometry_read_array_attributes() {
         assert_eq!(i_array.iter().last().unwrap(), &[7, 14, 21, -1]);
 
         let attr = geo
-            .get_attribute(0, AttributeOwner::Point, "my_float_array")
+            .get_attribute(0, AttributeOwner::Point, c"my_float_array")
             .expect("attribute")
             .unwrap();
         let i_array = attr.downcast::<NumericArrayAttr<f32>>().unwrap();
@@ -369,7 +369,7 @@ fn geometry_string_array_attribute() {
     SESSION.with(|session| {
         let geo = _load_test_geometry(session).expect("geometry");
         let attr = geo
-            .get_attribute(0, AttributeOwner::Point, "my_str_array")
+            .get_attribute(0, AttributeOwner::Point, c"my_str_array")
             .expect("my_str_array Point attribute")
             .unwrap();
         let attr = attr.downcast::<StringArrayAttr>().unwrap();
@@ -496,14 +496,14 @@ fn geometry_delete_attribute() {
         let geo = session.create_input_node("input", None).unwrap();
         _create_triangle(&geo);
         let id_attr = geo
-            .get_attribute(0, AttributeOwner::Point, "id")
+            .get_attribute(0, AttributeOwner::Point, c"id")
             .unwrap()
             .unwrap();
         id_attr.delete(0).unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
         assert!(geo
-            .get_attribute(0, AttributeOwner::Point, "id")
+            .get_attribute(0, AttributeOwner::Point, c"id")
             .unwrap()
             .is_none());
     })
@@ -675,7 +675,7 @@ fn geometry_test_get_dictionary_attributes() {
     SESSION.with(|session| {
         let geo = _load_test_geometry(&session).unwrap();
         let dict_attr = geo
-            .get_attribute(0, AttributeOwner::Detail, "my_dict_attr")
+            .get_attribute(0, AttributeOwner::Detail, c"my_dict_attr")
             .unwrap()
             .expect("my_dict_attr found");
 
@@ -699,7 +699,7 @@ fn geometry_test_get_numeric_attribute_async() {
     SESSION.with(|session| {
         let geo = _load_test_geometry(&session).unwrap();
         let float_attr = geo
-            .get_attribute(0, AttributeOwner::Point, "pscale")
+            .get_attribute(0, AttributeOwner::Point, c"pscale")
             .unwrap()
             .unwrap();
         let Some(attr) = float_attr.downcast::<NumericAttr<f32>>() else {
@@ -721,7 +721,7 @@ fn geometry_test_get_string_attribute_async() {
     SESSION.with(|session| {
         let geo = _load_test_geometry(&session).unwrap();
         let str_attr = geo
-            .get_attribute(0, AttributeOwner::Point, "ptname")
+            .get_attribute(0, AttributeOwner::Point, c"ptname")
             .unwrap()
             .unwrap();
         let Some(attr) = str_attr.downcast::<StringAttr>() else {
@@ -810,7 +810,7 @@ fn test_attribute_send() {
     SESSION.with(|session| {
         let geo = _load_test_geometry(&session).unwrap();
         let str_attr = geo
-            .get_attribute(0, AttributeOwner::Point, "pscale")
+            .get_attribute(0, AttributeOwner::Point, c"pscale")
             .unwrap()
             .unwrap();
         std::thread::spawn(move || {

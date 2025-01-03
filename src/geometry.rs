@@ -61,6 +61,7 @@ pub enum AttributeName {
     TangentU,
     TangentV,
     Scale,
+    Name,
     User(CString),
 }
 
@@ -80,6 +81,14 @@ impl TryFrom<String> for AttributeName {
     }
 }
 
+impl TryFrom<&CStr> for AttributeName {
+    type Error = std::convert::Infallible;
+
+    fn try_from(value: &CStr) -> std::result::Result<Self, Self::Error> {
+        Ok(AttributeName::User(value.to_owned()))
+    }
+}
+
 impl From<AttributeName> for CString {
     fn from(name: AttributeName) -> Self {
         macro_rules! cstr {
@@ -95,6 +104,7 @@ impl From<AttributeName> for CString {
             AttributeName::TangentU => cstr!(crate::raw::HAPI_ATTRIB_TANGENT),
             AttributeName::TangentV => cstr!(crate::raw::HAPI_ATTRIB_TANGENT2),
             AttributeName::Scale => cstr!(crate::raw::HAPI_ATTRIB_SCALE),
+            AttributeName::Name => cstr!(crate::raw::HAPI_ATTRIB_NAME),
             AttributeName::User(val) => val,
         }
     }
@@ -414,9 +424,7 @@ impl Geometry {
             self.node.get_info()?.total_cook_count() > 0,
             "Node not cooked"
         );
-        let name = unsafe {
-            CStr::from_bytes_with_nul_unchecked(crate::raw::HAPI_ATTRIB_POSITION).to_owned()
-        };
+        let name = CString::from(AttributeName::P);
         let info = AttributeInfo::new(&self.node, part_id, AttributeOwner::Point, name.as_c_str())?;
         Ok(NumericAttr::new(name, info, self.node.clone()))
     }
@@ -426,9 +434,10 @@ impl Geometry {
         &self,
         part_id: i32,
         owner: AttributeOwner,
-        name: &str,
+        name: impl TryInto<AttributeName, Error = impl Into<crate::HapiError>>,
     ) -> Result<AttributeInfo> {
-        let name = CString::new(name)?;
+        let name: AttributeName = name.try_into().map_err(Into::into)?;
+        let name: CString = name.into();
         AttributeInfo::new(&self.node, part_id, owner, &name)
     }
 
