@@ -11,7 +11,6 @@ pub use crate::ffi::{
 use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::stringhandle::StringArray;
-use crate::utils::unwrap_or_create;
 use crate::volume::{Tile, VolumeBounds, VolumeStorage};
 use std::ffi::{CStr, CString};
 
@@ -162,7 +161,7 @@ impl Geometry {
         crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id).map(BoxInfo)
     }
 
-    pub fn sphere_info(&self, part_id: i32) -> Result<BoxInfo> {
+    pub fn sphere_info(&self, part_id: i32) -> Result<SphereInfo> {
         self.assert_node_cooked();
         crate::ffi::get_sphere_info(self.node.handle, &self.node.session, part_id).map(SphereInfo)
     }
@@ -650,15 +649,9 @@ impl Geometry {
     }
 
     /// Number of geometry groups by type.
-    pub fn group_count_by_type(
-        &self,
-        group_type: GroupType,
-        info: Option<&GeoInfo>,
-    ) -> Result<i32> {
+    pub fn group_count_by_type(&self, group_type: GroupType) -> Result<i32> {
         self.assert_node_cooked();
-        let tmp;
-        let info = unwrap_or_create!(tmp, info, self.geo_info()?);
-        Ok(crate::ffi::get_group_count_by_type(info, group_type))
+        Ok(crate::ffi::get_group_count_by_type(&self.info, group_type))
     }
 
     pub fn get_instanced_part_ids(&self, part: &PartInfo) -> Result<Vec<i32>> {

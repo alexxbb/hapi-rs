@@ -528,16 +528,12 @@ fn geometry_add_and_delete_group() {
             .unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
-        assert_eq!(
-            geo.group_count_by_type(GroupType::Point, geo.geo_info().as_ref().ok())
-                .unwrap(),
-            1
-        );
+        assert_eq!(geo.group_count_by_type(GroupType::Point).unwrap(), 1);
 
         geo.delete_group(0, GroupType::Point, "test").unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
-        assert_eq!(geo.group_count_by_type(GroupType::Point, None).unwrap(), 0);
+        assert_eq!(geo.group_count_by_type(GroupType::Point).unwrap(), 0);
         geo.node.delete().unwrap();
     })
 }

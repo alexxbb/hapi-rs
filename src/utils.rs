@@ -5,21 +5,6 @@ macro_rules! cstr {
     };
 }
 
-macro_rules! unwrap_or_create {
-    ($out:ident, $opt:expr, $default:expr) => {
-        match $opt {
-            None => {
-                $out = $default;
-                &$out
-            }
-            Some(v) => v,
-        }
-    };
-}
-
-#[allow(unused)]
-pub(crate) use unwrap_or_create;
-
 pub(crate) fn path_to_cstring(
     path: impl AsRef<std::path::Path>,
 ) -> crate::Result<std::ffi::CString> {
