@@ -11,7 +11,7 @@ use std::ffi::CStr;
 mod private {
     pub trait Sealed {}
 }
-pub trait AttribAccess: private::Sealed + Send + Sized + 'static {
+pub trait AttribAccess: private::Sealed + Clone + Default + Send + Sized + 'static {
     fn storage() -> StorageType;
     fn storage_array() -> StorageType;
     fn get(
@@ -196,10 +196,8 @@ impl AttribAccess for _val_type {
         buffer: &mut Vec<Self>,
     ) -> Result<i32> {
         debug_assert!(node.is_valid()?);
-        buffer.resize(
-            (info.0.count * info.0.tupleSize) as usize,
-            _val_type::default(),
-        );
+        // buffer capacity mut be of an appropriate size
+        debug_assert!(buffer.capacity() >= (info.0.count * info.0.tupleSize) as usize);
         let mut job_id: i32 = -1;
         unsafe {
             raw::_get_async(
@@ -234,7 +232,7 @@ impl AttribAccess for _val_type {
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                &info.0,
+                info.ptr(),
                 data.as_ptr(),
                 start,
                 len,
@@ -366,17 +364,19 @@ pub(crate) fn _get_rust_fn(
     }
 }
 
-pub struct AsyncResult<T: Sized + 'static> {
+#[derive(Debug)]
+// TODO: Think of better name?
+pub struct AsyncResult<T: Sized + Send + 'static> {
     pub(crate) job_id: i32,
     pub(crate) data: T,
     pub(crate) session: Session,
 }
 
-impl<T: Sized + 'static> AsyncResult<T> {
+impl<T: Sized + Send + 'static> AsyncResult<T> {
     pub fn is_ready(&self) -> Result<bool> {
         self.session
             .get_job_status(self.job_id)
-            .map(|status| status == crate::session::JobStatus::Running)
+            .map(|status| status == crate::session::JobStatus::Idle)
     }
 
     pub fn wait(self) -> Result<T> {
@@ -401,7 +401,6 @@ _get_async_ffi_fn [HAPI_GetAttributeDictionaryDataAsync]
 ]
 
 )]
-#[allow(unused)] // FIXME
 pub(crate) fn _get_async_rust_fn(
     node: &HoudiniNode,
     part_id: i32,

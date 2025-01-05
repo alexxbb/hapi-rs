@@ -124,13 +124,35 @@ impl<T: AttribAccess> NumericAttr<T> {
         )?;
         Ok(buffer)
     }
-    pub fn get_async(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<i32> {
+    /// Start filling a given buffer asynchronously and return a job id.
+    /// It's important to keep the buffer alive until the job is complete
+    pub fn read_async_into(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<i32> {
+        // TODO: Get an updated attribute info since point count can change between calls.
+        // but there's looks like some use after free on the C side, when AttributeInfo gets
+        // accessed after it gets dropped in Rust.
+        let info = &self.0.info;
+        buffer.resize((info.count() * info.tuple_size()) as usize, T::default());
         T::get_async(&self.0.name, &self.0.node, &self.0.info, part_id, buffer)
     }
+
+    pub fn get_async(&self, part_id: i32) -> Result<AsyncResult<Vec<T>>> {
+        let info = &self.0.info;
+        let size = (info.count() * info.tuple_size()) as usize;
+        // let mut buffer = Vec::<T>::with_capacity(size);
+        let mut buffer = vec![T::default(); size];
+        let job_id = T::get_async(&self.0.name, &self.0.node, &info, part_id, &mut buffer)?;
+        Ok(AsyncResult {
+            job_id,
+            data: buffer,
+            session: self.0.node.session.clone(),
+        })
+    }
+
     /// Read the attribute data into a provided buffer. The buffer will be auto-resized
     /// from the attribute info.
     pub fn read_into(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<()> {
         debug_assert_eq!(self.0.info.storage(), T::storage());
+        // Get an updated attribute info since point count can change between calls
         let info = AttributeInfo::new(&self.0.node, part_id, self.0.info.owner(), &self.0.name)?;
         T::get(&self.0.name, &self.0.node, &info, part_id, buffer)
     }
@@ -143,7 +165,7 @@ impl<T: AttribAccess> NumericAttr<T> {
             part_id,
             values,
             0,
-            self.0.info.count(),
+            self.0.info.count().min(values.len() as i32),
         )
     }
 

@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use once_cell::unsync::Lazy;
 
+use hapi_rs::session::SessionInfo;
 use hapi_rs::{
     attribute::*,
     geometry::*,
@@ -13,7 +14,8 @@ use hapi_rs::{
 thread_local! {
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init();
-        let opt = SessionOptions::builder().threaded(true).build();
+        let ses_info = SessionInfo::default().with_connection_count(5);
+        let opt = SessionOptions::builder().threaded(true).session_info(ses_info).build();
         let session = quick_session(Some(&opt)).expect("Could not create test session");
         session
             .load_asset_file("otls/hapi_geo.hda")
@@ -690,7 +692,6 @@ fn geometry_test_get_dictionary_attributes() {
 }
 
 #[test]
-#[ignore]
 fn geometry_test_get_numeric_attribute_async() {
     SESSION.with(|session| {
         let geo = _load_test_geometry(&session).unwrap();
@@ -702,12 +703,16 @@ fn geometry_test_get_numeric_attribute_async() {
             panic!("Not a numeric attribute");
         };
 
-        let mut buf = Vec::new();
-        let job = attr.get_async(0, &mut buf).unwrap();
-        while JobStatus::Idle != session.get_job_status(job).unwrap() {
-            println!("Cooking");
-        }
-        dbg!(buf);
+        // let mut buf = Vec::new();
+        // assert_eq!(buf.iter().sum::<f32>(), 0.0);
+        // let job = attr.read_async_into(0, &mut buf).unwrap();
+        // while JobStatus::Running == session.get_job_status(job).unwrap() {}
+        // assert!(buf.iter().sum::<f32>() > 0.0);
+
+        let result = attr.get_async(0).unwrap();
+        assert!(!result.is_ready().unwrap());
+        let data = result.wait().unwrap();
+        assert!(data.iter().sum::<f32>() > 0.0);
     })
 }
 
