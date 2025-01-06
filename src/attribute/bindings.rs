@@ -365,23 +365,26 @@ pub(crate) fn _get_rust_fn(
 }
 
 #[derive(Debug)]
-// TODO: Think of better name?
-pub struct AsyncResult<T: Sized + Send + 'static> {
+pub struct AsyncAttribResult<T: Sized + Send + 'static> {
     pub(crate) job_id: i32,
-    pub(crate) data: T,
+    pub(crate) data: Vec<T>,
+    pub(crate) size: usize,
     pub(crate) session: Session,
 }
 
-impl<T: Sized + Send + 'static> AsyncResult<T> {
+impl<T: Sized + Send + 'static> AsyncAttribResult<T> {
     pub fn is_ready(&self) -> Result<bool> {
         self.session
             .get_job_status(self.job_id)
             .map(|status| status == crate::session::JobStatus::Idle)
     }
 
-    pub fn wait(self) -> Result<T> {
+    pub fn wait(mut self) -> Result<Vec<T>> {
         loop {
             if self.is_ready()? {
+                unsafe {
+                    self.data.set_len(self.size);
+                }
                 return Ok(self.data);
             }
         }
@@ -406,9 +409,10 @@ pub(crate) fn _get_async_rust_fn(
     part_id: i32,
     name: &CStr,
     attr_info: &HAPI_AttributeInfo,
-) -> Result<AsyncResult<StringArray>> {
+) -> Result<AsyncAttribResult<StringHandle>> {
     unsafe {
-        let mut handles = vec![StringHandle(0); attr_info.count as usize];
+        let buffer_size = (attr_info.count * attr_info.tupleSize) as usize;
+        let mut data = Vec::with_capacity(buffer_size);
         let session = node.session.clone();
         // SAFETY: Most likely an error in C API, it should not modify the info object,
         // but for some reason it wants a mut pointer
@@ -420,16 +424,16 @@ pub(crate) fn _get_async_rust_fn(
             part_id,
             name.as_ptr(),
             attr_info,
-            handles.as_mut_ptr() as *mut HAPI_StringHandle,
+            data.as_mut_ptr() as *mut HAPI_StringHandle,
             0,
-            handles.len() as i32,
+            buffer_size as i32,
             &mut job_id,
         )
         .check_err(&session, || stringify!(Calling _get_async_ffi_fn))?;
-        let data = crate::stringhandle::get_string_array(&handles, &session)?;
-        Ok(AsyncResult {
+        Ok(AsyncAttribResult {
             job_id,
             data,
+            size: buffer_size,
             session,
         })
     }

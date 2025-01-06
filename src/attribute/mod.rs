@@ -21,12 +21,12 @@
 mod array;
 mod bindings;
 
-use crate::attribute::bindings::AsyncResult;
+use crate::attribute::bindings::AsyncAttribResult;
 use crate::errors::Result;
 pub use crate::ffi::enums::StorageType;
 pub use crate::ffi::AttributeInfo;
 use crate::node::HoudiniNode;
-use crate::stringhandle::StringArray;
+use crate::stringhandle::{StringArray, StringHandle};
 pub use array::*;
 pub use bindings::AttribAccess;
 use std::any::Any;
@@ -129,21 +129,21 @@ impl<T: AttribAccess> NumericAttr<T> {
     pub fn read_async_into(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<i32> {
         // TODO: Get an updated attribute info since point count can change between calls.
         // but there's looks like some use after free on the C side, when AttributeInfo gets
-        // accessed after it gets dropped in Rust.
+        // accessed after it gets dropped in Rust, so we can't get new AttributeInfo here.
         let info = &self.0.info;
         buffer.resize((info.count() * info.tuple_size()) as usize, T::default());
         T::get_async(&self.0.name, &self.0.node, &self.0.info, part_id, buffer)
     }
 
-    pub fn get_async(&self, part_id: i32) -> Result<AsyncResult<Vec<T>>> {
+    pub fn get_async(&self, part_id: i32) -> Result<AsyncAttribResult<T>> {
         let info = &self.0.info;
         let size = (info.count() * info.tuple_size()) as usize;
-        // let mut buffer = Vec::<T>::with_capacity(size);
-        let mut buffer = vec![T::default(); size];
-        let job_id = T::get_async(&self.0.name, &self.0.node, &info, part_id, &mut buffer)?;
-        Ok(AsyncResult {
+        let mut data = Vec::<T>::with_capacity(size);
+        let job_id = T::get_async(&self.0.name, &self.0.node, &info, part_id, &mut data)?;
+        Ok(AsyncAttribResult {
             job_id,
-            data: buffer,
+            data,
+            size,
             session: self.0.node.session.clone(),
         })
     }
@@ -192,7 +192,7 @@ impl StringAttr {
         )
     }
 
-    pub fn get_async(&self, part_id: i32) -> Result<AsyncResult<StringArray>> {
+    pub fn get_async(&self, part_id: i32) -> Result<AsyncAttribResult<StringHandle>> {
         bindings::get_attribute_string_data_async(
             &self.0.node,
             part_id,
@@ -277,6 +277,15 @@ impl DictionaryAttr {
     pub fn get(&self, part_id: i32) -> Result<StringArray> {
         debug_assert!(self.0.node.is_valid()?);
         bindings::get_attribute_dictionary_data(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+        )
+    }
+
+    pub fn get_async(&self, part_id: i32) -> Result<AsyncAttribResult<StringHandle>> {
+        bindings::get_attribute_dictionary_data_async(
             &self.0.node,
             part_id,
             self.0.name.as_c_str(),

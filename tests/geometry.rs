@@ -703,11 +703,11 @@ fn geometry_test_get_numeric_attribute_async() {
             panic!("Not a numeric attribute");
         };
 
-        // let mut buf = Vec::new();
-        // assert_eq!(buf.iter().sum::<f32>(), 0.0);
-        // let job = attr.read_async_into(0, &mut buf).unwrap();
-        // while JobStatus::Running == session.get_job_status(job).unwrap() {}
-        // assert!(buf.iter().sum::<f32>() > 0.0);
+        let mut buf = Vec::new();
+        assert_eq!(buf.iter().sum::<f32>(), 0.0);
+        let job = attr.read_async_into(0, &mut buf).unwrap();
+        while JobStatus::Running == session.get_job_status(job).unwrap() {}
+        assert!(buf.iter().sum::<f32>() > 0.0);
 
         let result = attr.get_async(0).unwrap();
         assert!(!result.is_ready().unwrap());
@@ -717,7 +717,6 @@ fn geometry_test_get_numeric_attribute_async() {
 }
 
 #[test]
-#[ignore]
 fn geometry_test_get_string_attribute_async() {
     SESSION.with(|session| {
         let geo = _load_test_geometry(&session).unwrap();
@@ -730,7 +729,9 @@ fn geometry_test_get_string_attribute_async() {
         };
 
         let result = attr.get_async(0).unwrap();
-        let _data = result.wait().unwrap();
+        let handles = result.wait().unwrap();
+        let data = session.get_string_batch(&handles).unwrap();
+        assert_eq!(data.iter_str().count(), attr.info().count() as usize);
     })
 }
 
