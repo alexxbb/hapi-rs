@@ -21,18 +21,19 @@
 mod array;
 mod bindings;
 
-use crate::attribute::bindings::AsyncAttribResult;
 use crate::errors::Result;
 pub use crate::ffi::enums::StorageType;
 pub use crate::ffi::AttributeInfo;
 use crate::node::HoudiniNode;
 use crate::stringhandle::{StringArray, StringHandle};
 pub use array::*;
-pub use bindings::AttribAccess;
+pub use bindings::{AsyncAttribResult, AttribAccess};
 use std::any::Any;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
+
+pub type JobId = i32;
 
 impl StorageType {
     // Helper for matching array types to actual data type,
@@ -84,6 +85,23 @@ where
         debug_assert!(self.0.info.storage().type_matches(T::storage()));
         T::get_array(&self.0.name, &self.0.node, &self.0.info, part_id)
     }
+
+    pub fn get_async(&self, part_id: i32) -> Result<(JobId, DataArray<T>)> {
+        let info = &self.0.info;
+        debug_assert!(info.storage().type_matches(T::storage()));
+        let mut data = vec![T::default(); info.total_array_elements() as usize];
+        let mut sizes = vec![0i32; info.count() as usize];
+        let job_id = T::get_array_async(
+            &self.0.name,
+            &self.0.node,
+            &info,
+            &mut data,
+            &mut sizes,
+            part_id,
+        )?;
+        Ok((job_id, DataArray::new_owned(data, sizes)))
+    }
+
     pub fn set(&self, part_id: i32, values: &DataArray<T>) -> Result<()> {
         debug_assert!(self.0.info.storage().type_matches(T::storage()));
         debug_assert_eq!(
@@ -253,6 +271,27 @@ impl StringArrayAttr {
             &self.0.info,
         )
     }
+
+    pub fn get_async(&self, part_id: i32) -> Result<(JobId, StringMultiArray)> {
+        let mut handles = vec![StringHandle(-1); self.0.info.total_array_elements() as usize];
+        let mut sizes = vec![0; self.0.info.count() as usize];
+        let job_id = bindings::get_attribute_string_array_data_async(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            part_id,
+            &self.0.info.0,
+            &mut handles,
+            &mut sizes,
+        )?;
+        Ok((
+            job_id,
+            StringMultiArray {
+                handles,
+                sizes,
+                session: self.0.node.session.clone(),
+            },
+        ))
+    }
     pub fn set(&self, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
         debug_assert!(self.0.node.is_valid()?);
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
@@ -322,6 +361,27 @@ impl DictionaryArrayAttr {
             part_id,
             &self.0.info,
         )
+    }
+
+    pub fn get_async(&self, part_id: i32) -> Result<(JobId, StringMultiArray)> {
+        let mut handles = vec![StringHandle(-1); self.0.info.total_array_elements() as usize];
+        let mut sizes = vec![0; self.0.info.count() as usize];
+        let job_id = bindings::get_attribute_dictionary_array_data_async(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            part_id,
+            &self.0.info.0,
+            &mut handles,
+            &mut sizes,
+        )?;
+        Ok((
+            job_id,
+            StringMultiArray {
+                handles,
+                sizes,
+                session: self.0.node.session.clone(),
+            },
+        ))
     }
     pub fn set(&self, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
         debug_assert!(self.0.node.is_valid()?);

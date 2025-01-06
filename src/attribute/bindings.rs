@@ -1,4 +1,5 @@
 use super::array::{DataArray, StringMultiArray};
+use super::JobId;
 use crate::ffi::raw;
 use crate::ffi::raw::{HAPI_AttributeInfo, HAPI_StringHandle, StorageType};
 use crate::ffi::AttributeInfo;
@@ -27,7 +28,7 @@ pub trait AttribAccess: private::Sealed + Clone + Default + Send + Sized + 'stat
         info: &AttributeInfo,
         part_id: i32,
         buffer: &mut Vec<Self>,
-    ) -> Result<i32>;
+    ) -> Result<JobId>;
     fn set(
         name: &CStr,
         node: &HoudiniNode,
@@ -55,6 +56,15 @@ pub trait AttribAccess: private::Sealed + Clone + Default + Send + Sized + 'stat
     ) -> Result<DataArray<'static, Self>>
     where
         [Self]: ToOwned<Owned = Vec<Self>>;
+
+    fn get_array_async(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        data: &mut [Self],
+        sizes: &mut [i32],
+        part: i32,
+    ) -> Result<JobId>;
     fn set_array(
         name: &CStr,
         node: &HoudiniNode,
@@ -75,6 +85,33 @@ macro_rules! impl_sealed {
 
 impl_sealed!(u8, i8, i16, u16, i32, i64, f32, f64);
 
+#[derive(Debug)]
+pub struct AsyncAttribResult<T: Sized + Send + 'static> {
+    pub(crate) job_id: i32,
+    pub(crate) data: Vec<T>,
+    pub(crate) size: usize,
+    pub(crate) session: Session,
+}
+
+impl<T: Sized + Send + 'static> AsyncAttribResult<T> {
+    pub fn is_ready(&self) -> Result<bool> {
+        self.session
+            .get_job_status(self.job_id)
+            .map(|status| status == crate::session::JobStatus::Idle)
+    }
+
+    pub fn wait(mut self) -> Result<Vec<T>> {
+        loop {
+            if self.is_ready()? {
+                unsafe {
+                    self.data.set_len(self.size);
+                }
+                return Ok(self.data);
+            }
+        }
+    }
+}
+
 #[duplicate_item(
 [
 _val_type [u8]
@@ -85,6 +122,7 @@ _get_async [HAPI_GetAttributeUInt8DataAsync]
 _set [HAPI_SetAttributeUInt8Data]
 _set_unique [HAPI_SetAttributeUInt8UniqueData]
 _get_array [HAPI_GetAttributeUInt8ArrayData]
+_get_array_async [HAPI_GetAttributeUInt8ArrayDataAsync]
 _set_array [HAPI_SetAttributeUInt8ArrayData]
 ]
 [
@@ -96,6 +134,7 @@ _get_async [HAPI_GetAttributeInt8DataAsync]
 _set [HAPI_SetAttributeInt8Data]
 _set_unique [HAPI_SetAttributeInt8UniqueData]
 _get_array [HAPI_GetAttributeInt8ArrayData]
+_get_array_async [HAPI_GetAttributeInt8ArrayDataAsync]
 _set_array [HAPI_SetAttributeInt8ArrayData]
 ]
 [
@@ -107,6 +146,7 @@ _get_async [HAPI_GetAttributeInt16DataAsync]
 _set [HAPI_SetAttributeInt16Data]
 _set_unique [HAPI_SetAttributeInt16UniqueData]
 _get_array [HAPI_GetAttributeInt16ArrayData]
+_get_array_async [HAPI_GetAttributeInt16ArrayDataAsync]
 _set_array [HAPI_SetAttributeInt16ArrayData]
 ]
 [
@@ -118,6 +158,7 @@ _get_async [HAPI_GetAttributeIntDataAsync]
 _set [HAPI_SetAttributeIntData]
 _set_unique [HAPI_SetAttributeIntUniqueData]
 _get_array [HAPI_GetAttributeIntArrayData]
+_get_array_async [HAPI_GetAttributeIntArrayDataAsync]
 _set_array [HAPI_SetAttributeIntArrayData]
 ]
 [
@@ -129,6 +170,7 @@ _get_async [HAPI_GetAttributeInt64DataAsync]
 _set [HAPI_SetAttributeInt64Data]
 _set_unique [HAPI_SetAttributeInt64UniqueData]
 _get_array [HAPI_GetAttributeInt64ArrayData]
+_get_array_async [HAPI_GetAttributeInt64ArrayDataAsync]
 _set_array [HAPI_SetAttributeInt64ArrayData]
 ]
 [
@@ -140,6 +182,7 @@ _get_async [HAPI_GetAttributeFloatDataAsync]
 _set [HAPI_SetAttributeFloatData]
 _set_unique [HAPI_SetAttributeFloatUniqueData]
 _get_array [HAPI_GetAttributeFloatArrayData]
+_get_array_async [HAPI_GetAttributeFloatArrayDataAsync]
 _set_array [HAPI_SetAttributeFloatArrayData]
 ]
 [
@@ -151,6 +194,7 @@ _get_async [HAPI_GetAttributeFloat64DataAsync]
 _set [HAPI_SetAttributeFloat64Data]
 _set_unique [HAPI_SetAttributeFloat64UniqueData]
 _get_array [HAPI_GetAttributeFloat64ArrayData]
+_get_array_async [HAPI_GetAttributeFloat64ArrayDataAsync]
 _set_array [HAPI_SetAttributeFloat64ArrayData]
 ]
 )]
@@ -194,7 +238,7 @@ impl AttribAccess for _val_type {
         info: &AttributeInfo,
         part: i32,
         buffer: &mut Vec<Self>,
-    ) -> Result<i32> {
+    ) -> Result<JobId> {
         debug_assert!(node.is_valid()?);
         // buffer capacity mut be of an appropriate size
         debug_assert!(buffer.capacity() >= (info.0.count * info.0.tupleSize) as usize);
@@ -294,6 +338,34 @@ impl AttribAccess for _val_type {
 
         Ok(DataArray::new_owned(data, sizes))
     }
+
+    fn get_array_async(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        data: &mut [Self],
+        sizes: &mut [i32],
+        part: i32,
+    ) -> Result<JobId> {
+        let mut job_id: i32 = -1;
+        unsafe {
+            raw::_get_array_async(
+                node.session.ptr(),                 // 	const HAPI_Session * 	session,
+                node.handle.0,                      // HAPI_NodeId 	node_id,
+                part,                               // HAPI_PartId 	part_id,
+                name.as_ptr(),                      // const char * 	attr_name,
+                info.ptr() as *mut _,               // HAPI_AttributeInfo * 	attr_info,
+                data.as_mut_ptr(),                  // HAPI_UInt8 * 	data_fixed_array,
+                info.total_array_elements() as i32, // int 	data_fixed_length,
+                sizes.as_mut_ptr(),                 // int * 	sizes_fixed_array,
+                0,                                  // int 	start,
+                info.count(),                       // int 	sizes_fixed_length,
+                &mut job_id as *mut _,              // int * 	job_id
+            )
+            .check_err(&node.session, || stringify!(Calling _get_array_async))?;
+        }
+        Ok(job_id)
+    }
     fn set_array(
         name: &CStr,
         node: &HoudiniNode,
@@ -325,6 +397,8 @@ impl AttribAccess for _val_type {
         Ok(())
     }
 }
+
+// STRING|DICT GET
 #[duplicate_item(
 [
 _get_rust_fn [get_attribute_string_data]
@@ -364,34 +438,7 @@ pub(crate) fn _get_rust_fn(
     }
 }
 
-#[derive(Debug)]
-pub struct AsyncAttribResult<T: Sized + Send + 'static> {
-    pub(crate) job_id: i32,
-    pub(crate) data: Vec<T>,
-    pub(crate) size: usize,
-    pub(crate) session: Session,
-}
-
-impl<T: Sized + Send + 'static> AsyncAttribResult<T> {
-    pub fn is_ready(&self) -> Result<bool> {
-        self.session
-            .get_job_status(self.job_id)
-            .map(|status| status == crate::session::JobStatus::Idle)
-    }
-
-    pub fn wait(mut self) -> Result<Vec<T>> {
-        loop {
-            if self.is_ready()? {
-                unsafe {
-                    self.data.set_len(self.size);
-                }
-                return Ok(self.data);
-            }
-        }
-    }
-}
-
-// Async versions for string and dict
+// STRING|DICT GET ASYNC
 #[duplicate_item(
 [
 _get_async_rust_fn [get_attribute_string_data_async]
@@ -439,6 +486,51 @@ pub(crate) fn _get_async_rust_fn(
     }
 }
 
+// STRING|DICT SET ASYNC
+
+// STRING|DICT GET ARRAY ASYNC
+
+#[duplicate_item(
+[
+_rust_fn [get_attribute_string_array_data_async]
+_ffi_fn [HAPI_GetAttributeStringArrayDataAsync]
+]
+
+[
+_rust_fn [get_attribute_dictionary_array_data_async]
+_ffi_fn [HAPI_GetAttributeDictionaryArrayDataAsync]
+]
+)]
+
+pub(crate) fn _rust_fn(
+    node: &HoudiniNode,
+    name: &CStr,
+    part_id: i32,
+    info: &HAPI_AttributeInfo,
+    data: &mut [StringHandle],
+    sizes: &mut [i32],
+) -> Result<JobId> {
+    let mut job_id = -1;
+    unsafe {
+        raw::_ffi_fn(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            info as *const _ as *mut _, //
+            data.as_mut_ptr() as *mut HAPI_StringHandle,
+            info.totalArrayElements as i32,
+            sizes.as_mut_ptr(),
+            0,
+            info.count,
+            &mut job_id as *mut _,
+        )
+        .check_err(&node.session, || stringify!(Calling _set_ffi_fn))?;
+        Ok(job_id)
+    }
+}
+
+// STRING|DICT SET
 #[duplicate_item(
 [
 _rust_fn [set_attribute_string_data]
@@ -473,6 +565,7 @@ pub(crate) fn _rust_fn(
     }
 }
 
+// STRING|DICT GET ARRAY
 #[duplicate_item(
 [
 _rust_fn [get_attribute_string_array_data]
@@ -516,6 +609,7 @@ pub(crate) fn _rust_fn(
     }
 }
 
+// STRING|DICT SET ARRAY
 #[duplicate_item(
 [
 _rust_fn [set_attribute_string_array_data]
@@ -552,6 +646,7 @@ pub(crate) fn _rust_fn(
     }
 }
 
+// STRING SET UNIQUE
 #[duplicate_item(
 [
 _rust_fn [set_attribute_string_unique_data]

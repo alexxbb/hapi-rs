@@ -524,17 +524,20 @@ fn geometry_partitions() {
 #[test]
 fn geometry_add_and_delete_group() {
     SESSION.with(|session| {
-        let geo = session.create_input_node("input", None).unwrap();
+        let mut geo = session.create_input_node("input", None).unwrap();
         _create_triangle(&geo);
         geo.add_group(0, GroupType::Point, "test", Some(&[1, 1, 1]))
             .unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
+        geo.update().unwrap();
+        assert_eq!(geo.geo_info().unwrap().point_group_count(), 1);
         assert_eq!(geo.group_count_by_type(GroupType::Point).unwrap(), 1);
 
         geo.delete_group(0, GroupType::Point, "test").unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
+        geo.update().unwrap();
         assert_eq!(geo.group_count_by_type(GroupType::Point).unwrap(), 0);
         geo.node.delete().unwrap();
     })
@@ -732,6 +735,57 @@ fn geometry_test_get_string_attribute_async() {
         let handles = result.wait().unwrap();
         let data = session.get_string_batch(&handles).unwrap();
         assert_eq!(data.iter_str().count(), attr.info().count() as usize);
+    })
+}
+
+#[test]
+fn geometry_test_get_string_array_attribute_async() {
+    SESSION.with(|session| {
+        let geo = _load_test_geometry(&session).unwrap();
+        let str_attr = geo
+            .get_attribute(0, AttributeOwner::Point, c"my_str_array")
+            .unwrap()
+            .unwrap();
+        let Some(attr) = str_attr.downcast::<StringArrayAttr>() else {
+            panic!("Not a StringArrayAttr attribute");
+        };
+
+        let (job_id, result) = attr.get_async(0).unwrap();
+        while JobStatus::Running == session.get_job_status(job_id).unwrap() {}
+        let (data, sizes) = result.flatten().unwrap();
+        assert_eq!(sizes[0], 4);
+        let first = &data[0..sizes[0]];
+        assert_eq!(&first[0], "pt_0_0");
+    })
+}
+
+#[test]
+fn geometry_test_get_dictionary_array_attribute_async() {
+    use std::collections::HashMap;
+    use tinyjson::JsonValue;
+
+    SESSION.with(|session| {
+        let geo = _load_test_geometry(&session).unwrap();
+        let str_attr = geo
+            .get_attribute(0, AttributeOwner::Point, c"my_dict_array_attr")
+            .unwrap()
+            .unwrap();
+        let Some(attr) = str_attr.downcast::<DictionaryArrayAttr>() else {
+            panic!("Not a DictionaryArrayAttr attribute");
+        };
+
+        let (job_id, result) = attr.get_async(0).unwrap();
+        while JobStatus::Running == session.get_job_status(job_id).unwrap() {}
+
+        let (data, sizes) = result.flatten().unwrap();
+        assert_eq!(sizes[0], 0); // first point has an empty array
+        let second_point = &data[sizes[0]..sizes[1]];
+        assert_eq!(sizes[1], 1); // second point has one element
+        let parsed: JsonValue = second_point[0]
+            .parse()
+            .expect("Could not parse attrib value json");
+        let map: &HashMap<_, _> = parsed.get().expect("HashMap");
+        assert_eq!(map["sample"], JsonValue::Number(0.0));
     })
 }
 
