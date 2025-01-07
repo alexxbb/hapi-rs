@@ -19,6 +19,7 @@
 //!
 //! ```
 mod array;
+mod async_;
 mod bindings;
 
 use crate::errors::Result;
@@ -27,7 +28,7 @@ pub use crate::ffi::AttributeInfo;
 use crate::node::HoudiniNode;
 use crate::stringhandle::{StringArray, StringHandle};
 pub use array::*;
-pub use bindings::{AsyncAttribResult, AttribAccess};
+use async_::AsyncAttribResult;
 use std::any::Any;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
@@ -35,9 +36,85 @@ use std::marker::PhantomData;
 
 pub type JobId = i32;
 
+mod private {
+    pub trait Sealed {}
+}
+pub trait AttribAccess: private::Sealed + Clone + Default + Send + Sized + 'static {
+    fn storage() -> StorageType;
+    fn storage_array() -> StorageType;
+    fn get(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part_id: i32,
+        buffer: &mut Vec<Self>,
+    ) -> Result<()>;
+    fn get_async(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part_id: i32,
+        buffer: &mut Vec<Self>,
+    ) -> Result<JobId>;
+    fn set(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part_id: i32,
+        data: &[Self],
+        start: i32,
+        len: i32,
+    ) -> Result<()>;
+
+    fn set_unique(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part_id: i32,
+        data: &[Self],
+        start: i32,
+    ) -> Result<()>;
+
+    fn get_array(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+    ) -> Result<DataArray<'static, Self>>
+    where
+        [Self]: ToOwned<Owned = Vec<Self>>;
+
+    fn get_array_async(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        data: &mut [Self],
+        sizes: &mut [i32],
+        part: i32,
+    ) -> Result<JobId>;
+    fn set_array(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+        data: &[Self],
+        sizes: &[i32],
+    ) -> Result<()>
+    where
+        [Self]: ToOwned<Owned = Vec<Self>>;
+}
+
+macro_rules! impl_sealed {
+    ($($x:ident),+ $(,)?) => {
+        $(impl private::Sealed for $x {})+
+    }
+}
+
+impl_sealed!(u8, i8, i16, i32, i64, f32, f64);
+
 impl StorageType {
     // Helper for matching array types to actual data type,
-    // e.g StorageType::Array is actually an array of StorageType::Int,
+    // e.g. StorageType::Array is actually an array of StorageType::Int,
     // StorageType::FloatArray is StorageType::Float
     pub(crate) fn type_matches(&self, other: StorageType) -> bool {
         use StorageType::*;
@@ -197,7 +274,7 @@ impl<T: AttribAccess> NumericAttr<T> {
 }
 
 impl StringAttr {
-    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringAttr {
+    pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringAttr {
         StringAttr(AttributeBundle { info, name, node })
     }
     pub fn get(&self, part_id: i32) -> Result<StringArray> {
@@ -246,20 +323,18 @@ impl StringAttr {
     /// value length must be less or equal to attribute tuple size.
     pub fn set_unique(&self, part: i32, value: &str) -> Result<()> {
         let value = CString::new(value)?;
-        unsafe {
-            bindings::set_attribute_string_unique_data(
-                &self.0.node,
-                self.0.name.as_c_str(),
-                &self.0.info.0,
-                part,
-                value.as_ptr(),
-            )
-        }
+        bindings::set_attribute_string_unique_data(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+            part,
+            value.as_ptr(),
+        )
     }
 }
 
 impl StringArrayAttr {
-    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringArrayAttr {
+    pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringArrayAttr {
         StringArrayAttr(AttributeBundle { info, name, node })
     }
     pub fn get(&self, part_id: i32) -> Result<StringMultiArray> {
@@ -309,7 +384,7 @@ impl StringArrayAttr {
 }
 
 impl DictionaryAttr {
-    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
+    pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
         DictionaryAttr(AttributeBundle { info, name, node })
     }
 
@@ -350,7 +425,7 @@ impl DictionaryAttr {
 }
 
 impl DictionaryArrayAttr {
-    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
+    pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
         DictionaryArrayAttr(AttributeBundle { info, name, node })
     }
     pub fn get(&self, part_id: i32) -> Result<StringMultiArray> {
