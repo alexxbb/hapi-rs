@@ -3,7 +3,6 @@ use crate::attribute::{AttributeInfo, JobId, StringMultiArray};
 use crate::errors::Result;
 use crate::node::HoudiniNode;
 use crate::raw;
-use crate::raw::{HAPI_AttributeInfo, HAPI_StringHandle};
 use crate::session::StringArray;
 use crate::stringhandle::StringHandle;
 use duplicate::duplicate_item;
@@ -145,6 +144,7 @@ pub(crate) fn _rust_fn(
     node: &HoudiniNode,
     name: &CStr,
     info: &raw::HAPI_AttributeInfo,
+    part_id: i32,
     data: &mut [*const i8],
     sizes: &[i32],
 ) -> Result<()> {
@@ -153,7 +153,7 @@ pub(crate) fn _rust_fn(
         raw::_ffi_fn(
             node.session.ptr(),
             node.handle.0,
-            0,
+            part_id,
             name.as_ptr(),
             info as *const _ as *mut _,
             data.as_mut_ptr(),
@@ -182,7 +182,7 @@ pub(crate) fn _get_rust_fn(
     node: &HoudiniNode,
     part_id: i32,
     name: &CStr,
-    attr_info: &HAPI_AttributeInfo,
+    attr_info: &raw::HAPI_AttributeInfo,
 ) -> Result<StringArray> {
     debug_assert!(node.is_valid()?);
     debug_assert!(attr_info.count > 0);
@@ -190,20 +190,58 @@ pub(crate) fn _get_rust_fn(
         let mut handles = vec![StringHandle(0); attr_info.count as usize];
         // SAFETY: Most likely an error in C API, it should not modify the info object,
         // but for some reason it wants a mut pointer
-        let attr_info = attr_info as *const _ as *mut HAPI_AttributeInfo;
+        let attr_info = attr_info as *const _ as *mut raw::HAPI_AttributeInfo;
         raw::_get_ffi_fn(
             node.session.ptr(),
             node.handle.0,
             part_id,
             name.as_ptr(),
             attr_info,
-            handles.as_mut_ptr() as *mut HAPI_StringHandle,
+            handles.as_mut_ptr() as *mut raw::HAPI_StringHandle,
             0,
             handles.len() as i32,
         )
         .check_err(&node.session, || stringify!(Calling _get_ffi_fn))?;
         crate::stringhandle::get_string_array(&handles, &node.session)
     }
+}
+
+// STRING|DICT SET ASYNC
+#[duplicate_item(
+[
+_rust_fn [set_attribute_string_data_async]
+_ffi_fn [HAPI_SetAttributeStringDataAsync]
+]
+
+[
+_rust_fn [set_attribute_dictionary_data_async]
+_ffi_fn [HAPI_SetAttributeDictionaryDataAsync]
+]
+)]
+
+pub(crate) fn _rust_fn(
+    node: &HoudiniNode,
+    name: &CStr,
+    part_id: i32,
+    info: &raw::HAPI_AttributeInfo,
+    data: &mut [*const i8],
+) -> Result<JobId> {
+    let mut job_id = -1;
+    unsafe {
+        raw::_ffi_fn(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            info as *const _,
+            data.as_ptr() as *mut _,
+            0,
+            info.count,
+            &mut job_id as *mut _,
+        )
+        .check_err(&node.session, || stringify!(Calling _ffi_fn))?;
+    }
+    Ok(job_id)
 }
 
 // STRING|DICT GET ASYNC
@@ -223,7 +261,7 @@ pub(crate) fn _get_async_rust_fn(
     node: &HoudiniNode,
     part_id: i32,
     name: &CStr,
-    attr_info: &HAPI_AttributeInfo,
+    attr_info: &raw::HAPI_AttributeInfo,
 ) -> Result<AsyncAttribResult<StringHandle>> {
     unsafe {
         let buffer_size = (attr_info.count * attr_info.tupleSize) as usize;
@@ -231,7 +269,7 @@ pub(crate) fn _get_async_rust_fn(
         let session = node.session.clone();
         // SAFETY: Most likely an error in C API, it should not modify the info object,
         // but for some reason it wants a mut pointer
-        let attr_info = attr_info as *const _ as *mut HAPI_AttributeInfo;
+        let attr_info = attr_info as *const _ as *mut raw::HAPI_AttributeInfo;
         let mut job_id = -1;
         raw::_get_async_ffi_fn(
             session.ptr(),
@@ -239,7 +277,7 @@ pub(crate) fn _get_async_rust_fn(
             part_id,
             name.as_ptr(),
             attr_info,
-            data.as_mut_ptr() as *mut HAPI_StringHandle,
+            data.as_mut_ptr() as *mut raw::HAPI_StringHandle,
             0,
             buffer_size as i32,
             &mut job_id,
@@ -285,4 +323,40 @@ pub(crate) fn _rust_fn(
         )
         .check_err(&node.session, || stringify!(Calling _ffi_fn))
     }
+}
+
+// STRING SET UNIQUE ASYNC
+#[duplicate_item(
+[
+_rust_fn [set_attribute_string_unique_data_async]
+_ffi_fn [HAPI_SetAttributeStringUniqueDataAsync]
+_val_type [*const ::std::os::raw::c_char]
+]
+
+)]
+
+pub(crate) fn _rust_fn(
+    node: &HoudiniNode,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    part: i32,
+    data: _val_type,
+) -> Result<JobId> {
+    let mut job_id = -1;
+    unsafe {
+        raw::_ffi_fn(
+            node.session.ptr(),
+            node.handle.0,
+            part,
+            name.as_ptr(),
+            info as *const _,
+            data,
+            info.tupleSize,
+            0,
+            info.count,
+            &mut job_id as *mut _,
+        )
+        .check_err(&node.session, || stringify!(Calling _ffi_fn))?;
+    }
+    Ok(job_id)
 }

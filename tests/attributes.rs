@@ -158,7 +158,7 @@ fn geometry_create_string_array_attrib() {
             .add_string_array_attribute("my_array_a", 0, info)
             .unwrap();
         let attr_data = &["one", "two", "three", "four", "five", "six"];
-        array_attr.set(attr_data.as_slice(), &[1, 2, 3]).unwrap();
+        array_attr.set(0, attr_data.as_slice(), &[1, 2, 3]).unwrap();
         // NOTE: ALWAYS remember to commit AND cook after creating and setting attributes.
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
@@ -256,6 +256,33 @@ fn geometry_test_get_dictionary_attributes() {
         assert_eq!(map["int_key"], JsonValue::Number(1.0));
         assert!(matches!(map["list"], JsonValue::Array(_)));
         assert!(matches!(map["dict"], JsonValue::Object(_)));
+        Ok(())
+    })
+    .unwrap()
+}
+
+#[test]
+fn geometry_set_dictionary_attribute_async() {
+    with_session(|session| {
+        let geo = create_single_point_geo(session)?;
+        let part = geo.part_info(0)?;
+        let info = AttributeInfo::default()
+            .with_owner(AttributeOwner::Point)
+            .with_storage(StorageType::Dictionary)
+            .with_tuple_size(1)
+            .with_count(part.point_count());
+        let attr = geo.add_dictionary_attribute("dict_attr", part.part_id(), info)?;
+        let data = r#"
+        {
+            "number": 1,
+            "list": [1, 2, 3],
+        }"#;
+        let dict_array = std::iter::repeat(data)
+            .take(part.point_count() as usize)
+            .collect::<Vec<_>>();
+        let job = attr.set_async(part.part_id(), &dict_array)?;
+        while let JobStatus::Running = session.get_job_status(job)? {}
+        geo.commit()?;
         Ok(())
     })
     .unwrap()
@@ -434,7 +461,7 @@ fn geometry_test_get_set_dictionary_array_attribute() {
             tinyjson::stringify(&JsonValue::from(dict_1)).expect("Json value"),
             tinyjson::stringify(&JsonValue::from(dict_2)).expect("Json value"),
         ];
-        attr.set(&data, &[2])
+        attr.set(0, &data, &[2])
             .expect("Dictionary array attribute set");
         geo.commit()
     })

@@ -66,6 +66,16 @@ pub trait AttribAccess: private::Sealed + Clone + Default + Send + Sized + 'stat
         len: i32,
     ) -> Result<()>;
 
+    fn set_async(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+        data: &[Self],
+        start: i32,
+        len: i32,
+    ) -> Result<JobId>;
+
     fn set_unique(
         name: &CStr,
         node: &HoudiniNode,
@@ -74,6 +84,15 @@ pub trait AttribAccess: private::Sealed + Clone + Default + Send + Sized + 'stat
         data: &[Self],
         start: i32,
     ) -> Result<()>;
+
+    fn set_unique_async(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part_id: i32,
+        data: &[Self],
+        start: i32,
+    ) -> Result<JobId>;
 
     fn get_array(
         name: &CStr,
@@ -102,6 +121,15 @@ pub trait AttribAccess: private::Sealed + Clone + Default + Send + Sized + 'stat
     ) -> Result<()>
     where
         [Self]: ToOwned<Owned = Vec<Self>>;
+
+    fn set_array_async(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+        data: &[Self],
+        sizes: &[i32],
+    ) -> Result<JobId>;
 }
 
 macro_rules! impl_sealed {
@@ -309,6 +337,21 @@ impl StringAttr {
             ptrs.as_mut(),
         )
     }
+
+    pub fn set_async(&self, part_id: i32, values: &[&str]) -> Result<JobId> {
+        debug_assert!(self.0.node.is_valid()?);
+        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
+            values.iter().map(|s| CString::new(*s)).collect();
+        let cstr = cstr?;
+        let mut ptrs: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
+        bindings::set_attribute_string_data_async(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            part_id,
+            &self.0.info.0,
+            ptrs.as_mut(),
+        )
+    }
     pub fn set_cstr<'a>(&self, part_id: i32, values: impl Iterator<Item = &'a CStr>) -> Result<()> {
         let mut ptrs: Vec<*const i8> = values.map(|cs| cs.as_ptr()).collect();
         bindings::set_attribute_string_data(
@@ -324,6 +367,18 @@ impl StringAttr {
     pub fn set_unique(&self, part: i32, value: &str) -> Result<()> {
         let value = CString::new(value)?;
         bindings::set_attribute_string_unique_data(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+            part,
+            value.as_ptr(),
+        )
+    }
+
+    /// Set multiple attribute string data to the same unique value asynchronously.
+    pub fn set_unique_async(&self, part: i32, value: &str) -> Result<JobId> {
+        let value = CString::new(value)?;
+        bindings::set_attribute_string_unique_data_async(
             &self.0.node,
             self.0.name.as_c_str(),
             &self.0.info.0,
@@ -367,7 +422,7 @@ impl StringArrayAttr {
             },
         ))
     }
-    pub fn set(&self, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
+    pub fn set(&self, part_id: i32, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
         debug_assert!(self.0.node.is_valid()?);
         let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
             values.iter().map(|s| CString::new(s.as_ref())).collect();
@@ -377,6 +432,7 @@ impl StringArrayAttr {
             &self.0.node,
             self.0.name.as_c_str(),
             &self.0.info.0,
+            part_id,
             ptrs.as_mut(),
             &sizes,
         )
@@ -395,6 +451,21 @@ impl DictionaryAttr {
             part_id,
             self.0.name.as_c_str(),
             &self.0.info.0,
+        )
+    }
+
+    pub fn set_async(&self, part_id: i32, values: &[&str]) -> Result<JobId> {
+        debug_assert!(self.0.node.is_valid()?);
+        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
+            values.iter().map(|s| CString::new(*s)).collect();
+        let cstr = cstr?;
+        let mut ptrs: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
+        bindings::set_attribute_dictionary_data_async(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            part_id,
+            &self.0.info.0,
+            ptrs.as_mut(),
         )
     }
 
@@ -458,7 +529,7 @@ impl DictionaryArrayAttr {
             },
         ))
     }
-    pub fn set(&self, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
+    pub fn set(&self, part_id: i32, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
         debug_assert!(self.0.node.is_valid()?);
         let cstrings: std::result::Result<Vec<CString>, std::ffi::NulError> =
             values.iter().map(|s| CString::new(s.as_ref())).collect();
@@ -468,6 +539,7 @@ impl DictionaryArrayAttr {
             &self.0.node,
             self.0.name.as_c_str(),
             &self.0.info.0,
+            part_id,
             ptrs.as_mut(),
             &sizes,
         )
