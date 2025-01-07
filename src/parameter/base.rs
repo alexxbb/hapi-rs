@@ -98,6 +98,16 @@ pub trait ParmBaseTrait {
         Ok(Some(all_parameters))
     }
 
+    fn insert_multiparm_instance(&self, position: i32) -> Result<()> {
+        let ParmInfoWrap { info, node } = self.inner();
+        crate::ffi::insert_multiparm_instance(&info.1, *node, info.id(), position)
+    }
+
+    fn remove_multiparm_instance(&self, position: i32) -> Result<()> {
+        let ParmInfoWrap { info, node } = self.inner();
+        crate::ffi::remove_multiparm_instance(&info.1, *node, info.id(), position)
+    }
+
     /// Returns a parameter expression string
     fn expression(&self, index: i32) -> Result<Option<String>> {
         let inner = self.inner();

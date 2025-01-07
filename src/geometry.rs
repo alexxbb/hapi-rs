@@ -664,6 +664,19 @@ impl Geometry {
         )
     }
 
+    /// Get group membership for a packed instance part.
+    /// This functions allows you to get the group membership for a specific packed primitive part.
+    pub fn get_group_membership_on_packed_instance_part(
+        &self,
+        part: &PartInfo,
+        group_type: GroupType,
+        group_name: &CStr,
+    ) -> Result<(bool, Vec<i32>)> {
+        crate::ffi::get_group_membership_on_packed_instance_part(
+            &self.node, part, group_type, group_name,
+        )
+    }
+
     pub fn get_group_count_on_packed_instance(&self, part: &PartInfo) -> Result<(i32, i32)> {
         self.assert_node_cooked();
         crate::ffi::get_group_count_on_instance_part(
