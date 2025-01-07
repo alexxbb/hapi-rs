@@ -1,6 +1,7 @@
 #![allow(dead_code, unused)]
 use regex_lite::{Regex, RegexBuilder};
 use std::collections::HashSet;
+use std::error::Error;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 
@@ -45,7 +46,7 @@ fn raw_hapi_function_names() -> HashSet<Item> {
     matches
 }
 
-#[derive(Debug, Eq)]
+#[derive(Debug, Eq, Ord, PartialOrd)]
 struct Item(String);
 
 impl PartialEq for Item {
@@ -60,32 +61,39 @@ impl Hash for Item {
     }
 }
 
-fn wrapped_rs_function_names() -> HashSet<Item> {
+fn wrapped_rs_function_names() -> Result<HashSet<Item>, Box<dyn Error>> {
     let rx1 = Regex::new(r#"raw::(HAPI\w+)\(?"#).unwrap();
     let rx2 = Regex::new(r#"\[(HAPI\w+)\]"#).unwrap();
     let rx3 = Regex::new(r#".*raw::(HAPI\w+)\("#).unwrap();
 
+    let mut set = HashSet::new();
+
     let text = std::fs::read_to_string("../../src/ffi/functions.rs").expect("ffi/functions.rs");
+
     let it1 = rx1.captures_iter(&text).map(|c| Item(c[1].to_string()));
     let it2 = rx2.captures_iter(&text).map(|c| Item(c[1].to_string()));
     let ffi_functions = it1.chain(it2);
+    set.extend(ffi_functions);
 
-    let text =
-        std::fs::read_to_string("../../src/attribute/bindings.rs").expect("attribute/bindings.rs");
-    let it1 = rx2.captures_iter(&text).map(|c| Item(c[1].to_string()));
-    let it2 = rx3.captures_iter(&text).map(|c| Item(c[1].to_string()));
-    let attribute_bindings = it1.chain(it2);
-
-    HashSet::from_iter(ffi_functions.chain(attribute_bindings))
+    for entry in glob::glob("../../src/attribute/**/*.rs").unwrap() {
+        let path = entry.expect("failed to read glob entry");
+        let text = std::fs::read_to_string(&path)?;
+        let it1 = rx2.captures_iter(&text).map(|c| Item(c[1].to_string()));
+        let it2 = rx3.captures_iter(&text).map(|c| Item(c[1].to_string()));
+        let attribute_bindings = it1.chain(it2);
+        set.extend(attribute_bindings);
+    }
+    Ok(set)
 }
 
 fn main() {
-    let raw = raw_hapi_function_names();
-    let rs = wrapped_rs_function_names();
+    let mut ffi_functions = Vec::from_iter(raw_hapi_function_names().into_iter());
+    ffi_functions.sort();
+    let rs = wrapped_rs_function_names().unwrap();
     let mut num_missed: i32 = 0;
-    for r in raw.iter() {
-        if !rs.contains(r) {
-            println!("Missing {r:?}");
+    for func in ffi_functions.iter() {
+        if !rs.contains(func) {
+            println!("Missing {func:?}");
             num_missed += 1;
         }
     }
