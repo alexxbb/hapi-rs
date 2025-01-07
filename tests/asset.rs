@@ -35,6 +35,19 @@ fn asset_get_names() {
 }
 
 #[test]
+fn asset_parameter_tags() {
+    with_session_asset(Asset::Parameters, |_, lib| {
+        let parms = lib.get_asset_parms("Object/hapi_parms")?;
+        let parm = parms.find_parameter("float3").expect("float3 parameter");
+        let (tag_name, tag_value) = parm.get_tag(0)?;
+        assert_eq!(tag_name, "my_tag");
+        assert_eq!(tag_value, "foo");
+        Ok(())
+    })
+    .unwrap()
+}
+
+#[test]
 fn asset_get_first_name() {
     with_session_asset(Asset::Parameters, |_, lib| {
         assert_eq!(

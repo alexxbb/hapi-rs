@@ -12,7 +12,6 @@ use super::raw;
 use crate::ffi::bindings::HAPI_StringHandle;
 use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId, RSTOrder};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
-use crate::raw::HAPI_Session;
 use crate::{
     errors::{HapiError, Kind, Result},
     node::{HoudiniNode, NodeHandle},
@@ -3738,5 +3737,51 @@ pub fn get_instanced_object_ids(node: &HoudiniNode) -> Result<Vec<NodeHandle>> {
 
         // SAFETY: NodeHandle is [repr(transparent)] i32
         Ok(std::mem::transmute(handles))
+    }
+}
+
+pub fn get_asset_definition_parm_tag_name(
+    session: &Session,
+    library: raw::HAPI_AssetLibraryId,
+    asset_name: &CStr,
+    parm_id: ParmHandle,
+    index: i32,
+) -> Result<Vec<u8>> {
+    let mut handle = uninit!();
+    unsafe {
+        raw::HAPI_GetAssetDefinitionParmTagName(
+            session.ptr(),
+            library,
+            asset_name.as_ptr(),
+            parm_id.0,
+            index,
+            handle.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetAssetDefinitionParmTagName")?;
+        let handle = handle.assume_init();
+        crate::stringhandle::get_string_bytes(StringHandle(handle), session)
+    }
+}
+
+pub fn get_asset_definition_parm_tag_value(
+    session: &Session,
+    library: raw::HAPI_AssetLibraryId,
+    asset_name: &CStr,
+    parm_id: ParmHandle,
+    tag_name: &CStr,
+) -> Result<String> {
+    let mut handle = uninit!();
+    unsafe {
+        raw::HAPI_GetAssetDefinitionParmTagValue(
+            session.ptr(),
+            library,
+            asset_name.as_ptr(),
+            parm_id.0,
+            tag_name.as_ptr(),
+            handle.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetAssetDefinitionParmTagValue")?;
+        let handle = handle.assume_init();
+        crate::stringhandle::get_string(StringHandle(handle), session)
     }
 }
