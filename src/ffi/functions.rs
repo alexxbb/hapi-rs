@@ -12,6 +12,7 @@ use super::raw;
 use crate::ffi::bindings::HAPI_StringHandle;
 use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId, RSTOrder};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
+use crate::raw::HAPI_Session;
 use crate::{
     errors::{HapiError, Kind, Result},
     node::{HoudiniNode, NodeHandle},
@@ -3718,5 +3719,24 @@ pub fn get_job_status(session: &Session, job_id: i32) -> Result<raw::JobStatus> 
         raw::HAPI_GetJobStatus(session.ptr(), job_id, job_status.as_mut_ptr())
             .check_err(&session, || "Calling HAPI_GetJobStatus")?;
         Ok(job_status.assume_init())
+    }
+}
+
+pub fn get_instanced_object_ids(node: &HoudiniNode) -> Result<Vec<NodeHandle>> {
+    let count = get_compose_object_list(&node.session, node.parent_node().unwrap_or_default())?;
+    let mut handles = Vec::with_capacity(count as usize);
+    unsafe {
+        raw::HAPI_GetInstancedObjectIds(
+            node.session.ptr(),
+            node.handle.0,
+            handles.as_mut_ptr(),
+            0,
+            count,
+        )
+        .check_err(&node.session, || "Calling HAPI_GetInstancedObjectIds")?;
+        handles.set_len(count as usize);
+
+        // SAFETY: NodeHandle is [repr(transparent)] i32
+        Ok(std::mem::transmute(handles))
     }
 }
