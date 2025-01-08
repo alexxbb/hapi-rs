@@ -402,6 +402,11 @@ impl HoudiniNode {
             .get_node_from_path(relative_path, Some(self.handle))
     }
 
+    /// Get the node ids for the objects being instanced by an Instance OBJ node.
+    pub fn get_instanced_object_ids(&self) -> Result<Vec<NodeHandle>> {
+        crate::ffi::get_instanced_object_ids(self)
+    }
+
     /// *Search* for child node by name.
     pub fn find_child_node(
         &self,

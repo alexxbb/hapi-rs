@@ -1,25 +1,14 @@
-use once_cell::sync::Lazy;
-
 use hapi_rs::{
     parameter::{KeyFrame, Parameter, ParmBaseTrait, ParmType},
-    session::{quick_session, Session},
     Result,
 };
 
-thread_local! {
-    static SESSION: Lazy<Session> = Lazy::new(|| {
-        env_logger::try_init().ok();
-        let session = quick_session(None).expect("Could not create test session");
-        session
-            .load_asset_file("otls/hapi_parms.hda")
-            .expect("load asset");
-        session
-    });
-}
+mod _utils;
+use _utils::*;
 
 #[test]
 fn parameters_get_set() {
-    SESSION.with(|session| {
+    with_session(|session| {
         let node = session
             .create_node("Object/hapi_parms")
             .expect("create_node");
@@ -79,12 +68,14 @@ fn parameters_get_set() {
                 assert_eq!(sp.get(0).unwrap(), "set from callback");
             }
         }
+        Ok(())
     })
+    .unwrap()
 }
 
 #[test]
 fn parameters_set_anim_expression() {
-    SESSION.with(|session| {
+    with_session(|session| {
         let node = session.create_node("Object/null").unwrap();
 
         if let Ok(Parameter::Float(p)) = node.parameter("scale") {
@@ -117,12 +108,14 @@ fn parameters_set_anim_expression() {
             p.remove_expression(0).unwrap();
             assert_eq!(p.expression(0).unwrap(), None);
         }
+        Ok(())
     })
+    .unwrap()
 }
 
 #[test]
 fn parameters_reset_to_default() {
-    SESSION.with(|session| {
+    with_session(|session| {
         let node = session
             .create_node("Object/hapi_parms")
             .expect("create_node");
@@ -133,12 +126,14 @@ fn parameters_reset_to_default() {
             p.revert_to_default(Some(0)).unwrap();
             assert_eq!(p.get(0).unwrap(), default);
         }
+        Ok(())
     })
+    .unwrap()
 }
 
 #[test]
 fn parameter_tags() {
-    SESSION.with(|session| {
+    with_session(|session| {
         let node = session
             .create_node("Object/hapi_parms")
             .expect("create_node");
@@ -149,12 +144,14 @@ fn parameter_tags() {
             let tag_value = parm.get_tag_value("script_callback_language").unwrap();
             assert_eq!(tag_value, "python");
         }
+        Ok(())
     })
+    .unwrap()
 }
 
 #[test]
 fn parameters_save_parm_file() {
-    SESSION.with(|session| {
+    with_session(|session| {
         let node = session
             .create_node("Object/hapi_parms")
             .expect("create_node");
@@ -168,12 +165,14 @@ fn parameters_save_parm_file() {
             assert!(filesize > 1024);
             std::fs::remove_dir_all(dir).unwrap();
         }
+        Ok(())
     })
+    .unwrap()
 }
 
 #[test]
 fn get_set_value_as_node() {
-    SESSION.with(|session| {
+    with_session(|session| {
         let node = session
             .create_node("Object/hapi_parms")
             .expect("create_node");
@@ -189,11 +188,13 @@ fn get_set_value_as_node() {
             .unwrap()
             .expect("op_path node not found");
         assert_eq!(null_node.handle, value);
+        Ok(())
     })
+    .unwrap()
 }
 
 #[test]
-fn parameters_concurrent_access() -> Result<()> {
+fn parameters_concurrent_access() {
     // This is a dumb test of accessing parameters randomly from multiple threads
     // HAPI claims each session is protected with a lock....
     fn set_parm_value(parm: &Parameter) -> Result<()> {
@@ -242,7 +243,7 @@ fn parameters_concurrent_access() -> Result<()> {
         Ok(())
     }
 
-    SESSION.with(|session| {
+    with_session(|session| {
         // let session = quick_session(Some(
         //     &SessionOptionsBuilder::default().threaded(true).build(),
         // ))?;
@@ -277,4 +278,5 @@ fn parameters_concurrent_access() -> Result<()> {
 
         Ok(())
     })
+    .unwrap()
 }

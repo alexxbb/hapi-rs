@@ -172,7 +172,7 @@ pub struct SessionInfo(pub(crate) HAPI_SessionInfo);
 
 wrap! {
     Default SessionInfo [HAPI_SessionInfo_Create => HAPI_SessionInfo];
-    [get] connection_count->connectionCount->[i32];
+    [get|set|with] connection_count->connectionCount->[i32];
     [get|set|with] port_type->portType->[TcpPortType];
     [get] min_port->minPort->[i32];
     [get] max_port->maxPort->[i32];

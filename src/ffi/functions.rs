@@ -12,6 +12,7 @@ use super::raw;
 use crate::ffi::bindings::HAPI_StringHandle;
 use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId, RSTOrder};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
+use crate::raw::GroupType;
 use crate::{
     errors::{HapiError, Kind, Result},
     node::{HoudiniNode, NodeHandle},
@@ -368,13 +369,8 @@ pub fn get_parm_info_from_name(
 pub fn get_parm_id_from_name(name: &CStr, node: NodeHandle, session: &Session) -> Result<i32> {
     unsafe {
         let mut id = uninit!();
-        crate::ffi::raw::HAPI_GetParmIdFromName(
-            session.ptr(),
-            node.0,
-            name.as_ptr(),
-            id.as_mut_ptr(),
-        )
-        .check_err(session, || "Calling HAPI_GetParmIdFromName")?;
+        raw::HAPI_GetParmIdFromName(session.ptr(), node.0, name.as_ptr(), id.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_GetParmIdFromName")?;
         Ok(id.assume_init())
     }
 }
@@ -3021,7 +3017,7 @@ pub fn convert_transform(
 pub fn convert_matrix_to_euler(
     session: &Session,
     matrix: &[f32; 16],
-    rst_order: raw::RSTOrder,
+    rst_order: RSTOrder,
     rot_order: raw::XYZOrder,
 ) -> Result<raw::HAPI_TransformEuler> {
     unsafe {
@@ -3041,7 +3037,7 @@ pub fn convert_matrix_to_euler(
 pub fn convert_matrix_to_quat(
     session: &Session,
     matrix: &[f32; 16],
-    rst_order: raw::RSTOrder,
+    rst_order: RSTOrder,
 ) -> Result<raw::HAPI_Transform> {
     unsafe {
         let mut out = raw::HAPI_Transform_Create();
@@ -3718,5 +3714,125 @@ pub fn get_job_status(session: &Session, job_id: i32) -> Result<raw::JobStatus> 
         raw::HAPI_GetJobStatus(session.ptr(), job_id, job_status.as_mut_ptr())
             .check_err(&session, || "Calling HAPI_GetJobStatus")?;
         Ok(job_status.assume_init())
+    }
+}
+
+pub fn get_instanced_object_ids(node: &HoudiniNode) -> Result<Vec<NodeHandle>> {
+    let count = get_compose_object_list(&node.session, node.parent_node().unwrap_or_default())?;
+    let mut handles = Vec::with_capacity(count as usize);
+    unsafe {
+        raw::HAPI_GetInstancedObjectIds(
+            node.session.ptr(),
+            node.handle.0,
+            handles.as_mut_ptr(),
+            0,
+            count,
+        )
+        .check_err(&node.session, || "Calling HAPI_GetInstancedObjectIds")?;
+        handles.set_len(count as usize);
+
+        // SAFETY: NodeHandle is [repr(transparent)] i32
+        Ok(std::mem::transmute(handles))
+    }
+}
+
+pub fn get_group_membership_on_packed_instance_part(
+    node: &HoudiniNode,
+    part_info: &PartInfo,
+    group_type: GroupType,
+    group_name: &CStr,
+) -> Result<(bool, Vec<i32>)> {
+    unsafe {
+        let count = get_element_count_by_group(part_info, group_type);
+
+        let mut membership = vec![0i32; count as usize];
+        let mut all_equal = -1i8;
+
+        raw::HAPI_GetGroupMembershipOnPackedInstancePart(
+            node.session.ptr(),
+            node.handle.0,
+            part_info.part_id(),
+            group_type,
+            group_name.as_ptr(),
+            &mut all_equal as *mut _,
+            membership.as_mut_ptr(),
+            0,
+            count,
+        )
+        .check_err(&node.session, || {
+            "Calling HAPI_GetGroupMembershipOnPackedInstancePart"
+        })?;
+
+        Ok((all_equal > 0, membership))
+    }
+}
+
+pub fn get_asset_definition_parm_tag_name(
+    session: &Session,
+    library: raw::HAPI_AssetLibraryId,
+    asset_name: &CStr,
+    parm_id: ParmHandle,
+    index: i32,
+) -> Result<Vec<u8>> {
+    let mut handle = uninit!();
+    unsafe {
+        raw::HAPI_GetAssetDefinitionParmTagName(
+            session.ptr(),
+            library,
+            asset_name.as_ptr(),
+            parm_id.0,
+            index,
+            handle.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetAssetDefinitionParmTagName")?;
+        let handle = handle.assume_init();
+        crate::stringhandle::get_string_bytes(StringHandle(handle), session)
+    }
+}
+
+pub fn get_asset_definition_parm_tag_value(
+    session: &Session,
+    library: raw::HAPI_AssetLibraryId,
+    asset_name: &CStr,
+    parm_id: ParmHandle,
+    tag_name: &CStr,
+) -> Result<String> {
+    let mut handle = uninit!();
+    unsafe {
+        raw::HAPI_GetAssetDefinitionParmTagValue(
+            session.ptr(),
+            library,
+            asset_name.as_ptr(),
+            parm_id.0,
+            tag_name.as_ptr(),
+            handle.as_mut_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_GetAssetDefinitionParmTagValue")?;
+        let handle = handle.assume_init();
+        crate::stringhandle::get_string(StringHandle(handle), session)
+    }
+}
+
+pub fn insert_multiparm_instance(
+    session: &Session,
+    node: NodeHandle,
+    parm: ParmHandle,
+    position: i32,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_InsertMultiparmInstance(session.ptr(), node.0, parm.0, position)
+            .check_err(session, || "Calling HAPI_InsertMultiparmInstance")
+    }
+}
+
+pub fn remove_multiparm_instance(
+    session: &Session,
+    node: NodeHandle,
+    parm: ParmHandle,
+    position: i32,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_RemoveMultiparmInstance(session.ptr(), node.0, parm.0, position)
+            .check_err(session, || "Calling HAPI_RemoveMultiparmInstance")
     }
 }

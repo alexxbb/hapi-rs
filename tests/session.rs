@@ -1,44 +1,36 @@
 use hapi_rs::raw::CacheProperty;
-use once_cell::unsync::Lazy;
 
 use hapi_rs::session::{
-    quick_session, ConnectionType, CookResult, ManagerType, Session, SessionOptions,
-    SessionSyncInfo, TimelineOptions, Viewport,
+    quick_session, ConnectionType, CookResult, ManagerType, SessionOptions, SessionSyncInfo,
+    TimelineOptions, Viewport,
 };
 
-thread_local! {
-    static SESSION: Lazy<Session> = Lazy::new(|| {
-        let _ = env_logger::try_init();
-        let session = quick_session(None).expect("Could not create test session");
-        session
-            .load_asset_file("otls/hapi_geo.hda")
-            .expect("load asset");
-        session
-            .load_asset_file("otls/hapi_vol.hda")
-            .expect("load asset");
-        session
-            .load_asset_file("otls/hapi_parms.hda")
-            .expect("load asset");
-        session
-            .load_asset_file("otls/sesi/SideFX_spaceship.hda")
-            .expect("load asset");
-        session
-    });
-}
+mod _utils;
+use _utils::*;
 
 #[test]
 fn loaded_asset_libraries() {
-    SESSION.with(|session| {
+    with_session(|session| {
         let libs = session.get_loaded_asset_libraries().unwrap();
         assert!(libs
             .iter()
-            .find(|lib| lib.file.as_ref().unwrap().ends_with("otls/hapi_geo.hda"))
+            .find(|lib| lib
+                .file
+                .as_ref()
+                .unwrap()
+                .ends_with(hda_file(Asset::Geometry)))
             .is_some());
         assert!(libs
             .iter()
-            .find(|lib| lib.file.as_ref().unwrap().ends_with("otls/hapi_parms.hda"))
+            .find(|lib| lib
+                .file
+                .as_ref()
+                .unwrap()
+                .ends_with(hda_file(Asset::Parameters)))
             .is_some());
+        Ok(())
     })
+    .unwrap()
 }
 
 #[test]
@@ -86,7 +78,7 @@ fn session_server_variables() {
 
 #[test]
 fn session_set_viewport() {
-    SESSION.with(|session| {
+    with_session(|session| {
         let vp = Viewport::default()
             .with_rotation([0.7, 0.7, 0.7, 0.7])
             .with_position([0.0, 1.0, 0.0])
@@ -96,12 +88,14 @@ fn session_set_viewport() {
         assert_eq!(vp.position(), vp2.position());
         assert_eq!(vp.rotation(), vp2.rotation());
         assert_eq!(vp.offset(), vp2.offset());
+        Ok(())
     })
+    .unwrap()
 }
 
 #[test]
 fn session_sync() {
-    SESSION.with(|session| {
+    with_session(|session| {
         assert!(session.is_valid());
         let info = SessionSyncInfo::default()
             .with_sync_viewport(true)
@@ -111,23 +105,27 @@ fn session_sync() {
         let info = session.get_sync_info().unwrap();
         assert!(info.sync_viewport());
         assert!(info.cook_using_houdini_time());
+        Ok(())
     })
+    .unwrap()
 }
 
 #[test]
 fn session_manager_nodes() {
-    SESSION.with(|session| {
+    with_session(|session| {
         session.get_manager_node(ManagerType::Obj).unwrap();
         session.get_manager_node(ManagerType::Chop).unwrap();
         session.get_manager_node(ManagerType::Cop).unwrap();
         session.get_manager_node(ManagerType::Rop).unwrap();
         session.get_manager_node(ManagerType::Top).unwrap();
+        Ok(())
     })
+    .unwrap()
 }
 
 #[test]
 fn cache_properties() {
-    SESSION.with(|session| {
+    with_session(|session| {
         let cache_names = session
             .get_active_cache_names()
             .unwrap()
@@ -142,7 +140,9 @@ fn cache_properties() {
             .get_cache_property_value("SOP Cache", CacheProperty::CachepropMax)
             .unwrap();
         assert_eq!(cache_val, 2048);
+        Ok(())
     })
+    .unwrap()
 }
 
 #[test]
@@ -157,8 +157,10 @@ fn test_license_set_via_environment() {
 #[test]
 fn test_get_preset_names() {
     let bytes = std::fs::read("tests/data/bone.idx").expect("read file");
-    SESSION.with(|session| {
+    with_session(|session| {
         log::info!("Reading preset file");
         session.get_preset_names(&bytes).expect("2 presets");
+        Ok(())
     })
+    .unwrap()
 }

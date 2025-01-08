@@ -1,4 +1,4 @@
-mod houdini_mesh;
+mod geometry;
 mod material;
 
 use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
@@ -31,6 +31,7 @@ struct HoudiniMesh {
 enum HoudiniSetupState {
     #[default]
     Loading,
+    Error,
     Ready,
 }
 
@@ -88,7 +89,7 @@ fn houdini_ready(
     let HoudiniResource { asset, geometry } = res.into_inner();
 
     let tex_maps = material::extract_texture_maps(asset, false).expect("texture maps");
-    let mesh = houdini_mesh::create_bevy_mesh_from_houdini(geometry).expect("Bevy mesh");
+    let mesh = geometry::create_bevy_mesh_from_houdini(geometry).expect("Bevy mesh");
     let mesh_handle = meshes.add(mesh);
 
     commands.spawn((
@@ -168,9 +169,9 @@ fn animate(
 fn update_mesh(mesh: &mut Mesh, geometry: &Geometry) {
     geometry.node.cook().unwrap();
     let attr = mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION).expect("P");
-    let houdini_mesh::BevyMeshData {
+    let geometry::BevyMeshData {
         vertices, normals, ..
-    } = houdini_mesh::vertex_deform(&geometry).unwrap();
+    } = geometry::vertex_deform(&geometry).unwrap();
     {
         let VertexAttributeValues::Float32x3(p_values) = attr else {
             panic!("P is not Float32x3");
@@ -232,8 +233,12 @@ fn get_loading_state(
                 commands.insert_resource(resource);
             }
             Err(e) => {
+                let mut msg = format!("Failed to initialize Houdini:\n\n{:?}", e);
+                if cfg!(debug_assertions) {
+                    msg.push_str("\nNOTE: Make sure to run in --release mode");
+                }
                 commands.spawn((
-                    Text::new(format!("Failed to initialize Houdini:\n\n{:?}", e)),
+                    Text::new(msg),
                     Node {
                         align_content: AlignContent::Center,
                         align_self: AlignSelf::Center,
@@ -242,6 +247,7 @@ fn get_loading_state(
                 ));
 
                 commands.entity(text.into_inner()).despawn_recursive();
+                next_state.set(HoudiniSetupState::Error);
             }
         }
         commands.remove_resource::<HoudiniStartupTask>();

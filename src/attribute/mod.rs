@@ -19,24 +19,130 @@
 //!
 //! ```
 mod array;
+mod async_;
 mod bindings;
 
-use crate::attribute::bindings::AsyncResult;
 use crate::errors::Result;
 pub use crate::ffi::enums::StorageType;
 pub use crate::ffi::AttributeInfo;
 use crate::node::HoudiniNode;
-use crate::stringhandle::StringArray;
+use crate::stringhandle::{StringArray, StringHandle};
 pub use array::*;
-pub use bindings::AttribAccess;
+use async_::AsyncAttribResult;
 use std::any::Any;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
 
+pub type JobId = i32;
+
+mod private {
+    pub trait Sealed {}
+}
+pub trait AttribAccess: private::Sealed + Clone + Default + Send + Sized + 'static {
+    fn storage() -> StorageType;
+    fn storage_array() -> StorageType;
+    fn get(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part_id: i32,
+        buffer: &mut Vec<Self>,
+    ) -> Result<()>;
+    fn get_async(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part_id: i32,
+        buffer: &mut Vec<Self>,
+    ) -> Result<JobId>;
+    fn set(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part_id: i32,
+        data: &[Self],
+        start: i32,
+        len: i32,
+    ) -> Result<()>;
+
+    fn set_async(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+        data: &[Self],
+        start: i32,
+        len: i32,
+    ) -> Result<JobId>;
+
+    fn set_unique(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part_id: i32,
+        data: &[Self],
+        start: i32,
+    ) -> Result<()>;
+
+    fn set_unique_async(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part_id: i32,
+        data: &[Self],
+        start: i32,
+    ) -> Result<JobId>;
+
+    fn get_array(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+    ) -> Result<DataArray<'static, Self>>
+    where
+        [Self]: ToOwned<Owned = Vec<Self>>;
+
+    fn get_array_async(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        data: &mut [Self],
+        sizes: &mut [i32],
+        part: i32,
+    ) -> Result<JobId>;
+    fn set_array(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+        data: &[Self],
+        sizes: &[i32],
+    ) -> Result<()>
+    where
+        [Self]: ToOwned<Owned = Vec<Self>>;
+
+    fn set_array_async(
+        name: &CStr,
+        node: &HoudiniNode,
+        info: &AttributeInfo,
+        part: i32,
+        data: &[Self],
+        sizes: &[i32],
+    ) -> Result<JobId>;
+}
+
+macro_rules! impl_sealed {
+    ($($x:ident),+ $(,)?) => {
+        $(impl private::Sealed for $x {})+
+    }
+}
+
+impl_sealed!(u8, i8, i16, i32, i64, f32, f64);
+
 impl StorageType {
     // Helper for matching array types to actual data type,
-    // e.g StorageType::Array is actually an array of StorageType::Int,
+    // e.g. StorageType::Array is actually an array of StorageType::Int,
     // StorageType::FloatArray is StorageType::Float
     pub(crate) fn type_matches(&self, other: StorageType) -> bool {
         use StorageType::*;
@@ -84,6 +190,23 @@ where
         debug_assert!(self.0.info.storage().type_matches(T::storage()));
         T::get_array(&self.0.name, &self.0.node, &self.0.info, part_id)
     }
+
+    pub fn get_async(&self, part_id: i32) -> Result<(JobId, DataArray<T>)> {
+        let info = &self.0.info;
+        debug_assert!(info.storage().type_matches(T::storage()));
+        let mut data = vec![T::default(); info.total_array_elements() as usize];
+        let mut sizes = vec![0i32; info.count() as usize];
+        let job_id = T::get_array_async(
+            &self.0.name,
+            &self.0.node,
+            &info,
+            &mut data,
+            &mut sizes,
+            part_id,
+        )?;
+        Ok((job_id, DataArray::new_owned(data, sizes)))
+    }
+
     pub fn set(&self, part_id: i32, values: &DataArray<T>) -> Result<()> {
         debug_assert!(self.0.info.storage().type_matches(T::storage()));
         debug_assert_eq!(
@@ -124,13 +247,35 @@ impl<T: AttribAccess> NumericAttr<T> {
         )?;
         Ok(buffer)
     }
-    pub fn get_async(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<i32> {
+    /// Start filling a given buffer asynchronously and return a job id.
+    /// It's important to keep the buffer alive until the job is complete
+    pub fn read_async_into(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<i32> {
+        // TODO: Get an updated attribute info since point count can change between calls.
+        // but there's looks like some use after free on the C side, when AttributeInfo gets
+        // accessed after it gets dropped in Rust, so we can't get new AttributeInfo here.
+        let info = &self.0.info;
+        buffer.resize((info.count() * info.tuple_size()) as usize, T::default());
         T::get_async(&self.0.name, &self.0.node, &self.0.info, part_id, buffer)
     }
+
+    pub fn get_async(&self, part_id: i32) -> Result<AsyncAttribResult<T>> {
+        let info = &self.0.info;
+        let size = (info.count() * info.tuple_size()) as usize;
+        let mut data = Vec::<T>::with_capacity(size);
+        let job_id = T::get_async(&self.0.name, &self.0.node, &info, part_id, &mut data)?;
+        Ok(AsyncAttribResult {
+            job_id,
+            data,
+            size,
+            session: self.0.node.session.clone(),
+        })
+    }
+
     /// Read the attribute data into a provided buffer. The buffer will be auto-resized
     /// from the attribute info.
     pub fn read_into(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<()> {
         debug_assert_eq!(self.0.info.storage(), T::storage());
+        // Get an updated attribute info since point count can change between calls
         let info = AttributeInfo::new(&self.0.node, part_id, self.0.info.owner(), &self.0.name)?;
         T::get(&self.0.name, &self.0.node, &info, part_id, buffer)
     }
@@ -143,7 +288,7 @@ impl<T: AttribAccess> NumericAttr<T> {
             part_id,
             values,
             0,
-            self.0.info.count(),
+            self.0.info.count().min(values.len() as i32),
         )
     }
 
@@ -157,7 +302,7 @@ impl<T: AttribAccess> NumericAttr<T> {
 }
 
 impl StringAttr {
-    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringAttr {
+    pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringAttr {
         StringAttr(AttributeBundle { info, name, node })
     }
     pub fn get(&self, part_id: i32) -> Result<StringArray> {
@@ -170,7 +315,7 @@ impl StringAttr {
         )
     }
 
-    pub fn get_async(&self, part_id: i32) -> Result<AsyncResult<StringArray>> {
+    pub fn get_async(&self, part_id: i32) -> Result<AsyncAttribResult<StringHandle>> {
         bindings::get_attribute_string_data_async(
             &self.0.node,
             part_id,
@@ -178,12 +323,9 @@ impl StringAttr {
             &self.0.info.0,
         )
     }
-    pub fn set(&self, part_id: i32, values: &[&str]) -> Result<()> {
-        debug_assert!(self.0.node.is_valid()?);
-        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(*s)).collect();
-        let cstr = cstr?;
-        let mut ptrs: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
+
+    pub fn set(&self, part_id: i32, values: &[impl AsRef<CStr>]) -> Result<()> {
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
         bindings::set_attribute_string_data(
             &self.0.node,
             part_id,
@@ -192,34 +334,78 @@ impl StringAttr {
             ptrs.as_mut(),
         )
     }
-    pub fn set_cstr<'a>(&self, part_id: i32, values: impl Iterator<Item = &'a CStr>) -> Result<()> {
-        let mut ptrs: Vec<*const i8> = values.map(|cs| cs.as_ptr()).collect();
-        bindings::set_attribute_string_data(
+
+    pub fn set_async(&self, part_id: i32, values: &[impl AsRef<CStr>]) -> Result<JobId> {
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
+        bindings::set_attribute_string_data_async(
             &self.0.node,
-            part_id,
             self.0.name.as_c_str(),
+            part_id,
             &self.0.info.0,
             ptrs.as_mut(),
         )
     }
     /// Set multiple attribute data to the same value.
     /// value length must be less or equal to attribute tuple size.
-    pub fn set_unique(&self, part: i32, value: &str) -> Result<()> {
-        let value = CString::new(value)?;
-        unsafe {
-            bindings::set_attribute_string_unique_data(
-                &self.0.node,
-                self.0.name.as_c_str(),
-                &self.0.info.0,
-                part,
-                value.as_ptr(),
-            )
-        }
+    pub fn set_unique(&self, part: i32, value: &CStr) -> Result<()> {
+        bindings::set_attribute_string_unique_data(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+            part,
+            value.as_ptr(),
+        )
+    }
+
+    /// Set multiple attribute string data to the same unique value asynchronously.
+    pub fn set_unique_async(&self, part: i32, value: &CStr) -> Result<JobId> {
+        bindings::set_attribute_string_unique_data_async(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+            part,
+            value.as_ptr(),
+        )
+    }
+
+    /// Set attribute string data by index.
+    pub fn set_indexed(
+        &self,
+        part_id: i32,
+        values: &[impl AsRef<CStr>],
+        indices: &[i32],
+    ) -> Result<()> {
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
+        bindings::set_attribute_indexed_string_data(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+            ptrs.as_mut(),
+            indices,
+        )
+    }
+
+    pub fn set_indexed_async(
+        &self,
+        part_id: i32,
+        values: &[impl AsRef<CStr>],
+        indices: &[i32],
+    ) -> Result<JobId> {
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
+        bindings::set_attribute_indexed_string_data_async(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+            ptrs.as_mut(),
+            indices,
+        )
     }
 }
 
 impl StringArrayAttr {
-    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringArrayAttr {
+    pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> StringArrayAttr {
         StringArrayAttr(AttributeBundle { info, name, node })
     }
     pub fn get(&self, part_id: i32) -> Result<StringMultiArray> {
@@ -231,15 +417,52 @@ impl StringArrayAttr {
             &self.0.info,
         )
     }
-    pub fn set(&self, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
+
+    pub fn get_async(&self, part_id: i32) -> Result<(JobId, StringMultiArray)> {
+        let mut handles = vec![StringHandle(-1); self.0.info.total_array_elements() as usize];
+        let mut sizes = vec![0; self.0.info.count() as usize];
+        let job_id = bindings::get_attribute_string_array_data_async(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            part_id,
+            &self.0.info.0,
+            &mut handles,
+            &mut sizes,
+        )?;
+        Ok((
+            job_id,
+            StringMultiArray {
+                handles,
+                sizes,
+                session: self.0.node.session.clone(),
+            },
+        ))
+    }
+    pub fn set(&self, part_id: i32, values: &[impl AsRef<CStr>], sizes: &[i32]) -> Result<()> {
         debug_assert!(self.0.node.is_valid()?);
-        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(s.as_ref())).collect();
-        let cstr = cstr?;
-        let mut ptrs: Vec<_> = cstr.iter().map(|cs| cs.as_ptr()).collect();
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
         bindings::set_attribute_string_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
+            &self.0.info.0,
+            part_id,
+            ptrs.as_mut(),
+            &sizes,
+        )
+    }
+
+    pub fn set_async(
+        &self,
+        part_id: i32,
+        values: &[impl AsRef<CStr>],
+        sizes: &[i32],
+    ) -> Result<JobId> {
+        debug_assert!(self.0.node.is_valid()?);
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
+        bindings::set_attribute_string_array_data_async(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            part_id,
             &self.0.info.0,
             ptrs.as_mut(),
             &sizes,
@@ -248,7 +471,7 @@ impl StringArrayAttr {
 }
 
 impl DictionaryAttr {
-    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
+    pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
         DictionaryAttr(AttributeBundle { info, name, node })
     }
 
@@ -262,25 +485,41 @@ impl DictionaryAttr {
         )
     }
 
+    pub fn set_async(&self, part_id: i32, values: &[impl AsRef<CStr>]) -> Result<JobId> {
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
+        bindings::set_attribute_dictionary_data_async(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            part_id,
+            &self.0.info.0,
+            ptrs.as_mut(),
+        )
+    }
+
+    pub fn get_async(&self, part_id: i32) -> Result<AsyncAttribResult<StringHandle>> {
+        bindings::get_attribute_dictionary_data_async(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+        )
+    }
+
     /// Set dictionary attribute values where each string should be a JSON-encoded value.
-    pub fn set(&self, part_id: i32, values: &[impl AsRef<str>]) -> Result<()> {
-        debug_assert!(self.0.node.is_valid()?);
-        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(s.as_ref())).collect();
-        let cstr = cstr?;
-        let mut cstrings: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
+    pub fn set(&self, part_id: i32, values: &[impl AsRef<CStr>]) -> Result<()> {
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
         bindings::set_attribute_dictionary_data(
             &self.0.node,
             part_id,
             &self.0.name.as_c_str(),
             &self.0.info.0,
-            cstrings.as_mut(),
+            ptrs.as_mut(),
         )
     }
 }
 
 impl DictionaryArrayAttr {
-    pub fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
+    pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> Self {
         DictionaryArrayAttr(AttributeBundle { info, name, node })
     }
     pub fn get(&self, part_id: i32) -> Result<StringMultiArray> {
@@ -292,15 +531,52 @@ impl DictionaryArrayAttr {
             &self.0.info,
         )
     }
-    pub fn set(&self, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
+
+    pub fn get_async(&self, part_id: i32) -> Result<(JobId, StringMultiArray)> {
+        let mut handles = vec![StringHandle(-1); self.0.info.total_array_elements() as usize];
+        let mut sizes = vec![0; self.0.info.count() as usize];
+        let job_id = bindings::get_attribute_dictionary_array_data_async(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            part_id,
+            &self.0.info.0,
+            &mut handles,
+            &mut sizes,
+        )?;
+        Ok((
+            job_id,
+            StringMultiArray {
+                handles,
+                sizes,
+                session: self.0.node.session.clone(),
+            },
+        ))
+    }
+    pub fn set(&self, part_id: i32, values: &[impl AsRef<CStr>], sizes: &[i32]) -> Result<()> {
         debug_assert!(self.0.node.is_valid()?);
-        let cstrings: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(s.as_ref())).collect();
-        let cstrings = cstrings?;
-        let mut ptrs: Vec<_> = cstrings.iter().map(|cs| cs.as_ptr()).collect();
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
         bindings::set_attribute_dictionary_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
+            &self.0.info.0,
+            part_id,
+            ptrs.as_mut(),
+            &sizes,
+        )
+    }
+
+    pub fn set_async(
+        &self,
+        part_id: i32,
+        values: &[impl AsRef<CStr>],
+        sizes: &[i32],
+    ) -> Result<JobId> {
+        debug_assert!(self.0.node.is_valid()?);
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
+        bindings::set_attribute_dictionary_array_data_async(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            part_id,
             &self.0.info.0,
             ptrs.as_mut(),
             &sizes,

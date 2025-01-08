@@ -141,7 +141,7 @@ impl StringMultiArray {
             cursor: 0,
         }
     }
-    /// Convenient method to flatten the multi-dimensional array into a single vector.
+    /// Convenient method to flatten the data and the sizes multidimensional arrays into individual vectors
     pub fn flatten(self) -> Result<(Vec<String>, Vec<usize>)> {
         let mut flat_array = Vec::with_capacity(self.sizes.iter().sum::<i32>() as usize);
         let mut iter = self.iter();

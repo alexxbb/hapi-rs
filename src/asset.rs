@@ -8,7 +8,7 @@ use crate::{
     HapiError,
 };
 use log::debug;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::path::PathBuf;
 
 struct AssetParmValues {
@@ -21,6 +21,8 @@ struct AssetParmValues {
 /// Holds asset parameters data.
 /// Call `into_iter` to get an iterator over each parameter
 pub struct AssetParameters {
+    asset_name: CString,
+    library: AssetLibrary,
     infos: Vec<ParmInfo>,
     values: AssetParmValues,
 }
@@ -31,6 +33,8 @@ impl<'a> IntoIterator for &'a AssetParameters {
 
     fn into_iter(self) -> Self::IntoIter {
         AssetParmIter {
+            library_id: self.library.lib_id,
+            asset_name: &self.asset_name,
             iter: self.infos.iter(),
             values: &self.values,
         }
@@ -44,6 +48,8 @@ impl AssetParameters {
             .iter()
             .find(|p| p.name().unwrap() == name)
             .map(|info| AssetParm {
+                library_id: self.library.lib_id,
+                asset_name: &self.asset_name,
                 info,
                 values: &self.values,
             })
@@ -52,6 +58,8 @@ impl AssetParameters {
 
 /// Iterator over asset parameter default values
 pub struct AssetParmIter<'a> {
+    library_id: i32,
+    asset_name: &'a CStr,
     iter: std::slice::Iter<'a, ParmInfo>,
     values: &'a AssetParmValues,
 }
@@ -61,6 +69,8 @@ impl<'a> Iterator for AssetParmIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(|info| AssetParm {
+            library_id: self.library_id,
+            asset_name: self.asset_name,
             info,
             values: self.values,
         })
@@ -69,6 +79,8 @@ impl<'a> Iterator for AssetParmIter<'a> {
 
 /// Holds info and default value of a parameter
 pub struct AssetParm<'a> {
+    library_id: i32,
+    asset_name: &'a CStr,
     info: &'a ParmInfo,
     values: &'a AssetParmValues,
 }
@@ -126,6 +138,27 @@ impl<'a> AssetParm<'a> {
         let count = self.info.choice_count() as usize;
         let start = self.info.choice_index() as usize;
         Some(&self.values.menus[start..start + count])
+    }
+
+    /// Get asset parameter tag name and value
+    pub fn get_tag(&self, tag_index: i32) -> Result<(String, String)> {
+        let tag_name = crate::ffi::get_asset_definition_parm_tag_name(
+            &self.info.1,
+            self.library_id,
+            self.asset_name,
+            self.info.id(),
+            tag_index,
+        )?;
+        // SAFETY: string bytes obtained from FFI are null terminated
+        let tag_c_str = unsafe { CStr::from_bytes_with_nul_unchecked(&tag_name) };
+        let tag_value = crate::ffi::get_asset_definition_parm_tag_value(
+            &self.info.1,
+            self.library_id,
+            self.asset_name,
+            self.info.id(),
+            &tag_c_str,
+        )?;
+        Ok((String::from_utf8_lossy(&tag_name).to_string(), tag_value))
     }
 }
 
@@ -265,7 +298,7 @@ impl AssetLibrary {
     pub fn get_asset_parms(&self, asset: impl AsRef<str>) -> Result<AssetParameters> {
         debug_assert!(self.session.is_valid());
         let _lock = self.session.lock();
-        log::debug!("Reading asset parameter list of {}", asset.as_ref());
+        debug!("Reading asset parameter list of {}", asset.as_ref());
         let asset_name = CString::new(asset.as_ref())?;
         let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &asset_name, &self.session)?;
         let infos = crate::ffi::get_asset_def_parm_info(
@@ -289,6 +322,8 @@ impl AssetLibrary {
             menus: menus.collect(),
         };
         Ok(AssetParameters {
+            asset_name,
+            library: self.clone(),
             infos: infos.collect(),
             values,
         })

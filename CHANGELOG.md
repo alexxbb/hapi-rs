@@ -1,5 +1,12 @@
 # hapi-rs changelog
 
+## [0.11.1]
+
+- This release signifies a 100% coverage of the C API.
+- Async attribute APIs are now fully implemented, but usability can still be improved.
+- String attribute APIs put `String-CString` conversion responsibility onto the user.
+- Many other API cleanups
+
 ## [0.11.0]
 
 - Update to Houdini 20.5.445

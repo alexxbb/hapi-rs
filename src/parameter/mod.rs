@@ -125,13 +125,7 @@ impl Parameter {
 
 impl ParmBaseTrait for Parameter {
     fn inner(&self) -> &ParmInfoWrap {
-        match self {
-            Parameter::Float(p) => &p.0,
-            Parameter::Int(p) => &p.0,
-            Parameter::Button(p) => &p.0,
-            Parameter::String(p) => &p.0,
-            Parameter::Other(p) => &p.0,
-        }
+        self.base()
     }
 
     fn inner_mut(&mut self) -> &mut ParmInfoWrap {

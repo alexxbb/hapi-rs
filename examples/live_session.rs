@@ -47,7 +47,7 @@ fn main() -> Result<()> {
             let executable = Path::new(&hfs).join("bin").join("houdini");
             let child = start_houdini_server(PIPE, executable, true)?;
             // While trying to connect, it will print some errors, these can be ignored.
-            connect_to_pipe(PIPE, None, Some(Duration::from_secs(50)), Some(child.id()))?
+            connect_to_pipe(PIPE, None, Some(Duration::from_secs(90)), Some(child.id()))?
         }
     };
 

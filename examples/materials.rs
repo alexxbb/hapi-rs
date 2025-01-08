@@ -10,7 +10,7 @@ fn main() -> Result<()> {
     let node = lib.try_create_first()?;
     node.cook()?;
     let geo = node.geometry()?.unwrap();
-    let part = geo.part_info(0)?.unwrap();
+    let part = geo.part_info(0)?;
     let material = match geo.get_materials(&part)?.unwrap() {
         Materials::Single(mat) => mat,
         Materials::Multiple(_) => panic!("All materials should be the same"),

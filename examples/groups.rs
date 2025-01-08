@@ -77,10 +77,10 @@ fn main() -> Result<()> {
     xform.cook()?;
 
     let geo = xform.geometry()?.unwrap();
-    let num_groups = geo.group_count_by_type(GroupType::Point, None)?;
+    let num_groups = geo.group_count_by_type(GroupType::Point)?;
     println!("Number of point groups on xform: {}", num_groups);
 
-    let part = geo.part_info(0)?.expect("partition id=0");
+    let part = geo.part_info(0)?;
     let num_points = part.element_count_by_group(GroupType::Point);
     println!("{} points in pointGroup", num_points);
 

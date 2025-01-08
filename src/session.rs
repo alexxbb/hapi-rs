@@ -255,6 +255,11 @@ impl Session {
         crate::stringhandle::get_string(handle, self)
     }
 
+    /// Retrieve multiple strings in batch mode.
+    pub fn get_string_batch(&self, handles: &[StringHandle]) -> Result<StringArray> {
+        crate::stringhandle::get_string_array(handles, self)
+    }
+
     fn initialize(&self) -> Result<()> {
         debug!("Initializing session");
         debug_assert!(self.is_valid());

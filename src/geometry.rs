@@ -6,12 +6,11 @@ use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
     enums::*, AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, InputCurveInfo, PartInfo,
-    Transform, VolumeInfo, VolumeTileInfo, VolumeVisualInfo,
+    SphereInfo, Transform, VolumeInfo, VolumeTileInfo, VolumeVisualInfo,
 };
 use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::stringhandle::StringArray;
-use crate::utils::unwrap_or_create;
 use crate::volume::{Tile, VolumeBounds, VolumeStorage};
 use std::ffi::{CStr, CString};
 
@@ -61,6 +60,7 @@ pub enum AttributeName {
     TangentU,
     TangentV,
     Scale,
+    Name,
     User(CString),
 }
 
@@ -80,6 +80,14 @@ impl TryFrom<String> for AttributeName {
     }
 }
 
+impl TryFrom<&CStr> for AttributeName {
+    type Error = std::convert::Infallible;
+
+    fn try_from(value: &CStr) -> std::result::Result<Self, Self::Error> {
+        Ok(AttributeName::User(value.to_owned()))
+    }
+}
+
 impl From<AttributeName> for CString {
     fn from(name: AttributeName) -> Self {
         macro_rules! cstr {
@@ -95,6 +103,7 @@ impl From<AttributeName> for CString {
             AttributeName::TangentU => cstr!(crate::raw::HAPI_ATTRIB_TANGENT),
             AttributeName::TangentV => cstr!(crate::raw::HAPI_ATTRIB_TANGENT2),
             AttributeName::Scale => cstr!(crate::raw::HAPI_ATTRIB_SCALE),
+            AttributeName::Name => cstr!(crate::raw::HAPI_ATTRIB_NAME),
             AttributeName::User(val) => val,
         }
     }
@@ -102,34 +111,33 @@ impl From<AttributeName> for CString {
 
 impl Geometry {
     /// Get geometry partition info by index.
-    /// Returns an Option if given an incorrect part id.
-    /// A common cases of invalid part_id is when node hasn't been cooked,
-    /// after node created or after calling `[Geometry::commit]`
-    pub fn part_info(&self, part_id: i32) -> Result<Option<PartInfo>> {
-        // TODO: Consider taking a u32 and cast to i32 for ffi.
-        // FIXME: Rething returning Option. Why?
-        use crate::errors::Kind;
-        match crate::ffi::get_part_info(&self.node, part_id) {
-            Ok(inner) => Ok(Some(PartInfo(inner))),
-            Err(err) if matches!(err.kind, Kind::Hapi(HapiResult::InvalidArgument)) => Ok(None),
-            Err(err) => Err(err),
-        }
+    pub fn part_info(&self, part_id: i32) -> Result<PartInfo> {
+        self.assert_node_cooked();
+        crate::ffi::get_part_info(&self.node, part_id).map(PartInfo)
     }
 
     pub fn volume_info(&self, part_id: i32) -> Result<VolumeInfo> {
+        self.assert_node_cooked();
         crate::ffi::get_volume_info(&self.node, part_id).map(VolumeInfo)
     }
 
     pub fn set_volume_info(&self, part_id: i32, info: &VolumeInfo) -> Result<()> {
-        debug_assert!(self.node.is_valid()?);
         crate::ffi::set_volume_info(&self.node, part_id, &info.0)
     }
 
-    pub fn volume_bounds(&self, part_id: i32) -> Result<VolumeBounds> {
+    #[inline(always)]
+    fn assert_node_cooked(&self) {
         debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
+            crate::ffi::get_node_info(self.node.handle, &self.node.session)
+                .expect("NodeInfo")
+                .totalCookCount
+                > 0,
             "Node not cooked"
         );
+    }
+
+    pub fn volume_bounds(&self, part_id: i32) -> Result<VolumeBounds> {
+        self.assert_node_cooked();
         crate::ffi::get_volume_bounds(&self.node, part_id)
     }
     pub fn get_volume_visual_info(&self, part_id: i32) -> Result<VolumeVisualInfo> {
@@ -139,10 +147,7 @@ impl Geometry {
     /// Get information about Node's geometry.
     /// Note: The node must be cooked before calling this method.
     pub fn geo_info(&self) -> Result<GeoInfo> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         GeoInfo::from_node(&self.node)
     }
 
@@ -152,19 +157,13 @@ impl Geometry {
     }
 
     pub fn box_info(&self, part_id: i32) -> Result<BoxInfo> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id).map(BoxInfo)
     }
 
-    pub fn sphere_info(&self, part_id: i32) -> Result<BoxInfo> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
-        crate::ffi::get_box_info(self.node.handle, &self.node.session, part_id).map(BoxInfo)
+    pub fn sphere_info(&self, part_id: i32) -> Result<SphereInfo> {
+        self.assert_node_cooked();
+        crate::ffi::get_sphere_info(self.node.handle, &self.node.session, part_id).map(SphereInfo)
     }
 
     pub fn set_curve_info(&self, part_id: i32, info: &CurveInfo) -> Result<()> {
@@ -228,37 +227,25 @@ impl Geometry {
     }
 
     pub fn curve_info(&self, part_id: i32) -> Result<CurveInfo> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         crate::ffi::get_curve_info(&self.node, part_id).map(CurveInfo)
     }
 
     /// Retrieve the number of vertices for each curve in the part.
     pub fn curve_counts(&self, part_id: i32, start: i32, length: i32) -> Result<Vec<i32>> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         crate::ffi::get_curve_counts(&self.node, part_id, start, length)
     }
 
     /// Retrieve the orders for each curve in the part if the curve has varying order.
     pub fn curve_orders(&self, part_id: i32, start: i32, length: i32) -> Result<Vec<i32>> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         crate::ffi::get_curve_orders(&self.node, part_id, start, length)
     }
 
     /// Retrieve the knots of the curves in this part.
     pub fn curve_knots(&self, part_id: i32, start: i32, length: i32) -> Result<Vec<f32>> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         crate::ffi::get_curve_knots(&self.node, part_id, start, length)
     }
 
@@ -266,10 +253,7 @@ impl Geometry {
     /// ith element in the array is the point index the ith vertex
     /// associates with.
     pub fn vertex_list(&self, part: &PartInfo) -> Result<Vec<i32>> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         crate::ffi::get_geo_vertex_list(
             &self.node.session,
             self.node.handle,
@@ -280,20 +264,14 @@ impl Geometry {
     }
 
     pub fn partitions(&self) -> Result<Vec<PartInfo>> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         (0..self.geo_info()?.part_count())
-            .map(|i| self.part_info(i).map(|p| p.expect("partition")))
+            .map(|part| self.part_info(part))
             .collect()
     }
 
     pub fn get_face_counts(&self, part: &PartInfo) -> Result<Vec<i32>> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         crate::ffi::get_face_counts(
             &self.node.session,
             self.node.handle,
@@ -305,10 +283,7 @@ impl Geometry {
 
     /// Return material nodes applied to geometry.
     pub fn get_materials(&self, part: &PartInfo) -> Result<Option<Materials>> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         let (all_the_same, mats) = crate::ffi::get_material_node_ids_on_faces(
             &self.node.session,
             self.node.handle,
@@ -343,10 +318,7 @@ impl Geometry {
 
     /// Get geometry group names by type.
     pub fn get_group_names(&self, group_type: GroupType) -> Result<StringArray> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         let count = match group_type {
             GroupType::Point => self.info.point_group_count(),
             GroupType::Prim => self.info.primitive_group_count(),
@@ -357,10 +329,7 @@ impl Geometry {
     }
 
     pub fn get_edge_count_of_edge_group(&self, group: &str, part_id: i32) -> Result<i32> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         let group = CString::new(group)?;
         crate::ffi::get_edge_count_of_edge_group(
             &self.node.session,
@@ -392,10 +361,7 @@ impl Geometry {
         owner: AttributeOwner,
         part: &PartInfo,
     ) -> Result<StringArray> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         let counts = part.attribute_counts();
         let count = match owner {
             AttributeOwner::Invalid => panic!("Invalid AttributeOwner"),
@@ -410,13 +376,8 @@ impl Geometry {
 
     /// Convenient method for getting the P attribute
     pub fn get_position_attribute(&self, part_id: i32) -> Result<NumericAttr<f32>> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
-        let name = unsafe {
-            CStr::from_bytes_with_nul_unchecked(crate::raw::HAPI_ATTRIB_POSITION).to_owned()
-        };
+        self.assert_node_cooked();
+        let name = CString::from(AttributeName::P);
         let info = AttributeInfo::new(&self.node, part_id, AttributeOwner::Point, name.as_c_str())?;
         Ok(NumericAttr::new(name, info, self.node.clone()))
     }
@@ -426,9 +387,10 @@ impl Geometry {
         &self,
         part_id: i32,
         owner: AttributeOwner,
-        name: &str,
+        name: impl TryInto<AttributeName, Error = impl Into<crate::HapiError>>,
     ) -> Result<AttributeInfo> {
-        let name = CString::new(name)?;
+        let name: AttributeName = name.try_into().map_err(Into::into)?;
+        let name: CString = name.into();
         AttributeInfo::new(&self.node, part_id, owner, &name)
     }
 
@@ -443,10 +405,7 @@ impl Geometry {
         T: TryInto<AttributeName>,
         T::Error: Into<crate::HapiError>,
     {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         let name: AttributeName = name.try_into().map_err(Into::into)?;
         let name: CString = name.into();
         let info = AttributeInfo::new(&self.node, part_id, owner, &name)?;
@@ -677,10 +636,7 @@ impl Geometry {
         group_type: GroupType,
         group_name: &str,
     ) -> Result<Vec<i32>> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         let group_name = CString::new(group_name)?;
         crate::ffi::get_group_membership(
             &self.node.session,
@@ -693,25 +649,13 @@ impl Geometry {
     }
 
     /// Number of geometry groups by type.
-    pub fn group_count_by_type(
-        &self,
-        group_type: GroupType,
-        info: Option<&GeoInfo>,
-    ) -> Result<i32> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
-        let tmp;
-        let info = unwrap_or_create!(tmp, info, self.geo_info()?);
-        Ok(crate::ffi::get_group_count_by_type(info, group_type))
+    pub fn group_count_by_type(&self, group_type: GroupType) -> Result<i32> {
+        self.assert_node_cooked();
+        Ok(crate::ffi::get_group_count_by_type(&self.info, group_type))
     }
 
     pub fn get_instanced_part_ids(&self, part: &PartInfo) -> Result<Vec<i32>> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         crate::ffi::get_instanced_part_ids(
             &self.node.session,
             self.node.handle,
@@ -720,11 +664,21 @@ impl Geometry {
         )
     }
 
+    /// Get group membership for a packed instance part.
+    /// This functions allows you to get the group membership for a specific packed primitive part.
+    pub fn get_group_membership_on_packed_instance_part(
+        &self,
+        part: &PartInfo,
+        group_type: GroupType,
+        group_name: &CStr,
+    ) -> Result<(bool, Vec<i32>)> {
+        crate::ffi::get_group_membership_on_packed_instance_part(
+            &self.node, part, group_type, group_name,
+        )
+    }
+
     pub fn get_group_count_on_packed_instance(&self, part: &PartInfo) -> Result<(i32, i32)> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         crate::ffi::get_group_count_on_instance_part(
             &self.node.session,
             self.node.handle,
@@ -737,10 +691,7 @@ impl Geometry {
         group: GroupType,
         part_id: i32,
     ) -> Result<StringArray> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         crate::ffi::get_group_names_on_instance_part(
             &self.node.session,
             self.node.handle,
@@ -754,10 +705,7 @@ impl Geometry {
         part: &PartInfo,
         order: RSTOrder,
     ) -> Result<Vec<Transform>> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         crate::ffi::get_instanced_part_transforms(
             &self.node.session,
             self.node.handle,
@@ -770,10 +718,7 @@ impl Geometry {
 
     /// Save geometry to a file.
     pub fn save_to_file(&self, filepath: &str) -> Result<()> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         let path = CString::new(filepath)?;
         crate::ffi::save_geo_to_file(&self.node, &path)
     }
@@ -800,16 +745,12 @@ impl Geometry {
 
     /// Serialize node's geometry to bytes.
     pub fn save_to_memory(&self, format: GeoFormat) -> Result<Vec<i8>> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         crate::ffi::save_geo_to_memory(&self.node.session, self.node.handle, format.as_cstr())
     }
 
     /// Load geometry from a given buffer into this node.
     pub fn load_from_memory(&self, data: &[i8], format: GeoFormat) -> Result<()> {
-        debug_assert!(self.node.is_valid()?);
         crate::ffi::load_geo_from_memory(
             &self.node.session,
             self.node.handle,
@@ -825,10 +766,7 @@ impl Geometry {
         tile: &VolumeTileInfo,
         values: &mut [T],
     ) -> Result<()> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         T::read_tile(&self.node, part, fill, values, &tile.0)
     }
 
@@ -838,10 +776,7 @@ impl Geometry {
         tile: &VolumeTileInfo,
         values: &[T],
     ) -> Result<()> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         T::write_tile(&self.node, part, values, &tile.0)
     }
 
@@ -853,10 +788,7 @@ impl Geometry {
         z_index: i32,
         values: &mut [T],
     ) -> Result<()> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         T::read_voxel(&self.node, part, x_index, y_index, z_index, values)
     }
 
@@ -868,10 +800,7 @@ impl Geometry {
         z_index: i32,
         values: &[T],
     ) -> Result<()> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         T::write_voxel(&self.node, part, x_index, y_index, z_index, values)
     }
 
@@ -882,15 +811,13 @@ impl Geometry {
         info: &VolumeInfo,
         callback: impl Fn(Tile),
     ) -> Result<()> {
-        debug_assert!(
-            self.node.get_info()?.total_cook_count() > 0,
-            "Node not cooked"
-        );
+        self.assert_node_cooked();
         let tile_size = (info.tile_size().pow(3) * info.tuple_size()) as usize;
         crate::volume::iterate_tiles(&self.node, part, tile_size, callback)
     }
 
     pub fn get_heightfield_data(&self, part_id: i32, volume_info: &VolumeInfo) -> Result<Vec<f32>> {
+        self.assert_node_cooked();
         let length = volume_info.x_length() * volume_info.y_length();
         crate::ffi::get_heightfield_data(&self.node, part_id, length)
     }
