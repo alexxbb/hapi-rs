@@ -367,6 +367,41 @@ impl StringAttr {
             value.as_ptr(),
         )
     }
+
+    /// Set attribute string data by index.
+    pub fn set_indexed(
+        &self,
+        part_id: i32,
+        values: &[impl AsRef<CStr>],
+        indices: &[i32],
+    ) -> Result<()> {
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
+        bindings::set_attribute_indexed_string_data(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+            ptrs.as_mut(),
+            indices,
+        )
+    }
+
+    pub fn set_indexed_async(
+        &self,
+        part_id: i32,
+        values: &[impl AsRef<CStr>],
+        indices: &[i32],
+    ) -> Result<JobId> {
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
+        bindings::set_attribute_indexed_string_data_async(
+            &self.0.node,
+            part_id,
+            self.0.name.as_c_str(),
+            &self.0.info.0,
+            ptrs.as_mut(),
+            indices,
+        )
+    }
 }
 
 impl StringArrayAttr {
@@ -411,6 +446,24 @@ impl StringArrayAttr {
             self.0.name.as_c_str(),
             &self.0.info.0,
             part_id,
+            ptrs.as_mut(),
+            &sizes,
+        )
+    }
+
+    pub fn set_async(
+        &self,
+        part_id: i32,
+        values: &[impl AsRef<CStr>],
+        sizes: &[i32],
+    ) -> Result<JobId> {
+        debug_assert!(self.0.node.is_valid()?);
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
+        bindings::set_attribute_string_array_data_async(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            part_id,
+            &self.0.info.0,
             ptrs.as_mut(),
             &sizes,
         )
@@ -507,6 +560,24 @@ impl DictionaryArrayAttr {
             self.0.name.as_c_str(),
             &self.0.info.0,
             part_id,
+            ptrs.as_mut(),
+            &sizes,
+        )
+    }
+
+    pub fn set_async(
+        &self,
+        part_id: i32,
+        values: &[impl AsRef<CStr>],
+        sizes: &[i32],
+    ) -> Result<JobId> {
+        debug_assert!(self.0.node.is_valid()?);
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
+        bindings::set_attribute_dictionary_array_data_async(
+            &self.0.node,
+            self.0.name.as_c_str(),
+            part_id,
+            &self.0.info.0,
             ptrs.as_mut(),
             &sizes,
         )

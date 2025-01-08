@@ -25,7 +25,7 @@ pub struct HoudiniMeshData {
 }
 
 fn get_houdini_geometry_color(geometry: &Geometry) -> Result<Option<ColorAttribute>> {
-    let part = geometry.part_info(0)?.expect("part 0");
+    let part = geometry.part_info(0)?;
     let mut is_point_attr = false;
     let mut cd_attr = geometry.get_color_attribute(&part, AttributeOwner::Vertex)?;
     if cd_attr.is_none() {
@@ -45,7 +45,7 @@ fn get_houdini_geometry_color(geometry: &Geometry) -> Result<Option<ColorAttribu
 }
 
 fn get_houdini_geometry_normals(geometry: &Geometry) -> Result<Option<NormalAttribute>> {
-    let part = geometry.part_info(0)?.expect("part 0");
+    let part = geometry.part_info(0)?;
     let mut is_point_attr = false;
     let mut n_attr = geometry.get_normal_attribute(&part, AttributeOwner::Vertex)?;
     if n_attr.is_none() {
@@ -113,7 +113,7 @@ fn get_houdini_geometry_data_arrays(
     build_colors: bool,
     build_uv: bool,
 ) -> Result<HoudiniMeshData> {
-    let part = geometry.part_info(0)?.unwrap();
+    let part = geometry.part_info(0)?;
     let vertex_list = geometry.vertex_list(&part)?;
     let face_counts = geometry.get_face_counts(&part)?;
     let mut positions = None;

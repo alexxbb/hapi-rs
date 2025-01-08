@@ -36,10 +36,51 @@ pub(crate) fn _rust_fn(
             node.handle.0,
             part_id,
             name.as_ptr(),
-            info as *const _ as *mut _, //
+            info as *const _ as *mut _,
             data.as_mut_ptr() as *mut raw::HAPI_StringHandle,
             info.totalArrayElements as i32,
             sizes.as_mut_ptr(),
+            0,
+            info.count,
+            &mut job_id as *mut _,
+        )
+        .check_err(&node.session, || stringify!(Calling _set_ffi_fn))?;
+        Ok(job_id)
+    }
+}
+
+// STRING|DICT SET ARRAY ASYNC
+#[duplicate_item(
+[
+_rust_fn [set_attribute_string_array_data_async]
+_ffi_fn [HAPI_SetAttributeStringArrayDataAsync]
+]
+
+[
+_rust_fn [set_attribute_dictionary_array_data_async]
+_ffi_fn [HAPI_SetAttributeDictionaryArrayDataAsync]
+]
+)]
+
+pub(crate) fn _rust_fn(
+    node: &HoudiniNode,
+    name: &CStr,
+    part_id: i32,
+    info: &raw::HAPI_AttributeInfo,
+    data: &mut [*const i8],
+    sizes: &[i32],
+) -> Result<JobId> {
+    let mut job_id = -1;
+    unsafe {
+        raw::_ffi_fn(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            info,
+            data.as_mut_ptr(),
+            info.totalArrayElements as i32,
+            sizes.as_ptr(),
             0,
             info.count,
             &mut job_id as *mut _,
@@ -359,4 +400,64 @@ pub(crate) fn _rust_fn(
         .check_err(&node.session, || stringify!(Calling _ffi_fn))?;
     }
     Ok(job_id)
+}
+
+pub(crate) fn set_attribute_indexed_string_data(
+    node: &HoudiniNode,
+    part_id: i32,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    data: &mut [*const i8],
+    indices: &[i32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetAttributeIndexedStringData(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            info,
+            data.as_mut_ptr(),
+            data.len() as i32,
+            indices.as_ptr(),
+            0,
+            indices.len() as i32,
+        )
+        .check_err(
+            &node.session,
+            || stringify!(Calling HAPI_SetAttributeIndexedStringData),
+        )
+    }
+}
+
+pub(crate) fn set_attribute_indexed_string_data_async(
+    node: &HoudiniNode,
+    part_id: i32,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    data: &mut [*const i8],
+    indices: &[i32],
+) -> Result<JobId> {
+    let mut job_id = -1;
+    unsafe {
+        raw::HAPI_SetAttributeIndexedStringDataAsync(
+            node.session.ptr(),
+            node.handle.0,
+            part_id,
+            name.as_ptr(),
+            info,
+            data.as_mut_ptr(),
+            data.len() as i32,
+            indices.as_ptr(),
+            0,
+            indices.len() as i32,
+            &mut job_id as *mut _,
+        )
+        .check_err(
+            &node.session,
+            || stringify!(Calling HAPI_SetAttributeIndexedStringData),
+        )?;
+
+        Ok(job_id)
+    }
 }
