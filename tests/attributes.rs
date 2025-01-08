@@ -4,6 +4,7 @@ use hapi_rs::attribute::{
 };
 use hapi_rs::enums::{AttributeOwner, JobStatus, PartType};
 use hapi_rs::geometry::{AttributeName, PartInfo};
+use std::ffi::CString;
 
 mod _utils;
 
@@ -72,7 +73,7 @@ fn geometry_create_string_attrib() {
             .with_count(part.point_count());
 
         let attr_name = geo.add_string_attribute("name", 0, info).unwrap();
-        attr_name.set(0, &["pt0", "pt1", "pt2"]).unwrap();
+        attr_name.set(0, &[c"pt0", c"pt1", c"pt2"]).unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
         let str_attr = geo
@@ -104,14 +105,14 @@ fn geometry_set_unique_str_attrib_value() {
             .with_count(part.point_count());
 
         let attr = geo.add_string_attribute("name", 0, info).unwrap();
-        attr.set_unique(part.part_id(), "unique").unwrap();
+        attr.set_unique(part.part_id(), c"unique").unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
 
         let str_array = attr.get(part.part_id()).unwrap();
-        let mut iter = str_array.iter_str();
-        assert_eq!(iter.next(), Some("unique"));
-        assert_eq!(iter.last(), Some("unique"));
+        let mut iter = str_array.iter_cstr();
+        assert_eq!(iter.next(), Some(c"unique"));
+        assert_eq!(iter.last(), Some(c"unique"));
         Ok(())
     })
     .unwrap()
@@ -158,7 +159,13 @@ fn geometry_create_string_array_attrib() {
             .add_string_array_attribute("my_array_a", 0, info)
             .unwrap();
         let attr_data = &["one", "two", "three", "four", "five", "six"];
-        array_attr.set(0, attr_data.as_slice(), &[1, 2, 3]).unwrap();
+        let attr_data_c = attr_data
+            .iter()
+            .map(|v| CString::new(*v).unwrap())
+            .collect::<Vec<_>>();
+        array_attr
+            .set(0, attr_data_c.as_slice(), &[1, 2, 3])
+            .unwrap();
         // NOTE: ALWAYS remember to commit AND cook after creating and setting attributes.
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
@@ -272,7 +279,7 @@ fn geometry_set_dictionary_attribute_async() {
             .with_tuple_size(1)
             .with_count(part.point_count());
         let attr = geo.add_dictionary_attribute("dict_attr", part.part_id(), info)?;
-        let data = r#"
+        let data = cr#"
         {
             "number": 1,
             "list": [1, 2, 3],
@@ -417,7 +424,7 @@ fn geometry_test_set_dictionary_attributes() {
 
         let data_str = tinyjson::stringify(&JsonValue::from(data.clone())).expect("Json value");
 
-        attr.set(0, &[&data_str]).unwrap();
+        attr.set(0, &[&CString::new(data_str).unwrap()]).unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
         let value: Vec<_> = attr.get(0).unwrap().into_iter().collect();
@@ -458,8 +465,10 @@ fn geometry_test_get_set_dictionary_array_attribute() {
         .into();
 
         let data = vec![
-            tinyjson::stringify(&JsonValue::from(dict_1)).expect("Json value"),
-            tinyjson::stringify(&JsonValue::from(dict_2)).expect("Json value"),
+            CString::new(tinyjson::stringify(&JsonValue::from(dict_1)).expect("Json value"))
+                .unwrap(),
+            CString::new(tinyjson::stringify(&JsonValue::from(dict_2)).expect("Json value"))
+                .unwrap(),
         ];
         attr.set(0, &data, &[2])
             .expect("Dictionary array attribute set");

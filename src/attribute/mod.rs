@@ -323,12 +323,9 @@ impl StringAttr {
             &self.0.info.0,
         )
     }
-    pub fn set(&self, part_id: i32, values: &[&str]) -> Result<()> {
-        debug_assert!(self.0.node.is_valid()?);
-        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(*s)).collect();
-        let cstr = cstr?;
-        let mut ptrs: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
+
+    pub fn set(&self, part_id: i32, values: &[impl AsRef<CStr>]) -> Result<()> {
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
         bindings::set_attribute_string_data(
             &self.0.node,
             part_id,
@@ -338,12 +335,8 @@ impl StringAttr {
         )
     }
 
-    pub fn set_async(&self, part_id: i32, values: &[&str]) -> Result<JobId> {
-        debug_assert!(self.0.node.is_valid()?);
-        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(*s)).collect();
-        let cstr = cstr?;
-        let mut ptrs: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
+    pub fn set_async(&self, part_id: i32, values: &[impl AsRef<CStr>]) -> Result<JobId> {
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
         bindings::set_attribute_string_data_async(
             &self.0.node,
             self.0.name.as_c_str(),
@@ -352,20 +345,9 @@ impl StringAttr {
             ptrs.as_mut(),
         )
     }
-    pub fn set_cstr<'a>(&self, part_id: i32, values: impl Iterator<Item = &'a CStr>) -> Result<()> {
-        let mut ptrs: Vec<*const i8> = values.map(|cs| cs.as_ptr()).collect();
-        bindings::set_attribute_string_data(
-            &self.0.node,
-            part_id,
-            self.0.name.as_c_str(),
-            &self.0.info.0,
-            ptrs.as_mut(),
-        )
-    }
     /// Set multiple attribute data to the same value.
     /// value length must be less or equal to attribute tuple size.
-    pub fn set_unique(&self, part: i32, value: &str) -> Result<()> {
-        let value = CString::new(value)?;
+    pub fn set_unique(&self, part: i32, value: &CStr) -> Result<()> {
         bindings::set_attribute_string_unique_data(
             &self.0.node,
             self.0.name.as_c_str(),
@@ -376,8 +358,7 @@ impl StringAttr {
     }
 
     /// Set multiple attribute string data to the same unique value asynchronously.
-    pub fn set_unique_async(&self, part: i32, value: &str) -> Result<JobId> {
-        let value = CString::new(value)?;
+    pub fn set_unique_async(&self, part: i32, value: &CStr) -> Result<JobId> {
         bindings::set_attribute_string_unique_data_async(
             &self.0.node,
             self.0.name.as_c_str(),
@@ -422,12 +403,9 @@ impl StringArrayAttr {
             },
         ))
     }
-    pub fn set(&self, part_id: i32, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
+    pub fn set(&self, part_id: i32, values: &[impl AsRef<CStr>], sizes: &[i32]) -> Result<()> {
         debug_assert!(self.0.node.is_valid()?);
-        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(s.as_ref())).collect();
-        let cstr = cstr?;
-        let mut ptrs: Vec<_> = cstr.iter().map(|cs| cs.as_ptr()).collect();
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
         bindings::set_attribute_string_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
@@ -454,12 +432,8 @@ impl DictionaryAttr {
         )
     }
 
-    pub fn set_async(&self, part_id: i32, values: &[&str]) -> Result<JobId> {
-        debug_assert!(self.0.node.is_valid()?);
-        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(*s)).collect();
-        let cstr = cstr?;
-        let mut ptrs: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
+    pub fn set_async(&self, part_id: i32, values: &[impl AsRef<CStr>]) -> Result<JobId> {
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
         bindings::set_attribute_dictionary_data_async(
             &self.0.node,
             self.0.name.as_c_str(),
@@ -479,18 +453,14 @@ impl DictionaryAttr {
     }
 
     /// Set dictionary attribute values where each string should be a JSON-encoded value.
-    pub fn set(&self, part_id: i32, values: &[impl AsRef<str>]) -> Result<()> {
-        debug_assert!(self.0.node.is_valid()?);
-        let cstr: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(s.as_ref())).collect();
-        let cstr = cstr?;
-        let mut cstrings: Vec<*const i8> = cstr.iter().map(|cs| cs.as_ptr()).collect();
+    pub fn set(&self, part_id: i32, values: &[impl AsRef<CStr>]) -> Result<()> {
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
         bindings::set_attribute_dictionary_data(
             &self.0.node,
             part_id,
             &self.0.name.as_c_str(),
             &self.0.info.0,
-            cstrings.as_mut(),
+            ptrs.as_mut(),
         )
     }
 }
@@ -529,12 +499,9 @@ impl DictionaryArrayAttr {
             },
         ))
     }
-    pub fn set(&self, part_id: i32, values: &[impl AsRef<str>], sizes: &[i32]) -> Result<()> {
+    pub fn set(&self, part_id: i32, values: &[impl AsRef<CStr>], sizes: &[i32]) -> Result<()> {
         debug_assert!(self.0.node.is_valid()?);
-        let cstrings: std::result::Result<Vec<CString>, std::ffi::NulError> =
-            values.iter().map(|s| CString::new(s.as_ref())).collect();
-        let cstrings = cstrings?;
-        let mut ptrs: Vec<_> = cstrings.iter().map(|cs| cs.as_ptr()).collect();
+        let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
         bindings::set_attribute_dictionary_array_data(
             &self.0.node,
             self.0.name.as_c_str(),
