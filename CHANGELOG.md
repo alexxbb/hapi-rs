@@ -1,4 +1,9 @@
 # hapi-rs changelog
+## [0.11.2]
+
+- Can now pass a log file to server process.
+- Better CookResult enum variant names with `CookErrors` variant containing the error message.
+- Add `node_errors.rs` example showing how to retrieve node cooking errors.
 
 ## [0.11.1]
 
