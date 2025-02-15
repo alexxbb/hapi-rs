@@ -8,4 +8,5 @@
         ".\\apps\\viewport\\Cargo.toml"
     ],
     "rust-analyzer.showUnlinkedFileNotification": false,
+    "cmake.ignoreCMakeListsMissing": true,
 }

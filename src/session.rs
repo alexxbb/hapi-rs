@@ -16,7 +16,7 @@
 //!
 use log::{debug, error, warn};
 use parking_lot::ReentrantMutex;
-use std::ffi::OsString;
+use std::ffi::{CStr, OsString};
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::process::Child;
@@ -146,10 +146,10 @@ impl EnvVariable for i32 {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum CookResult {
     Succeeded,
-    /// Some nodes cooked with warnings
-    Warnings,
-    /// One or more nodes could not cook properly
-    Errored(String),
+    /// Some nodes cooked with errors
+    CookErrors(String),
+    /// One or more nodes could not cook - should abort cooking
+    FatalErrors(String),
 }
 
 /// By which means the session communicates with the server.
@@ -556,9 +556,12 @@ impl Session {
                     SessionState::ReadyWithFatalErrors => {
                         self.interrupt()?;
                         let err = self.get_cook_result_string(StatusVerbosity::Errors)?;
-                        break Ok(CookResult::Errored(err));
+                        break Ok(CookResult::FatalErrors(err));
                     }
-                    SessionState::ReadyWithCookErrors => break Ok(CookResult::Warnings),
+                    SessionState::ReadyWithCookErrors => {
+                        let err = self.get_cook_result_string(StatusVerbosity::Errors)?;
+                        break Ok(CookResult::CookErrors(err));
+                    }
                     // Continue polling
                     _ => {}
                 }
@@ -917,6 +920,7 @@ pub struct SessionOptions {
     pub threaded: bool,
     /// Cleanup session upon close
     pub cleanup: bool,
+    pub log_file: Option<CString>,
     /// Do not error out if session is already initialized
     pub ignore_already_init: bool,
     pub env_files: Option<CString>,
@@ -934,6 +938,7 @@ impl Default for SessionOptions {
             session_info: SessionInfo::default(),
             threaded: false,
             cleanup: false,
+            log_file: None,
             ignore_already_init: true,
             env_files: None,
             env_variables: None,
@@ -952,6 +957,7 @@ pub struct SessionOptionsBuilder {
     session_info: SessionInfo,
     threaded: bool,
     cleanup: bool,
+    log_file: Option<CString>,
     ignore_already_init: bool,
     env_variables: Option<Vec<(String, String)>>,
     env_files: Option<CString>,
@@ -1069,6 +1075,11 @@ impl SessionOptionsBuilder {
         self
     }
 
+    pub fn log_file(mut self, file: impl AsRef<Path>) -> Self {
+        self.log_file = Some(utils::path_to_cstring(file).unwrap());
+        self
+    }
+
     /// Consume the builder and return the result.
     pub fn build(mut self) -> SessionOptions {
         self.write_temp_env_file();
@@ -1077,6 +1088,7 @@ impl SessionOptionsBuilder {
             session_info: self.session_info,
             threaded: self.threaded,
             cleanup: self.cleanup,
+            log_file: self.log_file,
             ignore_already_init: self.cleanup,
             env_files: self.env_files,
             env_variables: self.env_variables,
@@ -1190,11 +1202,10 @@ pub fn start_houdini_server(
 pub fn start_shared_memory_server(
     memory_name: &str,
     options: &ThriftServerOptions,
-    log_file: Option<&str>,
+    log_file: Option<&CStr>,
 ) -> Result<u32> {
     debug!("Starting shared memory server name: {memory_name}");
     let memory_name = CString::new(memory_name)?;
-    let log_file = log_file.map(CString::new).transpose()?;
     crate::ffi::clear_connection_error()?;
     crate::ffi::start_thrift_shared_memory_server(&memory_name, &options.0, log_file.as_deref())
 }
@@ -1205,8 +1216,12 @@ pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
     let server_options = ThriftServerOptions::default()
         .with_auto_close(true)
         .with_timeout_ms(4000f32)
-        .with_verbosity(StatusVerbosity::Statusverbosity1);
+        .with_verbosity(StatusVerbosity::Statusverbosity0);
     let rand_memory_name = format!("shared-memory-{}", utils::random_string(16));
-    let pid = start_shared_memory_server(&rand_memory_name, &server_options, None)?;
+    let log_file = match &options {
+        None => None,
+        Some(opt) => opt.log_file.as_deref(),
+    };
+    let pid = start_shared_memory_server(&rand_memory_name, &server_options, log_file)?;
     connect_to_memory_server(&rand_memory_name, options, Some(pid))
 }
