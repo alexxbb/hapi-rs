@@ -1034,15 +1034,25 @@ pub fn interrupt(session: &Session) -> Result<()> {
     unsafe { raw::HAPI_Interrupt(session.ptr()).check_err(session, || "Calling HAPI_Interrupt") }
 }
 
-pub fn get_status(session: &Session, flag: raw::StatusType) -> Result<raw::State> {
-    let status = unsafe {
-        let mut status = uninit!();
-        raw::HAPI_GetStatus(session.ptr(), flag, status.as_mut_ptr())
+pub fn get_status_code(session: &Session, type_: raw::StatusType) -> Result<i32> {
+    let status_code = unsafe {
+        let mut status_code = uninit!();
+        raw::HAPI_GetStatus(session.ptr(), type_, status_code.as_mut_ptr())
             .check_err(session, || "Calling HAPI_GetStatus")?;
-        status.assume_init()
+        status_code.assume_init()
     };
-    Ok(raw::State::from(status))
+    return Ok(status_code);
 }
+
+pub fn get_cook_state_status(session: &Session) -> Result<raw::State> {
+    let status_code = get_status_code(session, raw::StatusType::CookState)?;
+    Ok(raw::State::from(status_code))
+}
+
+// pub fn get_cook_result_status(session: &Session) -> Result<raw::State> {
+//     let status_code = get_status_code(session, raw::StatusType::CookResult)?;
+//     Ok(raw::State::from(status_code))
+// }
 
 pub fn is_session_valid(session: &Session) -> bool {
     unsafe {

@@ -576,7 +576,7 @@ impl Asset {
         let geo = asset.geometry()?.expect("Geometry");
         let _start = Instant::now();
         let cook_result = geo.node.cook_blocking()?;
-        if let hapi_rs::session::CookResult::Errored(error) = cook_result {
+        if let hapi_rs::session::CookResult::FatalErrors(error) = cook_result {
             eprintln!("Error cooking example asset: {error}")
         }
         let cooking_time = Instant::now().duration_since(_start);
