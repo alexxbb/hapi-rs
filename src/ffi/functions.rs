@@ -342,7 +342,7 @@ pub fn get_parm_info(
 ) -> Result<raw::HAPI_ParmInfo> {
     unsafe {
         let mut info = uninit!();
-        super::raw::HAPI_GetParmInfo(session.ptr(), node.0, parm.0, info.as_mut_ptr())
+        raw::HAPI_GetParmInfo(session.ptr(), node.0, parm.0, info.as_mut_ptr())
             .check_err(session, || "Calling HAPI_GetParmInfo")?;
         Ok(info.assume_init())
     }
@@ -355,13 +355,8 @@ pub fn get_parm_info_from_name(
 ) -> Result<raw::HAPI_ParmInfo> {
     unsafe {
         let mut info = uninit!();
-        super::raw::HAPI_GetParmInfoFromName(
-            session.ptr(),
-            node.0,
-            name.as_ptr(),
-            info.as_mut_ptr(),
-        )
-        .check_err(session, || "Calling HAPI_GetParmInfoFromName")?;
+        raw::HAPI_GetParmInfoFromName(session.ptr(), node.0, name.as_ptr(), info.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_GetParmInfoFromName")?;
         Ok(info.assume_init())
     }
 }
@@ -392,7 +387,7 @@ pub fn get_parm_with_tag(node: &HoudiniNode, tag_name: &CStr) -> Result<HAPI_Par
 pub fn get_node_info(node: NodeHandle, session: &Session) -> Result<raw::HAPI_NodeInfo> {
     unsafe {
         let mut info = uninit!();
-        super::raw::HAPI_GetNodeInfo(session.ptr(), node.0, info.as_mut_ptr())
+        raw::HAPI_GetNodeInfo(session.ptr(), node.0, info.as_mut_ptr())
             .check_err(session, || "Calling HAPI_GetNodeInfo")?;
         Ok(info.assume_init())
     }
@@ -450,7 +445,7 @@ pub fn get_node_from_path(
     session: &Session,
     parent_node: Option<NodeHandle>,
     path: &CStr,
-) -> Result<raw::HAPI_NodeId> {
+) -> Result<HAPI_NodeId> {
     let mut node = uninit!();
     let parent_node = match parent_node {
         None => -1,
@@ -1034,15 +1029,25 @@ pub fn interrupt(session: &Session) -> Result<()> {
     unsafe { raw::HAPI_Interrupt(session.ptr()).check_err(session, || "Calling HAPI_Interrupt") }
 }
 
-pub fn get_status(session: &Session, flag: raw::StatusType) -> Result<raw::State> {
-    let status = unsafe {
-        let mut status = uninit!();
-        raw::HAPI_GetStatus(session.ptr(), flag, status.as_mut_ptr())
+pub fn get_status_code(session: &Session, type_: raw::StatusType) -> Result<i32> {
+    let status_code = unsafe {
+        let mut status_code = uninit!();
+        raw::HAPI_GetStatus(session.ptr(), type_, status_code.as_mut_ptr())
             .check_err(session, || "Calling HAPI_GetStatus")?;
-        status.assume_init()
+        status_code.assume_init()
     };
-    Ok(raw::State::from(status))
+    Ok(status_code)
 }
+
+pub fn get_cook_state_status(session: &Session) -> Result<raw::State> {
+    let status_code = get_status_code(session, raw::StatusType::CookState)?;
+    Ok(raw::State::from(status_code))
+}
+
+// pub fn get_cook_result_status(session: &Session) -> Result<raw::State> {
+//     let status_code = get_status_code(session, raw::StatusType::CookResult)?;
+//     Ok(raw::State::from(status_code))
+// }
 
 pub fn is_session_valid(session: &Session) -> bool {
     unsafe {
@@ -1115,7 +1120,7 @@ pub fn create_node(
     session: &Session,
     parent: Option<NodeHandle>,
     cook: bool,
-) -> Result<raw::HAPI_NodeId> {
+) -> Result<HAPI_NodeId> {
     unsafe {
         let mut id = uninit!();
         raw::HAPI_CreateNode(
@@ -1135,7 +1140,7 @@ pub fn create_input_node(
     session: &Session,
     name: &CStr,
     parent: Option<NodeHandle>,
-) -> Result<raw::HAPI_NodeId> {
+) -> Result<HAPI_NodeId> {
     let mut id = uninit!();
     unsafe {
         raw::HAPI_CreateInputNode(
@@ -1153,7 +1158,7 @@ pub fn create_input_curve_node(
     session: &Session,
     name: &CStr,
     parent: Option<NodeHandle>,
-) -> Result<raw::HAPI_NodeId> {
+) -> Result<HAPI_NodeId> {
     let mut id = uninit!();
     unsafe {
         raw::HAPI_CreateInputCurveNode(
@@ -1167,7 +1172,7 @@ pub fn create_input_curve_node(
     }
 }
 
-pub fn get_manager_node(session: &Session, node_type: raw::NodeType) -> Result<raw::HAPI_NodeId> {
+pub fn get_manager_node(session: &Session, node_type: raw::NodeType) -> Result<HAPI_NodeId> {
     unsafe {
         let mut id = uninit!();
         raw::HAPI_GetManagerNodeId(session.ptr(), node_type, id.as_mut_ptr())
@@ -1241,7 +1246,7 @@ pub fn get_composed_object_list(
 pub fn get_composed_object_transforms(
     session: &Session,
     parent: NodeHandle,
-    rst_order: raw::RSTOrder,
+    rst_order: RSTOrder,
 ) -> Result<Vec<raw::HAPI_Transform>> {
     let _lock = session.lock();
     let count = get_compose_object_list(session, parent)?;
@@ -1352,9 +1357,10 @@ pub fn query_node_output_connected_nodes(
             1,
             count.as_mut_ptr(),
         )
-        .check_err(&node.session, || {
-            "Calling HAPI_QueryNodeOutputConnectedCount"
-        })?;
+        .check_err(
+            &node.session,
+            || "Calling HAPI_QueryNodeOutputConnectedCount",
+        )?;
 
         let count = count.assume_init();
         let mut handles = vec![-1; count as usize];
@@ -1368,9 +1374,10 @@ pub fn query_node_output_connected_nodes(
             0,
             count,
         )
-        .check_err(&node.session, || {
-            "Calling HAPI_QueryNodeOutputConnectedNodes"
-        })?;
+        .check_err(
+            &node.session,
+            || "Calling HAPI_QueryNodeOutputConnectedNodes",
+        )?;
         Ok(handles.into_iter().map(NodeHandle).collect())
     }
 }
@@ -1404,7 +1411,7 @@ pub fn check_for_specific_errors(
             code.as_mut_ptr(),
         )
         .check_err(&node.session, || "Calling HAPI_CheckForSpecificErrors")?;
-        Ok(std::mem::transmute(code.assume_init()))
+        Ok(std::mem::transmute::<raw::HAPI_ErrorCodeBits, raw::ErrorCode>(code.assume_init()))
     }
 }
 
@@ -1413,19 +1420,23 @@ pub unsafe fn get_composed_cook_result(
     verbosity: raw::StatusVerbosity,
 ) -> Result<String> {
     let mut len = uninit!();
-    raw::HAPI_ComposeNodeCookResult(
-        node.session.ptr(),
-        node.handle.0,
-        verbosity,
-        len.as_mut_ptr(),
-    )
+    unsafe {
+        raw::HAPI_ComposeNodeCookResult(
+            node.session.ptr(),
+            node.handle.0,
+            verbosity,
+            len.as_mut_ptr(),
+        )
+    }
     .check_err(&node.session, || "Calling HAPI_ComposeNodeCookResult")?;
-    let len = len.assume_init();
+    let len = unsafe { len.assume_init() };
     let mut buf = vec![0u8; len as usize];
-    raw::HAPI_GetComposedNodeCookResult(node.session.ptr(), buf.as_mut_ptr() as *mut i8, len)
-        .check_err(&node.session, || "Calling HAPI_GetComposedNodeCookResult")?;
+    unsafe {
+        raw::HAPI_GetComposedNodeCookResult(node.session.ptr(), buf.as_mut_ptr() as *mut i8, len)
+    }
+    .check_err(&node.session, || "Calling HAPI_GetComposedNodeCookResult")?;
     buf.truncate(len as usize - 1);
-    Ok(String::from_utf8_unchecked(buf))
+    Ok(unsafe { String::from_utf8_unchecked(buf) })
 }
 
 pub fn get_time(session: &Session) -> Result<f32> {
@@ -1621,7 +1632,7 @@ pub fn get_edge_count_of_edge_group(
 pub fn get_part_info(node: &HoudiniNode, id: i32) -> Result<raw::HAPI_PartInfo> {
     unsafe {
         let mut info = uninit!();
-        super::raw::HAPI_GetPartInfo(node.session.ptr(), node.handle.0, id, info.as_mut_ptr())
+        raw::HAPI_GetPartInfo(node.session.ptr(), node.handle.0, id, info.as_mut_ptr())
             .check_err(&node.session, || "Calling HAPI_GetPartInfo")?;
         Ok(info.assume_init())
     }
@@ -1914,9 +1925,10 @@ pub fn create_heightfield_input_volume(
             ysize,
             size,
         )
-        .check_err(&node.session, || {
-            "Calling HAPI_CreateHeightfieldInputVolumeNode"
-        })?;
+        .check_err(
+            &node.session,
+            || "Calling HAPI_CreateHeightfieldInputVolumeNode",
+        )?;
     }
 
     Ok(NodeHandle(volume_node))
@@ -2035,9 +2047,10 @@ pub fn set_input_curve_transform(
             0,
             scale.len() as i32,
         )
-        .check_err(&node.session, || {
-            "Calling HAPI_SetInputCurvePositionsRotationsScales"
-        })
+        .check_err(
+            &node.session,
+            || "Calling HAPI_SetInputCurvePositionsRotationsScales",
+        )
     }
 }
 
@@ -2718,8 +2731,7 @@ pub fn save_geo_to_memory(session: &Session, node: NodeHandle, format: &CStr) ->
         raw::HAPI_GetGeoSize(session.ptr(), node.0, format.as_ptr(), size.as_mut_ptr())
             .check_err(session, || "Calling HAPI_GetGeoSize")?;
         let size = size.assume_init();
-        let mut buffer = Vec::new();
-        buffer.resize(size as usize, 0);
+        let mut buffer = vec![0; size as usize];
         raw::HAPI_SaveGeoToMemory(session.ptr(), node.0, buffer.as_mut_ptr(), size)
             .check_err(session, || "Calling HAPI_SaveGeoToMemory")?;
         Ok(buffer)
@@ -2767,8 +2779,10 @@ pub fn session_get_license_type(session: &Session) -> Result<raw::License> {
             ret.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_GetSessionEnvInt")?;
+        let lic = ret.assume_init();
+        assert!((0..=7).contains(&lic));
         // SAFETY: License enum is repr i32
-        Ok(std::mem::transmute(ret.assume_init()))
+        Ok(std::mem::transmute::<i32, raw::License>(lic))
     }
 }
 
@@ -2797,8 +2811,8 @@ pub fn get_preset(
             length.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_GetPresetBufLength")?;
-        let mut buffer = Vec::new();
-        buffer.resize(length.assume_init() as usize, 0);
+        let length = length.assume_init();
+        let mut buffer = vec![0; length as usize];
         raw::HAPI_GetPreset(
             session.ptr(),
             node.0,
@@ -3614,7 +3628,7 @@ pub fn get_message_node_ids(node: &HoudiniNode) -> Result<Vec<NodeHandle>> {
         )
         .check_err(&node.session, || "Calling HAPI_GetMessageNodeIds")?;
         // SAFETY: NodeHandle is [repr(transparent)] i32
-        Ok(std::mem::transmute(node_ids))
+        Ok(std::mem::transmute::<Vec<i32>, Vec<NodeHandle>>(node_ids))
     }
 }
 
@@ -3658,7 +3672,7 @@ pub fn set_compositor_options(
 ) -> Result<()> {
     unsafe {
         raw::HAPI_SetCompositorOptions(session.ptr(), options as *const _)
-            .check_err(&session, || "Calling HAPI_SetCompositorOptions")
+            .check_err(session, || "Calling HAPI_SetCompositorOptions")
     }
 }
 
@@ -3666,7 +3680,7 @@ pub fn get_compositor_options(session: &Session) -> Result<raw::HAPI_CompositorO
     unsafe {
         let mut opts = raw::HAPI_CompositorOptions_Create();
         raw::HAPI_GetCompositorOptions(session.ptr(), &mut opts as *mut _)
-            .check_err(&session, || "Calling HAPI_GetCompositorOptions")?;
+            .check_err(session, || "Calling HAPI_GetCompositorOptions")?;
         Ok(opts)
     }
 }
@@ -3692,7 +3706,7 @@ pub fn start_performance_monitor_profile(session: &Session, title: &CStr) -> Res
     unsafe {
         let mut id = -1;
         raw::HAPI_StartPerformanceMonitorProfile(session.ptr(), title.as_ptr(), &mut id)
-            .check_err(&session, || "Calling HAPI_StartPerformanceMonitorProfile")?;
+            .check_err(session, || "Calling HAPI_StartPerformanceMonitorProfile")?;
         Ok(id)
     }
 }
@@ -3704,7 +3718,7 @@ pub fn stop_performance_monitor_profile(
 ) -> Result<()> {
     unsafe {
         raw::HAPI_StopPerformanceMonitorProfile(session.ptr(), profile_id, file_path.as_ptr())
-            .check_err(&session, || "Calling HAPI_StopPerformanceMonitorProfile")
+            .check_err(session, || "Calling HAPI_StopPerformanceMonitorProfile")
     }
 }
 
@@ -3712,7 +3726,7 @@ pub fn get_job_status(session: &Session, job_id: i32) -> Result<raw::JobStatus> 
     unsafe {
         let mut job_status = uninit!();
         raw::HAPI_GetJobStatus(session.ptr(), job_id, job_status.as_mut_ptr())
-            .check_err(&session, || "Calling HAPI_GetJobStatus")?;
+            .check_err(session, || "Calling HAPI_GetJobStatus")?;
         Ok(job_status.assume_init())
     }
 }
@@ -3732,7 +3746,7 @@ pub fn get_instanced_object_ids(node: &HoudiniNode) -> Result<Vec<NodeHandle>> {
         handles.set_len(count as usize);
 
         // SAFETY: NodeHandle is [repr(transparent)] i32
-        Ok(std::mem::transmute(handles))
+        Ok(std::mem::transmute::<Vec<i32>, Vec<NodeHandle>>(handles))
     }
 }
 
@@ -3759,9 +3773,10 @@ pub fn get_group_membership_on_packed_instance_part(
             0,
             count,
         )
-        .check_err(&node.session, || {
-            "Calling HAPI_GetGroupMembershipOnPackedInstancePart"
-        })?;
+        .check_err(
+            &node.session,
+            || "Calling HAPI_GetGroupMembershipOnPackedInstancePart",
+        )?;
 
         Ok((all_equal > 0, membership))
     }

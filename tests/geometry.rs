@@ -128,7 +128,7 @@ fn geometry_partitions() {
     with_session(|session| {
         let geo = create_triangle(session)?;
         assert_eq!(geo.partitions().unwrap().len(), 1);
-        assert!(matches!(geo.part_info(100), Err(_)));
+        assert!(geo.part_info(100).is_err());
         Ok(())
     })
     .unwrap()

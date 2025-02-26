@@ -35,21 +35,19 @@ pub fn build_parm_map(parms: Vec<Parameter>) -> Result<Vec<(String, UiParameter)
                             kind: ParmKind::Toggle { current },
                         },
                     ));
-                } else {
-                    if let Some(menu) = p.menu_items()? {
-                        let choices: Vec<String> = menu
-                            .into_iter()
-                            .map(|choice| choice.label().unwrap())
-                            .collect();
-                        let current = p.get(0)?;
-                        parm_list.push((
-                            label,
-                            UiParameter {
-                                parameter: parm,
-                                kind: ParmKind::Menu { choices, current },
-                            },
-                        ));
-                    }
+                } else if let Some(menu) = p.menu_items()? {
+                    let choices: Vec<String> = menu
+                        .into_iter()
+                        .map(|choice| choice.label().unwrap())
+                        .collect();
+                    let current = p.get(0)?;
+                    parm_list.push((
+                        label,
+                        UiParameter {
+                            parameter: parm,
+                            kind: ParmKind::Menu { choices, current },
+                        },
+                    ));
                 }
             }
             Parameter::Float(p) => {

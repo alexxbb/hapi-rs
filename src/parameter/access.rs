@@ -85,7 +85,7 @@ impl FloatParameter {
                 log::warn!("Array length is greater than parm length: {size}");
                 size = values.len().min(size);
             }
-            len if len == 0 => {
+            0 => {
                 log::warn!("Parameter::set_array got empty array");
                 return Ok(());
             }

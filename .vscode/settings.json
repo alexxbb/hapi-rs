@@ -9,4 +9,5 @@
     ],
     "rust-analyzer.showUnlinkedFileNotification": false,
     "cmake.ignoreCMakeListsMissing": true,
+    "rust-analyzer.checkOnSave": true,
 }

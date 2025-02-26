@@ -951,7 +951,7 @@ pub mod extra {
         name: AttributeName,
     ) -> Result<NumericAttr<f32>> {
         log::debug!("Creating point attriute {:?}", name);
-        let name: CString = name.try_into()?;
+        let name: CString = name.into();
         let attr_info = AttributeInfo::default()
             .with_count(part.point_count())
             .with_tuple_size(N as i32)
@@ -962,13 +962,13 @@ pub mod extra {
     }
 
     #[inline]
-    fn get_tuple3_attribute<'a>(
-        geo: &'a Geometry,
+    fn get_tuple3_attribute(
+        geo: &Geometry,
         part: &PartInfo,
         name: AttributeName,
         owner: AttributeOwner,
     ) -> Result<Option<NumericAttr<f32>>> {
-        let name: CString = name.try_into()?;
+        let name: CString = name.into();
         AttributeInfo::new(&geo.node, part.part_id(), owner, &name).map(|info| {
             info.exists()
                 .then(|| NumericAttr::new(name, info, geo.node.clone()))

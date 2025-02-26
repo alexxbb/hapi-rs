@@ -3,7 +3,7 @@
 //! The Engine [promises](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html#HAPI_Sessions_Multithreading)
 //! to be thread-safe when accessing a single `Session` from multiple threads.
 //! `hapi-rs` relies on this promise and the [Session] struct holds only an `Arc` pointer to the session,
-//! and *does not* protect the session with Mutex, although there is a [parking_lot::ReentrantMutex]
+//! and *does not* protect the session with Mutex, although there is a [ReentrantMutex]
 //! private member which is used internally in a few cases where API calls must be sequential.
 //!
 //! When the last instance of the `Session` is about to get dropped, it'll be cleaned up
@@ -35,6 +35,7 @@ pub use crate::{
     stringhandle::StringArray,
 };
 
+// A result of HAPI_GetStatus with HAPI_STATUS_COOK_STATE
 pub type SessionState = State;
 
 use crate::ffi::ImageInfo;
@@ -50,7 +51,7 @@ pub struct NodeBuilder<'s> {
     cook: bool,
 }
 
-impl<'s> NodeBuilder<'s> {
+impl NodeBuilder<'_> {
     /// Give new node a label
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
@@ -150,6 +151,17 @@ pub enum CookResult {
     CookErrors(String),
     /// One or more nodes could not cook - should abort cooking
     FatalErrors(String),
+}
+
+impl CookResult {
+    /// Convenient method for cook result message if any
+    pub fn message(&self) -> Option<&str> {
+        match self {
+            Self::Succeeded => None,
+            Self::CookErrors(msg) => Some(msg.as_str()),
+            Self::FatalErrors(msg) => Some(msg.as_str()),
+        }
+    }
 }
 
 /// By which means the session communicates with the server.
@@ -306,7 +318,7 @@ impl Session {
         Ok(crate::geometry::Geometry { node, info })
     }
 
-    /// Create an input geometry node with [`crate::enums::PartType`] set to `Curve`
+    /// Create an input geometry node with [`PartType`] set to `Curve`
     pub fn create_input_curve_node(
         &self,
         name: &str,
@@ -364,8 +376,21 @@ impl Session {
         );
         let name = CString::new(name)?;
         let label = label.map(CString::new).transpose()?;
-        let id = crate::ffi::create_node(&name, label.as_deref(), self, parent, cook)?;
-        HoudiniNode::new(self.clone(), NodeHandle(id), None)
+        let node_id = crate::ffi::create_node(&name, label.as_deref(), self, parent, cook)?;
+        if self.inner.options.threaded {
+            use std::borrow::Cow;
+            if let CookResult::FatalErrors(message) = self.cook()? {
+                return Err(HapiError::new(
+                    Kind::Hapi(HapiResult::Failure),
+                    Some(Cow::Owned(format!(
+                        "Could not create node {:?}",
+                        name.to_string_lossy()
+                    ))),
+                    Some(Cow::Owned(message)),
+                ));
+            }
+        }
+        HoudiniNode::new(self.clone(), NodeHandle(node_id), None)
     }
 
     /// Delete the node from the session. See also [`HoudiniNode::delete`]
@@ -495,17 +520,26 @@ impl Session {
         crate::ffi::interrupt(self)
     }
 
-    /// Get session state of a requested [`crate::enums::StatusType`]
-    pub fn get_status(&self, flag: StatusType) -> Result<SessionState> {
+    // Uncertain if this API makes sense.
+    #[doc(hidden)]
+    #[allow(unused)]
+    pub(crate) fn get_call_result_status(&self) -> Result<HapiResult> {
         debug_assert!(self.is_valid());
-        crate::ffi::get_status(self, flag)
+        let status = crate::ffi::get_status_code(self, StatusType::CallResult)?;
+        Ok(unsafe { std::mem::transmute::<i32, HapiResult>(status) })
+    }
+
+    /// Get session state when the server is in threaded mode.
+    pub fn get_cook_state_status(&self) -> Result<SessionState> {
+        debug_assert!(self.is_valid());
+        crate::ffi::get_cook_state_status(self)
     }
 
     /// Is session currently cooking. In non-threaded mode always returns false
     pub fn is_cooking(&self) -> Result<bool> {
         debug_assert!(self.is_valid());
         Ok(matches!(
-            self.get_status(StatusType::CookState)?,
+            self.get_cook_state_status()?,
             SessionState::Cooking
         ))
     }
@@ -551,7 +585,7 @@ impl Session {
         debug!("Cooking session..");
         if self.inner.options.threaded {
             loop {
-                match self.get_status(StatusType::CookState)? {
+                match self.get_cook_state_status()? {
                     SessionState::Ready => break Ok(CookResult::Succeeded),
                     SessionState::ReadyWithFatalErrors => {
                         self.interrupt()?;
@@ -679,7 +713,7 @@ impl Session {
         let name = CString::new(parm_name)?;
         let node = node.into();
         let id = crate::ffi::get_parm_id_from_name(&name, node, self)?;
-        crate::ffi::render_texture_to_image(&self, node, crate::parameter::ParmHandle(id))
+        crate::ffi::render_texture_to_image(self, node, crate::parameter::ParmHandle(id))
     }
 
     pub fn extract_image_to_file(
@@ -1207,7 +1241,7 @@ pub fn start_shared_memory_server(
     debug!("Starting shared memory server name: {memory_name}");
     let memory_name = CString::new(memory_name)?;
     crate::ffi::clear_connection_error()?;
-    crate::ffi::start_thrift_shared_memory_server(&memory_name, &options.0, log_file.as_deref())
+    crate::ffi::start_thrift_shared_memory_server(&memory_name, &options.0, log_file)
 }
 
 /// A quick drop-in session, useful for on-off jobs

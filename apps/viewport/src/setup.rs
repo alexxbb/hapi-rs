@@ -386,7 +386,7 @@ impl MeshData {
         for vertex_count_per_face in face_counts {
             let num_triangles = (vertex_count_per_face - 2) as usize;
             for i in 0..num_triangles {
-                let off0 = offset + 0;
+                let off0 = offset;
                 let off1 = offset + i + 1;
                 let off2 = offset + i + 2;
 
@@ -396,6 +396,7 @@ impl MeshData {
 
                 let pos_a = unsafe {
                     Vec3::new(
+                        
                         *positions.get_unchecked(point_0_index * 3 + 0),
                         *positions.get_unchecked(point_0_index * 3 + 1),
                         *positions.get_unchecked(point_0_index * 3 + 2),
@@ -518,7 +519,7 @@ impl MeshData {
             uvs,
             vertex_array,
             vao: None,
-            num_vertices: num_vertices as i32,
+            num_vertices,
         };
         Ok((_self, hapi_time, vertex_processing_time))
     }
@@ -576,15 +577,15 @@ impl Asset {
         let geo = asset.geometry()?.expect("Geometry");
         let _start = Instant::now();
         let cook_result = geo.node.cook_blocking()?;
-        if let hapi_rs::session::CookResult::Errored(error) = cook_result {
+        if let hapi_rs::session::CookResult::FatalErrors(error) = cook_result {
             eprintln!("Error cooking example asset: {error}")
         }
         let cooking_time = Instant::now().duration_since(_start);
         let (mut mesh, _hapi_time, _vertex_processing_time) = MeshData::from_houdini_geo(&geo)?;
-        let texture = Texture::extract(&gl, &geo)?;
+        let texture = Texture::extract(gl, &geo)?;
         let _buffer_build_time = Instant::now().duration_since(_start);
         let program = unsafe {
-            let program = compile_gl_program(&gl);
+            let program = compile_gl_program(gl);
             mesh.setup_gl(gl, program);
             program
         };

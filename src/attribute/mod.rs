@@ -199,7 +199,7 @@ where
         let job_id = T::get_array_async(
             &self.0.name,
             &self.0.node,
-            &info,
+            info,
             &mut data,
             &mut sizes,
             part_id,
@@ -262,7 +262,7 @@ impl<T: AttribAccess> NumericAttr<T> {
         let info = &self.0.info;
         let size = (info.count() * info.tuple_size()) as usize;
         let mut data = Vec::<T>::with_capacity(size);
-        let job_id = T::get_async(&self.0.name, &self.0.node, &info, part_id, &mut data)?;
+        let job_id = T::get_async(&self.0.name, &self.0.node, info, part_id, &mut data)?;
         Ok(AsyncAttribResult {
             job_id,
             data,
@@ -447,7 +447,7 @@ impl StringArrayAttr {
             &self.0.info.0,
             part_id,
             ptrs.as_mut(),
-            &sizes,
+            sizes,
         )
     }
 
@@ -465,7 +465,7 @@ impl StringArrayAttr {
             part_id,
             &self.0.info.0,
             ptrs.as_mut(),
-            &sizes,
+            sizes,
         )
     }
 }
@@ -511,7 +511,7 @@ impl DictionaryAttr {
         bindings::set_attribute_dictionary_data(
             &self.0.node,
             part_id,
-            &self.0.name.as_c_str(),
+            self.0.name.as_c_str(),
             &self.0.info.0,
             ptrs.as_mut(),
         )
@@ -561,7 +561,7 @@ impl DictionaryArrayAttr {
             &self.0.info.0,
             part_id,
             ptrs.as_mut(),
-            &sizes,
+            sizes,
         )
     }
 
@@ -579,7 +579,7 @@ impl DictionaryArrayAttr {
             part_id,
             &self.0.info.0,
             ptrs.as_mut(),
-            &sizes,
+            sizes,
         )
     }
 }

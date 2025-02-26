@@ -89,8 +89,7 @@ impl<'session> PDGWorkItem<'session> {
             self.id.0,
             &data_name,
         )?;
-        let mut buffer = Vec::new();
-        buffer.resize(data_size as usize, 0);
+        let mut buffer = vec![0; data_size as usize];
         ffi::get_workitem_int_data(
             &self.node.session,
             self.node.handle,
@@ -150,8 +149,7 @@ impl<'session> PDGWorkItem<'session> {
             self.id.0,
             &attr_name,
         )?;
-        let mut buffer = Vec::new();
-        buffer.resize(attr_size as usize, 0);
+        let mut buffer = vec![0; attr_size as usize];
         ffi::get_workitem_int_attribute(
             &self.node.session,
             self.node.handle,
