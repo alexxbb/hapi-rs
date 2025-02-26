@@ -42,7 +42,7 @@ fn main() -> Result<()> {
 
     let error = match &message_nodes[..] {
         [] => asset.get_composed_cook_result_string(StatusVerbosity::Statusverbosity2)?,
-        message_nodes => gather_all_messages(asset, &message_nodes)?,
+        message_nodes => gather_all_messages(asset, message_nodes)?,
     };
 
     println!("-{}", error);

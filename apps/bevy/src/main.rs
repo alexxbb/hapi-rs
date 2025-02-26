@@ -162,7 +162,7 @@ fn animate(
         if let Parameter::Float(parm) = asset.parameter("time").expect("mod parameter") {
             parm.set(0, time.elapsed_secs()).unwrap();
         }
-        update_mesh(mesh, &geometry);
+        update_mesh(mesh, geometry);
     }
 }
 
@@ -171,7 +171,7 @@ fn update_mesh(mesh: &mut Mesh, geometry: &Geometry) {
     let attr = mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION).expect("P");
     let geometry::BevyMeshData {
         vertices, normals, ..
-    } = geometry::vertex_deform(&geometry).unwrap();
+    } = geometry::vertex_deform(geometry).unwrap();
     {
         let VertexAttributeValues::Float32x3(p_values) = attr else {
             panic!("P is not Float32x3");

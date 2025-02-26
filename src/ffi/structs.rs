@@ -432,7 +432,7 @@ pub struct ObjectInfo<'session>(
     pub DebugIgnore<&'session Session>,
 );
 
-impl<'s> ObjectInfo<'s> {
+impl ObjectInfo<'_> {
     get!(name->nameSH->Result<String>);
     get!(object_instance_path->objectInstancePathSH->Result<String>);
     get!(has_transform_changed->hasTransformChanged->bool);
@@ -470,7 +470,7 @@ impl<'s> GeoInfo {
         GeoInfo::from_handle(node.handle, &node.session)
     }
     pub fn from_handle(handle: NodeHandle, session: &'s Session) -> Result<GeoInfo> {
-        crate::ffi::get_geo_info(session, handle).map(|inner| GeoInfo(inner))
+        crate::ffi::get_geo_info(session, handle).map(GeoInfo)
     }
 }
 
@@ -543,7 +543,7 @@ wrap!(
 
 impl Transform {
     pub fn from_matrix(session: &Session, matrix: &[f32; 16], rst_order: RSTOrder) -> Result<Self> {
-        crate::ffi::convert_matrix_to_quat(session, matrix, rst_order).map(|inner| Transform(inner))
+        crate::ffi::convert_matrix_to_quat(session, matrix, rst_order).map(Transform)
     }
 
     pub fn convert_to_matrix(&self, session: &Session) -> Result<[f32; 16]> {
@@ -572,8 +572,7 @@ impl TransformEuler {
         rst_order: RSTOrder,
         rot_order: XYZOrder,
     ) -> Result<Self> {
-        crate::ffi::convert_transform(session, &self.0, rst_order, rot_order)
-            .map(|inner| TransformEuler(inner))
+        crate::ffi::convert_transform(session, &self.0, rst_order, rot_order).map(TransformEuler)
     }
 
     pub fn from_matrix(
@@ -583,7 +582,7 @@ impl TransformEuler {
         rot_order: XYZOrder,
     ) -> Result<Self> {
         crate::ffi::convert_matrix_to_euler(session, matrix, rst_order, rot_order)
-            .map(|inner| TransformEuler(inner))
+            .map(TransformEuler)
     }
 
     pub fn convert_to_matrix(&self, session: &Session) -> Result<[f32; 16]> {
@@ -667,7 +666,7 @@ pub struct ImageFileFormat<'a>(
     pub(crate) DebugIgnore<&'a Session>,
 );
 
-impl<'a> ImageFileFormat<'a> {
+impl ImageFileFormat<'_> {
     get!(name->nameSH->Result<String>);
     get!(description->descriptionSH->Result<String>);
     get!(extension->defaultExtensionSH->Result<String>);
@@ -766,7 +765,7 @@ pub struct PDGWorkItemOutputFile<'session>(
     pub(crate) DebugIgnore<&'session Session>,
 );
 
-impl<'session> PDGWorkItemOutputFile<'session> {
+impl PDGWorkItemOutputFile<'_> {
     get!(path->filePathSH->Result<String>);
     get!(tag->tagSH->Result<String>);
     get!(sha->hash->i64);

@@ -152,7 +152,7 @@ impl StringMultiArray {
     }
 }
 
-impl<'a> Iterator for MultiArrayIter<'a> {
+impl Iterator for MultiArrayIter<'_> {
     type Item = Result<StringArray>;
 
     fn next(&mut self) -> Option<Self::Item> {

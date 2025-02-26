@@ -12,22 +12,16 @@ use _utils::*;
 fn loaded_asset_libraries() {
     with_session(|session| {
         let libs = session.get_loaded_asset_libraries().unwrap();
-        assert!(libs
-            .iter()
-            .find(|lib| lib
-                .file
-                .as_ref()
-                .unwrap()
-                .ends_with(hda_file(Asset::Geometry)))
-            .is_some());
-        assert!(libs
-            .iter()
-            .find(|lib| lib
-                .file
-                .as_ref()
-                .unwrap()
-                .ends_with(hda_file(Asset::Parameters)))
-            .is_some());
+        assert!(libs.iter().any(|lib| lib
+            .file
+            .as_ref()
+            .unwrap()
+            .ends_with(hda_file(Asset::Geometry))));
+        assert!(libs.iter().any(|lib| lib
+            .file
+            .as_ref()
+            .unwrap()
+            .ends_with(hda_file(Asset::Parameters))));
         Ok(())
     })
     .unwrap()

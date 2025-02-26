@@ -239,16 +239,12 @@ impl eframe::App for ViewportApp {
                 let mut mouse_movement = egui::Vec2::splat(0.0);
                 let mut camera_zoom = 0.0f32;
                 ui.input(|input| {
-                    if input.pointer.button_down(PointerButton::Primary) {
-                        if rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
-                            mouse_movement += input.pointer.delta();
-                        }
+                    if input.pointer.button_down(PointerButton::Primary) && rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
+                        mouse_movement += input.pointer.delta();
                     }
-                    if input.pointer.button_down(PointerButton::Secondary) {
-                        if rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
-                            let delta = input.pointer.delta() * 0.005;
-                            camera_zoom += delta.x + delta.y;
-                        }
+                    if input.pointer.button_down(PointerButton::Secondary) && rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
+                        let delta = input.pointer.delta() * 0.005;
+                        camera_zoom += delta.x + delta.y;
                     }
                 });
 
@@ -310,7 +306,7 @@ fn main() {
         .with_position((1000.0, 500.0))
         .with_icon(load_icon().expect("ICON image"));
     let options = eframe::NativeOptions {
-        viewport: viewport,
+        viewport,
         multisampling: 16,
         follow_system_theme: false,
         default_theme: eframe::Theme::Dark,

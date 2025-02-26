@@ -37,7 +37,7 @@ fn main() -> Result<()> {
                 if val.len() > 2 {
                     val.push_str("..");
                 }
-                format!("{}", val)
+                val
             }
             _ => continue,
         };

@@ -211,7 +211,6 @@ fn parameters_concurrent_access() {
             }
             Parameter::String(parm) => {
                 let values: Vec<String> = (0..parm.size())
-                    .into_iter()
                     .map(|_| {
                         std::iter::repeat_with(fastrand::alphanumeric)
                             .take(10)

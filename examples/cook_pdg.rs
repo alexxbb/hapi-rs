@@ -86,6 +86,6 @@ fn main() -> Result<()> {
     session.save_hip(out_dir.join("cook_pdg_example.hip"), true)?;
     let top_net = asset.find_top_networks()?[0].clone();
     let top_node = top_net.to_top_node().expect("TOP node");
-    let _ = cook_async(&top_node)?;
+    cook_async(&top_node)?;
     Ok(())
 }

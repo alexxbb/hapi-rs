@@ -3,7 +3,7 @@
 //! The Engine [promises](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html#HAPI_Sessions_Multithreading)
 //! to be thread-safe when accessing a single `Session` from multiple threads.
 //! `hapi-rs` relies on this promise and the [Session] struct holds only an `Arc` pointer to the session,
-//! and *does not* protect the session with Mutex, although there is a [parking_lot::ReentrantMutex]
+//! and *does not* protect the session with Mutex, although there is a [ReentrantMutex]
 //! private member which is used internally in a few cases where API calls must be sequential.
 //!
 //! When the last instance of the `Session` is about to get dropped, it'll be cleaned up
@@ -51,7 +51,7 @@ pub struct NodeBuilder<'s> {
     cook: bool,
 }
 
-impl<'s> NodeBuilder<'s> {
+impl NodeBuilder<'_> {
     /// Give new node a label
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
@@ -318,7 +318,7 @@ impl Session {
         Ok(crate::geometry::Geometry { node, info })
     }
 
-    /// Create an input geometry node with [`crate::enums::PartType`] set to `Curve`
+    /// Create an input geometry node with [`PartType`] set to `Curve`
     pub fn create_input_curve_node(
         &self,
         name: &str,
@@ -376,21 +376,18 @@ impl Session {
         );
         let name = CString::new(name)?;
         let label = label.map(CString::new).transpose()?;
-        let node_id = crate::ffi::create_node(
-            &name,
-            label.as_deref(),
-            self,
-            parent,
-            cook,
-        )?;
+        let node_id = crate::ffi::create_node(&name, label.as_deref(), self, parent, cook)?;
         if self.inner.options.threaded {
             use std::borrow::Cow;
             if let CookResult::FatalErrors(message) = self.cook()? {
                 return Err(HapiError::new(
                     Kind::Hapi(HapiResult::Failure),
-                    Some(Cow::Owned(format!("Could not create node {:?}", name.to_string_lossy()))),
+                    Some(Cow::Owned(format!(
+                        "Could not create node {:?}",
+                        name.to_string_lossy()
+                    ))),
                     Some(Cow::Owned(message)),
-                ))
+                ));
             }
         }
         HoudiniNode::new(self.clone(), NodeHandle(node_id), None)
@@ -716,7 +713,7 @@ impl Session {
         let name = CString::new(parm_name)?;
         let node = node.into();
         let id = crate::ffi::get_parm_id_from_name(&name, node, self)?;
-        crate::ffi::render_texture_to_image(&self, node, crate::parameter::ParmHandle(id))
+        crate::ffi::render_texture_to_image(self, node, crate::parameter::ParmHandle(id))
     }
 
     pub fn extract_image_to_file(
@@ -1244,7 +1241,7 @@ pub fn start_shared_memory_server(
     debug!("Starting shared memory server name: {memory_name}");
     let memory_name = CString::new(memory_name)?;
     crate::ffi::clear_connection_error()?;
-    crate::ffi::start_thrift_shared_memory_server(&memory_name, &options.0, log_file.as_deref())
+    crate::ffi::start_thrift_shared_memory_server(&memory_name, &options.0, log_file)
 }
 
 /// A quick drop-in session, useful for on-off jobs

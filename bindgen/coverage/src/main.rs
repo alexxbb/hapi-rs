@@ -29,7 +29,7 @@ fn raw_hapi_function_names() -> HashSet<Item> {
         "HAPI_ParmInfo_GetStringValueCount",
     ];
     let raw = Path::new("../../src/ffi/bindings.rs");
-    let text = std::fs::read_to_string(&raw).expect("bindings.rs");
+    let text = std::fs::read_to_string(raw).expect("bindings.rs");
     let rx = regex_lite::Regex::new(r#"pub fn (HAPI\w+)\("#).unwrap();
     let matches: HashSet<_> = rx
         .captures_iter(&text)
@@ -87,7 +87,7 @@ fn wrapped_rs_function_names() -> Result<HashSet<Item>, Box<dyn Error>> {
 }
 
 fn main() {
-    let mut ffi_functions = Vec::from_iter(raw_hapi_function_names().into_iter());
+    let mut ffi_functions = Vec::from_iter(raw_hapi_function_names());
     ffi_functions.sort();
     let rs = wrapped_rs_function_names().unwrap();
     let mut num_missed: i32 = 0;

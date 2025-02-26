@@ -85,7 +85,7 @@ pub struct AssetParm<'a> {
     values: &'a AssetParmValues,
 }
 
-impl<'a> std::ops::Deref for AssetParm<'a> {
+impl std::ops::Deref for AssetParm<'_> {
     type Target = ParmInfo;
 
     fn deref(&self) -> &Self::Target {
@@ -156,7 +156,7 @@ impl<'a> AssetParm<'a> {
             self.library_id,
             self.asset_name,
             self.info.id(),
-            &tag_c_str,
+            tag_c_str,
         )?;
         Ok((String::from_utf8_lossy(&tag_name).to_string(), tag_value))
     }
@@ -290,7 +290,7 @@ impl AssetLibrary {
         debug_assert!(self.session.is_valid());
         let name = self
             .get_first_name()?
-            .ok_or_else(|| crate::HapiError::internal("Library file is empty"))?;
+            .ok_or_else(|| HapiError::internal("Library file is empty"))?;
         self.create_asset_for_node(name, None)
     }
 
