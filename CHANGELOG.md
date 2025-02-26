@@ -1,4 +1,12 @@
 # hapi-rs changelog
+
+## [0.12.0]
+
+- Upgrade to Rust Edition 2024
+- Regenerate with Houdini 20.5.445
+- Improve error handling when creating Houdini nodes in threaded mode
+- Clippy suggestions
+
 ## [0.11.2]
 
 - Can now pass a log file to server process.
