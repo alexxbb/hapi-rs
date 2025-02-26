@@ -1357,9 +1357,10 @@ pub fn query_node_output_connected_nodes(
             1,
             count.as_mut_ptr(),
         )
-        .check_err(&node.session, || {
-            "Calling HAPI_QueryNodeOutputConnectedCount"
-        })?;
+        .check_err(
+            &node.session,
+            || "Calling HAPI_QueryNodeOutputConnectedCount",
+        )?;
 
         let count = count.assume_init();
         let mut handles = vec![-1; count as usize];
@@ -1373,9 +1374,10 @@ pub fn query_node_output_connected_nodes(
             0,
             count,
         )
-        .check_err(&node.session, || {
-            "Calling HAPI_QueryNodeOutputConnectedNodes"
-        })?;
+        .check_err(
+            &node.session,
+            || "Calling HAPI_QueryNodeOutputConnectedNodes",
+        )?;
         Ok(handles.into_iter().map(NodeHandle).collect())
     }
 }
@@ -1418,19 +1420,23 @@ pub unsafe fn get_composed_cook_result(
     verbosity: raw::StatusVerbosity,
 ) -> Result<String> {
     let mut len = uninit!();
-    raw::HAPI_ComposeNodeCookResult(
-        node.session.ptr(),
-        node.handle.0,
-        verbosity,
-        len.as_mut_ptr(),
-    )
+    unsafe {
+        raw::HAPI_ComposeNodeCookResult(
+            node.session.ptr(),
+            node.handle.0,
+            verbosity,
+            len.as_mut_ptr(),
+        )
+    }
     .check_err(&node.session, || "Calling HAPI_ComposeNodeCookResult")?;
-    let len = len.assume_init();
+    let len = unsafe { len.assume_init() };
     let mut buf = vec![0u8; len as usize];
-    raw::HAPI_GetComposedNodeCookResult(node.session.ptr(), buf.as_mut_ptr() as *mut i8, len)
-        .check_err(&node.session, || "Calling HAPI_GetComposedNodeCookResult")?;
+    unsafe {
+        raw::HAPI_GetComposedNodeCookResult(node.session.ptr(), buf.as_mut_ptr() as *mut i8, len)
+    }
+    .check_err(&node.session, || "Calling HAPI_GetComposedNodeCookResult")?;
     buf.truncate(len as usize - 1);
-    Ok(String::from_utf8_unchecked(buf))
+    Ok(unsafe { String::from_utf8_unchecked(buf) })
 }
 
 pub fn get_time(session: &Session) -> Result<f32> {
@@ -1919,9 +1925,10 @@ pub fn create_heightfield_input_volume(
             ysize,
             size,
         )
-        .check_err(&node.session, || {
-            "Calling HAPI_CreateHeightfieldInputVolumeNode"
-        })?;
+        .check_err(
+            &node.session,
+            || "Calling HAPI_CreateHeightfieldInputVolumeNode",
+        )?;
     }
 
     Ok(NodeHandle(volume_node))
@@ -2040,9 +2047,10 @@ pub fn set_input_curve_transform(
             0,
             scale.len() as i32,
         )
-        .check_err(&node.session, || {
-            "Calling HAPI_SetInputCurvePositionsRotationsScales"
-        })
+        .check_err(
+            &node.session,
+            || "Calling HAPI_SetInputCurvePositionsRotationsScales",
+        )
     }
 }
 
@@ -3765,9 +3773,10 @@ pub fn get_group_membership_on_packed_instance_part(
             0,
             count,
         )
-        .check_err(&node.session, || {
-            "Calling HAPI_GetGroupMembershipOnPackedInstancePart"
-        })?;
+        .check_err(
+            &node.session,
+            || "Calling HAPI_GetGroupMembershipOnPackedInstancePart",
+        )?;
 
         Ok((all_equal > 0, membership))
     }
