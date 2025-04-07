@@ -1,7 +1,7 @@
 //! Volume and Heightfield APIs
-use crate::ffi::{raw::HAPI_VolumeTileInfo, VolumeTileInfo};
-use crate::node::HoudiniNode;
 use crate::Result;
+use crate::ffi::{VolumeTileInfo, raw::HAPI_VolumeTileInfo};
+use crate::node::HoudiniNode;
 
 /// Volume primitive dimensions returned from [`crate::geometry::Geometry::volume_bounds()`]
 #[derive(Debug, Clone, Default)]

@@ -27,8 +27,8 @@ pub use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::{
-        enums::*, CompositorOptions, CookOptions, ImageFileFormat, SessionInfo, SessionSyncInfo,
-        ThriftServerOptions, TimelineOptions, Viewport,
+        CompositorOptions, CookOptions, ImageFileFormat, SessionInfo, SessionSyncInfo,
+        ThriftServerOptions, TimelineOptions, Viewport, enums::*,
     },
     node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType, Transform},
     parameter::Parameter,
@@ -93,7 +93,7 @@ impl PartialEq for raw::HAPI_Session {
 pub trait EnvVariable {
     type Type: ?Sized + ToOwned + Debug;
     fn get_value(session: &Session, key: impl AsRef<str>)
-        -> Result<<Self::Type as ToOwned>::Owned>;
+    -> Result<<Self::Type as ToOwned>::Owned>;
     fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()>;
 }
 
@@ -272,7 +272,7 @@ impl Session {
         crate::stringhandle::get_string_array(handles, self)
     }
 
-    fn initialize(&self) -> Result<()> {
+    pub fn initialize(&self) -> Result<()> {
         debug!("Initializing session");
         debug_assert!(self.is_valid());
         let res = crate::ffi::initialize_session(self, &self.inner.options);

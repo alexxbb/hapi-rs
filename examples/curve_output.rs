@@ -1,10 +1,10 @@
+use hapi_rs::Result;
 use hapi_rs::attribute::*;
 use hapi_rs::geometry::{
     AttributeName, AttributeOwner, CurveOrders, CurveType, Geometry, PartInfo, PartType,
 };
 use hapi_rs::node::{NodeFlags, NodeType, ObjectInfo};
-use hapi_rs::session::{quick_session, SessionOptions};
-use hapi_rs::Result;
+use hapi_rs::session::{SessionOptions, quick_session};
 
 fn main() -> Result<()> {
     let opt = SessionOptions::builder().threaded(true).build();

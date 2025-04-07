@@ -4,8 +4,8 @@ use crate::ffi::raw as ffi;
 use crate::ffi::raw::{ChoiceListType, ParmType};
 use crate::node::ManagerType;
 use crate::{
-    errors::Result, ffi::ParmChoiceInfo, ffi::ParmInfo, node::HoudiniNode, session::Session,
-    HapiError,
+    HapiError, errors::Result, ffi::ParmChoiceInfo, ffi::ParmInfo, node::HoudiniNode,
+    session::Session,
 };
 use log::debug;
 use std::ffi::{CStr, CString};

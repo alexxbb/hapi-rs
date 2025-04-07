@@ -5,17 +5,17 @@
 /// IMPORTANT: It's recommended to `cargo build ..` the example and run it
 /// directly from the target directory. `cargo run` has issues with CTRL-C..
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use argh::FromArgs;
 
 use hapi_rs::{
     enums::CurveType,
     geometry::InputCurveInfo,
-    session::{connect_to_pipe, start_houdini_server, ManagerType, SessionSyncInfo, Viewport},
+    session::{ManagerType, SessionSyncInfo, Viewport, connect_to_pipe, start_houdini_server},
 };
 
 #[derive(FromArgs, Debug)]

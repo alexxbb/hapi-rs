@@ -210,9 +210,11 @@ mod tests {
         assert_eq!(array.iter_str().count(), var_count as usize);
         assert_eq!(array.iter_cstr().count(), var_count as usize);
         assert!(array.iter_str().any(|s| s == "TEST=177"));
-        assert!(array
-            .iter_cstr()
-            .any(|s| s.to_bytes_with_nul() == b"TEST=177\0"));
+        assert!(
+            array
+                .iter_cstr()
+                .any(|s| s.to_bytes_with_nul() == b"TEST=177\0")
+        );
         let mut owned: super::OwnedStringIter = array.into_iter();
         assert!(owned.any(|s| s == "TEST=177"));
 

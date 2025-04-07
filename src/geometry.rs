@@ -5,8 +5,8 @@
 use crate::attribute::*;
 use crate::errors::Result;
 pub use crate::ffi::{
-    enums::*, AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, InputCurveInfo, PartInfo,
-    SphereInfo, Transform, VolumeInfo, VolumeTileInfo, VolumeVisualInfo,
+    AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, InputCurveInfo, PartInfo, SphereInfo,
+    Transform, VolumeInfo, VolumeTileInfo, VolumeVisualInfo, enums::*,
 };
 use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};

@@ -2,11 +2,11 @@
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 
+use hapi_rs::Result;
 use hapi_rs::enums::{PdgEventType, PdgWorkItemState};
 use hapi_rs::node::Parameter;
 use hapi_rs::pdg::TopNode;
-use hapi_rs::session::{new_in_process, SessionOptionsBuilder};
-use hapi_rs::Result;
+use hapi_rs::session::{SessionOptionsBuilder, new_in_process};
 
 fn cook_async(node: &TopNode) -> Result<()> {
     node.dirty_node(true)?;

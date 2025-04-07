@@ -1,6 +1,6 @@
+use hapi_rs::Result;
 use hapi_rs::node::*;
 use hapi_rs::session::*;
-use hapi_rs::Result;
 
 fn main() -> Result<()> {
     let session = quick_session(None)?;

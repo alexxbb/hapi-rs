@@ -1,10 +1,10 @@
+use crate::Result;
 use crate::ffi;
 use crate::ffi::{
-    raw::{PdgEventType, PdgState},
     PDGEventInfo, PDGWorkItemInfo, PDGWorkItemOutputFile,
+    raw::{PdgEventType, PdgState},
 };
 use crate::node::{HoudiniNode, NodeHandle};
-use crate::Result;
 use std::fmt::Formatter;
 use std::ops::ControlFlow;
 

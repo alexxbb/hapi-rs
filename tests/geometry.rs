@@ -115,9 +115,10 @@ fn geometry_delete_attribute() {
         id_attr.delete(0).unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
-        assert!(geo
-            .get_attribute(0, AttributeOwner::Point, c"id")?
-            .is_none());
+        assert!(
+            geo.get_attribute(0, AttributeOwner::Point, c"id")?
+                .is_none()
+        );
         Ok(())
     })
     .unwrap()

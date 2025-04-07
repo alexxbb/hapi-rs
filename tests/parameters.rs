@@ -1,6 +1,6 @@
 use hapi_rs::{
-    parameter::{KeyFrame, Parameter, ParmBaseTrait, ParmType},
     Result,
+    parameter::{KeyFrame, Parameter, ParmBaseTrait, ParmType},
 };
 
 mod _utils;

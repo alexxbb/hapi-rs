@@ -1,8 +1,8 @@
 use hapi_rs::raw::CacheProperty;
 
 use hapi_rs::session::{
-    quick_session, ConnectionType, CookResult, ManagerType, SessionOptions, SessionSyncInfo,
-    TimelineOptions, Viewport,
+    ConnectionType, CookResult, ManagerType, SessionOptions, SessionSyncInfo, TimelineOptions,
+    Viewport, quick_session,
 };
 
 mod _utils;
@@ -12,16 +12,18 @@ use _utils::*;
 fn loaded_asset_libraries() {
     with_session(|session| {
         let libs = session.get_loaded_asset_libraries().unwrap();
-        assert!(libs.iter().any(|lib| lib
-            .file
-            .as_ref()
-            .unwrap()
-            .ends_with(hda_file(Asset::Geometry))));
-        assert!(libs.iter().any(|lib| lib
-            .file
-            .as_ref()
-            .unwrap()
-            .ends_with(hda_file(Asset::Parameters))));
+        assert!(libs.iter().any(|lib| {
+            lib.file
+                .as_ref()
+                .unwrap()
+                .ends_with(hda_file(Asset::Geometry))
+        }));
+        assert!(libs.iter().any(|lib| {
+            lib.file
+                .as_ref()
+                .unwrap()
+                .ends_with(hda_file(Asset::Parameters))
+        }));
         Ok(())
     })
     .unwrap()

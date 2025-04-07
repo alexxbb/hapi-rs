@@ -23,8 +23,8 @@ mod async_;
 mod bindings;
 
 use crate::errors::Result;
-pub use crate::ffi::enums::StorageType;
 pub use crate::ffi::AttributeInfo;
+pub use crate::ffi::enums::StorageType;
 use crate::node::HoudiniNode;
 use crate::stringhandle::{StringArray, StringHandle};
 pub use array::*;

@@ -1,13 +1,13 @@
 #![allow(dead_code)]
 #![allow(unused)]
 
+use hapi_rs::Result;
 use hapi_rs::enums::StatusVerbosity;
 use hapi_rs::node::{CookResult, HoudiniNode, NodeFlags, NodeHandle, NodeType};
 use hapi_rs::raw::StatusType;
 use hapi_rs::session::{
-    connect_to_memory_server, quick_session, SessionInfo, SessionOptions, SessionOptionsBuilder,
+    SessionInfo, SessionOptions, SessionOptionsBuilder, connect_to_memory_server, quick_session,
 };
-use hapi_rs::Result;
 
 const OTL: &str = "otls/hapi_errors.hda";
 
@@ -39,11 +39,12 @@ fn main() -> Result<()> {
 
     geo.node.cook_blocking()?;
     let message_nodes = asset.get_message_nodes()?;
+    let error = asset.get_composed_cook_result_string(StatusVerbosity::Statusverbosity2)?;
 
-    let error = match &message_nodes[..] {
-        [] => asset.get_composed_cook_result_string(StatusVerbosity::Statusverbosity2)?,
-        message_nodes => gather_all_messages(asset, message_nodes)?,
-    };
+    // let error = match &message_nodes[..] {
+    //     [] => asset.get_composed_cook_result_string(StatusVerbosity::Statusverbosity2)?,
+    //     message_nodes => gather_all_messages(asset, message_nodes)?,
+    // };
 
     println!("-{}", error);
     Ok(())

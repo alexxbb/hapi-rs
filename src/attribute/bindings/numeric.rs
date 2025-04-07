@@ -1,8 +1,8 @@
-use crate::attribute::{array::DataArray, AttribAccess, JobId};
+use crate::attribute::{AttribAccess, JobId, array::DataArray};
+use crate::ffi::AttributeInfo;
 use crate::ffi::raw;
 use crate::ffi::raw::StorageType;
-use crate::ffi::AttributeInfo;
-use crate::{node::HoudiniNode, Result};
+use crate::{Result, node::HoudiniNode};
 use duplicate::duplicate_item;
 use std::ffi::CStr;
 

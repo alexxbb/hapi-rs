@@ -1,5 +1,5 @@
 /// curve_marshall.cpp
-use hapi_rs::{attribute::*, geometry::*, session::*, Result};
+use hapi_rs::{Result, attribute::*, geometry::*, session::*};
 
 fn main() -> Result<()> {
     let session = quick_session(None)?;

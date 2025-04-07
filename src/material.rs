@@ -1,10 +1,10 @@
 //! Rendering material textures to memory or disk
 //!
-use crate::ffi::{raw::HAPI_MaterialInfo, ImageInfo};
+use crate::Result;
+use crate::ffi::{ImageInfo, raw::HAPI_MaterialInfo};
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::parameter::ParmHandle;
 use crate::session::Session;
-use crate::Result;
 use std::ffi::CString;
 use std::path::Path;
 

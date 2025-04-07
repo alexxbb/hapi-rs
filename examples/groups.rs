@@ -1,12 +1,12 @@
 // Port of groups.cpp
 // Example demonstrates creating nodes, geometry, creating and querying point groups
+use hapi_rs::Result;
 use hapi_rs::geometry::{
     AttributeInfo, AttributeOwner, GroupType, PartInfo, PartType, StorageType,
 };
 use hapi_rs::node::HoudiniNode;
 use hapi_rs::parameter::Parameter;
-use hapi_rs::session::{quick_session, Session};
-use hapi_rs::Result;
+use hapi_rs::session::{Session, quick_session};
 
 fn create_cube(session: &Session) -> Result<HoudiniNode> {
     let geometry = session.create_input_node("Cube", None)?;

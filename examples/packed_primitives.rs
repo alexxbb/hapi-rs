@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 #![allow(unused)]
 
+use hapi_rs::Result;
 use hapi_rs::geometry::{PackedPrimInstancingMode as IM, *};
 use hapi_rs::node::*;
 use hapi_rs::session::*;
-use hapi_rs::Result;
 
 fn main() -> Result<()> {
     let session = quick_session(None)?;

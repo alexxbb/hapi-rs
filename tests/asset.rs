@@ -26,9 +26,10 @@ fn asset_load_from_memory() {
 #[test]
 fn asset_get_names() {
     with_session_asset(Asset::Parameters, |_, lib| {
-        assert!(lib
-            .get_asset_names()?
-            .contains(&"Object/hapi_parms".to_string()));
+        assert!(
+            lib.get_asset_names()?
+                .contains(&"Object/hapi_parms".to_string())
+        );
         Ok(())
     })
     .unwrap()

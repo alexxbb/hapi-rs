@@ -19,10 +19,10 @@
 mod base;
 mod access;
 
+use crate::Result;
 pub use crate::ffi::enums::ParmType;
 pub use crate::ffi::structs::{KeyFrame, ParmInfo};
 use crate::node::{HoudiniNode, NodeHandle, Session};
-use crate::Result;
 pub use base::*;
 use std::fmt::Debug;
 

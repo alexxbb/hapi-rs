@@ -1,8 +1,8 @@
+use hapi_rs::Result;
 /// Example extracts material textures to files
 use hapi_rs::geometry::Materials;
 use hapi_rs::parameter::*;
 use hapi_rs::session::quick_session;
-use hapi_rs::Result;
 
 fn main() -> Result<()> {
     let session = quick_session(None)?;

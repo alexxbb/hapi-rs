@@ -1,8 +1,8 @@
+use crate::Result;
 use crate::ffi::enums::ChoiceListType;
 use crate::ffi::{KeyFrame, ParmChoiceInfo, ParmInfo};
 use crate::node::{NodeHandle, ParmType};
 use crate::session::Session;
-use crate::Result;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 

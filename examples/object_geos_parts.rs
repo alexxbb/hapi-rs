@@ -1,8 +1,8 @@
 // Translated from object_geos_parts.cpp
+use hapi_rs::Result;
 use hapi_rs::attribute::*;
 use hapi_rs::geometry::*;
 use hapi_rs::session::*;
-use hapi_rs::Result;
 
 fn main() -> Result<()> {
     let session = quick_session(None)?;
