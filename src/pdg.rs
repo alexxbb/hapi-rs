@@ -289,6 +289,10 @@ impl TopNode {
         )
     }
 
+    pub fn generate_static_items(&self, all_outputs: bool) -> Result<()> {
+        ffi::cook_pdg(&self.node.session, self.node.handle, true, true, all_outputs)
+    }
+
     /// Get the graph(context) id of this node in PDG.
     pub fn get_context_id(&self) -> Result<i32> {
         ffi::get_pdg_context_id(&self.node.session, self.node.handle)

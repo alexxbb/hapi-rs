@@ -16,16 +16,16 @@ use glow::HasContext;
 use path_absolutize::Absolutize;
 use std::default::Default;
 use std::io::Read;
+use std::net::SocketAddrV4;
 use std::ops::BitXorAssign;
 use std::sync::Arc;
 
-use ultraviolet::Vec3;
-
+use crate::parameters::{ParmKind, UiParameter};
+use hapi_rs::asset::AssetLibrary;
 use hapi_rs::parameter::{Parameter, ParmBaseTrait};
 use hapi_rs::session::SessionOptions;
-
-use crate::parameters::{ParmKind, UiParameter};
 use setup::{Asset, AssetParameters, BufferStats, CookingStats, Stats};
+use ultraviolet::Vec3;
 
 static OTL: &str = "otls/hapi_opengl.hda";
 static ICON: &str = "maps/icon.png";
@@ -43,26 +43,12 @@ struct ViewportApp {
 }
 
 impl ViewportApp {
-    fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, library: AssetLibrary) -> Self {
         let gl = cc.gl.as_ref().expect("Could not init gl Context").clone();
-        let options = SessionOptions::default();
-        let session = if cfg!(debug_assertions) {
-            if let Ok(session) =
-                hapi_rs::session::connect_to_pipe("hapi", Some(&options), None, None)
-            {
-                session
-            } else {
-                eprintln!("Could not connect to HARS server, starting new in-process");
-                hapi_rs::session::new_in_process(Some(&options)).expect("in-process session")
-            }
-        } else {
-            eprintln!("Starting in-process session");
-            hapi_rs::session::new_in_process(None).expect("Houdini session")
-        };
         let otl = std::path::Path::new(OTL).absolutize().expect("OTL path");
         let otl = otl.to_string_lossy();
 
-        let asset = Asset::load_hda(&gl, &session, &otl).expect("Load HDA");
+        let asset = Asset::load_hda(&gl, &library, &otl).expect("Load HDA");
         let asset_parameters =
             AssetParameters::from_node(&asset.asset_node).expect("Asset parameters");
 
@@ -239,10 +225,14 @@ impl eframe::App for ViewportApp {
                 let mut mouse_movement = egui::Vec2::splat(0.0);
                 let mut camera_zoom = 0.0f32;
                 ui.input(|input| {
-                    if input.pointer.button_down(PointerButton::Primary) && rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
+                    if input.pointer.button_down(PointerButton::Primary)
+                        && rect.contains(input.pointer.hover_pos().expect("Cursor position"))
+                    {
                         mouse_movement += input.pointer.delta();
                     }
-                    if input.pointer.button_down(PointerButton::Secondary) && rect.contains(input.pointer.hover_pos().expect("Cursor position")) {
+                    if input.pointer.button_down(PointerButton::Secondary)
+                        && rect.contains(input.pointer.hover_pos().expect("Cursor position"))
+                    {
                         let delta = input.pointer.delta() * 0.005;
                         camera_zoom += delta.x + delta.y;
                     }
@@ -300,11 +290,57 @@ fn load_icon() -> Option<IconData> {
 }
 
 fn main() {
+    use std::env::args;
+
     let _ = env_logger::try_init().ok();
+    let mut remote_server: Option<SocketAddrV4> = None;
+
+    if let Some(arg) = args().nth(1) {
+        if arg == "--remote-server" {
+            if let Some(address) = args().nth(2) {
+                match address.parse::<SocketAddrV4>() {
+                    Ok(address) => {
+                        remote_server = Some(address);
+                    }
+                    Err(err) => {
+                        eprintln!("Could not parse remote server address: {}", err);
+                        return;
+                    }
+                }
+            } else {
+                eprintln!("Missing remote server address");
+                return;
+            }
+        } else {
+            eprintln!("Unknown argument: {}", arg);
+            return;
+        }
+    }
     let viewport = ViewportBuilder::default()
         .with_inner_size((1200.0, 800.0))
         .with_position((1000.0, 500.0))
         .with_icon(load_icon().expect("ICON image"));
+    let options = SessionOptions::default();
+    let session = match &remote_server {
+        None => hapi_rs::session::new_in_process(Some(&options)).expect("Could not create session"),
+        Some(remote_address) => {
+            hapi_rs::session::connect_to_socket(remote_address.clone(), Some(&options))
+                .expect("Could not connect to socket")
+        }
+    };
+    if !session.is_valid() {
+        eprintln!("Session is not valid!!!!");
+        return;
+    }
+    let asset_library = if remote_server.is_some() {
+        AssetLibrary::from_memory(session.clone(), std::fs::read(OTL).unwrap().as_slice()).unwrap()
+    } else {
+        session.load_asset_file(OTL).unwrap()
+    };
+
+    let creator: eframe::AppCreator =
+        Box::new(move |cc| Box::new(ViewportApp::new(cc, asset_library)));
+
     let options = eframe::NativeOptions {
         viewport,
         multisampling: 16,
@@ -314,7 +350,6 @@ fn main() {
         depth_buffer: 24,
         ..Default::default()
     };
-    let creator: eframe::AppCreator = Box::new(move |cc| Box::new(ViewportApp::new(cc)));
     let title = if cfg!(debug_assertions) {
         format!("{} - DEBUG MODE IS SLOW !!!", WIN_TITLE)
     } else {

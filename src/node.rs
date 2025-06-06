@@ -177,6 +177,18 @@ impl NodeHandle {
         NodeInfo::new(session, *self)
     }
 
+    /// Returns node's internal path.
+    pub fn path(&self, session: &Session) -> Result<String> {
+        debug_assert!(self.is_valid(session)?, "Invalid {:?}", self);
+        crate::ffi::get_node_path(session, *self, None)
+    }
+
+    /// Returns node's path relative to another node.
+    pub fn path_relative(&self, session: &Session, to: impl Into<Option<NodeHandle>>) -> Result<String> {
+        debug_assert!(self.is_valid(session)?, "Invalid {:?}", self);
+        crate::ffi::get_node_path(session, *self, to.into())
+    }
+
     /// Check if the handle is valid (node wasn't deleted)
     pub fn is_valid(&self, session: &Session) -> Result<bool> {
         let info = self.info(session)?;
@@ -302,14 +314,12 @@ impl HoudiniNode {
 
     /// Returns node's internal path.
     pub fn path(&self) -> Result<String> {
-        debug_assert!(self.is_valid()?, "Invalid node: {}", self.name()?);
-        crate::ffi::get_node_path(&self.session, self.handle, None)
+        self.handle.path(&self.session)
     }
 
     /// Returns node's path relative to another node.
     pub fn path_relative(&self, to: impl Into<Option<NodeHandle>>) -> Result<String> {
-        debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        crate::ffi::get_node_path(&self.session, self.handle, to.into())
+        self.handle.path_relative(&self.session, to)
     }
 
     /// Start cooking the node. This is a non-blocking call if the session is async.
