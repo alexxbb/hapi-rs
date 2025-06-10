@@ -141,7 +141,7 @@ impl ManagerNode {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 /// A lightweight handle to a node. Can not be created manually, use [`HoudiniNode`] instead.
 /// Some APIs return a list of such handles for efficiency, for example [`HoudiniNode::find_children_by_type`].
 /// Once you found the node you're looking for, upgrade it to a "full" node type.
@@ -184,7 +184,11 @@ impl NodeHandle {
     }
 
     /// Returns node's path relative to another node.
-    pub fn path_relative(&self, session: &Session, to: impl Into<Option<NodeHandle>>) -> Result<String> {
+    pub fn path_relative(
+        &self,
+        session: &Session,
+        to: impl Into<Option<NodeHandle>>,
+    ) -> Result<String> {
         debug_assert!(self.is_valid(session)?, "Invalid {:?}", self);
         crate::ffi::get_node_path(session, *self, to.into())
     }
