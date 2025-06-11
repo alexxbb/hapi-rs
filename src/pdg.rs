@@ -226,6 +226,7 @@ fn create_events() -> Vec<ffi::raw::HAPI_PDG_EventInfo> {
 impl TopNode {
     /// Start cooking a TOP node asynchronously.
     /// For each generated event, a user closure will be called with a [`CookStep`] argument.
+    /// If `sleep` is provided, the function will sleep for the duration before checking for new events.
     ///
     /// The closure returns [`Result<ControlFlow<bool>>`] which is handled like this:
     ///
@@ -235,7 +236,12 @@ impl TopNode {
     /// In case of [`ControlFlow::Continue(_)`] run until completion.
     ///
     /// See the `pdg_cook` example in the `/examples` folder.
-    pub fn cook_async<F>(&self, all_outputs: bool, mut func: F) -> Result<()>
+    pub fn cook_async<F>(
+        &self,
+        all_outputs: bool,
+        sleep: Option<std::time::Duration>,
+        mut func: F,
+    ) -> Result<()>
     where
         F: FnMut(CookStep) -> Result<ControlFlow<bool>>,
     {
@@ -245,6 +251,7 @@ impl TopNode {
         ffi::cook_pdg(session, self.node.handle, false, false, all_outputs)?;
         let mut events = create_events();
         'main: loop {
+            std::thread::sleep(sleep.unwrap_or_default());
             let (graph_ids, graph_names) = ffi::get_pdg_contexts(session)?;
             debug_assert_eq!(graph_ids.len(), graph_names.len());
             for (graph_id, graph_name) in graph_ids.into_iter().zip(graph_names) {
@@ -290,7 +297,13 @@ impl TopNode {
     }
 
     pub fn generate_static_items(&self, all_outputs: bool) -> Result<()> {
-        ffi::cook_pdg(&self.node.session, self.node.handle, true, true, all_outputs)
+        ffi::cook_pdg(
+            &self.node.session,
+            self.node.handle,
+            true,
+            true,
+            all_outputs,
+        )
     }
 
     /// Get the graph(context) id of this node in PDG.
