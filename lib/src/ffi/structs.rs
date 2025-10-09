@@ -497,9 +497,9 @@ pub struct TimelineOptions(pub(crate) HAPI_TimelineOptions);
 
 wrap!(
     Default TimelineOptions [HAPI_TimelineOptions_Create => HAPI_TimelineOptions];
-    [get|set|with] fps->fps->[f32];
-    [get|set|with] start_time->startTime->[f32];
-    [get|set|with] end_time->endTime->[f32];
+    [get|set|with] fps->fps->[f64];
+    [get|set|with] start_time->startTime->[f64];
+    [get|set|with] end_time->endTime->[f64];
 );
 
 #[derive(Debug, Clone)]

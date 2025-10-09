@@ -27,8 +27,8 @@ pub use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::{
-        CompositorOptions, CookOptions, ImageFileFormat, SessionInfo, SessionSyncInfo,
-        ThriftServerOptions, TimelineOptions, Viewport, enums::*,
+        enums::*, CompositorOptions, CookOptions, ImageFileFormat, SessionInfo, SessionSyncInfo,
+        ThriftServerOptions, TimelineOptions, Viewport,
     },
     node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType, Transform},
     parameter::Parameter,
@@ -93,7 +93,7 @@ impl PartialEq for raw::HAPI_Session {
 pub trait EnvVariable {
     type Type: ?Sized + ToOwned + Debug;
     fn get_value(session: &Session, key: impl AsRef<str>)
-    -> Result<<Self::Type as ToOwned>::Owned>;
+        -> Result<<Self::Type as ToOwned>::Owned>;
     fn set_value(session: &Session, key: impl AsRef<str>, val: &Self::Type) -> Result<()>;
 }
 
@@ -614,13 +614,13 @@ impl Session {
     }
 
     /// Get Houdini time
-    pub fn get_time(&self) -> Result<f32> {
+    pub fn get_time(&self) -> Result<f64> {
         debug_assert!(self.is_valid());
         crate::ffi::get_time(self)
     }
 
     /// Set Houdini time
-    pub fn set_time(&self, time: f32) -> Result<()> {
+    pub fn set_time(&self, time: f64) -> Result<()> {
         debug_assert!(self.is_valid());
         crate::ffi::set_time(self, time)
     }

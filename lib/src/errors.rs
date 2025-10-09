@@ -108,6 +108,7 @@ impl Kind {
             Kind::Hapi(NodeInvalid) => "NODE_INVALID",
             Kind::Hapi(UserInterrupted) => "USER_INTERRUPTED",
             Kind::Hapi(InvalidSession) => "INVALID_SESSION",
+            Kind::Hapi(SharedMemoryBufferOverflow) => "SHARED_MEMORY_BUFFER_OVERFLOW",
             Kind::NullByte(_) => "String contains null byte!",
             Kind::Utf8Error(_) => "String is not UTF-8!",
             Kind::Internal(s) => s,

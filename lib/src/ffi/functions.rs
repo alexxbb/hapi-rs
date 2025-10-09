@@ -1357,10 +1357,9 @@ pub fn query_node_output_connected_nodes(
             1,
             count.as_mut_ptr(),
         )
-        .check_err(
-            &node.session,
-            || "Calling HAPI_QueryNodeOutputConnectedCount",
-        )?;
+        .check_err(&node.session, || {
+            "Calling HAPI_QueryNodeOutputConnectedCount"
+        })?;
 
         let count = count.assume_init();
         let mut handles = vec![-1; count as usize];
@@ -1374,10 +1373,9 @@ pub fn query_node_output_connected_nodes(
             0,
             count,
         )
-        .check_err(
-            &node.session,
-            || "Calling HAPI_QueryNodeOutputConnectedNodes",
-        )?;
+        .check_err(&node.session, || {
+            "Calling HAPI_QueryNodeOutputConnectedNodes"
+        })?;
         Ok(handles.into_iter().map(NodeHandle).collect())
     }
 }
@@ -1439,7 +1437,7 @@ pub unsafe fn get_composed_cook_result(
     Ok(unsafe { String::from_utf8_unchecked(buf) })
 }
 
-pub fn get_time(session: &Session) -> Result<f32> {
+pub fn get_time(session: &Session) -> Result<f64> {
     unsafe {
         let mut time = uninit!();
         raw::HAPI_GetTime(session.ptr(), time.as_mut_ptr())
@@ -1448,7 +1446,7 @@ pub fn get_time(session: &Session) -> Result<f32> {
     }
 }
 
-pub fn set_time(session: &Session, time: f32) -> Result<()> {
+pub fn set_time(session: &Session, time: f64) -> Result<()> {
     unsafe { raw::HAPI_SetTime(session.ptr(), time).check_err(session, || "Calling HAPI_SetTime") }
 }
 
@@ -1925,10 +1923,9 @@ pub fn create_heightfield_input_volume(
             ysize,
             size,
         )
-        .check_err(
-            &node.session,
-            || "Calling HAPI_CreateHeightfieldInputVolumeNode",
-        )?;
+        .check_err(&node.session, || {
+            "Calling HAPI_CreateHeightfieldInputVolumeNode"
+        })?;
     }
 
     Ok(NodeHandle(volume_node))
@@ -2047,10 +2044,9 @@ pub fn set_input_curve_transform(
             0,
             scale.len() as i32,
         )
-        .check_err(
-            &node.session,
-            || "Calling HAPI_SetInputCurvePositionsRotationsScales",
-        )
+        .check_err(&node.session, || {
+            "Calling HAPI_SetInputCurvePositionsRotationsScales"
+        })
     }
 }
 
@@ -3773,10 +3769,9 @@ pub fn get_group_membership_on_packed_instance_part(
             0,
             count,
         )
-        .check_err(
-            &node.session,
-            || "Calling HAPI_GetGroupMembershipOnPackedInstancePart",
-        )?;
+        .check_err(&node.session, || {
+            "Calling HAPI_GetGroupMembershipOnPackedInstancePart"
+        })?;
 
         Ok((all_equal > 0, membership))
     }
