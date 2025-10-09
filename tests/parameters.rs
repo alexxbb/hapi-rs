@@ -158,7 +158,7 @@ fn parameters_save_parm_file() {
 
         if let Parameter::String(geo_parm) = node.parameter("geo_file").unwrap() {
             let dir = tempfile::TempDir::new().unwrap();
-            let dir = dir.into_path();
+            let dir = dir.keep();
             let filename = "geo.bgeo.sc";
             geo_parm.save_parm_file(&dir, filename).unwrap();
             let filesize = std::fs::metadata(dir.join(filename)).unwrap().len();
