@@ -1,8 +1,8 @@
 use hapi_rs::geometry::Materials;
 
-mod _utils;
+mod utils;
 
-use _utils::*;
+use utils::{Asset, with_session, with_session_asset};
 
 #[test]
 fn image_file_formats() {

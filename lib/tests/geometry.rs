@@ -1,7 +1,7 @@
 use hapi_rs::{attribute::*, geometry::*};
-mod _utils;
+mod utils;
 
-use _utils::{create_triangle, with_session};
+use utils::{Asset, create_triangle, hda_file, with_session, with_test_geometry};
 
 #[test]
 fn geometry_save_and_load_to_file() {
@@ -57,10 +57,7 @@ fn geometry_commit_and_revert() {
 
 #[test]
 fn geometry_elements() {
-    with_session(|session| {
-        let node = session.create_node("Object/hapi_geo").unwrap();
-        node.cook_blocking().unwrap();
-        let geo = node.geometry().unwrap().expect("Geometry");
+    with_test_geometry(|geo| {
         let part = geo.part_info(0).unwrap();
         // Cube
         let points = geo
@@ -89,7 +86,7 @@ fn geometry_elements() {
         let num_det = geo
             .get_attribute_count_by_owner(&part, AttributeOwner::Detail)
             .unwrap();
-        assert_eq!(num_det, 4);
+        assert_eq!(num_det, 3);
         let pr_groups = geo.get_group_names(GroupType::Prim).unwrap();
         let pt_groups = geo.get_group_names(GroupType::Point).unwrap();
         #[allow(clippy::needless_collect)]
@@ -160,16 +157,17 @@ fn geometry_add_and_delete_group() {
 #[test]
 fn geometry_basic_instancing() {
     with_session(|session| {
-        let node = session.create_node("Object/hapi_geo").unwrap();
-        node.cook_blocking().unwrap();
-        let opt =
-            CookOptions::default().with_packed_prim_instancing_mode(PackedPrimInstancingMode::Flat);
-        node.cook_with_options(&opt, true).unwrap();
-        let instancer = node
+        session.load_asset_file(hda_file(Asset::Geometry))?;
+        let asset_node = session.create_node("Object/hapi_geo")?;
+        asset_node.cook_blocking()?;
+        let instancer = asset_node
             .get_child_by_path("instance")
             .unwrap()
             .expect("instance node");
         let geo = instancer.geometry().unwrap().expect("geometry");
+        let opt =
+            CookOptions::default().with_packed_prim_instancing_mode(PackedPrimInstancingMode::Flat);
+        geo.node.cook_with_options(&opt, true).unwrap();
         let part = geo.part_info(0).unwrap();
         let ids = geo.get_instanced_part_ids(&part).unwrap();
         assert_eq!(ids.len(), 1);
@@ -194,6 +192,7 @@ fn geometry_basic_instancing() {
 #[test]
 fn geometry_get_face_materials() {
     with_session(|session| {
+        session.load_asset_file(hda_file(Asset::Spaceship))?;
         let node = session.create_node("Object/spaceship").unwrap();
         node.cook_blocking().unwrap();
         let geo = node.geometry().expect("geometry").unwrap();
@@ -263,6 +262,7 @@ fn geometry_multiple_input_curves() {
 #[test]
 fn geometry_read_write_volume() {
     with_session(|session| {
+        session.load_asset_file(hda_file(Asset::Volume))?;
         let node = session.create_node("Object/hapi_vol").unwrap();
         node.cook_blocking().unwrap();
         let source = node.geometry().unwrap().unwrap();

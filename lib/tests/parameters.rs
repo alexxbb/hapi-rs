@@ -3,8 +3,8 @@ use hapi_rs::{
     parameter::{KeyFrame, Parameter, ParmBaseTrait, ParmType},
 };
 
-mod _utils;
-use _utils::*;
+mod utils;
+use utils::with_session;
 
 #[test]
 fn parameters_get_set() {

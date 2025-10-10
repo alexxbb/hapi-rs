@@ -1,4 +1,4 @@
-use crate::errors::Result;
+use crate::errors::{ErrorContext, Result};
 use crate::node::Session;
 
 #[derive(Debug)]
@@ -13,6 +13,7 @@ impl<T: Sized + Send + 'static> AsyncAttribResult<T> {
     pub fn is_ready(&self) -> Result<bool> {
         self.session
             .get_job_status(self.job_id)
+            .with_context(|| format!("Getting async job <{}> status", self.job_id))
             .map(|status| status == crate::session::JobStatus::Idle)
     }
 

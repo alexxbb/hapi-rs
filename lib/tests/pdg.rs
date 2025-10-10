@@ -1,5 +1,5 @@
-mod _utils;
-use _utils::*;
+mod utils;
+use utils::with_session;
 
 #[test]
 fn pdg_create_workitems() {

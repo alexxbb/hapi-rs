@@ -1,8 +1,9 @@
 
 import hapi
 
-options = hapi.ThriftServerOptions(autoClose=True)
-hapi.startThriftSharedMemoryServer(options, "mem", None)
+options = hapi.ThriftServerOptions()
+options.autoClose = True
+hapi.startThriftSharedMemoryServer(options, "mem", "")
 session = hapi.createThriftSharedMemorySession("mem", hapi.SessionInfo())
 hapi.initialize(session, hapi.CookOptions(), use_cooking_thread=True)
 
@@ -10,22 +11,23 @@ hapi.initialize(session, hapi.CookOptions(), use_cooking_thread=True)
 def _create_input_point() -> int:
     node = hapi.createInputNode(session, -1, "input_node")
 
-    part_info = hapi.PartInfo(
-        vertexCount=0, faceCount=0, pointCount=1, type=hapi.partType.Mesh
-    )
+    part_info = hapi.PartInfo()
+    part_info.vertexCount = 0
+    part_info.faceCount = 0
+    part_info.pointCount = 1
+    part_info.type = hapi.partType.Mesh
 
     hapi.setPartInfo(session, node, 0, part_info)
 
     # Positions
-    p_info = hapi.AttributeInfo(
-        exists=True,
-        owner=hapi.attributeOwner.Point,
-        count=1,
-        tupleSize=3,
-        storage=hapi.storageType.Float,
-        originalOwner=hapi.attributeOwner.Invalid,
-    )
-
+    p_info = hapi.AttributeInfo()
+    p_info.exists = True
+    p_info.owner = hapi.attributeOwner.Point
+    p_info.count = 1
+    p_info.tupleSize = 3
+    p_info.storage = hapi.storageType.Float
+    p_info.originalOwner = hapi.attributeOwner.Invalid
+    
     hapi.addAttribute(session, node, 0, "P", p_info)
     hapi.setAttributeFloatData(session, node, 0, "P", p_info, [0.0, 0.0, 0.0], 0, 1)
 

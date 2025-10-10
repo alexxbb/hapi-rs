@@ -22,7 +22,7 @@ mod array;
 mod async_;
 mod bindings;
 
-use crate::errors::Result;
+use crate::errors::{ErrorContext, Result};
 pub use crate::ffi::AttributeInfo;
 pub use crate::ffi::enums::StorageType;
 use crate::node::HoudiniNode;
@@ -255,14 +255,26 @@ impl<T: AttribAccess> NumericAttr<T> {
         // accessed after it gets dropped in Rust, so we can't get new AttributeInfo here.
         let info = &self.0.info;
         buffer.resize((info.count() * info.tuple_size()) as usize, T::default());
-        T::get_async(&self.0.name, &self.0.node, &self.0.info, part_id, buffer)
+        T::get_async(&self.0.name, &self.0.node, info, part_id, buffer).with_context(|| {
+            format!(
+                "Reading attribute \"{}\" asynchronously, into buffer size {}",
+                self.0.name.to_string_lossy(),
+                buffer.len()
+            )
+        })
     }
 
     pub fn get_async(&self, part_id: i32) -> Result<AsyncAttribResult<T>> {
         let info = &self.0.info;
         let size = (info.count() * info.tuple_size()) as usize;
         let mut data = Vec::<T>::with_capacity(size);
-        let job_id = T::get_async(&self.0.name, &self.0.node, info, part_id, &mut data)?;
+        let job_id = T::get_async(&self.0.name, &self.0.node, info, part_id, &mut data)
+            .with_context(|| {
+                format!(
+                    "Reading attribute {} asynchronously",
+                    self.0.name.to_string_lossy()
+                )
+            })?;
         Ok(AsyncAttribResult {
             job_id,
             data,

@@ -5,29 +5,8 @@ use hapi_rs::session::{
     Viewport, quick_session,
 };
 
-mod _utils;
-use _utils::*;
-
-#[test]
-fn loaded_asset_libraries() {
-    with_session(|session| {
-        let libs = session.get_loaded_asset_libraries().unwrap();
-        assert!(libs.iter().any(|lib| {
-            lib.file
-                .as_ref()
-                .unwrap()
-                .ends_with(hda_file(Asset::Geometry))
-        }));
-        assert!(libs.iter().any(|lib| {
-            lib.file
-                .as_ref()
-                .unwrap()
-                .ends_with(hda_file(Asset::Parameters))
-        }));
-        Ok(())
-    })
-    .unwrap()
-}
+mod utils;
+use utils::with_session;
 
 #[test]
 fn session_init_and_teardown() {

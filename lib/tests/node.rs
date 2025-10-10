@@ -8,8 +8,8 @@ use hapi_rs::{
     parameter::Parameter,
 };
 
-mod _utils;
-use _utils::*;
+mod utils;
+use utils::with_session;
 
 #[test]
 fn node_create() {

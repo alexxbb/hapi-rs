@@ -1,8 +1,8 @@
 use hapi_rs::asset::{AssetLibrary, ParmValue};
 
-mod _utils;
+mod utils;
 
-use _utils::*;
+use utils::{Asset, with_session, with_session_asset};
 
 #[test]
 fn asset_get_count() {
@@ -16,7 +16,7 @@ fn asset_get_count() {
 #[test]
 fn asset_load_from_memory() {
     with_session(|session| {
-        let mem = std::fs::read("otls/hapi_geo.hda").unwrap();
+        let mem = std::fs::read("../otls/hapi_geo.hda").unwrap();
         AssetLibrary::from_memory(session.clone(), &mem)?;
         Ok(())
     })
@@ -40,7 +40,11 @@ fn asset_parameter_tags() {
     with_session_asset(Asset::Parameters, |lib| {
         let parms = lib.get_asset_parms("Object/hapi_parms")?;
         let parm = parms.find_parameter("float3").expect("float3 parameter");
+        assert_eq!(parm.tag_count(), 2);
         let (tag_name, tag_value) = parm.get_tag(0)?;
+        assert_eq!(tag_name, "script_callback_language");
+        assert_eq!(tag_value, "python");
+        let (tag_name, tag_value) = parm.get_tag(1)?;
         assert_eq!(tag_name, "my_tag");
         assert_eq!(tag_value, "foo");
         Ok(())

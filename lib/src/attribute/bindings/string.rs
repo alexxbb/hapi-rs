@@ -44,7 +44,7 @@ pub(crate) fn _rust_fn(
             info.count,
             &mut job_id as *mut _,
         )
-        .check_err(&node.session, || stringify!(Calling _set_ffi_fn))?;
+        .check_err(&node.session, || stringify!(Calling _ffi_fn))?;
         Ok(job_id)
     }
 }
@@ -85,7 +85,7 @@ pub(crate) fn _rust_fn(
             info.count,
             &mut job_id as *mut _,
         )
-        .check_err(&node.session, || stringify!(Calling _set_ffi_fn))?;
+        .check_err(&node.session, || stringify!(Calling _ffi_fn))?;
         Ok(job_id)
     }
 }
