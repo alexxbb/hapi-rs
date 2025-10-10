@@ -6,7 +6,7 @@ use _utils::*;
 
 #[test]
 fn asset_get_count() {
-    with_session_asset(Asset::Parameters, |_, lib| {
+    with_session_asset(Asset::Parameters, |lib| {
         assert_eq!(lib.get_asset_count()?, 1);
         Ok(())
     })
@@ -25,7 +25,7 @@ fn asset_load_from_memory() {
 
 #[test]
 fn asset_get_names() {
-    with_session_asset(Asset::Parameters, |_, lib| {
+    with_session_asset(Asset::Parameters, |lib| {
         assert!(
             lib.get_asset_names()?
                 .contains(&"Object/hapi_parms".to_string())
@@ -37,7 +37,7 @@ fn asset_get_names() {
 
 #[test]
 fn asset_parameter_tags() {
-    with_session_asset(Asset::Parameters, |_, lib| {
+    with_session_asset(Asset::Parameters, |lib| {
         let parms = lib.get_asset_parms("Object/hapi_parms")?;
         let parm = parms.find_parameter("float3").expect("float3 parameter");
         let (tag_name, tag_value) = parm.get_tag(0)?;
@@ -50,7 +50,7 @@ fn asset_parameter_tags() {
 
 #[test]
 fn asset_get_first_name() {
-    with_session_asset(Asset::Parameters, |_, lib| {
+    with_session_asset(Asset::Parameters, |lib| {
         assert_eq!(
             lib.get_first_name()?,
             Some(String::from("Object/hapi_parms"))
@@ -62,7 +62,7 @@ fn asset_get_first_name() {
 
 #[test]
 fn asset_default_parameters() {
-    with_session_asset(Asset::Parameters, |_, lib| {
+    with_session_asset(Asset::Parameters, |lib| {
         let parms = lib.get_asset_parms("Object/hapi_parms")?;
 
         let parm = parms.find_parameter("single_string").unwrap();
@@ -82,7 +82,7 @@ fn asset_default_parameters() {
 
 #[test]
 fn asset_menu_parameters() {
-    with_session_asset(Asset::Parameters, |_, lib| {
+    with_session_asset(Asset::Parameters, |lib| {
         let parms = lib.get_asset_parms("Object/hapi_parms")?;
 
         let parm = parms.find_parameter("string_menu").expect("parm");
@@ -103,7 +103,7 @@ fn asset_menu_parameters() {
 
 #[test]
 fn asset_create_node() {
-    with_session_asset(Asset::Parameters, |_, lib| {
+    with_session_asset(Asset::Parameters, |lib| {
         lib.create_asset_for_node("Object/hapi_parms", None)
             .unwrap();
         lib.create_asset_for_node("Cop2/color", None)?;

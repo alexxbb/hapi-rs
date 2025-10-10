@@ -130,7 +130,7 @@ fn node_save_and_load() {
         let cam = session.create_node("Object/cam").unwrap();
         let tmp = std::env::temp_dir().join("node");
         cam.save_to_file(&tmp).expect("save_to_file");
-        let new = HoudiniNode::load_from_file(session, None, "loaded_cam", true, &tmp)
+        let new = HoudiniNode::load_from_file(&session, None, "loaded_cam", true, &tmp)
             .expect("load_from_file");
         std::fs::remove_file(&tmp).unwrap();
         cam.delete().unwrap();
@@ -161,7 +161,7 @@ fn node_get_message_nodes() {
         let msg_node = message_nodes
             .first()
             .expect("hapi_geo has at least one message node");
-        let msg_node = msg_node.to_node(session).unwrap();
+        let msg_node = msg_node.to_node(&session).unwrap();
         let msg: String = msg_node
             .get_cook_result_string(StatusVerbosity::Statusverbosity2)
             .unwrap();

@@ -47,7 +47,7 @@ fn geometry_attribute_names() {
 #[test]
 fn geometry_numeric_attributes() {
     with_session(|session| {
-        let geo = create_triangle(session)?;
+        let geo = create_triangle(&session)?;
         let _attr_p = geo
             .get_attribute(0, AttributeOwner::Point, AttributeName::P)
             .unwrap()
@@ -64,7 +64,7 @@ fn geometry_numeric_attributes() {
 #[test]
 fn geometry_create_string_attrib() {
     with_session(|session| {
-        let geo = create_triangle(session)?;
+        let geo = create_triangle(&session)?;
         let part = geo.part_info(0).unwrap();
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
@@ -96,7 +96,7 @@ fn geometry_create_string_attrib() {
 #[test]
 fn geometry_set_unique_str_attrib_value() {
     with_session(|session| {
-        let geo = create_triangle(session)?;
+        let geo = create_triangle(&session)?;
         let part = geo.part_info(0).unwrap();
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
@@ -121,7 +121,7 @@ fn geometry_set_unique_str_attrib_value() {
 #[test]
 fn geometry_set_unique_int_attrib_value() {
     with_session(|session| {
-        let geo = create_triangle(session)?;
+        let geo = create_triangle(&session)?;
         let part = geo.part_info(0).unwrap();
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
@@ -146,7 +146,7 @@ fn geometry_set_unique_int_attrib_value() {
 #[test]
 fn geometry_create_string_array_attrib() {
     with_session(|session| {
-        let geo = create_triangle(session)?;
+        let geo = create_triangle(&session)?;
         let part = geo.part_info(0).unwrap();
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
@@ -271,7 +271,7 @@ fn geometry_test_get_dictionary_attributes() {
 #[test]
 fn geometry_set_dictionary_attribute_async() {
     with_session(|session| {
-        let geo = create_single_point_geo(session)?;
+        let geo = create_single_point_geo(&session)?;
         let part = geo.part_info(0)?;
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
@@ -406,7 +406,7 @@ fn geometry_test_set_dictionary_attributes() {
     use tinyjson::JsonValue;
 
     with_session(|session| {
-        let geo = create_single_point_geo(session).expect("Sphere geometry");
+        let geo = create_single_point_geo(&session).expect("Sphere geometry");
         let info = AttributeInfo::default()
             .with_count(1)
             .with_tuple_size(1)
@@ -443,7 +443,7 @@ fn geometry_test_get_set_dictionary_array_attribute() {
     use tinyjson::JsonValue;
 
     with_session(|session| {
-        let geo = create_single_point_geo(session).expect("Sphere geometry");
+        let geo = create_single_point_geo(&session).expect("Sphere geometry");
         let info = AttributeInfo::default()
             .with_count(1)
             .with_tuple_size(1)

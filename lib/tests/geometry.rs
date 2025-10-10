@@ -6,7 +6,7 @@ use _utils::{create_triangle, with_session};
 #[test]
 fn geometry_save_and_load_to_file() {
     with_session(|session| {
-        let geo = create_triangle(session)?;
+        let geo = create_triangle(&session)?;
         let tmp_file = std::env::temp_dir().join("triangle.geo");
         geo.save_to_file(&tmp_file.to_string_lossy())
             .expect("save_to_file");
@@ -25,13 +25,13 @@ fn geometry_save_and_load_to_file() {
 #[test]
 fn geometry_save_and_load_to_memory() {
     with_session(|session| {
-        let src_geo = create_triangle(session)?;
+        let src_geo = create_triangle(&session)?;
         let blob = src_geo
             .save_to_memory(GeoFormat::Geo)
             .expect("save_geo_to_memory");
         src_geo.node.delete().unwrap();
 
-        let dest_geo = create_triangle(session)?;
+        let dest_geo = create_triangle(&session)?;
         dest_geo
             .load_from_memory(&blob, GeoFormat::Geo)
             .expect("load_from_memory");
@@ -43,7 +43,7 @@ fn geometry_save_and_load_to_memory() {
 #[test]
 fn geometry_commit_and_revert() {
     with_session(|session| {
-        let geo = create_triangle(session)?;
+        let geo = create_triangle(&session)?;
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
         assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
@@ -107,7 +107,7 @@ fn geometry_elements() {
 #[test]
 fn geometry_delete_attribute() {
     with_session(|session| {
-        let geo = create_triangle(session)?;
+        let geo = create_triangle(&session)?;
         let id_attr = geo
             .get_attribute(0, AttributeOwner::Point, c"id")
             .unwrap()
@@ -127,7 +127,7 @@ fn geometry_delete_attribute() {
 #[test]
 fn geometry_partitions() {
     with_session(|session| {
-        let geo = create_triangle(session)?;
+        let geo = create_triangle(&session)?;
         assert_eq!(geo.partitions().unwrap().len(), 1);
         assert!(geo.part_info(100).is_err());
         Ok(())
@@ -138,7 +138,7 @@ fn geometry_partitions() {
 #[test]
 fn geometry_add_and_delete_group() {
     with_session(|session| {
-        let mut geo = create_triangle(session)?;
+        let mut geo = create_triangle(&session)?;
         geo.add_group(0, GroupType::Point, "test", Some(&[1, 1, 1]))
             .unwrap();
         geo.commit().unwrap();
