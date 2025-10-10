@@ -7,7 +7,7 @@
 //! use hapi_rs::session::new_in_process;
 //! use hapi_rs::parameter::*;
 //! let session = new_in_process(None).unwrap();
-//! let lib = session.load_asset_file("otls/hapi_parms.hda").unwrap();
+//! let lib = session.load_asset_file("../otls/hapi_parms.hda").unwrap();
 //! let node = lib.try_create_first().unwrap();
 //! if let Parameter::String(p) = node.parameter("single_string").unwrap() {
 //!     assert_eq!(p.get(0).unwrap(), "hello");

@@ -1,7 +1,7 @@
 use hapi_rs::{attribute::*, geometry::*};
 mod utils;
 
-use utils::{Asset, create_triangle, hda_file, with_session, with_test_geometry};
+use utils::{HdaFile, create_triangle, with_session, with_test_geometry};
 
 #[test]
 fn geometry_save_and_load_to_file() {
@@ -157,7 +157,7 @@ fn geometry_add_and_delete_group() {
 #[test]
 fn geometry_basic_instancing() {
     with_session(|session| {
-        session.load_asset_file(hda_file(Asset::Geometry))?;
+        session.load_asset_file(HdaFile::Geometry.path())?;
         let asset_node = session.create_node("Object/hapi_geo")?;
         asset_node.cook_blocking()?;
         let instancer = asset_node
@@ -192,7 +192,7 @@ fn geometry_basic_instancing() {
 #[test]
 fn geometry_get_face_materials() {
     with_session(|session| {
-        session.load_asset_file(hda_file(Asset::Spaceship))?;
+        session.load_asset_file(HdaFile::Spaceship.path())?;
         let node = session.create_node("Object/spaceship").unwrap();
         node.cook_blocking().unwrap();
         let geo = node.geometry().expect("geometry").unwrap();
@@ -262,7 +262,7 @@ fn geometry_multiple_input_curves() {
 #[test]
 fn geometry_read_write_volume() {
     with_session(|session| {
-        session.load_asset_file(hda_file(Asset::Volume))?;
+        session.load_asset_file(HdaFile::Volume.path())?;
         let node = session.create_node("Object/hapi_vol").unwrap();
         node.cook_blocking().unwrap();
         let source = node.geometry().unwrap().unwrap();

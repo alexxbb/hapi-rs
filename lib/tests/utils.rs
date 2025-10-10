@@ -16,19 +16,21 @@ thread_local! {
     });
 }
 
-pub enum Asset {
+pub enum HdaFile {
     Geometry,
     Volume,
     Parameters,
     Spaceship,
 }
 
-pub fn hda_file(asset: Asset) -> &'static str {
-    match asset {
-        Asset::Geometry => "../otls/hapi_geo.hda",
-        Asset::Volume => "../otls/hapi_vol.hda",
-        Asset::Parameters => "../otls/hapi_parms.hda",
-        Asset::Spaceship => "../otls/sesi/SideFX_spaceship.hda",
+impl HdaFile {
+    pub fn path(&self) -> &'static str {
+        match self {
+            HdaFile::Geometry => "../otls/hapi_geo.hda",
+            HdaFile::Volume => "../otls/hapi_vol.hda",
+            HdaFile::Parameters => "../otls/hapi_parms.hda",
+            HdaFile::Spaceship => "../otls/sesi/SideFX_spaceship.hda",
+        }
     }
 }
 
@@ -39,12 +41,11 @@ where
     SESSION.with(|session| f((*session).clone()))
 }
 
-pub fn with_session_asset<F>(asset: Asset, f: F) -> Result<()>
+pub fn with_session_asset<F>(hda_file: HdaFile, f: F) -> Result<()>
 where
     F: FnOnce(AssetLibrary) -> Result<()>,
 {
-    let asset_file = hda_file(asset);
-    let data = std::fs::read(asset_file)?;
+    let data = std::fs::read(hda_file.path())?;
     with_session(|session| f(AssetLibrary::from_memory(session, &data)?))
 }
 
@@ -110,7 +111,7 @@ where
     F: FnOnce(Geometry) -> Result<()>,
 {
     SESSION.with(|session| {
-        session.load_asset_file(hda_file(Asset::Geometry))?;
+        session.load_asset_file(HdaFile::Geometry.path())?;
         let node = session.create_node("Object/hapi_geo")?;
         let cook_result = node.cook_blocking()?;
         assert_eq!(cook_result, CookResult::Succeeded);

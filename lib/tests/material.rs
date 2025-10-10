@@ -2,7 +2,7 @@ use hapi_rs::geometry::Materials;
 
 mod utils;
 
-use utils::{Asset, with_session, with_session_asset};
+use utils::{HdaFile, with_session, with_session_asset};
 
 #[test]
 fn image_file_formats() {
@@ -18,30 +18,30 @@ fn image_file_formats() {
 #[test]
 fn image_extract_api() {
     with_session(|session| {
-        let node = session.create_node("Object/spaceship").unwrap();
-        node.cook_blocking().unwrap();
-        let geo = node.geometry().expect("geometry").unwrap();
-        let part = geo.part_info(0).unwrap();
-        let mats = geo.get_materials(&part).unwrap().expect("materials");
+        session.load_asset_file(HdaFile::Spaceship.path())?;
+        let node = session.create_node("Object/spaceship")?;
+        node.cook_blocking()?;
+        let geo = node.geometry()?.expect("geometry");
+        let part = geo.part_info(0)?;
+        let mats = geo.get_materials(&part)?.expect("materials");
         if let Materials::Single(mat) = mats {
-            let mut info = mat.get_image_info().unwrap();
+            let mut info = mat.get_image_info()?;
             info.set_x_res(512);
             info.set_y_res(512);
-            mat.render_texture("baseColorMap").unwrap();
-            mat.set_image_info(&info).unwrap();
-            let ip = mat.get_image_planes().unwrap();
+            mat.render_texture("baseColorMap")?;
+            mat.set_image_info(&info)?;
+            let ip = mat.get_image_planes()?;
             assert!(ip.iter().any(|ip| *ip == "C"));
             let file = std::env::temp_dir().join("hapi.jpeg");
-            mat.extract_image_to_file("C", file).expect("extract_image");
-            mat.render_texture("baseColorMap").unwrap();
+            mat.extract_image_to_file("C", file)?;
+            mat.render_texture("baseColorMap")?;
             let mut bytes = vec![];
-            mat.extract_image_to_memory(&mut bytes, "C", "JPEG")
-                .expect("extract_image");
+            mat.extract_image_to_memory(&mut bytes, "C", "JPEG")?;
             assert!(!bytes.is_empty());
         } else {
             panic!("Failed to extract material data")
         }
         Ok(())
     })
-    .unwrap()
+    .expect("Failed to extract material data")
 }

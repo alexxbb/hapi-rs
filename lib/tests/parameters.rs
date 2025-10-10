@@ -4,13 +4,15 @@ use hapi_rs::{
 };
 
 mod utils;
-use utils::with_session;
+use utils::{HdaFile, with_session};
 
 #[test]
 fn parameters_get_set() {
     with_session(|session| {
+        session.load_asset_file(HdaFile::Parameters.path())?;
         let node = session
-            .create_node("Object/hapi_parms")
+            .load_asset_file(HdaFile::Parameters.path())?
+            .try_create_first()
             .expect("create_node");
         for p in node.parameters().unwrap() {
             assert!(p.name().is_ok());
@@ -117,7 +119,8 @@ fn parameters_set_anim_expression() {
 fn parameters_reset_to_default() {
     with_session(|session| {
         let node = session
-            .create_node("Object/hapi_parms")
+            .load_asset_file(HdaFile::Parameters.path())?
+            .try_create_first()
             .expect("create_node");
         let parm = node.parameter("single_float").unwrap();
         if let Parameter::Float(p) = parm {
@@ -135,11 +138,12 @@ fn parameters_reset_to_default() {
 fn parameter_tags() {
     with_session(|session| {
         let node = session
-            .create_node("Object/hapi_parms")
+            .load_asset_file(HdaFile::Parameters.path())?
+            .try_create_first()
             .expect("create_node");
         if let Ok(Parameter::Button(parm)) = node.parameter("button") {
             assert!(parm.has_tag("script_callback").unwrap());
-            let tag_name = parm.get_tag_name(0).unwrap();
+            let tag_name = parm.get_tag_name(1).unwrap();
             assert_eq!(tag_name, "script_callback_language");
             let tag_value = parm.get_tag_value("script_callback_language").unwrap();
             assert_eq!(tag_value, "python");
@@ -153,7 +157,8 @@ fn parameter_tags() {
 fn parameters_save_parm_file() {
     with_session(|session| {
         let node = session
-            .create_node("Object/hapi_parms")
+            .load_asset_file(HdaFile::Parameters.path())?
+            .try_create_first()
             .expect("create_node");
 
         if let Parameter::String(geo_parm) = node.parameter("geo_file").unwrap() {
@@ -174,7 +179,8 @@ fn parameters_save_parm_file() {
 fn get_set_value_as_node() {
     with_session(|session| {
         let node = session
-            .create_node("Object/hapi_parms")
+            .load_asset_file(HdaFile::Parameters.path())?
+            .try_create_first()
             .expect("create_node");
         let Ok(Parameter::String(parm)) = node.parameter("op_path") else {
             panic!("op_node string parameter not found");
@@ -247,7 +253,7 @@ fn parameters_concurrent_access() {
         //     &SessionOptionsBuilder::default().threaded(true).build(),
         // ))?;
         let node = session
-            .load_asset_file("otls/hapi_parms.hda")?
+            .load_asset_file(HdaFile::Parameters.path())?
             .try_create_first()?;
         node.cook_blocking()?;
         let parameters = node.parameters()?;
