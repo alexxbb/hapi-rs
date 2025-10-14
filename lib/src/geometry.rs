@@ -80,11 +80,9 @@ impl TryFrom<String> for AttributeName {
     }
 }
 
-impl TryFrom<&CStr> for AttributeName {
-    type Error = std::convert::Infallible;
-
-    fn try_from(value: &CStr) -> std::result::Result<Self, Self::Error> {
-        Ok(AttributeName::User(value.to_owned()))
+impl From<&CStr> for AttributeName {
+    fn from(value: &CStr) -> Self {
+        AttributeName::User(value.to_owned())
     }
 }
 

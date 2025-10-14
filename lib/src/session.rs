@@ -342,7 +342,7 @@ impl Session {
     }
 
     /// A builder pattern for creating a node with more options.
-    pub fn node_builder(&self, node_name: impl Into<String>) -> NodeBuilder {
+    pub fn node_builder(&self, node_name: impl Into<String>) -> NodeBuilder<'_> {
         NodeBuilder {
             session: self,
             name: node_name.into(),
@@ -627,7 +627,7 @@ impl Session {
 
     /// Lock the internal reentrant mutex. Should not be used in general, but may be useful
     /// in certain situations when a series of API calls must be done in sequence
-    pub fn lock(&self) -> parking_lot::ReentrantMutexGuard<()> {
+    pub fn lock(&self) -> parking_lot::ReentrantMutexGuard<'_, ()> {
         self.inner.lock.lock()
     }
 
@@ -835,10 +835,10 @@ impl Drop for Session {
         if Arc::strong_count(&self.inner) == 1 {
             debug!("Dropping session pid: {:?}", self.server_pid());
             if self.is_valid() {
-                if self.inner.options.cleanup {
-                    if let Err(e) = self.cleanup() {
-                        error!("Session cleanup failed in Drop: {}", e);
-                    }
+                if self.inner.options.cleanup
+                    && let Err(e) = self.cleanup()
+                {
+                    error!("Session cleanup failed in Drop: {}", e);
                 }
                 if let Err(e) = crate::ffi::shutdown_session(self) {
                     error!("Could not shutdown session in Drop: {}", e);

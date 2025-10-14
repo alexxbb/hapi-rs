@@ -186,12 +186,12 @@ where
     ) -> NumericArrayAttr<T> {
         NumericArrayAttr(AttributeBundle { info, name, node }, PhantomData)
     }
-    pub fn get(&self, part_id: i32) -> Result<DataArray<T>> {
+    pub fn get(&self, part_id: i32) -> Result<DataArray<'_, T>> {
         debug_assert!(self.0.info.storage().type_matches(T::storage()));
         T::get_array(&self.0.name, &self.0.node, &self.0.info, part_id)
     }
 
-    pub fn get_async(&self, part_id: i32) -> Result<(JobId, DataArray<T>)> {
+    pub fn get_async(&self, part_id: i32) -> Result<(JobId, DataArray<'_, T>)> {
         let info = &self.0.info;
         debug_assert!(info.storage().type_matches(T::storage()));
         let mut data = vec![T::default(); info.total_array_elements() as usize];
@@ -734,7 +734,7 @@ impl Attribute {
     pub fn downcast<T: AnyAttribWrapper>(&self) -> Option<&T> {
         self.0.as_any().downcast_ref::<T>()
     }
-    pub fn name(&self) -> Cow<str> {
+    pub fn name(&self) -> Cow<'_, str> {
         self.0.name().to_string_lossy()
     }
     pub fn storage(&self) -> StorageType {

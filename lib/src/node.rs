@@ -380,7 +380,7 @@ impl HoudiniNode {
     }
 
     /// Returns information objects about this node children.
-    pub fn get_objects_info(&self) -> Result<Vec<ObjectInfo>> {
+    pub fn get_objects_info(&self) -> Result<Vec<ObjectInfo<'_>>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         let parent = match self.info.node_type() {
             NodeType::Obj => self.info.parent_id(),

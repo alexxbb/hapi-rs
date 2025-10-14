@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use hapi_rs::{
     Result,
     asset::AssetLibrary,

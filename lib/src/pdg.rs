@@ -368,7 +368,7 @@ impl TopNode {
         name: &str,
         index: i32,
         context_id: Option<i32>,
-    ) -> Result<PDGWorkItem> {
+    ) -> Result<PDGWorkItem<'_>> {
         let name = std::ffi::CString::new(name)?;
         let context_id = match context_id {
             Some(c) => c,

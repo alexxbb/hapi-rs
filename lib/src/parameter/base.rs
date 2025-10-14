@@ -11,7 +11,7 @@ use super::Parameter;
 /// Common trait for parameters
 pub trait ParmBaseTrait {
     #[inline]
-    fn name(&self) -> Result<Cow<str>> {
+    fn name(&self) -> Result<Cow<'_, str>> {
         let inner = self.inner();
         match inner.info.2.as_ref() {
             None => inner.info.name().map(Cow::Owned),
@@ -176,7 +176,7 @@ pub trait ParmBaseTrait {
     #[doc(hidden)]
     // If the parameter was obtained by name (node.parameter(..))
     // we store the name in the info struct, otherwise, call API to get name
-    fn c_name(&self) -> Result<Cow<CStr>> {
+    fn c_name(&self) -> Result<Cow<'_, CStr>> {
         let inner = self.inner();
         match inner.info.2.as_deref() {
             None => inner.info.name_cstr().map(Cow::Owned),
