@@ -166,7 +166,8 @@ macro_rules! wrap {
     };
 }
 
-/// Configurations for sessions
+/// Configurations for sessions.
+/// Note: For async attribute access, make sure to set connection_count to at least 1.
 #[derive(Clone, Debug)]
 pub struct SessionInfo(pub(crate) HAPI_SessionInfo);
 

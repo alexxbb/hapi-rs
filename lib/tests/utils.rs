@@ -4,14 +4,17 @@ use hapi_rs::{
     attribute::*,
     enums::{AttributeOwner, PartType},
     geometry::{Geometry, PartInfo},
-    session::{CookResult, Session, SessionOptions, quick_session},
+    session::{CookResult, Session, SessionInfo, SessionOptions, quick_session},
 };
 use once_cell::sync::Lazy;
 
 thread_local! {
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init();
-        let opt = SessionOptions::builder().threaded(true).build();
+        let mut session_info = SessionInfo::default();
+        // For async attribute access connection_count must be > 0 according to SESI support, otherwise HARS crashes.
+        session_info.set_connection_count(2);
+        let opt = SessionOptions::builder().threaded(true).session_info(session_info).build();
         quick_session(Some(&opt)).expect("Could not create test session")
     });
 }

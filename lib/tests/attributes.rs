@@ -269,7 +269,6 @@ fn geometry_test_get_dictionary_attributes() {
 }
 
 #[test]
-#[ignore = "Still failing, not sure why, contacted SESI support"]
 fn geometry_set_dictionary_attribute_async() {
     with_session(|session| {
         let geo = create_single_point_geo(&session)?;
@@ -297,7 +296,6 @@ fn geometry_set_dictionary_attribute_async() {
 }
 
 #[test]
-#[ignore = "Still failing, not sure why, contacted SESI support"]
 fn geometry_test_get_numeric_attribute_async() {
     with_test_geometry(|geo| {
         let session = &geo.node.session;
@@ -325,7 +323,6 @@ fn geometry_test_get_numeric_attribute_async() {
 }
 
 #[test]
-#[ignore = "Still failing, not sure why, contacted SESI support"]
 fn geometry_test_get_string_attribute_async() {
     with_test_geometry(|geo| {
         let session = &geo.node.session;
@@ -347,7 +344,6 @@ fn geometry_test_get_string_attribute_async() {
 }
 
 #[test]
-#[ignore = "Still failing, not sure why, contacted SESI support"]
 fn geometry_test_get_string_array_attribute_async() {
     with_test_geometry(|geo| {
         let session = &geo.node.session;
@@ -371,7 +367,6 @@ fn geometry_test_get_string_array_attribute_async() {
 }
 
 #[test]
-#[ignore = "Still failing, not sure why, contacted SESI support"]
 fn geometry_test_get_dictionary_array_attribute_async() {
     use hapi_rs::attribute::DictionaryArrayAttr;
     use std::collections::HashMap;

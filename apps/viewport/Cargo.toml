@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-hapi-rs = { path="../.." }
+hapi-rs = { path="../../lib" }
 eframe = "0.26.2"
 egui_glow = "0.26.2"
 glow = { version = "0.13.1", features = ["debug_automatic_glGetError"] }
