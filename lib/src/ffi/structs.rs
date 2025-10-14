@@ -8,7 +8,7 @@ use crate::{
     stringhandle::StringHandle,
 };
 use debug_ignore::DebugIgnore;
-use paste::paste;
+use pastey::paste;
 use std::ffi::{CStr, CString};
 
 macro_rules! get {

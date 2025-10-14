@@ -125,7 +125,7 @@ impl eframe::App for ViewportApp {
                                     }
                                 });
                         }
-                        ParmKind::Float { ref mut current } => {
+                        ParmKind::Float { current } => {
                             if ui
                                 .add_enabled(parm_enabled, egui::Slider::new(current, 0.0..=10.0))
                                 .changed()
@@ -136,7 +136,7 @@ impl eframe::App for ViewportApp {
                                 }
                             }
                         }
-                        ParmKind::Toggle { ref mut current } => {
+                        ParmKind::Toggle { current } => {
                             let toggle = ui.add_enabled(
                                 parm_enabled,
                                 egui::Checkbox::new(current, parm_name.as_str()),

@@ -1,4 +1,5 @@
 #![allow(unused)]
+#![allow(unsafe_op_in_unsafe_fn)]
 
 use bytemuck::cast_slice;
 use hapi_rs::attribute::NumericAttr;
