@@ -24,7 +24,7 @@ fn main() -> Result<()> {
     println!("Loading scene {}", hip_file.path().display());
     sess.load_hip(hip_file.path(), true)?;
 
-    // Because the server is in threaded mode, we much poll the session for status.
+    // Because the server is in threaded mode, hip loading is asynchronous, and we must poll the session for status.
     loop {
         sleep(Duration::from_millis(100));
         let state = sess.get_cook_state_status()?;

@@ -11,9 +11,6 @@ and games. Apart from the main graphical interface written in C++ and Python, Ho
 called [Houdini Engine](https://www.sidefx.com/products/houdini-engine/) or HAPI for short. Its goal is to bring the
 power of Houdini to other DCCs (Digital Content Creation) software and game engines.
 
-This crate aims to provide idiomatic Rust interface to Houdini Engine and is built on top
-of [hapi-sys](https://crates.io/crates/hapi-sys).
-
 > :exclamation: A valid **commercial** Houdini Engine license is required to use this crate
 
 # HDA Viewer Demo

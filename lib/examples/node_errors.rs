@@ -9,7 +9,7 @@ use hapi_rs::session::{
     SessionInfo, SessionOptions, SessionOptionsBuilder, connect_to_memory_server, quick_session,
 };
 
-const OTL: &str = "otls/hapi_errors.hda";
+const OTL: &str = "../otls/hapi_errors.hda";
 
 fn gather_all_messages(asset: HoudiniNode, message_nodes: &[NodeHandle]) -> Result<String> {
     let mut message = String::new();

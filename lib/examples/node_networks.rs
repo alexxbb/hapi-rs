@@ -4,7 +4,7 @@ use hapi_rs::session::*;
 
 fn main() -> Result<()> {
     let session = quick_session(None)?;
-    let lib = session.load_asset_file("otls/sesi/FourShapes.hda")?;
+    let lib = session.load_asset_file("../otls/sesi/FourShapes.hda")?;
     let asset = lib.try_create_first()?;
     let children = asset.find_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
     println!("Editable Node Network Child Count: {}", children.len());

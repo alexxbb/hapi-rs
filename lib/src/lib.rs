@@ -27,7 +27,7 @@
 //! Add a cargo config file to your project: `.cargo/config`
 //!```text
 //! [target.'cfg(target_os = "linux")']
-//! rustflags = ["-C", "link-arg=-Wl,-rpath=/opt/hfs/20.5.445/dsolib"]
+//! rustflags = ["-C", "link-arg=-Wl,-rpath=/opt/hfs/21.0.440/dsolib"]
 //! [target.x86_64-apple-darwin]
 //! rustflags = ["-C",
 //!     "link-arg=-Wl,-rpath,/Applications/Houdini/Current/Frameworks/Houdini.framework/Versions/Current/Libraries",
@@ -73,7 +73,7 @@
 //! ```
 //! Some underlying C structs don't provide a direct way of creating them or they might not provide methods
 //! for modifying them, due to this crate's attempt for proper data encapsulation, minimizing noise and improving safety.
-//! Structs that you **do** need the ability to create, implement [Default] and some a `Builder Pattern` with convenient `with_` and `set_` methods:
+//! Structs that you **do** need the ability to create, implement [Default] and some implement a `Builder Pattern` with convenient `with_` and `set_` methods:
 //! ```ignore
 //! let part_info = PartInfo::default()
 //!    .with_part_type(PartType::Mesh)

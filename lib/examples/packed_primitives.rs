@@ -9,7 +9,7 @@ use hapi_rs::session::*;
 fn main() -> Result<()> {
     let session = quick_session(None)?;
 
-    let lib = session.load_asset_file("otls/sesi/PackedPrimitive.hda")?;
+    let lib = session.load_asset_file("../otls/sesi/PackedPrimitive.hda")?;
     let asset = lib.try_create_first()?;
     let mut co = CookOptions::default();
     for mode in [IM::Disabled, IM::Hierarchy, IM::Flat] {

@@ -6,7 +6,7 @@ use hapi_rs::session::quick_session;
 
 fn main() -> Result<()> {
     let session = quick_session(None)?;
-    let lib = session.load_asset_file("otls/sesi/SideFX_spaceship.hda")?;
+    let lib = session.load_asset_file("../otls/sesi/SideFX_spaceship.hda")?;
     let node = lib.try_create_first()?;
     node.cook()?;
     let geo = node.geometry()?.unwrap();

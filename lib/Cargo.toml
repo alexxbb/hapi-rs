@@ -4,9 +4,15 @@ description = "Rust bindings to Houdini Engine API"
 documentation = "https://docs.rs/hapi-rs"
 repository = "https://github.com/alexxbb/hapi-rs/"
 keywords = ["vfx", "graphics", "gamedev", "houdini"]
-categories = ["graphics", "game-development"]
+categories = [
+    "graphics",
+    "game-development",
+    "rendering",
+    "simulation",
+    "procedural-generation",
+]
 readme = "README.md"
-version = "0.12.0"
+version = "0.21.0"
 authors = ["Aleksei Rusev <hou.alexx@gmail.com>"]
 edition = "2024"
 license = "MIT"
@@ -14,7 +20,7 @@ include = ["/src", "build.rs", "LICENSE"]
 
 [dependencies]
 log = "0.4.28"
-paste = "1.0.15"
+pastey = "*"
 parking_lot = "0.12.5"
 duplicate = { version = "2.0.0", features = [], default-features = false }
 debug-ignore = "1.0.5"

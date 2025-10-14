@@ -9,7 +9,7 @@ fn main() -> Result<()> {
     env_logger::init();
     let opt = SessionOptions::builder().threaded(true).build();
     let session = quick_session(Some(&opt))?;
-    let lib = session.load_asset_file("otls/sesi/SideFX_spaceship.hda")?;
+    let lib = session.load_asset_file("../otls/sesi/SideFX_spaceship.hda")?;
     let node = lib.try_create_first()?;
     let asset_parms = lib.get_asset_parms("SideFX::Object/spaceship")?;
     let mut table = prettytable::Table::new();
