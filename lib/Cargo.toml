@@ -20,7 +20,7 @@ include = ["/src", "build.rs", "LICENSE"]
 
 [dependencies]
 log = "0.4.28"
-pastey = "*"
+pastey = "0.1.1"
 parking_lot = "0.12.5"
 duplicate = { version = "2.0.0", features = [], default-features = false }
 debug-ignore = "1.0.5"
