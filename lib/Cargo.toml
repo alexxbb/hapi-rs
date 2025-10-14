@@ -11,7 +11,7 @@ categories = [
     "simulation",
     "api-bindings",
 ]
-readme = "README.md"
+readme = "../README.md"
 version = "0.21.0"
 authors = ["Aleksei Rusev <hou.alexx@gmail.com>"]
 edition = "2024"
