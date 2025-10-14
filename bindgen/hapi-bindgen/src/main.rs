@@ -114,11 +114,12 @@ struct Rustifier {
 }
 
 impl Rustifier {
-    fn parse_enum_variant(&self, 
+    fn parse_enum_variant(
+        &self,
         _enum_name: Option<&str>,
         _variant_name: &str,
-        _variant_value: EnumVariantValue) -> Result<Option<String>, String> {
-        
+        _variant_value: EnumVariantValue,
+    ) -> Result<Option<String>, String> {
         if _enum_name.is_none() {
             return Ok(None);
         };
@@ -131,16 +132,21 @@ impl Rustifier {
             .entry(name.to_string())
             .and_modify(|variants| variants.push(_variant_name.to_string()))
             .or_default();
-        let (_, _mode) = ENUMS.get(name).ok_or_else(|| format!("Missing enum: {}", name))?;
+        let (_, _mode) = ENUMS
+            .get(name)
+            .ok_or_else(|| format!("Missing enum: {}", name))?;
         let mode = StripMode::new(*_mode);
         let mut striped = mode.strip_long_name(_variant_name);
+        // eprintln!("Paring {name}::{_variant_name} -> {striped}");
         // Two stripped variant names can collide with each other. We take a naive approach by
         // attempting to strip one more time with increased step
         if let Some(vars) = self.visited.borrow_mut().get_mut(name) {
             let _stripped = striped.to_string();
             if vars.contains(&_stripped) {
-                println!("enum {name}::{_variant_name} stripped down to \"{striped}\" is not unique. \
-                Incrementing step by 1");
+                println!(
+                    "enum {name}::{_variant_name} stripped down to \"{striped}\" is not unique. \
+                Incrementing step by 1"
+                );
                 let mode = StripMode::new(*_mode - 1);
                 striped = mode.strip_long_name(_variant_name);
                 println!("-> new name is {striped}");
@@ -149,8 +155,7 @@ impl Rustifier {
             }
         }
         Ok(Some(heck::AsUpperCamelCase(striped).to_string()))
-
-        }
+    }
 }
 
 impl ParseCallbacks for Rustifier {
@@ -165,7 +170,7 @@ impl ParseCallbacks for Rustifier {
                 eprintln!("Error parsing enum variant: {e}");
                 std::process::exit(1);
             }
-            Ok(v) => v
+            Ok(v) => v,
         }
     }
 
@@ -233,10 +238,6 @@ fn main() -> anyhow::Result<()> {
         .raw_line(format!(
             "// Houdini version {}",
             hfs.file_name().unwrap().to_string_lossy()
-        ))
-        .raw_line(format!(
-            "// hapi-sys version {}",
-            var("CARGO_PKG_VERSION").unwrap()
         ));
     let builder = if args.rustify {
         let callbacks = Box::new(Rustifier {

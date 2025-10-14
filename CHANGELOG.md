@@ -1,5 +1,14 @@
 # hapi-rs changelog
 
+## [0.21.0]
+- Regenerate bindings with Houdini 21.0.440
+- Fix async attribute access error by increasing connection count # in `SessionInfo`
+- Add `hip_loading.rs` example demonstrating how to save and load Hip files
+- Upgrade apps to Rust Edition 2024
+- Update dependencies
+- Test modules cleanup
+
+
 ## [0.12.0]
 
 - Upgrade to Rust Edition 2024

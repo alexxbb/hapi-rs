@@ -1,4 +1,5 @@
 #![allow(unused)]
+#![allow(unsafe_op_in_unsafe_fn)]
 
 use bytemuck::cast_slice;
 use hapi_rs::attribute::NumericAttr;
@@ -18,6 +19,7 @@ use std::time::{Duration, Instant};
 use crate::camera::Camera;
 use crate::parameters::{build_parm_map, UiParameter};
 
+use hapi_rs::asset::AssetLibrary;
 use ultraviolet::{Mat4, Vec2, Vec3};
 
 #[derive(Copy, Clone, Debug)]
@@ -396,7 +398,6 @@ impl MeshData {
 
                 let pos_a = unsafe {
                     Vec3::new(
-                        
                         *positions.get_unchecked(point_0_index * 3 + 0),
                         *positions.get_unchecked(point_0_index * 3 + 1),
                         *positions.get_unchecked(point_0_index * 3 + 2),
@@ -571,9 +572,8 @@ unsafe fn compile_gl_program(gl: &glow::Context) -> glow::Program {
 }
 
 impl Asset {
-    pub fn load_hda(gl: &glow::Context, session: &Session, hda: &str) -> Result<Self> {
-        let lib = session.load_asset_file(hda)?;
-        let asset = lib.try_create_first()?;
+    pub fn load_hda(gl: &glow::Context, asset_library: &AssetLibrary, hda: &str) -> Result<Self> {
+        let asset = asset_library.try_create_first()?;
         let geo = asset.geometry()?.expect("Geometry");
         let _start = Instant::now();
         let cook_result = geo.node.cook_blocking()?;

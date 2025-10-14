@@ -1,13 +1,13 @@
 {
     "cSpell.enabled": false,
-    "python.languageServer": "Pylance",
+    "python.languageServer": "None",
     "python.analysis.extraPaths": [
         "C:/Houdini/20.5.445/houdini/python3.11libs"
-    ],
-    "rust-analyzer.linkedProjects": [
-        ".\\apps\\viewport\\Cargo.toml"
     ],
     "rust-analyzer.showUnlinkedFileNotification": false,
     "cmake.ignoreCMakeListsMissing": true,
     "rust-analyzer.checkOnSave": true,
+    "cursorpyright.analysis.extraPaths": [
+        "C:/Houdini/20.5.445/houdini/python3.11libs"
+    ],
 }

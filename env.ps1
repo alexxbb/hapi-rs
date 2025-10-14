@@ -1,4 +1,3 @@
-#$env:HFS = "C:\Houdini\19.5.805";
-#$env:HFS = "C:\Houdini\20.0.636";
-$env:HFS = "C:\Houdini\20.5.445";
+#$env:HFS = "C:\Houdini\20.5.602";
+$env:HFS = "C:\Houdini\21.0.440";
 $env:PATH += ";${env:HFS}\bin"
