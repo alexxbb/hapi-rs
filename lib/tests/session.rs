@@ -17,7 +17,7 @@ fn session_init_and_teardown() {
     let ses = quick_session(Some(&opt)).unwrap();
     assert!(matches!(
         ses.connection_type(),
-        ConnectionType::SharedMemory(_)
+        ConnectionType::ThriftPipe(_)
     ));
     assert!(ses.is_initialized());
     assert!(ses.is_valid());
@@ -28,6 +28,7 @@ fn session_init_and_teardown() {
 #[test]
 fn session_get_set_time() {
     // For some reason, this test randomly fails when using shared session
+    let optsions = SessionOptions::builder().build();
     let session = quick_session(None).expect("Could not start session");
     // let _lock = session.lock();
     let opt = TimelineOptions::default().with_end_time(5.5);

@@ -14,7 +14,7 @@ thread_local! {
         let _ = env_logger::try_init();
         let mut session_info = SessionInfo::default();
         // For async attribute access connection_count must be > 0 according to SESI support, otherwise HARS crashes.
-        session_info.set_connection_count(2);
+        session_info.set_connection_count(5);
         let opt = SessionOptions::builder().threaded(true).session_info(session_info).build();
         quick_session(Some(&opt)).expect("Could not create test session")
     });
@@ -122,4 +122,24 @@ where
         let geo = node.geometry()?.expect("must have geometry");
         f(geo)
     })
+}
+
+pub(crate) trait SessionTestExt {
+    fn with_test_geometry<F>(&self, f: F) -> Result<()>
+    where
+        F: FnOnce(Geometry) -> Result<()>;
+}
+
+impl SessionTestExt for Session {
+    fn with_test_geometry<F>(&self, f: F) -> Result<()>
+    where
+        F: FnOnce(Geometry) -> Result<()>,
+    {
+        self.load_asset_file(HdaFile::Geometry.path())?;
+        let node = self.create_node("Object/hapi_geo")?;
+        let cook_result = node.cook_blocking()?;
+        assert_eq!(cook_result, CookResult::Succeeded);
+        let geo = node.geometry()?.expect("must have geometry");
+        f(geo)
+    }
 }

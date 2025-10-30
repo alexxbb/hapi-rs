@@ -86,7 +86,7 @@ fn geometry_elements() {
         let num_det = geo
             .get_attribute_count_by_owner(&part, AttributeOwner::Detail)
             .unwrap();
-        assert_eq!(num_det, 3);
+        assert_eq!(num_det, 4);
         let pr_groups = geo.get_group_names(GroupType::Prim).unwrap();
         let pt_groups = geo.get_group_names(GroupType::Point).unwrap();
         #[allow(clippy::needless_collect)]

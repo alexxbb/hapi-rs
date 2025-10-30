@@ -42,11 +42,11 @@ fn asset_parameter_tags() {
         let parm = parms.find_parameter("float3").expect("float3 parameter");
         assert_eq!(parm.tag_count(), 2);
         let (tag_name, tag_value) = parm.get_tag(0)?;
-        assert_eq!(tag_name, "script_callback_language");
-        assert_eq!(tag_value, "python");
-        let (tag_name, tag_value) = parm.get_tag(1)?;
         assert_eq!(tag_name, "my_tag");
         assert_eq!(tag_value, "foo");
+        let (tag_name, tag_value) = parm.get_tag(1)?;
+        assert_eq!(tag_name, "script_callback_language");
+        assert_eq!(tag_value, "python");
         Ok(())
     })
     .unwrap()

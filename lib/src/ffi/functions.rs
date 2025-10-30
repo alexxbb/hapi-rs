@@ -841,7 +841,7 @@ pub fn start_thrift_pipe_server(
             log_file.map(CStr::as_ptr).unwrap_or(null()),
         )
         .error_message("Calling HAPI_StartThriftNamedPipeServer: failed")?;
-        Ok(pid.assume_init())
+        Ok(pid.assume_init() as u32)
     }
 }
 
@@ -859,7 +859,7 @@ pub fn start_thrift_socket_server(
             log_file.map_or(null(), CStr::as_ptr),
         )
         .error_message("Calling HAPI_StartThriftSocketServer: failed")?;
-        Ok(pid.assume_init())
+        Ok(pid.assume_init() as u32)
     }
 }
 
@@ -877,7 +877,7 @@ pub fn start_thrift_shared_memory_server(
             log_file.map_or(null(), CStr::as_ptr),
         )
         .error_message("Calling HAPI_StartThriftSharedMemoryServer")?;
-        Ok(pid.assume_init())
+        Ok(pid.assume_init() as u32)
     }
 }
 
@@ -1439,7 +1439,7 @@ pub unsafe fn get_composed_cook_result(
     Ok(unsafe { String::from_utf8_unchecked(buf) })
 }
 
-pub fn get_time(session: &Session) -> Result<f64> {
+pub fn get_time(session: &Session) -> Result<f32> {
     unsafe {
         let mut time = uninit!();
         raw::HAPI_GetTime(session.ptr(), time.as_mut_ptr())
@@ -1448,7 +1448,7 @@ pub fn get_time(session: &Session) -> Result<f64> {
     }
 }
 
-pub fn set_time(session: &Session, time: f64) -> Result<()> {
+pub fn set_time(session: &Session, time: f32) -> Result<()> {
     unsafe { raw::HAPI_SetTime(session.ptr(), time).check_err(session, || "Calling HAPI_SetTime") }
 }
 

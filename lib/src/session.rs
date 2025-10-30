@@ -38,7 +38,7 @@ pub use crate::{
 // A result of HAPI_GetStatus with HAPI_STATUS_COOK_STATE
 pub type SessionState = State;
 
-use crate::ffi::ImageInfo;
+use crate::ffi::{ImageInfo, start_thrift_pipe_server};
 use crate::stringhandle::StringHandle;
 use crate::{ffi::raw, utils};
 
@@ -614,13 +614,13 @@ impl Session {
     }
 
     /// Get Houdini time
-    pub fn get_time(&self) -> Result<f64> {
+    pub fn get_time(&self) -> Result<f32> {
         debug_assert!(self.is_valid());
         crate::ffi::get_time(self)
     }
 
     /// Set Houdini time
-    pub fn set_time(&self, time: f64) -> Result<()> {
+    pub fn set_time(&self, time: f32) -> Result<()> {
         debug_assert!(self.is_valid());
         crate::ffi::set_time(self, time)
     }
@@ -1251,11 +1251,15 @@ pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
         .with_auto_close(true)
         .with_timeout_ms(4000f32)
         .with_verbosity(StatusVerbosity::Statusverbosity0);
-    let rand_memory_name = format!("shared-memory-{}", utils::random_string(16));
-    let log_file = match &options {
-        None => None,
-        Some(opt) => opt.log_file.as_deref(),
-    };
-    let pid = start_shared_memory_server(&rand_memory_name, &server_options, log_file)?;
-    connect_to_memory_server(&rand_memory_name, options, Some(pid))
+    let pipe_name = format!("hapi-rs-{}", utils::random_string(16));
+    let log_file = options.map(|opt| opt.log_file.as_deref()).flatten();
+    // SAFETY: pipe_name is guaranteed to be null terminated
+    let pipe_name_cstr = CString::new(pipe_name.clone()).expect("correct string");
+    let pid = start_thrift_pipe_server(pipe_name_cstr.as_c_str(), &server_options.0, log_file)?;
+    connect_to_pipe(
+        &pipe_name,
+        options,
+        Some(Duration::from_secs(10)),
+        Some(pid),
+    )
 }

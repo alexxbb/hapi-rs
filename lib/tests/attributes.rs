@@ -4,42 +4,47 @@ use hapi_rs::attribute::{
 };
 use hapi_rs::enums::{AttributeOwner, JobStatus, PartType};
 use hapi_rs::geometry::{AttributeName, PartInfo};
+use hapi_rs::session::{SessionInfo, SessionOptions, quick_session};
 use std::ffi::CString;
 
 mod utils;
 
-use utils::{create_single_point_geo, create_triangle, with_session, with_test_geometry};
+use utils::{SessionTestExt, create_single_point_geo, create_triangle, with_session};
 
 #[test]
 fn geometry_wrong_attribute() {
-    with_test_geometry(|geometry| {
-        let foo_bar = geometry
-            .get_attribute(0, AttributeOwner::Prim, c"foo_bar")
-            .expect("attribute");
-        assert!(foo_bar.is_none());
-        Ok(())
+    with_session(|session| {
+        session.with_test_geometry(|geometry| {
+            let foo_bar = geometry
+                .get_attribute(0, AttributeOwner::Prim, c"foo_bar")
+                .expect("attribute");
+            assert!(foo_bar.is_none());
+            Ok(())
+        })
     })
     .unwrap()
 }
 
 #[test]
 fn geometry_attribute_names() {
-    with_test_geometry(|geo| {
-        let part = geo.part_info(0).unwrap();
-        let iter = geo
-            .get_attribute_names(AttributeOwner::Point, &part)
-            .unwrap();
-        let names: Vec<_> = iter.iter_str().collect();
-        assert!(names.contains(&"Cd"));
-        assert!(names.contains(&"my_float_array"));
-        assert!(names.contains(&"pscale"));
-        let iter = geo
-            .get_attribute_names(AttributeOwner::Prim, &part)
-            .unwrap();
-        let names: Vec<_> = iter.iter_str().collect();
-        assert!(names.contains(&"primname"));
-        assert!(names.contains(&"shop_materialpath"));
-        Ok(())
+    with_session(|session| {
+        session.with_test_geometry(|geo| {
+            let part = geo.part_info(0).unwrap();
+            let iter = geo
+                .get_attribute_names(AttributeOwner::Point, &part)
+                .unwrap();
+            let names: Vec<_> = iter.iter_str().collect();
+            assert!(names.contains(&"Cd"));
+            assert!(names.contains(&"my_float_array"));
+            assert!(names.contains(&"pscale"));
+            let iter = geo
+                .get_attribute_names(AttributeOwner::Prim, &part)
+                .unwrap();
+            let names: Vec<_> = iter.iter_str().collect();
+            assert!(names.contains(&"primname"));
+            assert!(names.contains(&"shop_materialpath"));
+            Ok(())
+        })
     })
     .unwrap()
 }
@@ -183,59 +188,63 @@ fn geometry_create_string_array_attrib() {
 
 #[test]
 fn geometry_attribute_storage_type() -> hapi_rs::Result<()> {
-    with_test_geometry(|geo| {
-        let attrib_list = [
-            ("Cd", AttributeOwner::Point, StorageType::Float),
-            ("pscale", AttributeOwner::Point, StorageType::Float),
-            ("P", AttributeOwner::Point, StorageType::Float),
-            ("my_int_array", AttributeOwner::Point, StorageType::IntArray),
-            (
-                "my_float_array",
-                AttributeOwner::Point,
-                StorageType::FloatArray,
-            ),
-            (
-                "my_str_array",
-                AttributeOwner::Point,
-                StorageType::StringArray,
-            ),
-        ];
-        for (name, owner, expected_storage) in attrib_list {
-            let info = geo.get_attribute_info(0, owner, name)?;
-            let storage = info.storage();
-            assert_eq!(
-                expected_storage, storage,
-                "Attribute {} unexpected storage {:?} != {:?}",
-                name, storage, expected_storage
-            );
-        }
-        Ok(())
+    with_session(|session| {
+        session.with_test_geometry(|geo| {
+            let attrib_list = [
+                ("Cd", AttributeOwner::Point, StorageType::Float),
+                ("pscale", AttributeOwner::Point, StorageType::Float),
+                ("P", AttributeOwner::Point, StorageType::Float),
+                ("my_int_array", AttributeOwner::Point, StorageType::IntArray),
+                (
+                    "my_float_array",
+                    AttributeOwner::Point,
+                    StorageType::FloatArray,
+                ),
+                (
+                    "my_str_array",
+                    AttributeOwner::Point,
+                    StorageType::StringArray,
+                ),
+            ];
+            for (name, owner, expected_storage) in attrib_list {
+                let info = geo.get_attribute_info(0, owner, name)?;
+                let storage = info.storage();
+                assert_eq!(
+                    expected_storage, storage,
+                    "Attribute {} unexpected storage {:?} != {:?}",
+                    name, storage, expected_storage
+                );
+            }
+            Ok(())
+        })
     })
 }
 
 #[test]
 fn geometry_string_array_attribute() {
-    with_test_geometry(|geo| {
-        let attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"my_str_array")
-            .expect("my_str_array Point attribute")
-            .unwrap();
-        let attr = attr.downcast::<StringArrayAttr>().unwrap();
-        let m_array = attr.get(0).unwrap();
-        assert_eq!(m_array.iter().count(), attr.info().count() as usize);
+    with_session(|session| {
+        session.with_test_geometry(|geo| {
+            let attr = geo
+                .get_attribute(0, AttributeOwner::Point, c"my_str_array")
+                .expect("my_str_array Point attribute")
+                .unwrap();
+            let attr = attr.downcast::<StringArrayAttr>().unwrap();
+            let m_array = attr.get(0).unwrap();
+            assert_eq!(m_array.iter().count(), attr.info().count() as usize);
 
-        let it = m_array.iter().next().unwrap().unwrap();
-        let pt_0: Vec<&str> = it.iter_str().collect();
-        assert_eq!(pt_0, ["pt_0_0", "pt_0_1", "pt_0_2", "start"]);
+            let it = m_array.iter().next().unwrap().unwrap();
+            let pt_0: Vec<&str> = it.iter_str().collect();
+            assert_eq!(pt_0, ["pt_0_0", "pt_0_1", "pt_0_2", "start"]);
 
-        let it = m_array.iter().nth(1).unwrap().unwrap();
-        let pt_1: Vec<&str> = it.iter_str().collect();
-        assert_eq!(pt_1, ["pt_1_0", "pt_1_1", "pt_1_2"]);
+            let it = m_array.iter().nth(1).unwrap().unwrap();
+            let pt_1: Vec<&str> = it.iter_str().collect();
+            assert_eq!(pt_1, ["pt_1_0", "pt_1_1", "pt_1_2"]);
 
-        let it = m_array.iter().last().unwrap().unwrap();
-        let pt_n: Vec<&str> = it.iter_str().collect();
-        assert_eq!(pt_n, ["pt_7_0", "pt_7_1", "pt_7_2", "end"]);
-        Ok(())
+            let it = m_array.iter().last().unwrap().unwrap();
+            let pt_n: Vec<&str> = it.iter_str().collect();
+            assert_eq!(pt_n, ["pt_7_0", "pt_7_1", "pt_7_2", "end"]);
+            Ok(())
+        })
     })
     .unwrap()
 }
@@ -246,122 +255,132 @@ fn geometry_test_get_dictionary_attributes() {
     use std::collections::HashMap;
     use tinyjson::JsonValue;
 
-    with_test_geometry(|geo| {
-        let dict_attr = geo
-            .get_attribute(0, AttributeOwner::Detail, c"my_dict_attr")
-            .unwrap()
-            .expect("my_dict_attr found");
+    with_session(|session| {
+        session.with_test_geometry(|geo| {
+            let dict_attr = geo
+                .get_attribute(0, AttributeOwner::Detail, c"my_dict_attr")
+                .unwrap()
+                .expect("my_dict_attr found");
 
-        let dict_attr = dict_attr
-            .downcast::<DictionaryAttr>()
-            .expect("Attribute downcasted to DictionaryAttr");
-        let values: Vec<_> = dict_attr.get(0).unwrap().into_iter().collect();
-        let json_str = &values[0];
-        let parsed: JsonValue = json_str.parse().expect("Could not parse attrib value json");
-        let map: &HashMap<_, _> = parsed.get().expect("HashMap");
-        assert_eq!(map["str_key"], JsonValue::String(String::from("text")));
-        assert_eq!(map["int_key"], JsonValue::Number(1.0));
-        assert!(matches!(map["list"], JsonValue::Array(_)));
-        assert!(matches!(map["dict"], JsonValue::Object(_)));
-        Ok(())
+            let dict_attr = dict_attr
+                .downcast::<DictionaryAttr>()
+                .expect("Attribute downcasted to DictionaryAttr");
+            let values: Vec<_> = dict_attr.get(0).unwrap().into_iter().collect();
+            let json_str = &values[0];
+            let parsed: JsonValue = json_str.parse().expect("Could not parse attrib value json");
+            let map: &HashMap<_, _> = parsed.get().expect("HashMap");
+            assert_eq!(map["str_key"], JsonValue::String(String::from("text")));
+            assert_eq!(map["int_key"], JsonValue::Number(1.0));
+            assert!(matches!(map["list"], JsonValue::Array(_)));
+            assert!(matches!(map["dict"], JsonValue::Object(_)));
+            Ok(())
+        })
     })
     .unwrap()
 }
 
 #[test]
-fn geometry_set_dictionary_attribute_async() {
-    with_session(|session| {
-        let geo = create_single_point_geo(&session)?;
-        let part = geo.part_info(0)?;
-        let info = AttributeInfo::default()
-            .with_owner(AttributeOwner::Point)
-            .with_storage(StorageType::Dictionary)
-            .with_tuple_size(1)
-            .with_count(part.point_count());
-        let attr = geo.add_dictionary_attribute("dict_attr", part.part_id(), info)?;
-        let data = cr#"
-        {
-            "number": 1,
-            "list": [1, 2, 3],
-        }"#;
-        let dict_array = std::iter::repeat(data)
-            .take(part.point_count() as usize)
-            .collect::<Vec<_>>();
-        let job = attr.set_async(part.part_id(), &dict_array)?;
-        while let JobStatus::Running = session.get_job_status(job)? {}
-        geo.commit()?;
-        Ok(())
-    })
-    .unwrap()
+#[ignore = "This test is flaky and sometimes segfaults. This seems to be fixed in Houdini 21"]
+fn geometry_set_dictionary_attribute_async() -> hapi_rs::Result<()> {
+    let _ = env_logger::try_init();
+    let mut session_info = SessionInfo::default();
+    session_info.set_connection_count(2);
+    let session_options = SessionOptions::builder().session_info(session_info).build();
+    let session = quick_session(Some(&session_options)).unwrap();
+    let geo = create_single_point_geo(&session)?;
+    let part = geo.part_info(0)?;
+    let info = AttributeInfo::default()
+        .with_owner(AttributeOwner::Point)
+        .with_storage(StorageType::Dictionary)
+        .with_tuple_size(1)
+        .with_count(part.point_count());
+    let attr = geo.add_dictionary_attribute("dict_attr", part.part_id(), info)?;
+    let data = cr#"
+    {
+        "number": 1,
+        "list": [1, 2, 3],
+    }"#;
+    let dict_array = std::iter::repeat(data)
+        .take(part.point_count() as usize)
+        .collect::<Vec<_>>();
+    let job = attr.set_async(part.part_id(), &dict_array)?;
+    while let JobStatus::Running = session.get_job_status(job)? {}
+    geo.commit()
 }
 
 #[test]
 fn geometry_test_get_numeric_attribute_async() {
-    with_test_geometry(|geo| {
-        let session = &geo.node.session;
-        let float_attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"pscale")?
-            .expect("pscale attribute");
-        let attr = float_attr
-            .downcast::<NumericAttr<f32>>()
-            .expect("Numeric attribute");
+    with_session(|session| {
+        session.with_test_geometry(|geo| {
+            let session = &geo.node.session;
+            let float_attr = geo
+                .get_attribute(0, AttributeOwner::Point, c"pscale")?
+                .expect("pscale attribute");
+            let attr = float_attr
+                .downcast::<NumericAttr<f32>>()
+                .expect("Numeric attribute");
 
-        let part = geo.part_info(0)?;
+            let part = geo.part_info(0)?;
 
-        let mut buf = Vec::new();
-        let job = attr.read_async_into(part.part_id(), &mut buf)?;
-        while JobStatus::Running == session.get_job_status(job)? {}
-        assert!(buf.iter().sum::<f32>() > 0.0);
+            let mut buf = Vec::new();
+            let job = attr.read_async_into(part.part_id(), &mut buf)?;
+            while JobStatus::Running == session.get_job_status(job)? {}
+            assert!(buf.iter().sum::<f32>() > 0.0);
 
-        let result = attr.get_async(0)?;
-        assert!(!result.is_ready()?);
-        let data = result.wait()?;
-        assert!(data.iter().sum::<f32>() > 0.0);
-        Ok(())
+            let result = attr.get_async(0)?;
+            assert!(!result.is_ready()?);
+            let data = result.wait()?;
+            assert!(data.iter().sum::<f32>() > 0.0);
+            Ok(())
+        })
     })
     .unwrap()
 }
 
 #[test]
 fn geometry_test_get_string_attribute_async() {
-    with_test_geometry(|geo| {
-        let session = &geo.node.session;
-        let str_attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"ptname")
-            .unwrap()
-            .unwrap();
-        let Some(attr) = str_attr.downcast::<StringAttr>() else {
-            panic!("Not a string attribute");
-        };
+    with_session(|session| {
+        session.with_test_geometry(|geo| {
+            let session = &geo.node.session;
+            let str_attr = geo
+                .get_attribute(0, AttributeOwner::Point, c"ptname")
+                .unwrap()
+                .unwrap();
+            let Some(attr) = str_attr.downcast::<StringAttr>() else {
+                panic!("Not a string attribute");
+            };
 
-        let result = attr.get_async(0).unwrap();
-        let handles = result.wait().unwrap();
-        let data = session.get_string_batch(&handles).unwrap();
-        assert_eq!(data.iter_str().count(), attr.info().count() as usize);
-        Ok(())
+            let result = attr.get_async(0).unwrap();
+            let handles = result.wait().unwrap();
+            let data = session.get_string_batch(&handles).unwrap();
+            assert_eq!(data.iter_str().count(), attr.info().count() as usize);
+            Ok(())
+        })
     })
     .unwrap()
 }
 
 #[test]
 fn geometry_test_get_string_array_attribute_async() {
-    with_test_geometry(|geo| {
-        let session = &geo.node.session;
-        let str_attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"my_str_array")
-            .unwrap()
-            .unwrap();
-        let Some(attr) = str_attr.downcast::<StringArrayAttr>() else {
-            panic!("Not a StringArrayAttr attribute");
-        };
+    with_session(|session| {
+        session.with_test_geometry(|geo| {
+            let session = &geo.node.session;
+            let str_attr = geo
+                .get_attribute(0, AttributeOwner::Point, c"my_str_array")
+                .unwrap()
+                .unwrap();
+            let Some(attr) = str_attr.downcast::<StringArrayAttr>() else {
+                panic!("Not a StringArrayAttr attribute");
+            };
 
-        let (job_id, result) = attr.get_async(0).unwrap();
-        while JobStatus::Running == session.get_job_status(job_id).unwrap() {}
-        let (data, sizes) = result.flatten().unwrap();
-        assert_eq!(sizes[0], 4);
-        let first = &data[0..sizes[0]];
-        assert_eq!(&first[0], "pt_0_0");
-        Ok(())
+            let (job_id, result) = attr.get_async(0).unwrap();
+            while JobStatus::Running == session.get_job_status(job_id).unwrap() {}
+            let (data, sizes) = result.flatten().unwrap();
+            assert_eq!(sizes[0], 4);
+            let first = &data[0..sizes[0]];
+            assert_eq!(&first[0], "pt_0_0");
+            Ok(())
+        })
     })
     .unwrap()
 }
@@ -372,29 +391,31 @@ fn geometry_test_get_dictionary_array_attribute_async() {
     use std::collections::HashMap;
     use tinyjson::JsonValue;
 
-    with_test_geometry(|geo| {
-        let session = &geo.node.session;
-        let str_attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"my_dict_array_attr")
-            .unwrap()
-            .unwrap();
-        let Some(attr) = str_attr.downcast::<DictionaryArrayAttr>() else {
-            panic!("Not a DictionaryArrayAttr attribute");
-        };
+    with_session(|session| {
+        session.with_test_geometry(|geo| {
+            let session = &geo.node.session;
+            let str_attr = geo
+                .get_attribute(0, AttributeOwner::Point, c"my_dict_array_attr")
+                .unwrap()
+                .unwrap();
+            let Some(attr) = str_attr.downcast::<DictionaryArrayAttr>() else {
+                panic!("Not a DictionaryArrayAttr attribute");
+            };
 
-        let (job_id, result) = attr.get_async(0).unwrap();
-        while JobStatus::Running == session.get_job_status(job_id).unwrap() {}
+            let (job_id, result) = attr.get_async(0).unwrap();
+            while JobStatus::Running == session.get_job_status(job_id).unwrap() {}
 
-        let (data, sizes) = result.flatten().unwrap();
-        assert_eq!(sizes[0], 0); // first point has an empty array
-        let second_point = &data[sizes[0]..sizes[1]];
-        assert_eq!(sizes[1], 1); // second point has one element
-        let parsed: JsonValue = second_point[0]
-            .parse()
-            .expect("Could not parse attrib value json");
-        let map: &HashMap<_, _> = parsed.get().expect("HashMap");
-        assert_eq!(map["sample"], JsonValue::Number(0.0));
-        Ok(())
+            let (data, sizes) = result.flatten().unwrap();
+            assert_eq!(sizes[0], 0); // first point has an empty array
+            let second_point = &data[sizes[0]..sizes[1]];
+            assert_eq!(sizes[1], 1); // second point has one element
+            let parsed: JsonValue = second_point[0]
+                .parse()
+                .expect("Could not parse attrib value json");
+            let map: &HashMap<_, _> = parsed.get().expect("HashMap");
+            assert_eq!(map["sample"], JsonValue::Number(0.0));
+            Ok(())
+        })
     })
     .unwrap()
 }
@@ -479,49 +500,53 @@ fn geometry_test_get_set_dictionary_array_attribute() {
 
 #[test]
 fn test_attribute_send() {
-    with_test_geometry(|geo| {
-        let str_attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"pscale")
-            .unwrap()
+    with_session(|session| {
+        session.with_test_geometry(|geo| {
+            let str_attr = geo
+                .get_attribute(0, AttributeOwner::Point, c"pscale")
+                .unwrap()
+                .unwrap();
+            std::thread::spawn(move || {
+                if let Some(attr) = str_attr.downcast::<NumericAttr<f32>>() {
+                    let _ = attr.get(0);
+                }
+            })
+            .join()
             .unwrap();
-        std::thread::spawn(move || {
-            if let Some(attr) = str_attr.downcast::<NumericAttr<f32>>() {
-                let _ = attr.get(0);
-            }
+            Ok(())
         })
-        .join()
-        .unwrap();
-        Ok(())
     })
     .unwrap()
 }
 
 #[test]
 fn geometry_read_array_attributes() {
-    with_test_geometry(|geo| {
-        let attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"my_int_array")
-            .expect("attribute")
-            .unwrap();
-        let attr = attr.downcast::<NumericArrayAttr<i32>>().unwrap();
-        let i_array = attr.get(0).unwrap();
-        assert_eq!(i_array.iter().count(), attr.info().count() as usize);
-        assert_eq!(i_array.iter().next().unwrap(), &[0, 0, 0, -1]);
-        assert_eq!(i_array.iter().last().unwrap(), &[7, 14, 21, -1]);
+    let session = quick_session(None).unwrap();
+    session
+        .with_test_geometry(|geo| {
+            let attr = geo
+                .get_attribute(0, AttributeOwner::Point, c"my_int_array")
+                .expect("attribute")
+                .unwrap();
+            let attr = attr.downcast::<NumericArrayAttr<i32>>().unwrap();
+            let i_array = attr.get(0).unwrap();
+            assert_eq!(i_array.iter().count(), attr.info().count() as usize);
+            assert_eq!(i_array.iter().next().unwrap(), &[0, 0, 0, -1]);
+            assert_eq!(i_array.iter().last().unwrap(), &[7, 14, 21, -1]);
 
-        let attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"my_float_array")
-            .expect("attribute")
-            .unwrap();
-        let i_array = attr.downcast::<NumericArrayAttr<f32>>().unwrap();
-        let data = i_array.get(0).unwrap();
+            let attr = geo
+                .get_attribute(0, AttributeOwner::Point, c"my_float_array")
+                .expect("attribute")
+                .unwrap();
+            let i_array = attr.downcast::<NumericArrayAttr<f32>>().unwrap();
+            let data = i_array.get(0).unwrap();
 
-        assert_eq!(data.iter().count(), attr.info().count() as usize);
-        assert_eq!(data.iter().next().unwrap(), &[0.0, 0.0, 0.0]);
-        assert_eq!(data.iter().last().unwrap(), &[7.0, 14.0, 21.0]);
-        Ok(())
-    })
-    .unwrap()
+            assert_eq!(data.iter().count(), attr.info().count() as usize);
+            assert_eq!(data.iter().next().unwrap(), &[0.0, 0.0, 0.0]);
+            assert_eq!(data.iter().last().unwrap(), &[7.0, 14.0, 21.0]);
+            Ok(())
+        })
+        .unwrap()
 }
 
 #[test]
