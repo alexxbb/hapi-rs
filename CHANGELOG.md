@@ -1,6 +1,6 @@
 # hapi-rs changelog
 
-## [0.20.0]
+## [20.5.0]
 - Regenerate bindings with Houdini 20.5.620
 - Disable async attrib access tests - those are still unstable in H20.0
 - Use versioning matching Houdini.
