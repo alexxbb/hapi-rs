@@ -44,6 +44,11 @@ fn main() -> Result<()> {
 }
 ```
 
+# Supported Houdini versions
+
+The crate version matches the supported Houdini MAJOR.MINOR version i.e. `21.0.0` is built work with `Houdini 21.0`
+Mixing and matching different versions of Houdini and this crate is not guranteed to work.
+
 # Building
 
 Check the documentation [building section](https://docs.rs/hapi-rs/latest/hapi_rs/#building-and-running)
