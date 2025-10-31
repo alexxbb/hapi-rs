@@ -1,6 +1,6 @@
 # hapi-rs changelog
 
-## [0.21.0]
+## [21.0.0]
 - Regenerate bindings with Houdini 21.0.440
 - Fix async attribute access error by increasing connection count # in `SessionInfo`
 - Add `hip_loading.rs` example demonstrating how to save and load Hip files
