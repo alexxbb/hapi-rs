@@ -2731,7 +2731,14 @@ pub fn save_geo_to_memory(session: &Session, node: NodeHandle, format: &CStr) ->
         raw::HAPI_GetGeoSize(session.ptr(), node.0, format.as_ptr(), size.as_mut_ptr())
             .check_err(session, || "Calling HAPI_GetGeoSize")?;
         let size = size.assume_init();
-        let mut buffer = vec![0; size as usize];
+        let _usize: usize = size.try_into().map_err(|_| {
+            HapiError::new(
+                Kind::Internal(std::borrow::Cow::Borrowed("API returned an invalid geometry buffer size")),
+                None,
+                None,
+            )
+        })?;
+        let mut buffer = vec![0; _usize];
         raw::HAPI_SaveGeoToMemory(session.ptr(), node.0, buffer.as_mut_ptr(), size)
             .check_err(session, || "Calling HAPI_SaveGeoToMemory")?;
         Ok(buffer)

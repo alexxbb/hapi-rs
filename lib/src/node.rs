@@ -6,6 +6,7 @@
 //! Nodes can be created with [`Session::create_node`]
 //!
 //! HoudiniNode is ['Clone'], [`Sync`] and [`Send`]
+use std::borrow::Cow;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -247,7 +248,7 @@ impl std::fmt::Debug for HoudiniNode {
             .field("type", &self.info.node_type())
             .field(
                 "path",
-                &self.path().expect("[HoudiniNode::Debug] node path"),
+                &self.path().map(Cow::Owned).unwrap_or_else(|_| Cow::Borrowed("Node path not available")),
             )
             .finish()
     }
@@ -327,6 +328,7 @@ impl HoudiniNode {
     }
 
     /// Start cooking the node. This is a non-blocking call if the session is async.
+    #[must_use = "cook may fail or return errors, check the result"]
     pub fn cook(&self) -> Result<()> {
         debug!("Start cooking node: {}", self.path()?);
         debug_assert!(self.is_valid()?);
@@ -336,6 +338,7 @@ impl HoudiniNode {
     /// Start cooking the node and wait until completed.
     /// In sync mode (single threaded), the error will be available in Err(..) while
     /// in threaded cooking mode the status will be in [`CookResult`]
+    #[must_use = "cook may fail or return errors, check the result"]
     pub fn cook_blocking(&self) -> Result<CookResult> {
         debug!("Start cooking node: {}", self.path()?);
         debug_assert!(self.is_valid()?);
@@ -344,6 +347,7 @@ impl HoudiniNode {
     }
 
     /// Start cooking with options and wait for result if blocking = true.
+    #[must_use = "cook may fail or return errors, check the result"]
     pub fn cook_with_options(&self, options: &CookOptions, blocking: bool) -> Result<CookResult> {
         debug!("Start cooking node: {}", self.path()?);
         debug_assert!(self.is_valid()?);

@@ -1109,6 +1109,9 @@ impl SessionOptionsBuilder {
         self
     }
 
+    /// Set the log file for the session.
+    /// # Panics
+    /// If the path cannot be converted to a CString, i.e. contains an interior null byte.
     pub fn log_file(mut self, file: impl AsRef<Path>) -> Self {
         self.log_file = Some(utils::path_to_cstring(file).unwrap());
         self
