@@ -278,10 +278,9 @@ impl Session {
         let res = crate::ffi::initialize_session(self, &self.inner.options);
         match res {
             Ok(_) => Ok(()),
-            Err(HapiError {
-                kind: Kind::Hapi(HapiResult::AlreadyInitialized),
-                ..
-            }) => {
+            Err(HapiError::Hapi { result_code, .. })
+                if matches!(result_code.0, HapiResult::AlreadyInitialized) =>
+            {
                 warn!("Session already initialized, skipping");
                 Ok(())
             }
@@ -410,10 +409,11 @@ impl Session {
         let path = CString::new(path.as_ref())?;
         match crate::ffi::get_node_from_path(self, parent.into(), &path) {
             Ok(handle) => Ok(NodeHandle(handle).to_node(self).ok()),
-            Err(HapiError {
-                kind: Kind::Hapi(HapiResult::InvalidArgument),
-                ..
-            }) => Ok(None),
+            Err(HapiError::Hapi { result_code, .. })
+                if matches!(result_code.0, HapiResult::InvalidArgument) =>
+            {
+                Ok(None)
+            }
             Err(e) => Err(e),
         }
     }
