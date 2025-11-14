@@ -16,10 +16,10 @@ fn main() -> Result<()> {
     if let Parameter::String(parm) = node.parameter("code")? {
         parm.set(0, SCRIPT)?;
     }
-    if let Parameter::Button(run) = node.parameter("run")? {
-        run.press_button()?
+    if let Parameter::Button(parm) = node.parameter("run")? {
+        parm.press_button()?
     }
-    let val = ses.get_server_var::<str>("TEST").unwrap();
+    let val = ses.get_server_var::<str>("TEST")?;
     assert_eq!(val, "hapi");
     Ok(())
 }

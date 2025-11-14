@@ -14,7 +14,7 @@ use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId, RSTOrder};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
 use crate::raw::GroupType;
 use crate::{
-    errors::{HapiError, Kind, Result},
+    errors::{HapiError, Result},
     node::{HoudiniNode, NodeHandle},
     parameter::ParmHandle,
     session::{Session, SessionOptions},
@@ -764,14 +764,13 @@ pub fn set_cache_property(
 pub fn create_inprocess_session(info: &raw::HAPI_SessionInfo) -> Result<raw::HAPI_Session> {
     let mut ses = uninit!();
     unsafe {
-        match raw::HAPI_CreateInProcessSession(ses.as_mut_ptr(), info as *const _) {
-            err @ raw::HapiResult::Failure => Err(HapiError::new(
-                Kind::Hapi(err),
-                None,
-                get_connection_error(true).ok().map(std::borrow::Cow::Owned),
-            )),
-            _ => Ok(ses.assume_init()),
-        }
+        raw::HAPI_CreateInProcessSession(ses.as_mut_ptr(), info as *const _).with_error_message(
+            || {
+                get_connection_error(true)
+                    .unwrap_or("Could not retrieve server connection error".to_string())
+            },
+        )?;
+        Ok(ses.assume_init())
     }
 }
 
@@ -2732,11 +2731,7 @@ pub fn save_geo_to_memory(session: &Session, node: NodeHandle, format: &CStr) ->
             .check_err(session, || "Calling HAPI_GetGeoSize")?;
         let size = size.assume_init();
         let _usize: usize = size.try_into().map_err(|_| {
-            HapiError::new(
-                Kind::Internal(std::borrow::Cow::Borrowed("API returned an invalid geometry buffer size")),
-                None,
-                None,
-            )
+            HapiError::Internal("API returned an invalid geometry buffer size".to_string())
         })?;
         let mut buffer = vec![0; _usize];
         raw::HAPI_SaveGeoToMemory(session.ptr(), node.0, buffer.as_mut_ptr(), size)

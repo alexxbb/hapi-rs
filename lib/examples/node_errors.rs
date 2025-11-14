@@ -29,9 +29,10 @@ fn gather_all_messages(asset: HoudiniNode, message_nodes: &[NodeHandle]) -> Resu
 fn main() -> Result<()> {
     let otl = std::env::current_dir().unwrap().join(OTL);
     let otl = std::path::absolute(&otl).unwrap();
+    let log_file = std::env::temp_dir().join("hapi.log");
     let opts = SessionOptionsBuilder::default()
         .threaded(true)
-        .log_file("c:/Temp/hapi.log.txt")
+        .auto_close(true)
         .build();
     let session = quick_session(Some(&opts))?;
     let asset = session.load_asset_file(otl)?.try_create_first()?;
@@ -41,11 +42,6 @@ fn main() -> Result<()> {
     let message_nodes = asset.get_message_nodes()?;
     let error = asset.get_composed_cook_result_string(StatusVerbosity::Statusverbosity2)?;
 
-    // let error = match &message_nodes[..] {
-    //     [] => asset.get_composed_cook_result_string(StatusVerbosity::Statusverbosity2)?,
-    //     message_nodes => gather_all_messages(asset, message_nodes)?,
-    // };
-
-    println!("-{}", error);
+    println!("\n------ Node Errors ------{}", error);
     Ok(())
 }

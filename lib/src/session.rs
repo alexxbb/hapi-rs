@@ -367,26 +367,23 @@ impl Session {
         debug_assert!(self.is_valid());
         debug_assert!(
             parent.is_some() || name.contains('/'),
-            "Node name must be fully qualified if parent is not specified"
+            "Node name must be fully qualified if parent node is not specified"
         );
         debug_assert!(
             !(parent.is_some() && name.contains('/')),
-            "Cannot use fully qualified node name with parent"
+            "Cannot use fully qualified node name with parent node"
         );
         let name = CString::new(name)?;
         let label = label.map(CString::new).transpose()?;
         let node_id = crate::ffi::create_node(&name, label.as_deref(), self, parent, cook)?;
         if self.inner.options.threaded {
-            use std::borrow::Cow;
+            // In async cooking mode, cook() always returns a CookResult::Success, we need to check CookResult for errors
             if let CookResult::FatalErrors(message) = self.cook()? {
-                return Err(HapiError::new(
-                    Kind::Hapi(HapiResult::Failure),
-                    Some(Cow::Owned(format!(
-                        "Could not create node {:?}",
-                        name.to_string_lossy()
-                    ))),
-                    Some(Cow::Owned(message)),
-                ));
+                return Err(HapiError::Hapi {
+                    result_code: HapiResultCode(HapiResult::Failure),
+                    server_message: Some(message),
+                    contexts: Vec::new(),
+                });
             }
         }
         HoudiniNode::new(self.clone(), NodeHandle(node_id), None)
@@ -957,6 +954,8 @@ pub struct SessionOptions {
     pub log_file: Option<CString>,
     /// Do not error out if session is already initialized
     pub ignore_already_init: bool,
+    /// Automatically close session when the last connection drops.
+    pub auto_close_server: bool,
     pub env_files: Option<CString>,
     pub env_variables: Option<Vec<(String, String)>>,
     pub otl_path: Option<CString>,
@@ -974,6 +973,7 @@ impl Default for SessionOptions {
             cleanup: false,
             log_file: None,
             ignore_already_init: true,
+            auto_close_server: true,
             env_files: None,
             env_variables: None,
             otl_path: None,
@@ -993,6 +993,7 @@ pub struct SessionOptionsBuilder {
     cleanup: bool,
     log_file: Option<CString>,
     ignore_already_init: bool,
+    auto_close_server: bool,
     env_variables: Option<Vec<(String, String)>>,
     env_files: Option<CString>,
     otl_path: Option<CString>,
@@ -1109,11 +1110,17 @@ impl SessionOptionsBuilder {
         self
     }
 
+    /// Automatically close session when the last connection drops.
+    pub fn auto_close(mut self, auto_close: bool) -> Self {
+        self.auto_close_server = auto_close;
+        self
+    }
+
     /// Set the log file for the session.
     /// # Panics
     /// If the path cannot be converted to a CString, i.e. contains an interior null byte.
     pub fn log_file(mut self, file: impl AsRef<Path>) -> Self {
-        self.log_file = Some(utils::path_to_cstring(file).unwrap());
+        self.log_file = Some(utils::path_to_cstring(file).expect("Path to CString failed"));
         self
     }
 
@@ -1127,6 +1134,7 @@ impl SessionOptionsBuilder {
             cleanup: self.cleanup,
             log_file: self.log_file,
             ignore_already_init: self.cleanup,
+            auto_close_server: self.auto_close_server,
             env_files: self.env_files,
             env_variables: self.env_variables,
             otl_path: self.otl_path,
@@ -1251,15 +1259,15 @@ pub fn start_shared_memory_server(
 /// It starts a **single-threaded** shared memory server and initialize a session with default options
 pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
     let server_options = ThriftServerOptions::default()
-        .with_auto_close(true)
+        .with_auto_close(options.as_ref().map_or(true, |opt| opt.auto_close_server))
         .with_timeout_ms(4000f32)
         .with_verbosity(StatusVerbosity::Statusverbosity0);
     let rand_memory_name = format!("shared-memory-{}", utils::random_string(16));
-    let log_file = match &options {
-        None => None,
-        Some(opt) => opt.log_file.as_deref(),
-    };
-    let pid = start_shared_memory_server(&rand_memory_name, &server_options, log_file)?;
+    let pid = start_shared_memory_server(
+        &rand_memory_name,
+        &server_options,
+        options.as_ref().and_then(|opt| opt.log_file.as_deref()),
+    )?;
     connect_to_memory_server(&rand_memory_name, options, Some(pid))
         .context("Could not connect to server")
 }

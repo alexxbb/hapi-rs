@@ -134,7 +134,7 @@ mod errors;
 mod utils;
 mod ffi;
 
-pub use errors::{HapiError, Kind, Result};
+pub use errors::{HapiError, Result};
 pub use ffi::enums;
 pub use ffi::raw;
 pub use ffi::structs::Viewport;

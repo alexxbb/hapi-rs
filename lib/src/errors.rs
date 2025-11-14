@@ -1,7 +1,6 @@
 use crate::session::Session;
 
 pub use crate::ffi::raw::{HapiResult, StatusType, StatusVerbosity};
-use std::borrow::Cow;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, HapiError>;
@@ -89,81 +88,6 @@ impl From<&str> for HapiError {
     }
 }
 
-impl HapiError {
-    /// Create a new HAPI error with context and server message
-    pub(crate) fn new(
-        kind: Kind,
-        static_message: Option<Cow<'static, str>>,
-        server_message: Option<Cow<'static, str>>,
-    ) -> HapiError {
-        match kind {
-            Kind::Hapi(result) => {
-                let mut contexts = Vec::new();
-                if let Some(msg) = static_message {
-                    contexts.push(msg.into_owned());
-                }
-                HapiError::Hapi {
-                    result_code: HapiResultCode(result),
-                    server_message: server_message.map(|s| s.into_owned()),
-                    contexts,
-                }
-            }
-            Kind::NullByte(e) => HapiError::NullByte(e),
-            Kind::Utf8Error(e) => HapiError::Utf8(e),
-            Kind::Io(e) => HapiError::Io(e),
-            Kind::Internal(s) => HapiError::Internal(s.into_owned()),
-        }
-    }
-
-    /// Create an internal error
-    pub(crate) fn internal<M: Into<String>>(message: M) -> Self {
-        HapiError::Internal(message.into())
-    }
-
-    /// Get the kind for backwards compatibility
-    pub fn kind(&self) -> Kind {
-        match self {
-            HapiError::Hapi { result_code, .. } => Kind::Hapi(result_code.0),
-            HapiError::NullByte(e) => Kind::NullByte(e.clone()),
-            HapiError::Utf8(e) => Kind::Utf8Error(e.clone()),
-            HapiError::Io(e) => Kind::Io(std::io::Error::new(e.kind(), e.to_string())),
-            HapiError::Internal(s) => Kind::Internal(Cow::Owned(s.clone())),
-        }
-    }
-
-    /// Get contexts for HAPI errors
-    pub fn contexts(&self) -> &[String] {
-        match self {
-            HapiError::Hapi { contexts, .. } => contexts,
-            _ => &[],
-        }
-    }
-
-    /// Get server message for HAPI errors
-    pub fn server_message(&self) -> Option<&str> {
-        match self {
-            HapiError::Hapi { server_message, .. } => server_message.as_deref(),
-            _ => None,
-        }
-    }
-}
-
-// Keep the Kind enum for backwards compatibility
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum Kind {
-    /// Error returned by ffi calls
-    Hapi(HapiResult),
-    /// CString contains null byte
-    NullByte(std::ffi::NulError),
-    /// String is not a valid utf-8
-    Utf8Error(std::string::FromUtf8Error),
-    /// IO Error
-    Io(std::io::Error),
-    /// Misc error message from this crate.
-    Internal(Cow<'static, str>),
-}
-
 pub(crate) trait ErrorContext<T> {
     fn context<C>(self, context: C) -> Result<T>
     where
@@ -246,6 +170,7 @@ impl std::fmt::Display for HapiError {
 }
 
 impl HapiResult {
+    /// Check HAPI_Result status and convert to HapiError if the status is not success.
     pub(crate) fn check_err<F, M>(self, session: &Session, context: F) -> Result<()>
     where
         M: Into<String>,
@@ -257,26 +182,34 @@ impl HapiResult {
                 let server_message = session
                     .get_status_string(StatusType::CallResult, StatusVerbosity::All)
                     .ok();
-                
+
                 Err(HapiError::Hapi {
                     result_code: HapiResultCode(self),
-                    server_message: server_message.or_else(|| Some("Could not retrieve error message".to_string())),
+                    server_message: server_message
+                        .or_else(|| Some("Could not retrieve error message".to_string())),
                     contexts: vec![context().into()],
                 })
             }
         }
     }
 
+    /// Convert HAPI_Result to HapiError if the status is not success and add a message to the error.
     pub(crate) fn error_message<I: Into<String>>(self, message: I) -> Result<()> {
         match self {
             HapiResult::Success => Ok(()),
-            _err => {
-                Err(HapiError::Hapi {
-                    result_code: HapiResultCode(self),
-                    server_message: Some("Server error message unavailable".to_string()),
-                    contexts: vec![message.into()],
-                })
-            }
+            _err => Err(HapiError::Hapi {
+                result_code: HapiResultCode(self),
+                server_message: Some("Server error message unavailable".to_string()),
+                contexts: vec![message.into()],
+            }),
         }
+    }
+
+    pub(crate) fn with_error_message<F, M>(self, func: F) -> Result<()>
+    where
+        F: FnOnce() -> M,
+        M: Into<String>,
+    {
+        self.error_message(func())
     }
 }

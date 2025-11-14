@@ -67,7 +67,7 @@ impl FromStr for ManagerType {
             "Top" => Ok(Self::Top),
             "Object" => Ok(Self::Obj),
             "Driver" => Ok(Self::Rop),
-            v => Err(crate::HapiError::internal(format!(
+            v => Err(crate::HapiError::Internal(format!(
                 "Unknown ManagerType::{v}"
             ))),
         }
@@ -248,7 +248,10 @@ impl std::fmt::Debug for HoudiniNode {
             .field("type", &self.info.node_type())
             .field(
                 "path",
-                &self.path().map(Cow::Owned).unwrap_or_else(|_| Cow::Borrowed("Node path not available")),
+                &self
+                    .path()
+                    .map(Cow::Owned)
+                    .unwrap_or_else(|_| Cow::Borrowed("Node path not available")),
             )
             .finish()
     }

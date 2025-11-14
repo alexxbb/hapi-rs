@@ -231,7 +231,9 @@ impl AssetLibrary {
         // but for some assets type like Cop, Top a manager node must be created first
         debug!("Trying to create a node for operator: {}", name.as_ref());
         let Some((context, operator)) = name.as_ref().split_once('/') else {
-            return Err(HapiError::internal("Node name must be fully qualified"));
+            return Err(HapiError::Internal(
+                "Node name must be fully qualified".to_string(),
+            ));
         };
         // Strip operator namespace if present
         let context = if let Some((_, context)) = context.split_once("::") {
@@ -290,7 +292,7 @@ impl AssetLibrary {
         debug_assert!(self.session.is_valid());
         let name = self
             .get_first_name()?
-            .ok_or_else(|| HapiError::internal("Library file is empty"))?;
+            .ok_or_else(|| HapiError::Internal("Library file is empty".to_string()))?;
         self.create_asset_for_node(name, None)
     }
 
