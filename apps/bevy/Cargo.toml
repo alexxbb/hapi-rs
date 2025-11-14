@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 hapi-rs = { path = "../../lib", version = "*" }
-bevy_panorbit_camera = "0.21.2"
+bevy_panorbit_camera = "0.25.0"
 
 
 [features]
@@ -26,7 +26,8 @@ features = [
     "png",
     "bevy_state",
     "bevy_dev_tools",
-    "multi_threaded"
+    "multi_threaded",
+    "x11" # Ubuntu with proprietary Nvidia driver uses x11. Otherwise use wayland
 ]
 
 [profile.dev.package."*"]
