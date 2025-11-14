@@ -1,7 +1,7 @@
 import hapi
 import json
 
-session = hapi.createInProcessSession()
+session = hapi.createInProcessSession(hapi.SessionInfo())
 
 cook_options = hapi.CookOptions()
 try:
@@ -16,7 +16,7 @@ def get_string(handle) -> str:
 
 
 # Create a node
-node = hapi.createInputNode(session, "input_node")
+node = hapi.createInputNode(session, -1,"input_node")
 
 part_info = hapi.PartInfo(
     vertexCount=0, faceCount=0, pointCount=1, type=hapi.partType.Mesh

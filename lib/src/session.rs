@@ -1261,4 +1261,5 @@ pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
     };
     let pid = start_shared_memory_server(&rand_memory_name, &server_options, log_file)?;
     connect_to_memory_server(&rand_memory_name, options, Some(pid))
+        .context("Could not connect to server")
 }

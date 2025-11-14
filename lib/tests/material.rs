@@ -2,7 +2,7 @@ use hapi_rs::geometry::Materials;
 
 mod utils;
 
-use utils::{HdaFile, with_session, with_session_asset};
+use utils::{HdaFile, with_session};
 
 #[test]
 fn image_file_formats() {

@@ -112,13 +112,14 @@ fn node_transform() {
 fn node_save_and_load() {
     with_session(|session| {
         let cam = session.create_node("Object/cam").unwrap();
-        let tmp = std::env::temp_dir().join("node");
-        cam.save_to_file(&tmp).expect("save_to_file");
-        let new = HoudiniNode::load_from_file(&session, None, "loaded_cam", true, &tmp)
+        let tmp_file = tempfile::NamedTempFile::new().expect("tempfile");
+        cam.save_to_file(tmp_file.path().to_string_lossy().as_ref())
+            .expect("save_to_file");
+        let new = HoudiniNode::load_from_file(&session, None, "loaded_cam", true, tmp_file.path())
             .expect("load_from_file");
-        std::fs::remove_file(&tmp).unwrap();
         cam.delete().unwrap();
         new.delete().unwrap();
+        assert!(tmp_file.path().exists());
         Ok(())
     })
     .unwrap()

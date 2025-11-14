@@ -3,7 +3,11 @@ use regex_lite::{Regex, RegexBuilder};
 use std::collections::HashSet;
 use std::error::Error;
 use std::hash::{Hash, Hasher};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+fn source_dir() -> PathBuf {
+    PathBuf::from("../../lib/src")
+}
 
 fn raw_hapi_function_names() -> HashSet<Item> {
     const IGNORE_SUFFIX: &[&str] = &[
@@ -28,7 +32,7 @@ fn raw_hapi_function_names() -> HashSet<Item> {
         "HAPI_ParmInfo_GetFloatValueCount",
         "HAPI_ParmInfo_GetStringValueCount",
     ];
-    let raw = Path::new("../../src/ffi/bindings.rs");
+    let raw = source_dir().join("ffi/bindings.rs");
     let text = std::fs::read_to_string(raw).expect("bindings.rs");
     let rx = regex_lite::Regex::new(r#"pub fn (HAPI\w+)\("#).unwrap();
     let matches: HashSet<_> = rx
@@ -68,14 +72,22 @@ fn wrapped_rs_function_names() -> Result<HashSet<Item>, Box<dyn Error>> {
 
     let mut set = HashSet::new();
 
-    let text = std::fs::read_to_string("../../src/ffi/functions.rs").expect("ffi/functions.rs");
+    let text =
+        std::fs::read_to_string(source_dir().join("ffi/functions.rs")).expect("ffi/functions.rs");
 
     let it1 = rx1.captures_iter(&text).map(|c| Item(c[1].to_string()));
     let it2 = rx2.captures_iter(&text).map(|c| Item(c[1].to_string()));
     let ffi_functions = it1.chain(it2);
     set.extend(ffi_functions);
 
-    for entry in glob::glob("../../src/attribute/**/*.rs").unwrap() {
+    for entry in glob::glob(
+        source_dir()
+            .join("attribute/**/*.rs")
+            .to_string_lossy()
+            .as_ref(),
+    )
+    .unwrap()
+    {
         let path = entry.expect("failed to read glob entry");
         let text = std::fs::read_to_string(&path)?;
         let it1 = rx2.captures_iter(&text).map(|c| Item(c[1].to_string()));

@@ -1,19 +1,20 @@
 use hapi_rs::{attribute::*, geometry::*};
 mod utils;
 
+use tempfile::NamedTempFile;
 use utils::{HdaFile, create_triangle, with_session, with_test_geometry};
 
 #[test]
 fn geometry_save_and_load_to_file() {
     with_session(|session| {
         let geo = create_triangle(&session)?;
-        let tmp_file = std::env::temp_dir().join("triangle.geo");
-        geo.save_to_file(&tmp_file.to_string_lossy())
+        let tmp_file = NamedTempFile::new().expect("tempfile");
+        geo.save_to_file(tmp_file.path().to_string_lossy().as_ref())
             .expect("save_to_file");
         geo.node.delete().unwrap();
 
         let geo = session.create_input_node("dummy", None).unwrap();
-        geo.load_from_file(&tmp_file.to_string_lossy())
+        geo.load_from_file(tmp_file.path().to_string_lossy().as_ref())
             .expect("load_from_file");
         geo.node.cook().unwrap();
         assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
@@ -254,7 +255,11 @@ fn geometry_multiple_input_curves() {
         p_attrib.set(0, &points).unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
-        geo.save_to_file("c:/Temp/curve.geo")
+        let tmp_file = NamedTempFile::new().expect("tempfile");
+        geo.save_to_file(tmp_file.path().to_string_lossy().as_ref())
+            .expect("save_to_file");
+        assert!(tmp_file.path().exists());
+        Ok(())
     })
     .unwrap()
 }

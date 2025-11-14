@@ -12,11 +12,18 @@ use once_cell::sync::Lazy;
 thread_local! {
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init();
+        let session_info = SessionInfo::default();
+        let opt = SessionOptions::builder().threaded(true).session_info(session_info).build();
+        quick_session(Some(&opt)).expect("Could not create test session")
+    });
+
+    static ASYNC_SESSION: Lazy<Session> = Lazy::new(|| {
+        let _ = env_logger::try_init();
         let mut session_info = SessionInfo::default();
         // For async attribute access connection_count must be > 0 according to SESI support, otherwise HARS crashes.
         session_info.set_connection_count(2);
         let opt = SessionOptions::builder().threaded(true).session_info(session_info).build();
-        quick_session(Some(&opt)).expect("Could not create test session")
+        quick_session(Some(&opt)).expect("Could not create async test session")
     });
 }
 
@@ -43,6 +50,13 @@ where
     F: FnOnce(Session) -> Result<R>,
 {
     SESSION.with(|session| f((*session).clone()))
+}
+
+pub fn with_async_session<F, R>(f: F) -> Result<R>
+where
+    F: FnOnce(Session) -> Result<R>,
+{
+    ASYNC_SESSION.with(|session| f((*session).clone()))
 }
 
 pub fn with_session_asset<F>(hda_file: HdaFile, f: F) -> Result<()>

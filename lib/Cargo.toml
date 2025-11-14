@@ -36,3 +36,6 @@ anyhow = "1.0.100"
 argh = "0.1.13"
 ctrlc = "3.5.0"
 tinyjson = "2.5.1"
+
+[features]
+async-cooking = []

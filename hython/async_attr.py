@@ -40,11 +40,12 @@ while not hapi.getStatus(session, hapi.statusType.CookState) == hapi.state.Ready
     ...
 
 # This is working
-# data = hapi.getAttributeFloatData(session, node, 0, "P", info, -1, 0, info.count)
+data = hapi.getAttributeFloatData(session, node, 0, "P", info, -1, 0, info.count)
+print(data)
 
 # This is not
-data, job_id = hapi.getAttributeFloatDataAsync(session, node, 0, "P", info, -1, 0, info.count)
-status = hapi.getJobStatus(session, job_id)
+# data, job_id = hapi.getAttributeFloatDataAsync(session, node, 0, "P", info, -1, 0, info.count)
+# status = hapi.getJobStatus(session, job_id)
 
 
 
