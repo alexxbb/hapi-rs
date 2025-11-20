@@ -1,5 +1,5 @@
 use hapi_rs::raw::CacheProperty;
-
+use hapi_rs::session::License;
 use hapi_rs::session::{
     ConnectionType, CookResult, ManagerType, SessionOptions, SessionSyncInfo, TimelineOptions,
     Viewport, quick_session,
@@ -122,11 +122,14 @@ fn cache_properties() {
 
 #[test]
 fn test_license_set_via_environment() {
-    let env = [("HOUDINI_PLUGIN_LIC_OPT", "--check-licenses=Engine")];
-    let options = SessionOptions::builder().env_variables(env.iter()).build();
+    let env = [("HAPI_LICENSE_MODE", "engine_only")];
+    let options = SessionOptions::builder().env_variables(env.iter()).auto_close(false).build();
     let session = quick_session(Some(&options)).expect("Could not start session");
     let plugin_lic_opt = session.get_server_var::<str>(&env[0].0).unwrap();
+    session.create_node("Object/null").unwrap();
+    let license_type = session.get_license_type().unwrap();
     assert_eq!(plugin_lic_opt, env[0].1.to_string());
+    assert_eq!(license_type, License::HoudiniEngine);
 }
 
 #[test]
