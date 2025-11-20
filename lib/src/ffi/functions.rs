@@ -2782,7 +2782,7 @@ pub fn session_get_license_type(session: &Session) -> Result<raw::License> {
         )
         .check_err(session, || "Calling HAPI_GetSessionEnvInt")?;
         let lic = ret.assume_init();
-        if lic < 0 || lic > 7 {
+        if !(0..=7).contains(&lic) {
             return Err(HapiError::Internal(format!("API returned an invalid license integer: {}", lic)));
         }
         // SAFETY: License enum is repr i32

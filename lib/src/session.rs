@@ -16,7 +16,7 @@
 //!
 use log::{debug, error, warn};
 use parking_lot::ReentrantMutex;
-use std::ffi::{CStr, OsString};
+use std::ffi::OsString;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::process::Child;
@@ -234,7 +234,8 @@ impl Session {
         &(self.inner.handle) as *const _
     }
 
-    /// Set environment variable on the server
+    /// Set environment variable on the server. This is set AFTER the server has started.
+    /// For variables set before the server starts, use [`ServerOptions::with_env_variables`].
     pub fn set_server_var<T: EnvVariable + ?Sized>(
         &self,
         key: &str,
@@ -862,7 +863,7 @@ impl Drop for Session {
 /// use [`SessionOptionsBuilder`] to configure this.
 pub fn connect_to_pipe(
     pipe: impl AsRef<Path>,
-    options: Option<&SessionOptions>,
+    session_options: SessionOptions,
     timeout: Option<Duration>,
     pid: Option<u32>,
 ) -> Result<Session> {
@@ -870,13 +871,12 @@ pub fn connect_to_pipe(
     let c_str = utils::path_to_cstring(&pipe)?;
     let pipe = pipe.as_ref().as_os_str().to_os_string();
     let timeout = timeout.unwrap_or_default();
-    let options = options.cloned().unwrap_or_default();
     let mut waited = Duration::from_secs(0);
     let wait_ms = Duration::from_millis(100);
     let handle = loop {
         let mut last_error = None;
         debug!("Trying to connect to pipe server");
-        match crate::ffi::new_thrift_piped_session(&c_str, &options.session_info.0) {
+        match crate::ffi::new_thrift_piped_session(&c_str, &session_options.session_info.0) {
             Ok(handle) => break handle,
             Err(e) => {
                 last_error.replace(e);
@@ -890,25 +890,26 @@ pub fn connect_to_pipe(
         }
     };
     let connection = ConnectionType::ThriftPipe(pipe);
-    let session = Session::new(handle, connection, options, pid);
+    let session = Session::new(handle, connection, session_options, pid);
     session.initialize()?;
     Ok(session)
 }
 
 pub fn connect_to_memory_server(
     memory_name: &str,
-    options: Option<&SessionOptions>,
+    session_options: SessionOptions,
     pid: Option<u32>,
 ) -> Result<Session> {
     let mem_name = String::from(memory_name);
     let mem_name_cstr = CString::new(memory_name)?;
 
-    let options = options.cloned().unwrap_or_default();
-    let handle =
-        crate::ffi::new_thrift_shared_memory_session(&mem_name_cstr, &options.session_info.0)?;
+    let handle = crate::ffi::new_thrift_shared_memory_session(
+        &mem_name_cstr,
+        &session_options.session_info.0,
+    )?;
 
     let connection = ConnectionType::SharedMemory(mem_name);
-    let session = Session::new(handle, connection, options, pid);
+    let session = Session::new(handle, connection, session_options, pid);
     session.initialize()?;
     Ok(session)
 }
@@ -916,26 +917,32 @@ pub fn connect_to_memory_server(
 /// Connect to the engine process via a Unix socket
 pub fn connect_to_socket(
     addr: std::net::SocketAddrV4,
-    options: Option<&SessionOptions>,
+    session_options: SessionOptions,
 ) -> Result<Session> {
     debug!("Connecting to socket server: {:?}", addr);
     let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
-    let options = options.cloned().unwrap_or_default();
-    let handle =
-        crate::ffi::new_thrift_socket_session(addr.port() as i32, &host, &options.session_info.0)?;
+    let handle = crate::ffi::new_thrift_socket_session(
+        addr.port() as i32,
+        &host,
+        &session_options.session_info.0,
+    )?;
     let connection = ConnectionType::ThriftSocket(addr);
-    let session = Session::new(handle, connection, options, None);
+    let session = Session::new(handle, connection, session_options, None);
     session.initialize()?;
     Ok(session)
 }
 
 /// Create in-process session
-pub fn new_in_process(options: Option<&SessionOptions>) -> Result<Session> {
+pub fn new_in_process(session_options: SessionOptions) -> Result<Session> {
     debug!("Creating new in-process session");
-    let options = options.cloned().unwrap_or_default();
-    let handle = crate::ffi::create_inprocess_session(&options.session_info.0)?;
+    let handle = crate::ffi::create_inprocess_session(&session_options.session_info.0)?;
     let connection = ConnectionType::InProcess;
-    let session = Session::new(handle, connection, options, Some(std::process::id()));
+    let session = Session::new(
+        handle,
+        connection,
+        session_options,
+        Some(std::process::id()),
+    );
     session.initialize()?;
     Ok(session)
 }
@@ -951,13 +958,11 @@ pub struct SessionOptions {
     pub threaded: bool,
     /// Cleanup session upon close
     pub cleanup: bool,
-    pub log_file: Option<CString>,
     /// Do not error out if session is already initialized
     pub ignore_already_init: bool,
     /// Automatically close session when the last connection drops.
     pub auto_close_server: bool,
     pub env_files: Option<CString>,
-    pub env_variables: Option<Vec<(String, String)>>,
     pub otl_path: Option<CString>,
     pub dso_path: Option<CString>,
     pub img_dso_path: Option<CString>,
@@ -971,11 +976,9 @@ impl Default for SessionOptions {
             session_info: SessionInfo::default(),
             threaded: false,
             cleanup: false,
-            log_file: None,
             ignore_already_init: true,
             auto_close_server: true,
             env_files: None,
-            env_variables: None,
             otl_path: None,
             dso_path: None,
             img_dso_path: None,
@@ -991,10 +994,8 @@ pub struct SessionOptionsBuilder {
     session_info: SessionInfo,
     threaded: bool,
     cleanup: bool,
-    log_file: Option<CString>,
     ignore_already_init: bool,
     auto_close_server: bool,
-    env_variables: Option<Vec<(String, String)>>,
     env_files: Option<CString>,
     otl_path: Option<CString>,
     dso_path: Option<CString>,
@@ -1012,23 +1013,6 @@ impl SessionOptionsBuilder {
         let paths = utils::join_paths(files);
         self.env_files
             .replace(CString::new(paths).expect("Zero byte"));
-        self
-    }
-
-    /// Set the server environment variables. See also [`Session::set_server_var`].
-    /// The difference is this method writes out a temp file with the variables and
-    /// implicitly pass it to the engine (as if [`Self::houdini_env_files`] was used.
-    pub fn env_variables<'a, I, K, V>(mut self, variables: I) -> Self
-    where
-        I: Iterator<Item = &'a (K, V)>,
-        K: ToString + 'a,
-        V: ToString + 'a,
-    {
-        self.env_variables.replace(
-            variables
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect(),
-        );
         self
     }
 
@@ -1116,61 +1100,20 @@ impl SessionOptionsBuilder {
         self
     }
 
-    /// Set the log file for the session.
-    /// # Panics
-    /// If the path cannot be converted to a CString, i.e. contains an interior null byte.
-    pub fn log_file(mut self, file: impl AsRef<Path>) -> Self {
-        self.log_file = Some(utils::path_to_cstring(file).expect("Path to CString failed"));
-        self
-    }
-
     /// Consume the builder and return the result.
-    pub fn build(mut self) -> SessionOptions {
-        self.write_temp_env_file();
+    pub fn build(self) -> SessionOptions {
         SessionOptions {
             cook_opt: self.cook_opt,
             session_info: self.session_info,
             threaded: self.threaded,
             cleanup: self.cleanup,
-            log_file: self.log_file,
             ignore_already_init: self.cleanup,
             auto_close_server: self.auto_close_server,
             env_files: self.env_files,
-            env_variables: self.env_variables,
             otl_path: self.otl_path,
             dso_path: self.dso_path,
             img_dso_path: self.img_dso_path,
             aud_dso_path: self.aud_dso_path,
-        }
-    }
-    // Helper function for Self::env_variables
-    fn write_temp_env_file(&mut self) {
-        use std::io::Write;
-
-        if let Some(ref env) = self.env_variables {
-            let mut file = tempfile::Builder::new()
-                .suffix("_hars.env")
-                .tempfile()
-                .expect("tempfile");
-            for (k, v) in env.iter() {
-                writeln!(file, "{}={}", k, v).expect("write to .env file");
-            }
-            let (_, tmp_file) = file.keep().expect("persistent tempfile");
-            debug!(
-                "Creating temporary environment file: {}",
-                tmp_file.to_string_lossy()
-            );
-            let tmp_file = CString::new(tmp_file.to_string_lossy().to_string()).expect("null byte");
-
-            if let Some(old) = &mut self.env_files {
-                let mut bytes = old.as_bytes_with_nul().to_vec();
-                bytes.extend(tmp_file.into_bytes_with_nul());
-                self.env_files
-                    // SAFETY: the bytes vec was obtained from the two CString's above.
-                    .replace(unsafe { CString::from_vec_with_nul_unchecked(bytes) });
-            } else {
-                self.env_files.replace(tmp_file);
-            }
         }
     }
 }
@@ -1198,29 +1141,100 @@ impl From<i32> for SessionState {
     }
 }
 
+pub struct ServerOptions {
+    thrift_options: ThriftServerOptions,
+    log_file: Option<CString>,
+    env_variables: Option<Vec<(OsString, OsString)>>,
+}
+
+impl ServerOptions {
+    /// Set the thrift server options. See [`ThriftServerOptions`] for more details.
+    pub fn with_thrift_options(mut self, options: ThriftServerOptions) -> Self {
+        self.thrift_options = options;
+        self
+    }
+
+    /// Set the log file for the server.
+    pub fn with_log_file(mut self, file: impl AsRef<Path>) -> Self {
+        self.log_file = Some(utils::path_to_cstring(file).expect("Path to CString failed"));
+        self
+    }
+
+    /// Set **real** environment variables before the server starts.
+    /// Unlike [Session::set_server_var()], where the variables are set in the session, after the server starts.
+    pub fn with_env_variables<'a, I, K, V>(mut self, variables: I) -> Self
+    where
+        I: Iterator<Item = &'a (K, V)>,
+        K: Into<OsString> + Clone + 'a,
+        V: Into<OsString> + Clone + 'a,
+    {
+        self.env_variables = Some(
+            variables
+                .map(|(k, v)| (k.clone().into(), v.clone().into()))
+                .collect(),
+        );
+        self
+    }
+
+    /// Automatically close the server when the last connection drops.
+    pub fn auto_close(mut self, auto_close: bool) -> Self {
+        self.thrift_options.set_auto_close(auto_close);
+        self
+    }
+
+    fn run_with_environment<R, F: FnOnce() -> Result<R>>(&self, f: F) -> Result<R> {
+        if let Some(env_variables) = &self.env_variables {
+            let env_variables = env_variables
+                .iter()
+                .map(|(k, v)| (k, Some(v)))
+                .collect::<Vec<_>>();
+            temp_env::with_vars(env_variables.as_slice(), f)
+        } else {
+            f()
+        }
+    }
+}
+
+impl Default for ServerOptions {
+    fn default() -> Self {
+        Self {
+            thrift_options: ThriftServerOptions::default()
+                .with_timeout_ms(4000f32)
+                .with_verbosity(StatusVerbosity::Statusverbosity0),
+            log_file: None,
+            env_variables: None,
+        }
+    }
+}
+
 /// Spawn a new pipe Engine process and return its PID
 pub fn start_engine_pipe_server(
     path: impl AsRef<Path>,
-    log_file: Option<&str>,
-    options: &ThriftServerOptions,
+    server_options: &ServerOptions,
 ) -> Result<u32> {
     debug!("Starting named pipe server: {:?}", path.as_ref());
-    let log_file = log_file.map(CString::new).transpose()?;
-    let c_str = utils::path_to_cstring(path)?;
+    let pipe_name = utils::path_to_cstring(path)?;
     crate::ffi::clear_connection_error()?;
-    crate::ffi::start_thrift_pipe_server(&c_str, &options.0, log_file.as_deref())
+    server_options.run_with_environment(|| {
+        crate::ffi::start_thrift_pipe_server(
+            &pipe_name,
+            &server_options.thrift_options.0,
+            server_options.log_file.as_deref(),
+        )
+    })
 }
 
 /// Spawn a new socket Engine server and return its PID
-pub fn start_engine_socket_server(
-    port: u16,
-    log_file: Option<&str>,
-    options: &ThriftServerOptions,
-) -> Result<u32> {
+pub fn start_engine_socket_server(port: u16, server_options: &ServerOptions) -> Result<u32> {
     debug!("Starting socket server on port: {}", port);
-    let log_file = log_file.map(CString::new).transpose()?;
     crate::ffi::clear_connection_error()?;
-    crate::ffi::start_thrift_socket_server(port as i32, &options.0, log_file.as_deref())
+    server_options.run_with_environment(|| {
+        crate::ffi::start_thrift_socket_server(
+            port as i32,
+            &server_options.thrift_options.0,
+            server_options.log_file.as_deref(),
+        )
+    })
 }
 
 /// Start an interactive Houdini session with engine server embedded.
@@ -1246,28 +1260,31 @@ pub fn start_houdini_server(
 /// Spawn a new Engine server utilizing shared memory to transfer data.
 pub fn start_shared_memory_server(
     memory_name: &str,
-    options: &ThriftServerOptions,
-    log_file: Option<&CStr>,
+    server_options: &ServerOptions,
 ) -> Result<u32> {
     debug!("Starting shared memory server name: {memory_name}");
     let memory_name = CString::new(memory_name)?;
     crate::ffi::clear_connection_error()?;
-    crate::ffi::start_thrift_shared_memory_server(&memory_name, &options.0, log_file)
+    server_options.run_with_environment(|| {
+        crate::ffi::start_thrift_shared_memory_server(
+            &memory_name,
+            &server_options.thrift_options.0,
+            server_options.log_file.as_deref(),
+        )
+    })
 }
 
 /// A quick drop-in session, useful for on-off jobs
 /// It starts a **single-threaded** shared memory server and initialize a session with default options
-pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
-    let server_options = ThriftServerOptions::default()
-        .with_auto_close(options.as_ref().map_or(true, |opt| opt.auto_close_server))
-        .with_timeout_ms(4000f32)
-        .with_verbosity(StatusVerbosity::Statusverbosity0);
+pub fn quick_session(
+    session_options: Option<SessionOptions>,
+    server_options: Option<ServerOptions>,
+) -> Result<Session> {
     let rand_memory_name = format!("shared-memory-{}", utils::random_string(16));
-    let pid = start_shared_memory_server(
-        &rand_memory_name,
-        &server_options,
-        options.as_ref().and_then(|opt| opt.log_file.as_deref()),
-    )?;
-    connect_to_memory_server(&rand_memory_name, options, Some(pid))
+    let session_options = session_options.unwrap_or_default();
+    let server_options = server_options.unwrap_or_default();
+
+    let pid = start_shared_memory_server(&rand_memory_name, &server_options)?;
+    connect_to_memory_server(&rand_memory_name, session_options, Some(pid))
         .context("Could not connect to server")
 }

@@ -189,7 +189,7 @@ mod tests {
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init().ok();
-        crate::session::quick_session(None).expect("Could not create test session")
+        crate::session::quick_session(None, None).expect("Could not create test session")
     });
 
     #[test]

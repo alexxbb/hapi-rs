@@ -1,9 +1,9 @@
 use hapi_rs::raw::CacheProperty;
-use hapi_rs::session::License;
 use hapi_rs::session::{
     ConnectionType, CookResult, ManagerType, SessionOptions, SessionSyncInfo, TimelineOptions,
     Viewport, quick_session,
 };
+use hapi_rs::session::{License, ServerOptions};
 
 mod utils;
 use utils::with_session;
@@ -14,7 +14,7 @@ fn session_init_and_teardown() {
         .dso_search_paths(["/path/one", "/path/two"])
         .otl_search_paths(["/path/thee", "/path/four"])
         .build();
-    let ses = quick_session(Some(&opt)).unwrap();
+    let ses = quick_session(Some(opt), None).unwrap();
     assert!(matches!(
         ses.connection_type(),
         ConnectionType::SharedMemory(_)
@@ -28,7 +28,7 @@ fn session_init_and_teardown() {
 #[test]
 fn session_get_set_time() {
     // For some reason, this test randomly fails when using shared session
-    let session = quick_session(None).expect("Could not start session");
+    let session = quick_session(None, None).expect("Could not start session");
     // let _lock = session.lock();
     let opt = TimelineOptions::default().with_end_time(5.5);
     assert!(session.set_timeline_options(opt.clone()).is_ok());
@@ -41,14 +41,25 @@ fn session_get_set_time() {
 
 #[test]
 fn session_server_variables() {
-    // Starting a new separate session because getting/setting env variables from multiple
-    // clients ( threads ) breaks the server
-    let session = quick_session(None).expect("Could not start session");
+    let session = quick_session(
+        None,
+        Some(
+            ServerOptions::default()
+                .with_env_variables([("HAPI_RS_TEST", "hapi_rs_is_awesome")].iter()),
+        ),
+    )
+    .expect("Could not start session");
     session.set_server_var::<str>("FOO", "foo_string").unwrap();
     assert_eq!(session.get_server_var::<str>("FOO").unwrap(), "foo_string");
     session.set_server_var::<i32>("BAR", &123).unwrap();
     assert_eq!(session.get_server_var::<i32>("BAR").unwrap(), 123);
     assert!(!session.get_server_variables().unwrap().is_empty());
+    assert_eq!(
+        session.get_server_var::<str>("HAPI_RS_TEST").unwrap(),
+        "hapi_rs_is_awesome"
+    );
+    // Make sure the implementation doesn't leak the environment variables to the main process
+    assert!(!std::env::vars().any(|(k, _)| k == "HAPI_RS_TEST"));
 }
 
 #[test]
@@ -122,14 +133,20 @@ fn cache_properties() {
 
 #[test]
 fn test_license_set_via_environment() {
-    let env = [("HAPI_LICENSE_MODE", "engine_only")];
-    let options = SessionOptions::builder().env_variables(env.iter()).auto_close(false).build();
-    let session = quick_session(Some(&options)).expect("Could not start session");
+    let env = [(
+        "HOUDINI_PLUGIN_LIC_OPT",
+        "--check-licenses=Houdini-Escape --skip-licenses=Houdini-Engine",
+    )];
+
+    let options = SessionOptions::builder().build();
+    let server_options = ServerOptions::default().with_env_variables(env.iter());
+    let session =
+        quick_session(Some(options), Some(server_options)).expect("Could not start session");
     let plugin_lic_opt = session.get_server_var::<str>(&env[0].0).unwrap();
     session.create_node("Object/null").unwrap();
     let license_type = session.get_license_type().unwrap();
     assert_eq!(plugin_lic_opt, env[0].1.to_string());
-    assert_eq!(license_type, License::HoudiniEngine);
+    assert_eq!(license_type, License::LicenseHoudini);
 }
 
 #[test]
