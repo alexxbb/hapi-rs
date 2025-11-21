@@ -1277,11 +1277,10 @@ pub fn start_shared_memory_server(
 /// A quick drop-in session, useful for on-off jobs
 /// It starts a **single-threaded** shared memory server and initialize a session with default options
 pub fn quick_session(
-    session_options: Option<SessionOptions>,
+    session_options: SessionOptions,
     server_options: Option<ServerOptions>,
 ) -> Result<Session> {
     let rand_memory_name = format!("shared-memory-{}", utils::random_string(16));
-    let session_options = session_options.unwrap_or_default();
     let server_options = server_options.unwrap_or_default();
 
     let pid = start_shared_memory_server(&rand_memory_name, &server_options)?;

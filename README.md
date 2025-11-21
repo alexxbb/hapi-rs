@@ -22,12 +22,12 @@ https://user-images.githubusercontent.com/10694389/227816361-b9ffa083-7932-40e4-
 
 ```rust
 use hapi_rs::Result;
-use hapi_rs::session::quick_session;
+use hapi_rs::session::{quick_session, SessionOptions};
 use hapi_rs::parameter::*;
 
 fn main() -> Result<()> {
     // Start a standalone engine process
-    let session = quick_session(None)?;
+    let session = quick_session(SessionOptions::default(), None)?;
     // Load a Houdini Asset and create a node
     let lib = session.load_asset_file("otls/hapi_geo.hda")?;
     let node = lib.create_asset_for_node("Object/hapi_geo", None)?;

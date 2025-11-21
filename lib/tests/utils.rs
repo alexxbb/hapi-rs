@@ -12,7 +12,10 @@ use once_cell::sync::Lazy;
 thread_local! {
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init();
-        let opt = SessionOptions::builder().threaded(true).build();
+        let opt = SessionOptions {
+            threaded: true,
+            ..Default::default()
+        };
         quick_session(Some(opt), None).expect("Could not create test session")
     });
 
@@ -21,7 +24,11 @@ thread_local! {
         let mut session_info = SessionInfo::default();
         // For async attribute access connection_count must be > 0 according to SESI support, otherwise HARS crashes.
         session_info.set_connection_count(2);
-        let opt = SessionOptions::builder().threaded(true).session_info(session_info).build();
+        let opt = SessionOptions {
+            threaded: true,
+            session_info,
+            ..Default::default()
+        };
         quick_session(Some(opt), None).expect("Could not create async test session")
     });
 }

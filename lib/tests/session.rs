@@ -138,7 +138,7 @@ fn test_license_set_via_environment() {
         "--check-licenses=Houdini-Escape --skip-licenses=Houdini-Engine",
     )];
 
-    let options = SessionOptions::builder().build();
+    let options = SessionOptions::default();
     let server_options = ServerOptions::default().with_env_variables(env.iter());
     let session =
         quick_session(Some(options), Some(server_options)).expect("Could not start session");
