@@ -3,7 +3,7 @@ use hapi_rs::{attribute::*, geometry::*, session::*};
 use hapi_rs::Result;
 
 fn main() -> Result<()> {
-    let session = new_thrift_session(SessionOptions::default(), ServerOptions::default())?;
+    let session = new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())?;
     let geom = session.create_input_node("Cube", None)?;
     geom.node.cook_blocking()?;
     let part_info = PartInfo::default()

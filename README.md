@@ -28,7 +28,7 @@ use hapi_rs::parameter::*;
 fn main() -> Result<()> {
     // Start a standalone engine process
     let session =
-        new_thrift_session(SessionOptions::default(), ServerOptions::default())?;
+        new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())?;
     // Load a Houdini Asset and create a node
     let lib = session.load_asset_file("otls/hapi_geo.hda")?;
     let node = lib.create_asset_for_node("Object/hapi_geo", None)?;

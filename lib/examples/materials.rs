@@ -5,7 +5,7 @@ use hapi_rs::parameter::*;
 use hapi_rs::session::{ServerOptions, SessionOptions, new_thrift_session};
 
 fn main() -> Result<()> {
-    let session = new_thrift_session(SessionOptions::default(), ServerOptions::default())?;
+    let session = new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())?;
     let lib = session.load_asset_file("../otls/sesi/SideFX_spaceship.hda")?;
     let node = lib.try_create_first()?;
     node.cook()?;

@@ -205,7 +205,7 @@ fn input_handler(
 fn init_houdini_resource() -> HapiResult<HoudiniResource> {
     let options = SessionOptions::builder().threaded(false).build();
     let session = if cfg!(debug_assertions) {
-        connect_to_memory_server("hapi", options.clone(), None)?
+        connect_to_memory_server("hapi", options.clone(), None, None)?
     } else {
         new_in_process_session(Some(options))?
     };

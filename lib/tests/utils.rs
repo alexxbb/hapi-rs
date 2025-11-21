@@ -14,7 +14,7 @@ use once_cell::sync::Lazy;
 thread_local! {
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init();
-        new_thrift_session(SessionOptions::default(), ServerOptions::default())
+        new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())
             .expect("Could not create test session")
     });
 
@@ -28,7 +28,7 @@ thread_local! {
             session_info,
             ..Default::default()
         };
-        new_thrift_session(opt, ServerOptions::default()).expect("Could not create async test session")
+        new_thrift_session(opt, ServerOptions::shared_memory()).expect("Could not create async test session")
     });
 }
 

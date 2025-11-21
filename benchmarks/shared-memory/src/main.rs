@@ -89,7 +89,7 @@ fn main() -> Result<()> {
         }
         "memory" => {
             let pid = start_shared_memory_server(conn_name, &server_options, None)?;
-            connect_to_memory_server(conn_name, session_options.clone(), Some(pid))?
+            connect_to_memory_server(conn_name, session_options.clone(), None, Some(pid))?
         }
         _ => panic!("Server type must be pipe or memory"),
     };

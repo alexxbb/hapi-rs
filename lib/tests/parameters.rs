@@ -251,7 +251,7 @@ fn parameters_concurrent_access() {
     with_session(|session| {
         // let session = new_thrift_session(
         //     SessionOptionsBuilder::default().threaded(true).build(),
-        //     ServerOptions::default(),
+        //     ServerOptions::shared_memory(),
         // )?;
         let node = session
             .load_asset_file(HdaFile::Parameters.path())?

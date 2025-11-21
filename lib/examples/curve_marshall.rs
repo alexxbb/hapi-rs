@@ -2,7 +2,7 @@
 use hapi_rs::{Result, attribute::*, geometry::*, session::*};
 
 fn main() -> Result<()> {
-    let session = new_thrift_session(SessionOptions::default(), ServerOptions::default())?;
+    let session = new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())?;
     let geom = session.create_input_node("Curve", None)?;
     geom.node.cook_blocking()?;
     let part_info = PartInfo::default()

@@ -32,7 +32,10 @@ fn main() -> Result<()> {
         .threaded(true)
         .auto_close(true)
         .build();
-    let session = new_thrift_session(opts, ServerOptions::default().with_log_file(&log_file))?;
+    let session = new_thrift_session(
+        opts,
+        ServerOptions::shared_memory().with_log_file(&log_file),
+    )?;
     let asset = session.load_asset_file(otl)?.try_create_first()?;
     let geo = asset.geometry()?.unwrap();
 

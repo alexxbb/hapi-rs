@@ -325,7 +325,7 @@ fn main() {
         None => hapi_rs::session::new_in_process_session(Some(options.clone()))
             .expect("Could not create session"),
         Some(remote_address) => {
-            hapi_rs::session::connect_to_socket(remote_address.clone(), options.clone())
+            hapi_rs::session::connect_to_socket(remote_address.clone(), options.clone(), None)
                 .expect("Could not connect to socket")
         }
     };

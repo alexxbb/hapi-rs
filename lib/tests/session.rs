@@ -14,7 +14,7 @@ fn session_init_and_teardown() {
         .dso_search_paths(["/path/one", "/path/two"])
         .otl_search_paths(["/path/thee", "/path/four"])
         .build();
-    let ses = new_thrift_session(opt, ServerOptions::default()).unwrap();
+    let ses = new_thrift_session(opt, ServerOptions::shared_memory()).unwrap();
     assert!(matches!(
         ses.connection_type(),
         ConnectionType::SharedMemory(_)
@@ -28,7 +28,7 @@ fn session_init_and_teardown() {
 #[test]
 fn session_get_set_time() {
     // For some reason, this test randomly fails when using shared session
-    let session = new_thrift_session(SessionOptions::default(), ServerOptions::default())
+    let session = new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())
         .expect("Could not start session");
     // let _lock = session.lock();
     let opt = TimelineOptions::default().with_end_time(5.5);
@@ -44,7 +44,7 @@ fn session_get_set_time() {
 fn session_server_variables() {
     let session = new_thrift_session(
         SessionOptions::default(),
-        ServerOptions::default()
+        ServerOptions::shared_memory()
             .with_env_variables([("HAPI_RS_TEST", "hapi_rs_is_awesome")].iter()),
     )
     .expect("Could not start session");
@@ -137,9 +137,9 @@ fn test_license_set_via_environment() {
         "--check-licenses=Houdini-Escape --skip-licenses=Houdini-Engine",
     )];
 
-    let options = SessionOptions::default();
-    let server_options = ServerOptions::default().with_env_variables(env.iter());
-    let session = new_thrift_session(options, server_options).expect("Could not start session");
+    let server_options = ServerOptions::shared_memory().with_env_variables(env.iter());
+    let session = new_thrift_session(SessionOptions::default(), server_options)
+        .expect("Could not start session");
     let plugin_lic_opt = session.get_server_var::<str>(&env[0].0).unwrap();
     session.create_node("Object/null").unwrap();
     let license_type = session.get_license_type().unwrap();

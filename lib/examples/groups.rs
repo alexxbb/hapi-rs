@@ -62,7 +62,7 @@ fn create_cube(session: &Session) -> Result<HoudiniNode> {
 }
 
 fn main() -> Result<()> {
-    let session = new_thrift_session(SessionOptions::default(), ServerOptions::default())?;
+    let session = new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())?;
     let cube = create_cube(&session)?;
     let xform = session.create_node("Sop/xform")?;
     xform.connect_input(0, &cube, 0)?;

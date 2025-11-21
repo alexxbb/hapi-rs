@@ -7,7 +7,7 @@ use tempfile::NamedTempFile;
 fn main() -> Result<()> {
     let sess = new_thrift_session(
         SessionOptions::builder().threaded(true).build(),
-        ServerOptions::default(),
+        ServerOptions::shared_memory(),
     )?;
 
     println!("Generating scene");
