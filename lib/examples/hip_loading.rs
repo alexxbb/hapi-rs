@@ -6,7 +6,7 @@ use tempfile::NamedTempFile;
 /// Demonstrates how to save and load Hip files.
 fn main() -> Result<()> {
     let sess = new_thrift_session(
-        SessionOptions::builder().threaded(true).build(),
+        SessionOptions::default().threaded(true),
         ServerOptions::shared_memory(),
     )?;
 

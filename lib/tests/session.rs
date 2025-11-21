@@ -10,10 +10,9 @@ use utils::with_session;
 
 #[test]
 fn session_init_and_teardown() {
-    let opt = SessionOptions::builder()
+    let opt = SessionOptions::default()
         .dso_search_paths(["/path/one", "/path/two"])
-        .otl_search_paths(["/path/thee", "/path/four"])
-        .build();
+        .otl_search_paths(["/path/thee", "/path/four"]);
     let ses = new_thrift_session(opt, ServerOptions::shared_memory()).unwrap();
     assert!(matches!(
         ses.connection_type(),

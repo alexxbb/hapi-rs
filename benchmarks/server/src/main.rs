@@ -70,7 +70,7 @@ fn copy_geo(source: &Geometry, input_geo: &Geometry) -> Result<()> {
 
 fn main() -> Result<()> {
     let mut args = std::env::args();
-    let session_options = SessionOptions::builder().threaded(false).build();
+    let session_options = SessionOptions::default().threaded(false);
     let conn_name = "hapi-bench";
     let server_type = args.nth(1).expect("server type");
     let num_runs: usize = match args.next() {

@@ -4,17 +4,17 @@ mod material;
 use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
 use bevy::prelude::*;
 use bevy::render::mesh::VertexAttributeValues;
-use bevy::tasks::{block_on, futures_lite::future};
 use bevy::tasks::{AsyncComputeTaskPool, Task};
+use bevy::tasks::{block_on, futures_lite::future};
 use bevy::text::FontSmoothing;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
+use hapi_rs::Result as HapiResult;
 use hapi_rs::geometry::Geometry;
 use hapi_rs::node::HoudiniNode;
 use hapi_rs::parameter::Parameter;
 #[allow(unused_imports)]
 use hapi_rs::session::connect_to_memory_server;
-use hapi_rs::session::{new_in_process_session, SessionOptions};
-use hapi_rs::Result as HapiResult;
+use hapi_rs::session::{SessionOptions, new_in_process_session};
 
 #[derive(Resource)]
 struct HoudiniResource {
@@ -203,7 +203,7 @@ fn input_handler(
 }
 
 fn init_houdini_resource() -> HapiResult<HoudiniResource> {
-    let options = SessionOptions::builder().threaded(false).build();
+    let options = SessionOptions::default().threaded(false);
     let session = if cfg!(debug_assertions) {
         connect_to_memory_server("hapi", options.clone(), None, None)?
     } else {

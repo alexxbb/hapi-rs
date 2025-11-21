@@ -5,7 +5,7 @@ use hapi_rs::Result;
 use hapi_rs::enums::StatusVerbosity;
 use hapi_rs::node::{CookResult, HoudiniNode, NodeFlags, NodeHandle, NodeType};
 use hapi_rs::raw::StatusType;
-use hapi_rs::session::{ServerOptions, SessionOptionsBuilder, new_thrift_session};
+use hapi_rs::session::{ServerOptions, SessionOptions, new_thrift_session};
 
 const OTL: &str = "../otls/hapi_errors.hda";
 
@@ -28,12 +28,8 @@ fn main() -> Result<()> {
     let otl = std::env::current_dir().unwrap().join(OTL);
     let otl = std::path::absolute(&otl).unwrap();
     let log_file = std::env::temp_dir().join("hapi.log");
-    let opts = SessionOptionsBuilder::default()
-        .threaded(true)
-        .auto_close(true)
-        .build();
     let session = new_thrift_session(
-        opts,
+        SessionOptions::default().threaded(true),
         ServerOptions::shared_memory().with_log_file(&log_file),
     )?;
     let asset = session.load_asset_file(otl)?.try_create_first()?;

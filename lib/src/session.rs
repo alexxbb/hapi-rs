@@ -870,8 +870,6 @@ pub struct SessionOptions {
     pub cleanup: bool,
     /// Do not error out if session is already initialized
     pub ignore_already_init: bool,
-    /// Automatically close session when the last connection drops.
-    pub auto_close_server: bool,
     pub env_files: Option<CString>,
     pub otl_path: Option<CString>,
     pub dso_path: Option<CString>,
@@ -887,7 +885,6 @@ impl Default for SessionOptions {
             threaded: false,
             cleanup: false,
             ignore_already_init: true,
-            auto_close_server: true,
             env_files: None,
             otl_path: None,
             dso_path: None,
@@ -897,24 +894,8 @@ impl Default for SessionOptions {
     }
 }
 
-#[derive(Default)]
-/// A build for SessionOptions.
-pub struct SessionOptionsBuilder {
-    cook_opt: CookOptions,
-    session_info: SessionInfo,
-    threaded: bool,
-    cleanup: bool,
-    ignore_already_init: bool,
-    auto_close_server: bool,
-    env_files: Option<CString>,
-    otl_path: Option<CString>,
-    dso_path: Option<CString>,
-    img_dso_path: Option<CString>,
-    aud_dso_path: Option<CString>,
-}
-
-impl SessionOptionsBuilder {
-    /// A list of Houdini environment file the Engine will load environment from.
+impl SessionOptions {
+    /// A list of Houdini environment files the Engine will load from.
     pub fn houdini_env_files<I>(mut self, files: I) -> Self
     where
         I: IntoIterator,
@@ -1002,36 +983,6 @@ impl SessionOptionsBuilder {
     pub fn cleanup_on_close(mut self, cleanup: bool) -> Self {
         self.cleanup = cleanup;
         self
-    }
-
-    /// Automatically close session when the last connection drops.
-    pub fn auto_close(mut self, auto_close: bool) -> Self {
-        self.auto_close_server = auto_close;
-        self
-    }
-
-    /// Consume the builder and return the result.
-    pub fn build(self) -> SessionOptions {
-        SessionOptions {
-            cook_opt: self.cook_opt,
-            session_info: self.session_info,
-            threaded: self.threaded,
-            cleanup: self.cleanup,
-            ignore_already_init: self.cleanup,
-            auto_close_server: self.auto_close_server,
-            env_files: self.env_files,
-            otl_path: self.otl_path,
-            dso_path: self.dso_path,
-            img_dso_path: self.img_dso_path,
-            aud_dso_path: self.aud_dso_path,
-        }
-    }
-}
-
-impl SessionOptions {
-    /// Create a [`SessionOptionsBuilder`]. Same as [`SessionOptionsBuilder::default()`].
-    pub fn builder() -> SessionOptionsBuilder {
-        SessionOptionsBuilder::default()
     }
 }
 
@@ -1222,7 +1173,7 @@ impl ServerOptions {
 /// If `timeout` is Some, function will try to connect to
 /// the server multiple times every 100ms until `timeout` is reached.
 /// Note: Default SessionOptions create a blocking session, non-threaded session,
-/// use [`SessionOptionsBuilder`] to configure this.
+/// use the builder-style helpers on [`SessionOptions`] to configure this.
 pub fn connect_to_pipe_server(
     pipe: impl AsRef<Path>,
     session_options: SessionOptions,

@@ -6,7 +6,7 @@ use hapi_rs::Result;
 use hapi_rs::enums::{PdgEventType, PdgWorkItemState};
 use hapi_rs::node::Parameter;
 use hapi_rs::pdg::TopNode;
-use hapi_rs::session::{SessionOptionsBuilder, new_in_process_session};
+use hapi_rs::session::{SessionOptions, new_in_process_session};
 
 fn cook_async(node: &TopNode) -> Result<()> {
     node.dirty_node(true)?;
@@ -74,7 +74,7 @@ fn main() -> Result<()> {
         std::env::set_var("PDG_DIR", &out_dir_str);
         std::env::set_var("JOB", &out_dir_str);
     }
-    let options = SessionOptionsBuilder::default().threaded(true).build();
+    let options = SessionOptions::default().threaded(true);
     let session = new_in_process_session(Some(options))?;
     let lib = session.load_asset_file(otl)?;
     let asset = lib.try_create_first()?;
