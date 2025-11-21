@@ -127,9 +127,7 @@ impl Geometry {
     #[allow(unused_must_use)]
     fn assert_node_cooked(&self) -> Result<()> {
         debug_assert!(
-            crate::ffi::get_node_info(self.node.handle, &self.node.session)?
-                .totalCookCount
-                > 0,
+            crate::ffi::get_node_info(self.node.handle, &self.node.session)?.totalCookCount > 0,
             "Node not cooked"
         );
         Ok(())
@@ -379,6 +377,22 @@ impl Geometry {
         let name = CString::from(AttributeName::P);
         let info = AttributeInfo::new(&self.node, part_id, AttributeOwner::Point, name.as_c_str())?;
         Ok(NumericAttr::new(name, info, self.node.clone()))
+    }
+
+    /// Convenient method for getting the Cd attribute on points
+    pub fn get_point_color_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>> {
+        self.assert_node_cooked()?;
+        let name = CString::from(AttributeName::Cd);
+        let info = AttributeInfo::new(
+            &self.node,
+            part.part_id(),
+            AttributeOwner::Point,
+            name.as_c_str(),
+        )?;
+        if !info.exists() {
+            return Ok(None);
+        }
+        Ok(Some(NumericAttr::new(name, info, self.node.clone())))
     }
 
     /// Retrieve information about a geometry attribute.

@@ -11,10 +11,7 @@ use hapi_rs::geometry::AttributeInfo;
 use hapi_rs::node::Geometry;
 use hapi_rs::parameter::{FloatParameter, Parameter};
 use hapi_rs::raw::ThriftSharedMemoryBufferType;
-use hapi_rs::session::{
-    connect_to_memory_server, connect_to_pipe, start_engine_pipe_server,
-    start_shared_memory_server, SessionOptions, ThriftServerOptions,
-};
+use hapi_rs::session::{new_thrift_session, ServerOptions, SessionOptions};
 use hapi_rs::Result;
 use nanorand::{Rng, WyRand};
 use std::ffi::CStr;
@@ -33,12 +30,12 @@ fn random_string<const SIZE: usize>() -> String {
 const N_RUN: usize = 10;
 
 fn copy_geo(source: &Geometry, input_geo: &Geometry) -> Result<()> {
-    let part = source.part_info(0)?.unwrap();
+    let part = source.part_info(0)?;
     input_geo.set_part_info(&part)?;
     let position_attr = source.get_position_attribute(part.part_id())?;
     let positions_data = position_attr.get(0)?;
-    let vertex_list = source.vertex_list(None)?;
-    let face_counts = source.get_face_counts(None)?;
+    let vertex_list = source.vertex_list(&part)?;
+    let face_counts = source.get_face_counts(&part)?;
     input_geo.set_vertex_list(0, &vertex_list)?;
     input_geo.set_face_counts(0, &face_counts)?;
 
@@ -65,7 +62,7 @@ fn copy_geo(source: &Geometry, input_geo: &Geometry) -> Result<()> {
         .set(part.part_id(), &color_data)?;
     let dest_payload_attr =
         input_geo.add_string_attribute("payload", part.part_id(), payload_attr.info().clone())?;
-    dest_payload_attr.set_cstr(part.part_id(), payload_c_strings.iter().cloned())?;
+    dest_payload_attr.set(part.part_id(), &payload_c_strings)?;
     input_geo.commit()?;
 
     Ok(())
@@ -73,7 +70,6 @@ fn copy_geo(source: &Geometry, input_geo: &Geometry) -> Result<()> {
 
 fn main() -> Result<()> {
     let mut args = std::env::args();
-    let server_options = ThriftServerOptions::default().with_shared_memory_buffer_size(200);
     let session_options = SessionOptions::builder().threaded(false).build();
     let conn_name = "hapi-bench";
     let server_type = args.nth(1).expect("server type");
@@ -82,22 +78,20 @@ fn main() -> Result<()> {
         Some(v) => v.parse().expect("Second argument must be a number"),
     };
     println!("Starting \"{server_type}\" server");
-    let session = match server_type.as_str() {
-        "pipe" => {
-            let pid = start_engine_pipe_server(conn_name, None, &server_options)?;
-            connect_to_pipe(conn_name, session_options.clone(), None, Some(pid))?
-        }
-        "memory" => {
-            let pid = start_shared_memory_server(conn_name, &server_options, None)?;
-            connect_to_memory_server(conn_name, session_options.clone(), None, Some(pid))?
-        }
+    let server_options = match server_type.as_str() {
+        "pipe" => ServerOptions::pipe(conn_name),
+        "memory" => ServerOptions::shared_memory()
+            .memory_name(conn_name)
+            .configure_thrift(|opts| {
+                opts.set_shared_memory_buffer_type(ThriftSharedMemoryBufferType::Buffer);
+                opts.set_shared_memory_buffer_size(1000);
+            }),
         _ => panic!("Server type must be pipe or memory"),
     };
+    let session = new_thrift_session(session_options, server_options)?;
     println!("Session created.");
-    let lib = AssetLibrary::from_file(
-        session.clone(),
-        "C:/Github/hapi-rs/benchmarks/shared-memory/benchmark.hda",
-    )?;
+    let asset_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("benchmark.hda");
+    let lib = AssetLibrary::from_file(session.clone(), &asset_path)?;
 
     let asset_node = lib.try_create_first()?;
     println!("Test asset ready.");
