@@ -15,7 +15,10 @@ use argh::FromArgs;
 use hapi_rs::{
     enums::CurveType,
     geometry::InputCurveInfo,
-    session::{ManagerType, SessionSyncInfo, Viewport, connect_to_pipe, start_houdini_server},
+    session::{
+        ManagerType, SessionOptions, SessionSyncInfo, Viewport, connect_to_pipe,
+        start_houdini_server,
+    },
 };
 
 #[derive(FromArgs, Debug)]
@@ -38,7 +41,7 @@ fn main() -> Result<()> {
     let args: Args = argh::from_env();
     const PIPE: &str = "hapi";
     // Try to connect toa possibly running session
-    let session = match connect_to_pipe(PIPE, None, None, None) {
+    let session = match connect_to_pipe(PIPE, SessionOptions::default(), None, None) {
         Ok(session) => session,
         Err(_) => {
             // No session running at PIPE, start the Houdini process.
@@ -47,7 +50,12 @@ fn main() -> Result<()> {
             let executable = Path::new(&hfs).join("bin").join("houdini");
             let child = start_houdini_server(PIPE, executable, true)?;
             // While trying to connect, it will print some errors, these can be ignored.
-            connect_to_pipe(PIPE, None, Some(Duration::from_secs(90)), Some(child.id()))?
+            connect_to_pipe(
+                PIPE,
+                SessionOptions::default(),
+                Some(Duration::from_secs(90)),
+                Some(child.id()),
+            )?
         }
     };
 

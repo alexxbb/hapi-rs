@@ -5,18 +5,17 @@ use hapi_rs::{
     attribute::*,
     enums::{AttributeOwner, PartType},
     geometry::{Geometry, PartInfo},
-    session::{CookResult, Session, SessionInfo, SessionOptions, quick_session},
+    session::{
+        CookResult, ServerOptions, Session, SessionInfo, SessionOptions, new_thrift_session,
+    },
 };
 use once_cell::sync::Lazy;
 
 thread_local! {
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init();
-        let opt = SessionOptions {
-            threaded: true,
-            ..Default::default()
-        };
-        quick_session(Some(opt), None).expect("Could not create test session")
+        new_thrift_session(SessionOptions::default(), ServerOptions::default())
+            .expect("Could not create test session")
     });
 
     static ASYNC_SESSION: Lazy<Session> = Lazy::new(|| {
@@ -29,7 +28,7 @@ thread_local! {
             session_info,
             ..Default::default()
         };
-        quick_session(Some(opt), None).expect("Could not create async test session")
+        new_thrift_session(opt, ServerOptions::default()).expect("Could not create async test session")
     });
 }
 

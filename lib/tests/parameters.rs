@@ -249,9 +249,10 @@ fn parameters_concurrent_access() {
     }
 
     with_session(|session| {
-        // let session = quick_session(Some(
-        //     &SessionOptionsBuilder::default().threaded(true).build(),
-        // ))?;
+        // let session = new_thrift_session(
+        //     SessionOptionsBuilder::default().threaded(true).build(),
+        //     ServerOptions::default(),
+        // )?;
         let node = session
             .load_asset_file(HdaFile::Parameters.path())?
             .try_create_first()?;

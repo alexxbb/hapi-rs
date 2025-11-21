@@ -1,7 +1,7 @@
 use hapi_rs::raw::CacheProperty;
 use hapi_rs::session::{
     ConnectionType, CookResult, ManagerType, SessionOptions, SessionSyncInfo, TimelineOptions,
-    Viewport, quick_session,
+    Viewport, new_thrift_session,
 };
 use hapi_rs::session::{License, ServerOptions};
 
@@ -14,7 +14,7 @@ fn session_init_and_teardown() {
         .dso_search_paths(["/path/one", "/path/two"])
         .otl_search_paths(["/path/thee", "/path/four"])
         .build();
-    let ses = quick_session(Some(opt), None).unwrap();
+    let ses = new_thrift_session(opt, ServerOptions::default()).unwrap();
     assert!(matches!(
         ses.connection_type(),
         ConnectionType::SharedMemory(_)
@@ -28,7 +28,8 @@ fn session_init_and_teardown() {
 #[test]
 fn session_get_set_time() {
     // For some reason, this test randomly fails when using shared session
-    let session = quick_session(None, None).expect("Could not start session");
+    let session = new_thrift_session(SessionOptions::default(), ServerOptions::default())
+        .expect("Could not start session");
     // let _lock = session.lock();
     let opt = TimelineOptions::default().with_end_time(5.5);
     assert!(session.set_timeline_options(opt.clone()).is_ok());
@@ -41,12 +42,10 @@ fn session_get_set_time() {
 
 #[test]
 fn session_server_variables() {
-    let session = quick_session(
-        None,
-        Some(
-            ServerOptions::default()
-                .with_env_variables([("HAPI_RS_TEST", "hapi_rs_is_awesome")].iter()),
-        ),
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::default()
+            .with_env_variables([("HAPI_RS_TEST", "hapi_rs_is_awesome")].iter()),
     )
     .expect("Could not start session");
     session.set_server_var::<str>("FOO", "foo_string").unwrap();
@@ -140,8 +139,7 @@ fn test_license_set_via_environment() {
 
     let options = SessionOptions::default();
     let server_options = ServerOptions::default().with_env_variables(env.iter());
-    let session =
-        quick_session(Some(options), Some(server_options)).expect("Could not start session");
+    let session = new_thrift_session(options, server_options).expect("Could not start session");
     let plugin_lic_opt = session.get_server_var::<str>(&env[0].0).unwrap();
     session.create_node("Object/null").unwrap();
     let license_type = session.get_license_type().unwrap();

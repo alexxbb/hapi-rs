@@ -183,13 +183,14 @@ pub fn get_string_array(handles: &[StringHandle], session: &Session) -> Result<S
 mod tests {
     use super::StringArray;
     use crate::ffi;
-    use crate::session::Session;
+    use crate::session::{ServerOptions, Session, SessionOptions, new_thrift_session};
     use once_cell::sync::Lazy;
     use std::ffi::CString;
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init().ok();
-        crate::session::quick_session(None, None).expect("Could not create test session")
+        new_thrift_session(SessionOptions::default(), ServerOptions::default())
+            .expect("Could not create test session")
     });
 
     #[test]

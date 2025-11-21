@@ -3,12 +3,12 @@ use prettytable::*;
 
 use hapi_rs::Result;
 use hapi_rs::parameter::{Parameter, ParmType};
-use hapi_rs::session::{SessionOptions, quick_session};
+use hapi_rs::session::{ServerOptions, SessionOptions, new_thrift_session};
 
 fn main() -> Result<()> {
     env_logger::init();
     let opt = SessionOptions::builder().threaded(true).build();
-    let session = quick_session(Some(&opt))?;
+    let session = new_thrift_session(opt, ServerOptions::default())?;
     let lib = session.load_asset_file("../otls/sesi/SideFX_spaceship.hda")?;
     let node = lib.try_create_first()?;
     let asset_parms = lib.get_asset_parms("SideFX::Object/spaceship")?;

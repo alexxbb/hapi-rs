@@ -85,11 +85,11 @@ fn main() -> Result<()> {
     let session = match server_type.as_str() {
         "pipe" => {
             let pid = start_engine_pipe_server(conn_name, None, &server_options)?;
-            connect_to_pipe(conn_name, Some(&session_options), None, Some(pid))?
+            connect_to_pipe(conn_name, session_options.clone(), None, Some(pid))?
         }
         "memory" => {
             let pid = start_shared_memory_server(conn_name, &server_options, None)?;
-            connect_to_memory_server(conn_name, Some(&session_options), Some(pid))?
+            connect_to_memory_server(conn_name, session_options.clone(), Some(pid))?
         }
         _ => panic!("Server type must be pipe or memory"),
     };

@@ -322,9 +322,10 @@ fn main() {
         .with_icon(load_icon().expect("ICON image"));
     let options = SessionOptions::default();
     let session = match &remote_server {
-        None => hapi_rs::session::new_in_process(Some(&options)).expect("Could not create session"),
+        None => hapi_rs::session::new_in_process_session(Some(options.clone()))
+            .expect("Could not create session"),
         Some(remote_address) => {
-            hapi_rs::session::connect_to_socket(remote_address.clone(), Some(&options))
+            hapi_rs::session::connect_to_socket(remote_address.clone(), options.clone())
                 .expect("Could not connect to socket")
         }
     };

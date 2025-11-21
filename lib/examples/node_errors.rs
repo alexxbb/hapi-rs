@@ -5,9 +5,7 @@ use hapi_rs::Result;
 use hapi_rs::enums::StatusVerbosity;
 use hapi_rs::node::{CookResult, HoudiniNode, NodeFlags, NodeHandle, NodeType};
 use hapi_rs::raw::StatusType;
-use hapi_rs::session::{
-    SessionInfo, SessionOptions, SessionOptionsBuilder, connect_to_memory_server, quick_session,
-};
+use hapi_rs::session::{ServerOptions, SessionOptionsBuilder, new_thrift_session};
 
 const OTL: &str = "../otls/hapi_errors.hda";
 
@@ -34,7 +32,7 @@ fn main() -> Result<()> {
         .threaded(true)
         .auto_close(true)
         .build();
-    let session = quick_session(Some(&opts))?;
+    let session = new_thrift_session(opts, ServerOptions::default().with_log_file(&log_file))?;
     let asset = session.load_asset_file(otl)?.try_create_first()?;
     let geo = asset.geometry()?.unwrap();
 

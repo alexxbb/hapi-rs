@@ -5,7 +5,7 @@ use hapi_rs::geometry::*;
 use hapi_rs::session::*;
 
 fn main() -> Result<()> {
-    let session = quick_session(None)?;
+    let session = new_thrift_session(SessionOptions::default(), ServerOptions::default())?;
 
     let profile = session.start_performance_monitor_profile("hapi-rs")?;
 

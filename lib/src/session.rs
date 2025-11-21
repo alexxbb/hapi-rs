@@ -12,7 +12,7 @@
 //! The Engine process (pipe or socket) can be auto-terminated as well if told so when starting the server:
 //! See [start_engine_pipe_server] and [start_engine_socket_server]
 //!
-//! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
+//! Helper constructors terminate the server by default. This is useful for quick one-off jobs.
 //!
 use log::{debug, error, warn};
 use parking_lot::ReentrantMutex;
@@ -856,97 +856,6 @@ impl Drop for Session {
     }
 }
 
-/// Connect to the engine process via a pipe file.
-/// If `timeout` is Some, function will try to connect to
-/// the server multiple times every 100ms until `timeout` is reached.
-/// Note: Default SessionOptions create a blocking session, non-threaded session,
-/// use [`SessionOptionsBuilder`] to configure this.
-pub fn connect_to_pipe(
-    pipe: impl AsRef<Path>,
-    session_options: SessionOptions,
-    timeout: Option<Duration>,
-    pid: Option<u32>,
-) -> Result<Session> {
-    debug!("Connecting to Thrift session: {:?}", pipe.as_ref());
-    let c_str = utils::path_to_cstring(&pipe)?;
-    let pipe = pipe.as_ref().as_os_str().to_os_string();
-    let timeout = timeout.unwrap_or_default();
-    let mut waited = Duration::from_secs(0);
-    let wait_ms = Duration::from_millis(100);
-    let handle = loop {
-        let mut last_error = None;
-        debug!("Trying to connect to pipe server");
-        match crate::ffi::new_thrift_piped_session(&c_str, &session_options.session_info.0) {
-            Ok(handle) => break handle,
-            Err(e) => {
-                last_error.replace(e);
-                std::thread::sleep(wait_ms);
-                waited += wait_ms;
-            }
-        }
-        if waited > timeout {
-            // last_error is guarantied to be Some().
-            return Err(last_error.unwrap()).context("Connection timeout");
-        }
-    };
-    let connection = ConnectionType::ThriftPipe(pipe);
-    let session = Session::new(handle, connection, session_options, pid);
-    session.initialize()?;
-    Ok(session)
-}
-
-pub fn connect_to_memory_server(
-    memory_name: &str,
-    session_options: SessionOptions,
-    pid: Option<u32>,
-) -> Result<Session> {
-    let mem_name = String::from(memory_name);
-    let mem_name_cstr = CString::new(memory_name)?;
-
-    let handle = crate::ffi::new_thrift_shared_memory_session(
-        &mem_name_cstr,
-        &session_options.session_info.0,
-    )?;
-
-    let connection = ConnectionType::SharedMemory(mem_name);
-    let session = Session::new(handle, connection, session_options, pid);
-    session.initialize()?;
-    Ok(session)
-}
-
-/// Connect to the engine process via a Unix socket
-pub fn connect_to_socket(
-    addr: std::net::SocketAddrV4,
-    session_options: SessionOptions,
-) -> Result<Session> {
-    debug!("Connecting to socket server: {:?}", addr);
-    let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
-    let handle = crate::ffi::new_thrift_socket_session(
-        addr.port() as i32,
-        &host,
-        &session_options.session_info.0,
-    )?;
-    let connection = ConnectionType::ThriftSocket(addr);
-    let session = Session::new(handle, connection, session_options, None);
-    session.initialize()?;
-    Ok(session)
-}
-
-/// Create in-process session
-pub fn new_in_process(session_options: SessionOptions) -> Result<Session> {
-    debug!("Creating new in-process session");
-    let handle = crate::ffi::create_inprocess_session(&session_options.session_info.0)?;
-    let connection = ConnectionType::InProcess;
-    let session = Session::new(
-        handle,
-        connection,
-        session_options,
-        Some(std::process::id()),
-    );
-    session.initialize()?;
-    Ok(session)
-}
-
 /// Session options passed to session create functions like [`connect_to_pipe`]
 #[derive(Clone, Debug)]
 pub struct SessionOptions {
@@ -1207,6 +1116,98 @@ impl Default for ServerOptions {
     }
 }
 
+/// Connect to the engine process via a pipe file.
+/// If `timeout` is Some, function will try to connect to
+/// the server multiple times every 100ms until `timeout` is reached.
+/// Note: Default SessionOptions create a blocking session, non-threaded session,
+/// use [`SessionOptionsBuilder`] to configure this.
+pub fn connect_to_pipe(
+    pipe: impl AsRef<Path>,
+    session_options: SessionOptions,
+    timeout: Option<Duration>,
+    pid: Option<u32>,
+) -> Result<Session> {
+    debug!("Connecting to Thrift session: {:?}", pipe.as_ref());
+    let c_str = utils::path_to_cstring(&pipe)?;
+    let pipe = pipe.as_ref().as_os_str().to_os_string();
+    let timeout = timeout.unwrap_or_default();
+    let mut waited = Duration::from_secs(0);
+    let wait_ms = Duration::from_millis(100);
+    let handle = loop {
+        let mut last_error = None;
+        debug!("Trying to connect to pipe server");
+        match crate::ffi::new_thrift_piped_session(&c_str, &session_options.session_info.0) {
+            Ok(handle) => break handle,
+            Err(e) => {
+                last_error.replace(e);
+                std::thread::sleep(wait_ms);
+                waited += wait_ms;
+            }
+        }
+        if waited > timeout {
+            // last_error is guarantied to be Some().
+            return Err(last_error.unwrap()).context("Connection timeout");
+        }
+    };
+    let connection = ConnectionType::ThriftPipe(pipe);
+    let session = Session::new(handle, connection, session_options, pid);
+    session.initialize()?;
+    Ok(session)
+}
+
+pub fn connect_to_memory_server(
+    memory_name: &str,
+    session_options: SessionOptions,
+    pid: Option<u32>,
+) -> Result<Session> {
+    let mem_name = String::from(memory_name);
+    let mem_name_cstr = CString::new(memory_name)?;
+
+    let handle = crate::ffi::new_thrift_shared_memory_session(
+        &mem_name_cstr,
+        &session_options.session_info.0,
+    )?;
+
+    let connection = ConnectionType::SharedMemory(mem_name);
+    let session = Session::new(handle, connection, session_options, pid);
+    session.initialize()?;
+    Ok(session)
+}
+
+/// Connect to the engine process via a Unix socket
+pub fn connect_to_socket(
+    addr: std::net::SocketAddrV4,
+    session_options: SessionOptions,
+) -> Result<Session> {
+    debug!("Connecting to socket server: {:?}", addr);
+    let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
+    let handle = crate::ffi::new_thrift_socket_session(
+        addr.port() as i32,
+        &host,
+        &session_options.session_info.0,
+    )?;
+    let connection = ConnectionType::ThriftSocket(addr);
+    let session = Session::new(handle, connection, session_options, None);
+    session.initialize()?;
+    Ok(session)
+}
+
+/// Create an in-process session
+pub fn new_in_process_session(options: Option<SessionOptions>) -> Result<Session> {
+    debug!("Creating new in-process session");
+    let session_options = options.unwrap_or_default();
+    let handle = crate::ffi::create_inprocess_session(&session_options.session_info.0)?;
+    let connection = ConnectionType::InProcess;
+    let session = Session::new(
+        handle,
+        connection,
+        session_options,
+        Some(std::process::id()),
+    );
+    session.initialize()?;
+    Ok(session)
+}
+
 /// Spawn a new pipe Engine process and return its PID
 pub fn start_engine_pipe_server(
     path: impl AsRef<Path>,
@@ -1274,15 +1275,12 @@ pub fn start_shared_memory_server(
     })
 }
 
-/// A quick drop-in session, useful for on-off jobs
-/// It starts a **single-threaded** shared memory server and initialize a session with default options
-pub fn quick_session(
+/// Start a shared-memory Thrift session
+pub fn new_thrift_session(
     session_options: SessionOptions,
-    server_options: Option<ServerOptions>,
+    server_options: ServerOptions,
 ) -> Result<Session> {
     let rand_memory_name = format!("shared-memory-{}", utils::random_string(16));
-    let server_options = server_options.unwrap_or_default();
-
     let pid = start_shared_memory_server(&rand_memory_name, &server_options)?;
     connect_to_memory_server(&rand_memory_name, session_options, Some(pid))
         .context("Could not connect to server")

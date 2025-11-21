@@ -5,7 +5,10 @@ use tempfile::NamedTempFile;
 
 /// Demonstrates how to save and load Hip files.
 fn main() -> Result<()> {
-    let sess = quick_session(Some(&SessionOptions::builder().threaded(true).build()))?;
+    let sess = new_thrift_session(
+        SessionOptions::builder().threaded(true).build(),
+        ServerOptions::default(),
+    )?;
 
     println!("Generating scene");
     for _ in 0..10 {

@@ -5,10 +5,10 @@
 //!
 //! ```
 //!
-//! use hapi_rs::session::{new_in_process, SessionOptions};
+//! use hapi_rs::session::{new_in_process_session, SessionOptions};
 //! use hapi_rs::geometry::*;
 //! use hapi_rs::attribute::*;
-//! let session = new_in_process(SessionOptions::default()).unwrap();
+//! let session = new_in_process_session(Some(SessionOptions::default())).unwrap();
 //! let lib = session.load_asset_file("../otls/hapi_geo.hda").unwrap();
 //! let node = lib.try_create_first().unwrap();
 //! let geo = node.geometry().unwrap().unwrap();

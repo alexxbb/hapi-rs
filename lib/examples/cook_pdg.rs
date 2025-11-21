@@ -6,7 +6,7 @@ use hapi_rs::Result;
 use hapi_rs::enums::{PdgEventType, PdgWorkItemState};
 use hapi_rs::node::Parameter;
 use hapi_rs::pdg::TopNode;
-use hapi_rs::session::{SessionOptionsBuilder, new_in_process};
+use hapi_rs::session::{SessionOptionsBuilder, new_in_process_session};
 
 fn cook_async(node: &TopNode) -> Result<()> {
     node.dirty_node(true)?;
@@ -69,17 +69,13 @@ fn main() -> Result<()> {
     }
     // The example hda uses the HIP variable in TOPs so we have to 'cd'
     std::env::set_current_dir(&out_dir).unwrap();
-    let options = SessionOptionsBuilder::default()
-        .threaded(true)
-        .env_variables(
-            [
-                ("PDG_DIR", out_dir.to_string_lossy()),
-                ("JOB", out_dir.to_string_lossy()),
-            ]
-            .iter(),
-        )
-        .build();
-    let session = new_in_process(Some(&options))?;
+    let out_dir_str = out_dir.to_string_lossy().to_string();
+    unsafe {
+        std::env::set_var("PDG_DIR", &out_dir_str);
+        std::env::set_var("JOB", &out_dir_str);
+    }
+    let options = SessionOptionsBuilder::default().threaded(true).build();
+    let session = new_in_process_session(Some(options))?;
     let lib = session.load_asset_file(otl)?;
     let asset = lib.try_create_first()?;
     asset.cook_blocking()?;

@@ -7,7 +7,7 @@ use hapi_rs::node::*;
 use hapi_rs::session::*;
 
 fn main() -> Result<()> {
-    let session = quick_session(None)?;
+    let session = new_thrift_session(SessionOptions::default(), ServerOptions::default())?;
 
     let lib = session.load_asset_file("../otls/sesi/PackedPrimitive.hda")?;
     let asset = lib.try_create_first()?;
