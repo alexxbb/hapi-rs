@@ -1,4 +1,6 @@
-use hapi_rs::{attribute::*, geometry::*, session::*};
+use hapi_rs::{attribute::*, geometry::*};
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 // connecting_assets.cpp
 use hapi_rs::Result;
 

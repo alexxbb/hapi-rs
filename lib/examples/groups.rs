@@ -6,7 +6,8 @@ use hapi_rs::geometry::{
 };
 use hapi_rs::node::HoudiniNode;
 use hapi_rs::parameter::Parameter;
-use hapi_rs::session::{ServerOptions, Session, SessionOptions, new_thrift_session};
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{Session, SessionOptions, new_thrift_session};
 
 fn create_cube(session: &Session) -> Result<HoudiniNode> {
     let geometry = session.create_input_node("Cube", None)?;

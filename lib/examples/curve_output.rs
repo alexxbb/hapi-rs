@@ -4,7 +4,8 @@ use hapi_rs::geometry::{
     AttributeName, AttributeOwner, CurveOrders, CurveType, Geometry, PartInfo, PartType,
 };
 use hapi_rs::node::{NodeFlags, NodeType, ObjectInfo};
-use hapi_rs::session::{ServerOptions, SessionOptions, new_thrift_session};
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 
 fn main() -> Result<()> {
     let opt = SessionOptions::default().threaded(true);

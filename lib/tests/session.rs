@@ -1,9 +1,9 @@
 use hapi_rs::raw::CacheProperty;
+use hapi_rs::server::ServerOptions;
 use hapi_rs::session::{
-    ConnectionType, CookResult, ManagerType, SessionOptions, SessionSyncInfo, TimelineOptions,
-    Viewport, new_thrift_session,
+    ConnectionType, CookResult, License, ManagerType, SessionOptions, SessionSyncInfo,
+    TimelineOptions, Viewport, new_thrift_session,
 };
-use hapi_rs::session::{License, ServerOptions};
 
 mod utils;
 use utils::with_session;

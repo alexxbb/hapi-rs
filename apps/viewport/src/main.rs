@@ -23,7 +23,8 @@ use std::sync::Arc;
 use crate::parameters::{ParmKind, UiParameter};
 use hapi_rs::asset::AssetLibrary;
 use hapi_rs::parameter::{Parameter, ParmBaseTrait};
-use hapi_rs::session::SessionOptions;
+use hapi_rs::server::connect_to_socket_server;
+use hapi_rs::session::{SessionOptions, new_in_process_session};
 use setup::{Asset, AssetParameters, BufferStats, CookingStats, Stats};
 use ultraviolet::Vec3;
 
@@ -322,12 +323,14 @@ fn main() {
         .with_icon(load_icon().expect("ICON image"));
     let options = SessionOptions::default();
     let session = match &remote_server {
-        None => hapi_rs::session::new_in_process_session(Some(options.clone()))
+        None => new_in_process_session(Some(options.clone()))
             .expect("Could not create session"),
-        Some(remote_address) => {
-            hapi_rs::session::connect_to_socket(remote_address.clone(), options.clone(), None)
-                .expect("Could not connect to socket")
-        }
+        Some(remote_address) => connect_to_socket_server(
+            remote_address.clone(),
+            options.clone(),
+            None,
+        )
+        .expect("Could not connect to socket"),
     };
     if !session.is_valid() {
         eprintln!("Session is not valid!!!!");

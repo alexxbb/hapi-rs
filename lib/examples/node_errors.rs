@@ -5,7 +5,8 @@ use hapi_rs::Result;
 use hapi_rs::enums::StatusVerbosity;
 use hapi_rs::node::{CookResult, HoudiniNode, NodeFlags, NodeHandle, NodeType};
 use hapi_rs::raw::StatusType;
-use hapi_rs::session::{ServerOptions, SessionOptions, new_thrift_session};
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 
 const OTL: &str = "../otls/hapi_errors.hda";
 

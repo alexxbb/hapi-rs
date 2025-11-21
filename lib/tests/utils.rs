@@ -5,10 +5,9 @@ use hapi_rs::{
     attribute::*,
     enums::{AttributeOwner, PartType},
     geometry::{Geometry, PartInfo},
-    session::{
-        CookResult, ServerOptions, Session, SessionInfo, SessionOptions, new_thrift_session,
-    },
+    session::{CookResult, Session, SessionInfo, SessionOptions, new_thrift_session},
 };
+use hapi_rs::server::ServerOptions;
 use once_cell::sync::Lazy;
 
 thread_local! {

@@ -3,7 +3,8 @@ use prettytable::*;
 
 use hapi_rs::Result;
 use hapi_rs::parameter::{Parameter, ParmType};
-use hapi_rs::session::{ServerOptions, SessionOptions, new_thrift_session};
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 
 fn main() -> Result<()> {
     env_logger::init();

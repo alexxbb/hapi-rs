@@ -5,7 +5,8 @@
 //!
 //! ```
 //!
-//! use hapi_rs::session::{new_in_process_session, SessionOptions};
+//! use hapi_rs::session::new_in_process_session;
+//! use hapi_rs::session::SessionOptions;
 //! use hapi_rs::geometry::*;
 //! use hapi_rs::attribute::*;
 //! let session = new_in_process_session(Some(SessionOptions::default())).unwrap();

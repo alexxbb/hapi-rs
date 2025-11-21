@@ -1040,7 +1040,19 @@ pub fn get_status_code(session: &Session, type_: raw::StatusType) -> Result<i32>
 
 pub fn get_cook_state_status(session: &Session) -> Result<raw::State> {
     let status_code = get_status_code(session, raw::StatusType::CookState)?;
-    Ok(raw::State::from(status_code))
+
+    Ok(match status_code {
+        0 => raw::State::Ready,
+        1 => raw::State::ReadyWithFatalErrors,
+        2 => raw::State::ReadyWithCookErrors,
+        3 => raw::State::StartingCook,
+        4 => raw::State::Cooking,
+        5 => raw::State::StartingLoad,
+        6 => raw::State::Loading,
+        7 => raw::State::Max,
+        // This signals either the HAPI_State has changed or a bug in the engine
+        _ => panic!("Unmatched raw::State - {status_code}"),
+    })
 }
 
 // pub fn get_cook_result_status(session: &Session) -> Result<raw::State> {
@@ -2783,7 +2795,10 @@ pub fn session_get_license_type(session: &Session) -> Result<raw::License> {
         .check_err(session, || "Calling HAPI_GetSessionEnvInt")?;
         let lic = ret.assume_init();
         if !(0..=7).contains(&lic) {
-            return Err(HapiError::Internal(format!("API returned an invalid license integer: {}", lic)));
+            return Err(HapiError::Internal(format!(
+                "API returned an invalid license integer: {}",
+                lic
+            )));
         }
         // SAFETY: License enum is repr i32
         Ok(std::mem::transmute::<i32, raw::License>(lic))

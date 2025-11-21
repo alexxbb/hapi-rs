@@ -13,7 +13,7 @@ use hapi_rs::geometry::Geometry;
 use hapi_rs::node::HoudiniNode;
 use hapi_rs::parameter::Parameter;
 #[allow(unused_imports)]
-use hapi_rs::session::connect_to_memory_server;
+use hapi_rs::server::connect_to_memory_server;
 use hapi_rs::session::{SessionOptions, new_in_process_session};
 
 #[derive(Resource)]

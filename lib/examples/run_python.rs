@@ -2,7 +2,8 @@
 // but this example uses an otl which runs a provided snippet or a file
 use hapi_rs::Result;
 use hapi_rs::parameter::Parameter;
-use hapi_rs::session::{ServerOptions, SessionOptions, new_thrift_session};
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 
 const SCRIPT: &str = r#"
 import hou

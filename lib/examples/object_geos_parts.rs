@@ -2,7 +2,8 @@
 use hapi_rs::Result;
 use hapi_rs::attribute::*;
 use hapi_rs::geometry::*;
-use hapi_rs::session::*;
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 
 fn main() -> Result<()> {
     let session = new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())?;

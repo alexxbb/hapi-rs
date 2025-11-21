@@ -281,7 +281,8 @@ impl AssetLibrary {
     /// Try to create the first found asset in the library.
     /// This is a convenience function for:
     /// ```
-    /// use hapi_rs::session::{new_in_process_session, SessionOptions};
+    /// use hapi_rs::session::new_in_process_session;
+    /// use hapi_rs::session::SessionOptions;
     /// let session = new_in_process_session(Some(SessionOptions::default())).unwrap();
     /// let lib = session.load_asset_file("../otls/hapi_geo.hda").unwrap();
     /// let names = lib.get_asset_names().unwrap();

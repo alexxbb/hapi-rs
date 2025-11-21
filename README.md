@@ -22,7 +22,8 @@ https://user-images.githubusercontent.com/10694389/227816361-b9ffa083-7932-40e4-
 
 ```rust
 use hapi_rs::Result;
-use hapi_rs::session::{new_thrift_session, ServerOptions, SessionOptions};
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 use hapi_rs::parameter::*;
 
 fn main() -> Result<()> {

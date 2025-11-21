@@ -15,10 +15,8 @@ use argh::FromArgs;
 use hapi_rs::{
     enums::CurveType,
     geometry::InputCurveInfo,
-    session::{
-        ManagerType, SessionOptions, SessionSyncInfo, Viewport, connect_to_pipe_server,
-        start_houdini_server,
-    },
+    server::{connect_to_pipe_server, start_houdini_server},
+    session::{ManagerType, SessionOptions, SessionSyncInfo, Viewport},
 };
 
 #[derive(FromArgs, Debug)]

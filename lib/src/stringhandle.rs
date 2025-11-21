@@ -183,7 +183,8 @@ pub fn get_string_array(handles: &[StringHandle], session: &Session) -> Result<S
 mod tests {
     use super::StringArray;
     use crate::ffi;
-    use crate::session::{ServerOptions, Session, SessionOptions, new_thrift_session};
+    use crate::server::ServerOptions;
+    use crate::session::{Session, SessionOptions, new_thrift_session};
     use once_cell::sync::Lazy;
     use std::ffi::CString;
 

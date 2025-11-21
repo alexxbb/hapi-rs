@@ -1,6 +1,7 @@
 use hapi_rs::Result;
 use hapi_rs::node::*;
-use hapi_rs::session::*;
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{Session, SessionOptions, new_thrift_session};
 
 fn main() -> Result<()> {
     let session = new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())?;

@@ -126,6 +126,7 @@ pub mod geometry;
 pub mod material;
 pub mod node;
 pub mod parameter;
+pub mod server;
 pub mod session;
 pub mod stringhandle;
 pub mod volume;
@@ -137,7 +138,6 @@ mod ffi;
 pub use errors::{HapiError, Result};
 pub use ffi::enums;
 pub use ffi::raw;
-pub use ffi::structs::Viewport;
 
 /// Houdini version this library was build upon
 #[derive(Debug)]
