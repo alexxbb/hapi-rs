@@ -857,7 +857,7 @@ impl Drop for Session {
     }
 }
 
-/// Session options passed to session create functions like [`connect_to_pipe`]
+/// Session options passed to session create functions like [`connect_to_pipe_server`]
 #[derive(Clone, Debug)]
 pub struct SessionOptions {
     /// Session cook options
@@ -1094,7 +1094,7 @@ pub struct ServerOptions {
 }
 
 impl ServerOptions {
-    /// Create options for a shared-memory transport.
+    /// Create options for a shared-memory transport with a random name.
     pub fn shared_memory() -> Self {
         Self::from_transport(ThriftTransport::SharedMemory(
             SharedMemoryTransport::new_random(),
@@ -1135,7 +1135,7 @@ impl ServerOptions {
         self
     }
 
-    /// Provide a custom shared memory name.
+    /// Provide a custom shared memory name. Only used if transport is [`ThriftTransport::SharedMemory`].
     pub fn memory_name(mut self, name: impl Into<String>) -> Self {
         if let ThriftTransport::SharedMemory(ref mut cfg) = self.transport {
             cfg.memory_name = name.into();
@@ -1143,7 +1143,7 @@ impl ServerOptions {
         self
     }
 
-    /// Override the pipe path.
+    /// Override the pipe path. Only used if transport is [`ThriftTransport::Pipe`].
     pub fn pipe_path(mut self, path: impl Into<PathBuf>) -> Self {
         if let ThriftTransport::Pipe(ref mut cfg) = self.transport {
             cfg.pipe_path = path.into();
@@ -1151,7 +1151,7 @@ impl ServerOptions {
         self
     }
 
-    /// Override the socket address used to connect to the server.
+    /// Override the socket address used to connect to the server. Only used if transport is [`ThriftTransport::Socket`].
     pub fn socket_address(mut self, addr: SocketAddrV4) -> Self {
         if let ThriftTransport::Socket(ref mut cfg) = self.transport {
             cfg.address = addr;
@@ -1223,7 +1223,7 @@ impl ServerOptions {
 /// the server multiple times every 100ms until `timeout` is reached.
 /// Note: Default SessionOptions create a blocking session, non-threaded session,
 /// use [`SessionOptionsBuilder`] to configure this.
-pub fn connect_to_pipe(
+pub fn connect_to_pipe_server(
     pipe: impl AsRef<Path>,
     session_options: SessionOptions,
     timeout: Option<Duration>,
@@ -1312,22 +1312,6 @@ pub fn connect_to_socket_server(
     Ok(session)
 }
 
-/// Create an in-process session
-pub fn new_in_process_session(options: Option<SessionOptions>) -> Result<Session> {
-    debug!("Creating new in-process session");
-    let session_options = options.unwrap_or_default();
-    let handle = crate::ffi::create_inprocess_session(&session_options.session_info.0)?;
-    let connection = ConnectionType::InProcess;
-    let session = Session::new(
-        handle,
-        connection,
-        session_options,
-        Some(std::process::id()),
-    );
-    session.initialize()?;
-    Ok(session)
-}
-
 /// Spawn a new pipe Engine process and return its PID
 pub fn start_engine_pipe_server(
     path: impl AsRef<Path>,
@@ -1396,7 +1380,7 @@ pub fn start_houdini_server(
 }
 
 /// Spawn a new Engine server utilizing shared memory to transfer data.
-pub fn start_shared_memory_server(
+pub fn start_engine_shared_memory_server(
     memory_name: &str,
     server_options: &ServerOptions,
 ) -> Result<u32> {
@@ -1412,7 +1396,23 @@ pub fn start_shared_memory_server(
     })
 }
 
-/// Start a shared-memory Thrift session
+/// Create an in-process session
+pub fn new_in_process_session(options: Option<SessionOptions>) -> Result<Session> {
+    debug!("Creating new in-process session");
+    let session_options = options.unwrap_or_default();
+    let handle = crate::ffi::create_inprocess_session(&session_options.session_info.0)?;
+    let connection = ConnectionType::InProcess;
+    let session = Session::new(
+        handle,
+        connection,
+        session_options,
+        Some(std::process::id()),
+    );
+    session.initialize()?;
+    Ok(session)
+}
+
+/// Start a thrift server and initialize a session with it.
 pub fn new_thrift_session(
     session_options: SessionOptions,
     server_options: ServerOptions,
@@ -1420,7 +1420,7 @@ pub fn new_thrift_session(
     match &server_options.transport {
         ThriftTransport::SharedMemory(config) => {
             let memory_name = &config.memory_name;
-            let pid = start_shared_memory_server(memory_name, &server_options)
+            let pid = start_engine_shared_memory_server(memory_name, &server_options)
                 .context("Could not start shared memory server")?;
             connect_to_memory_server(
                 memory_name,
@@ -1433,7 +1433,7 @@ pub fn new_thrift_session(
         ThriftTransport::Pipe(config) => {
             let pid = start_engine_pipe_server(&config.pipe_path, &server_options)
                 .context("Could not start pipe server")?;
-            connect_to_pipe(
+            connect_to_pipe_server(
                 &config.pipe_path,
                 session_options,
                 server_options.connection_timeout,
