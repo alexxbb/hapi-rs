@@ -7,7 +7,7 @@ members = [
     "apps/viewport",
     "apps/bevy",
     "apps/render_cop",
-    "benchmarks/shared-memory",
+    "benchmarks/server",
     "bindgen/hapi-bindgen",
     "bindgen/coverage",
 ]

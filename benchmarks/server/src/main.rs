@@ -11,7 +11,7 @@ use hapi_rs::geometry::AttributeInfo;
 use hapi_rs::node::Geometry;
 use hapi_rs::parameter::{FloatParameter, Parameter};
 use hapi_rs::raw::ThriftSharedMemoryBufferType;
-use hapi_rs::session::{new_thrift_session, ServerOptions, SessionOptions};
+use hapi_rs::session::{new_in_process_session, new_thrift_session, ServerOptions, SessionOptions};
 use hapi_rs::Result;
 use nanorand::{Rng, WyRand};
 use std::ffi::CStr;
@@ -86,9 +86,14 @@ fn main() -> Result<()> {
                 opts.set_shared_memory_buffer_type(ThriftSharedMemoryBufferType::Buffer);
                 opts.set_shared_memory_buffer_size(1000);
             }),
+        "in-process" => ServerOptions::shared_memory(), // not used
         _ => panic!("Server type must be pipe or memory"),
     };
-    let session = new_thrift_session(session_options, server_options)?;
+    let session = match server_type.as_str() {
+        "pipe" | "memory" => new_thrift_session(session_options, server_options)?,
+        "in-process" => new_in_process_session(None)?,
+        _ => panic!("Server type must be one of pipe, memory, or in-process"),
+    };
     println!("Session created.");
     let asset_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("benchmark.hda");
     let lib = AssetLibrary::from_file(session.clone(), &asset_path)?;

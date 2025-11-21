@@ -1294,7 +1294,7 @@ pub fn connect_to_memory_server(
 }
 
 /// Connect to the engine process via a Unix socket
-pub fn connect_to_socket(
+pub fn connect_to_socket_server(
     addr: std::net::SocketAddrV4,
     session_options: SessionOptions,
     pid: Option<u32>,
@@ -1444,7 +1444,7 @@ pub fn new_thrift_session(
         ThriftTransport::Socket(config) => {
             let pid = start_engine_socket_server(config.address.port(), &server_options)
                 .context("Could not start socket server")?;
-            connect_to_socket(config.address, session_options, Some(pid))
+            connect_to_socket_server(config.address, session_options, Some(pid))
                 .context("Could not connect to socket server")
         }
     }
