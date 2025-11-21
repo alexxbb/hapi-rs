@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 
-hapi-rs = { path = "../.." }
+hapi-rs = { path = "../../lib" }
 nanorand = "0.7.0"

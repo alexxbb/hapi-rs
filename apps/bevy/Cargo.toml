@@ -29,6 +29,3 @@ features = [
     "multi_threaded",
     "x11" # Ubuntu with proprietary Nvidia driver uses x11. Otherwise use wayland
 ]
-
-[profile.dev.package."*"]
-opt-level = 3
