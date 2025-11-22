@@ -10,21 +10,21 @@ fn main() -> anyhow::Result<()> {
     // Try to connect toa possibly running session
     let session =
         match connect_to_pipe_server(PIPE, SessionOptions::default().threaded(false), None, None) {
-        Ok(session) => session,
-        Err(_) => {
-            // No session running at PIPE, start the Houdini process.
-            let hfs = std::env::var_os("HFS").ok_or_else(|| anyhow!("Missing HFS"))?;
-            let executable = Path::new(&hfs).join("bin").join("houdini");
-            let child = start_houdini_server(PIPE, executable, false)?;
-            // While trying to connect, it will print some errors, these can be ignored.
+            Ok(session) => session,
+            Err(_) => {
+                // No session running at PIPE, start the Houdini process.
+                let hfs = std::env::var_os("HFS").ok_or_else(|| anyhow!("Missing HFS"))?;
+                let executable = Path::new(&hfs).join("bin").join("houdini");
+                let child = start_houdini_server(PIPE, executable, false)?;
+                // While trying to connect, it will print some errors, these can be ignored.
                 connect_to_pipe_server(
                     PIPE,
                     SessionOptions::default().threaded(false),
                     Some(Duration::from_secs(90)),
                     Some(child.id()),
                 )?
-        }
-    };
+            }
+        };
 
     let topnet = session.create_node("Object/topnet")?;
     let generator = topnet

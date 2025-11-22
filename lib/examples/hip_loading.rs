@@ -1,7 +1,7 @@
 use hapi_rs::Result;
+use hapi_rs::raw::StatusVerbosity;
 use hapi_rs::server::ServerOptions;
 use hapi_rs::session::{SessionOptions, SessionState, new_thrift_session};
-use hapi_rs::raw::StatusVerbosity;
 use std::thread::sleep;
 use std::time::Duration;
 use tempfile::NamedTempFile;

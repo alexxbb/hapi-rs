@@ -4,8 +4,8 @@
 use anyhow::{anyhow, Context, Result};
 use hapi_rs::asset::AssetLibrary;
 use hapi_rs::node::{HoudiniNode, NodeFlags, NodeType};
-use hapi_rs::session::{SessionOptions, new_in_process_session};
-use hapi_rs::{parameter::*};
+use hapi_rs::parameter::*;
+use hapi_rs::session::{new_in_process_session, SessionOptions};
 use iced::keyboard::KeyCode::Space;
 use iced::widget::image;
 use iced::widget::pane_grid::Axis::Horizontal;

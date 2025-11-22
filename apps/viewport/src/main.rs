@@ -7,7 +7,7 @@ use eframe::egui::{
     Context, Key, Modifiers, PointerButton, Sense, ViewportBuilder, ViewportCommand,
 };
 
-use eframe::{egui, Frame};
+use eframe::{Frame, egui};
 use egui::mutex::Mutex;
 use egui::viewport::IconData;
 use egui_glow::CallbackFn;
@@ -323,14 +323,11 @@ fn main() {
         .with_icon(load_icon().expect("ICON image"));
     let options = SessionOptions::default();
     let session = match &remote_server {
-        None => new_in_process_session(Some(options.clone()))
-            .expect("Could not create session"),
-        Some(remote_address) => connect_to_socket_server(
-            remote_address.clone(),
-            options.clone(),
-            None,
-        )
-        .expect("Could not connect to socket"),
+        None => new_in_process_session(Some(options.clone())).expect("Could not create session"),
+        Some(remote_address) => {
+            connect_to_socket_server(remote_address.clone(), options.clone(), None)
+                .expect("Could not connect to socket")
+        }
     };
     if !session.is_valid() {
         eprintln!("Session is not valid!!!!");

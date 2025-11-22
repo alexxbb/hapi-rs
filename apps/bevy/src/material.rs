@@ -1,8 +1,8 @@
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{CompressedImageFormats, Image, ImageFormat, ImageSampler, ImageType};
+use hapi_rs::Result;
 use hapi_rs::node::{HoudiniNode, Parameter};
 use hapi_rs::parameter::ParmBaseTrait;
-use hapi_rs::Result;
 
 struct MaterialNodeParameters {
     color: Parameter,

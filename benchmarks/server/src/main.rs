@@ -12,7 +12,7 @@ use hapi_rs::node::Geometry;
 use hapi_rs::parameter::{FloatParameter, Parameter};
 use hapi_rs::raw::ThriftSharedMemoryBufferType;
 use hapi_rs::server::ServerOptions;
-use hapi_rs::session::{SessionOptions, new_in_process_session, new_thrift_session};
+use hapi_rs::session::{new_in_process_session, new_thrift_session, SessionOptions};
 use hapi_rs::Result;
 use nanorand::{Rng, WyRand};
 use std::ffi::CStr;

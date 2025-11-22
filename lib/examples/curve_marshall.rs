@@ -1,7 +1,7 @@
-/// curve_marshall.cpp
-use hapi_rs::{Result, attribute::*, geometry::*};
 use hapi_rs::server::ServerOptions;
 use hapi_rs::session::{SessionOptions, new_thrift_session};
+/// curve_marshall.cpp
+use hapi_rs::{Result, attribute::*, geometry::*};
 
 fn main() -> Result<()> {
     let session = new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())?;

@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use hapi_rs::server::ServerOptions;
 use hapi_rs::{
     Result,
     asset::AssetLibrary,
@@ -7,7 +8,6 @@ use hapi_rs::{
     geometry::{Geometry, PartInfo},
     session::{CookResult, Session, SessionInfo, SessionOptions, new_thrift_session},
 };
-use hapi_rs::server::ServerOptions;
 use once_cell::sync::Lazy;
 
 thread_local! {

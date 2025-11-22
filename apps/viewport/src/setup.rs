@@ -2,11 +2,11 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use bytemuck::cast_slice;
+use hapi_rs::Result;
 use hapi_rs::attribute::NumericAttr;
 use hapi_rs::geometry::{AttributeOwner, Geometry, Materials};
 use hapi_rs::node::Session;
 use hapi_rs::session::HoudiniNode;
-use hapi_rs::Result;
 use image::ImageDecoder;
 use std::io::Cursor;
 
@@ -17,7 +17,7 @@ use std::mem::size_of;
 use std::time::{Duration, Instant};
 
 use crate::camera::Camera;
-use crate::parameters::{build_parm_map, UiParameter};
+use crate::parameters::{UiParameter, build_parm_map};
 
 use hapi_rs::asset::AssetLibrary;
 use ultraviolet::{Mat4, Vec2, Vec3};

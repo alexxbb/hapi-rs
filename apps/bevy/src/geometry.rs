@@ -1,9 +1,9 @@
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::Mesh;
 use bevy::render::mesh::PrimitiveTopology;
-use hapi_rs::attribute::NumericAttr;
-use hapi_rs::geometry::{extra::GeometryExtension, AttributeName, AttributeOwner, Geometry};
 use hapi_rs::Result;
+use hapi_rs::attribute::NumericAttr;
+use hapi_rs::geometry::{AttributeName, AttributeOwner, Geometry, extra::GeometryExtension};
 
 pub enum NormalAttribute {
     Point(Vec<f32>),
