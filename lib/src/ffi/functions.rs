@@ -1,6 +1,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use duplicate::duplicate_item;
+use log::debug;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
@@ -9,6 +10,7 @@ use std::vec;
 use raw::HAPI_PDG_EventInfo;
 
 use super::raw;
+use crate::errors::ErrorContext;
 use crate::ffi::bindings::HAPI_StringHandle;
 use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId, RSTOrder};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
@@ -699,12 +701,12 @@ pub fn get_status_string(
     let _lock = session.lock();
     unsafe {
         raw::HAPI_GetStatusStringBufLength(session.ptr(), status, verbosity, length.as_mut_ptr())
-            .error_message("Calling HAPI_GetStatusStringBufLength: failed")?;
+            .add_context("Calling HAPI_GetStatusStringBufLength: failed")?;
         let length = length.assume_init();
         let mut buf = vec![0u8; length as usize];
         if length > 0 {
             raw::HAPI_GetStatusString(session.ptr(), status, buf.as_mut_ptr() as *mut i8, length)
-                .error_message("Calling HAPI_GetStatusString: failed")?;
+                .add_context("Calling HAPI_GetStatusString: failed")?;
             buf.truncate(length as usize - 1);
             Ok(String::from_utf8_unchecked(buf))
         } else {
@@ -715,7 +717,7 @@ pub fn get_status_string(
 
 pub fn clear_connection_error() -> Result<()> {
     unsafe {
-        raw::HAPI_ClearConnectionError().error_message("Calling HAPI_ClearConnectionError: failed")
+        raw::HAPI_ClearConnectionError().add_context("Calling HAPI_ClearConnectionError: failed")
     }
 }
 
@@ -764,7 +766,7 @@ pub fn set_cache_property(
 pub fn create_inprocess_session(info: &raw::HAPI_SessionInfo) -> Result<raw::HAPI_Session> {
     let mut ses = uninit!();
     unsafe {
-        raw::HAPI_CreateInProcessSession(ses.as_mut_ptr(), info as *const _).with_error_message(
+        raw::HAPI_CreateInProcessSession(ses.as_mut_ptr(), info as *const _).with_context(
             || {
                 get_connection_error(true)
                     .unwrap_or("Could not retrieve server connection error".to_string())
@@ -839,7 +841,7 @@ pub fn start_thrift_pipe_server(
             pid.as_mut_ptr(),
             log_file.map(CStr::as_ptr).unwrap_or(null()),
         )
-        .error_message("Calling HAPI_StartThriftNamedPipeServer: failed")?;
+        .add_context("Calling HAPI_StartThriftNamedPipeServer: failed")?;
         Ok(pid.assume_init())
     }
 }
@@ -857,7 +859,8 @@ pub fn start_thrift_socket_server(
             pid.as_mut_ptr(),
             log_file.map_or(null(), CStr::as_ptr),
         )
-        .error_message("Calling HAPI_StartThriftSocketServer")?;
+        .with_server_message(|| get_connection_error(true).unwrap_or("Unknown".to_string()))
+        .context("Calling HAPI_StartThriftSocketServer")?;
         Ok(pid.assume_init())
     }
 }
@@ -875,13 +878,9 @@ pub fn start_thrift_shared_memory_server(
             pid.as_mut_ptr(),
             log_file.map_or(null(), CStr::as_ptr),
         )
-        // .error_message("Calling HAPI_StartThriftSharedMemoryServer")?;
-        .with_error_message(|| {
-            let err = get_connection_error(true).unwrap_or("Unknown".to_string());
-            format!(
-                "Calling HAPI_StartThriftSharedMemoryServer failed with connection error: {err}"
-            )
-        })?;
+        // .add_context("Calling HAPI_StartThriftSharedMemoryServer")?;
+        .with_server_message(|| get_connection_error(true).unwrap_or("Unknown".to_string()))
+        .context("Calling HAPI_StartThriftSharedMemoryServer")?;
         Ok(pid.assume_init())
     }
 }
@@ -897,7 +896,7 @@ pub fn new_thrift_piped_session(
             path.as_ptr(),
             info as *const _,
         )
-        .error_message("Calling HAPI_CreateThriftNamedPipeSession: failed")?;
+        .add_context("Calling HAPI_CreateThriftNamedPipeSession: failed")?;
         handle.assume_init()
     };
     Ok(session)
@@ -916,7 +915,7 @@ pub fn new_thrift_socket_session(
             port,
             info as *const _,
         )
-        .error_message("Calling HAPI_CreateThriftSocketSession: failed")?;
+        .add_context("Calling HAPI_CreateThriftSocketSession: failed")?;
         handle.assume_init()
     };
     Ok(session)
@@ -926,6 +925,10 @@ pub fn new_thrift_shared_memory_session(
     mem_name: &CStr,
     info: &raw::HAPI_SessionInfo,
 ) -> Result<raw::HAPI_Session> {
+    debug!(
+        "Creating shared memory session: {}",
+        mem_name.to_string_lossy()
+    );
     let mut handle = uninit!();
     let session = unsafe {
         raw::HAPI_CreateThriftSharedMemorySession(
@@ -933,7 +936,7 @@ pub fn new_thrift_shared_memory_session(
             mem_name.as_ptr(),
             info as *const _,
         )
-        .error_message("Calling HAPI_CreateThriftSharedMemorySession")?;
+        .add_context("Calling HAPI_CreateThriftSharedMemorySession")?;
         handle.assume_init()
     };
     Ok(session)
@@ -972,7 +975,7 @@ pub fn initialize_session(session: raw::HAPI_Session, options: &SessionOptions) 
                 .map(|p| p.as_ptr())
                 .unwrap_or(null()),
         )
-        .with_error_message(|| {
+        .with_context(|| {
             let err = get_connection_error(true).unwrap_or("Unknown".to_string());
             format!("Calling HAPI_Initialize failed with connection error: {err}")
         })?;
@@ -1098,12 +1101,13 @@ pub fn get_connection_error(clear: bool) -> Result<String> {
     unsafe {
         let mut length = uninit!();
         raw::HAPI_GetConnectionErrorLength(length.as_mut_ptr())
-            .error_message("Calling HAPI_GetConnectionErrorLength: failed")?;
+            .add_context("Calling HAPI_GetConnectionErrorLength: failed")?;
         let length = length.assume_init();
         if length > 0 {
             let mut buf = vec![0u8; length as usize];
             raw::HAPI_GetConnectionError(buf.as_mut_ptr() as *mut _, length, clear as i8)
-                .error_message("Calling HAPI_GetConnectionError: failed")?;
+                .add_context("Calling HAPI_GetConnectionError: failed")?;
+            buf.truncate(length as usize - 1);
             Ok(String::from_utf8_unchecked(buf))
         } else {
             Ok(String::new())
@@ -2816,7 +2820,7 @@ pub fn get_environment_int(_type: raw::EnvIntType) -> Result<i32> {
     unsafe {
         let mut ret = uninit!();
         raw::HAPI_GetEnvInt(_type, ret.as_mut_ptr())
-            .error_message("Calling HAPI_GetEvnInt: failed")?;
+            .add_context("Calling HAPI_GetEvnInt: failed")?;
         Ok(ret.assume_init())
     }
 }

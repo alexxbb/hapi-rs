@@ -21,7 +21,6 @@ fn thirft_advanced_setup() -> Result<Session> {
             .build(),
     ))
     .with_connection_timeout(Some(Duration::from_secs(10)))
-    .with_log_file(std::env::temp_dir().join("hapi-rs-advanced-server.log"))
     .with_env_variables(vec![("HAPI_RS_ADVANCED_SERVER", "hello")].iter());
     new_thrift_session(
         SessionOptions::default()
@@ -34,10 +33,10 @@ fn thirft_advanced_setup() -> Result<Session> {
 fn main() -> Result<()> {
     env_logger::init();
     let _ = simple_default_thrift_session()?;
-    let advanced_session = thirft_advanced_setup()?;
+    println!("Simple default thrift session created");
 
-    let var = advanced_session.get_server_var::<str>("HAPI_RS_ADVANCED_SERVER")?;
-    println!("ADVANCED SERVER VARIABLE: {}", var);
+    let _ = thirft_advanced_setup()?;
+    println!("Advanced thrift session created");
 
     Ok(())
 }

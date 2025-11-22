@@ -194,22 +194,37 @@ impl HapiResult {
     }
 
     /// Convert HAPI_Result to HapiError if the status is not success and add a message to the error.
-    pub(crate) fn error_message<I: Into<String>>(self, message: I) -> Result<()> {
+    pub(crate) fn add_context<I: Into<String>>(self, message: I) -> Result<()> {
         match self {
             HapiResult::Success => Ok(()),
             _err => Err(HapiError::Hapi {
                 result_code: HapiResultCode(self),
-                server_message: Some("Server error message unavailable".to_string()),
+                server_message: None,
                 contexts: vec![message.into()],
             }),
         }
     }
 
-    pub(crate) fn with_error_message<F, M>(self, func: F) -> Result<()>
+    pub(crate) fn with_context<F, M>(self, func: F) -> Result<()>
     where
         F: FnOnce() -> M,
         M: Into<String>,
     {
-        self.error_message(func())
+        self.add_context(func())
+    }
+
+    pub(crate) fn with_server_message<F, M>(self, func: F) -> Result<()>
+    where
+        F: FnOnce() -> M,
+        M: Into<String>,
+    {
+        match self {
+            HapiResult::Success => Ok(()),
+            _err => Err(HapiError::Hapi {
+                result_code: HapiResultCode(self),
+                server_message: Some(func().into()),
+                contexts: vec![],
+            }),
+        }
     }
 }

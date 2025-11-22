@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use log::debug;
+use log::{debug, error};
 use temp_env;
 
 use crate::{
@@ -86,8 +86,6 @@ impl ThriftSharedMemoryTransportBuilder {
 pub struct ServerOptions {
     pub thrift_transport: ThriftTransport,
     pub auto_close: bool,
-    // Timeout in milliseconds for waiting on the server to signal that it’s ready to serve.
-    pub timeout_ms: f32,
     pub verbosity: StatusVerbosity,
     pub log_file: Option<CString>,
     pub env_variables: Option<Vec<(OsString, OsString)>>,
@@ -102,11 +100,10 @@ impl ServerOptions {
                 ThriftSharedMemoryTransportBuilder::default().build(),
             ),
             auto_close: true,
-            timeout_ms: 0.0,
             verbosity: StatusVerbosity::Statusverbosity0,
             log_file: None,
             env_variables: None,
-            connection_retry_interval: None,
+            connection_retry_interval: Some(Duration::from_secs(10)),
         }
     }
 
@@ -117,11 +114,10 @@ impl ServerOptions {
                 pipe_path: PathBuf::from(format!("hapi-pipe-{}", utils::random_string(16))),
             }),
             auto_close: true,
-            timeout_ms: 0.0,
             verbosity: StatusVerbosity::Statusverbosity0,
             log_file: None,
             env_variables: None,
-            connection_retry_interval: None,
+            connection_retry_interval: Some(Duration::from_secs(10)),
         }
     }
 
@@ -130,16 +126,25 @@ impl ServerOptions {
         Self {
             thrift_transport: ThriftTransport::Socket(ThriftSocketTransport { address }),
             auto_close: true,
-            timeout_ms: 0.0,
             verbosity: StatusVerbosity::Statusverbosity0,
             log_file: None,
             env_variables: None,
-            connection_retry_interval: None,
+            connection_retry_interval: Some(Duration::from_secs(10)),
         }
     }
 
     pub(crate) fn session_info(&self) -> crate::ffi::SessionInfo {
-        todo!("Implement this");
+        // FIXME: connection_count should be configurable!
+        // It's set to 0 because of a bug in HARS which prevents session creation if the value is > 0.
+        // However, async attribute access requires a connection count > 0 according to SESI support, otherwise HARS crashes too.
+        let mut session_info = crate::ffi::SessionInfo::default().with_connection_count(0);
+
+        if let ThriftTransport::SharedMemory(transport) = &self.thrift_transport {
+            session_info.set_shared_memory_buffer_type(transport.buffer_type);
+            session_info.set_shared_memory_buffer_size(transport.buffer_size);
+        }
+
+        session_info
     }
 
     pub fn thrift_transport(&self) -> &ThriftTransport {
@@ -149,7 +154,6 @@ impl ServerOptions {
     pub(crate) fn thrift_options(&self) -> crate::ffi::ThriftServerOptions {
         let mut options = ThriftServerOptions::default()
             .with_auto_close(self.auto_close)
-            .with_timeout_ms(self.timeout_ms)
             .with_verbosity(self.verbosity);
 
         if let ThriftTransport::SharedMemory(transport) = &self.thrift_transport {
@@ -164,11 +168,10 @@ impl ServerOptions {
         Self {
             thrift_transport: transport,
             auto_close: true,
-            timeout_ms: 0.0,
             verbosity: StatusVerbosity::Statusverbosity0,
             log_file: None,
             env_variables: None,
-            connection_retry_interval: None,
+            connection_retry_interval: Some(Duration::from_secs(10)),
         }
     }
 
@@ -179,6 +182,7 @@ impl ServerOptions {
     }
 
     /// Set the log file for the server.
+    /// BUG: HARS 21.0.685 has a bug where the log file is always created in the working directory
     pub fn with_log_file(mut self, file: impl AsRef<Path>) -> Self {
         self.log_file = Some(utils::path_to_cstring(file).expect("Path to CString failed"));
         self
@@ -232,8 +236,9 @@ pub fn connect_to_pipe_server(
         ));
     };
     let pipe_name = utils::path_to_cstring(&pipe_path)?;
+    debug!("Connecting to pipe server: {:?}", pipe_path.display());
     let handle = try_connect_with_timeout(
-        server_options.connection_retry_interval.unwrap_or_default(),
+        server_options.connection_retry_interval.clone(),
         Duration::from_millis(100),
         || ffi::new_thrift_piped_session(&pipe_name, &server_options.session_info().0),
     )?;
@@ -257,8 +262,9 @@ pub fn connect_to_memory_server(
         ));
     };
     let mem_name_cstr = CString::new(memory_name.clone())?;
+    debug!("Connecting to shared memory server: {:?}", memory_name);
     let handle = try_connect_with_timeout(
-        server_options.connection_retry_interval.unwrap_or_default(),
+        server_options.connection_retry_interval.clone(),
         Duration::from_millis(100),
         || ffi::new_thrift_shared_memory_session(&mem_name_cstr, &server_options.session_info().0),
     )?;
@@ -270,24 +276,30 @@ pub fn connect_to_memory_server(
 }
 
 fn try_connect_with_timeout<F: Fn() -> Result<crate::ffi::raw::HAPI_Session>>(
-    timeout: Duration,
+    timeout: Option<Duration>,
     wait_ms: Duration,
     f: F,
 ) -> Result<crate::ffi::raw::HAPI_Session> {
+    debug!("Trying to connect to server with timeout: {:?}", timeout);
     let mut waited = Duration::from_secs(0);
     let mut last_error = None;
     let handle = loop {
         match f() {
             Ok(handle) => break handle,
             Err(e) => {
+                error!("Error while trying to connect to server: {:?}", e);
                 last_error.replace(e);
                 thread::sleep(wait_ms);
                 waited += wait_ms;
             }
         }
-        if waited > timeout {
-            // last_error is guaranteed to be Some() because we break out of the loop if we get a result.
-            return Err(last_error.unwrap()).context("Connection timeout");
+        if let Some(timeout) = timeout {
+            if waited > timeout {
+                // last_error is guaranteed to be Some() because we break out of the loop if we get a result.
+                return Err(last_error.unwrap()).context(format!(
+                    "Could not connect to server within timeout: {timeout:?}"
+                ));
+            }
         }
     };
     Ok(handle)
@@ -308,7 +320,7 @@ pub fn connect_to_socket_server(
     debug!("Connecting to socket server: {:?}", address);
     let host = CString::new(address.ip().to_string()).expect("SocketAddr->CString");
     let handle = try_connect_with_timeout(
-        server_options.connection_retry_interval.unwrap_or_default(),
+        server_options.connection_retry_interval.clone(),
         Duration::from_millis(100),
         || {
             ffi::new_thrift_socket_session(
