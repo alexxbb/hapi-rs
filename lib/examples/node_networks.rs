@@ -4,7 +4,10 @@ use hapi_rs::server::ServerOptions;
 use hapi_rs::session::{Session, SessionOptions, new_thrift_session};
 
 fn main() -> Result<()> {
-    let session = new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())?;
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::shared_memory_with_defaults(),
+    )?;
     let lib = session.load_asset_file("../otls/sesi/FourShapes.hda")?;
     let asset = lib.try_create_first()?;
     let children = asset.find_children_by_type(NodeType::Any, NodeFlags::Any, false)?;

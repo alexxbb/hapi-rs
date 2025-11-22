@@ -9,7 +9,7 @@ use hapi_rs::session::{SessionOptions, new_thrift_session};
 fn main() -> Result<()> {
     env_logger::init();
     let opt = SessionOptions::default().threaded(true);
-    let session = new_thrift_session(opt, ServerOptions::shared_memory())?;
+    let session = new_thrift_session(opt, ServerOptions::shared_memory_with_defaults())?;
     let lib = session.load_asset_file("../otls/sesi/SideFX_spaceship.hda")?;
     let node = lib.try_create_first()?;
     let asset_parms = lib.get_asset_parms("SideFX::Object/spaceship")?;

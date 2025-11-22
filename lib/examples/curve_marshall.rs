@@ -4,7 +4,10 @@ use hapi_rs::session::{SessionOptions, new_thrift_session};
 use hapi_rs::{Result, attribute::*, geometry::*};
 
 fn main() -> Result<()> {
-    let session = new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())?;
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::shared_memory_with_defaults(),
+    )?;
     let geom = session.create_input_node("Curve", None)?;
     geom.node.cook_blocking()?;
     let part_info = PartInfo::default()

@@ -5,7 +5,10 @@ use hapi_rs::{attribute::*, geometry::*};
 use hapi_rs::Result;
 
 fn main() -> Result<()> {
-    let session = new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())?;
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::shared_memory_with_defaults(),
+    )?;
     let geom = session.create_input_node("Cube", None)?;
     geom.node.cook_blocking()?;
     let part_info = PartInfo::default()

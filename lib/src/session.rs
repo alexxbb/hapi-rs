@@ -14,9 +14,8 @@
 //!
 //! Helper constructors terminate the server by default. This is useful for quick one-off jobs.
 //!
-use log::{debug, error, warn};
+use log::{debug, error};
 use parking_lot::ReentrantMutex;
-use std::ffi::OsString;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::{ffi::CString, path::Path, sync::Arc};
@@ -30,6 +29,7 @@ pub use crate::{
     },
     node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType, Transform},
     parameter::Parameter,
+    server::ServerOptions,
     stringhandle::StringArray,
 };
 
@@ -163,22 +163,14 @@ impl CookResult {
 }
 
 /// By which means the session communicates with the server.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum ConnectionType {
-    ThriftPipe(OsString),
-    ThriftSocket(std::net::SocketAddrV4),
-    SharedMemory(String),
-    InProcess,
-    Custom,
-}
-
 #[derive(Debug)]
 pub(crate) struct SessionInner {
     pub(crate) handle: raw::HAPI_Session,
     pub(crate) options: SessionOptions,
-    pub(crate) connection: ConnectionType,
-    pub(crate) pid: Option<u32>,
+    // Server options are only available for Thrift servers.
+    pub(crate) server_options: Option<ServerOptions>,
     pub(crate) lock: ReentrantMutex<()>,
+    pub(crate) server_pid: Option<u32>,
 }
 
 /// Session represents a unique connection to the Engine instance and all API calls require a valid session.
@@ -195,36 +187,39 @@ impl PartialEq for Session {
     }
 }
 
-impl Session {
-    pub(crate) fn new(
-        handle: raw::HAPI_Session,
-        connection: ConnectionType,
-        options: SessionOptions,
-        pid: Option<u32>,
-    ) -> Session {
-        Session {
-            inner: Arc::new(SessionInner {
-                handle,
-                options,
-                connection,
-                lock: ReentrantMutex::new(()),
-                pid,
-            }),
-        }
-    }
+pub struct UninitializedSession {
+    pub(crate) session_handle: raw::HAPI_Session,
+    pub(crate) server_options: ServerOptions,
+    pub(crate) server_pid: Option<u32>,
+}
 
+impl UninitializedSession {
+    pub fn initialize(self, session_options: SessionOptions) -> Result<Session> {
+        debug!("Initializing session");
+        crate::ffi::initialize_session(self.session_handle, &session_options)
+            .map(|_| Session {
+                inner: Arc::new(SessionInner {
+                    handle: self.session_handle,
+                    options: session_options,
+                    lock: ReentrantMutex::new(()),
+                    server_options: Some(self.server_options),
+                    server_pid: self.server_pid,
+                }),
+            })
+            .with_context(|| "Calling initialize_session")
+    }
+}
+
+impl Session {
     /// Return [`SessionType`] current session is initialized with.
     pub fn session_type(&self) -> SessionType {
         self.inner.handle.type_
     }
 
     /// Return enum with extra connection data such as pipe file or socket.
-    pub fn connection_type(&self) -> &ConnectionType {
-        &self.inner.connection
-    }
 
     pub fn server_pid(&self) -> Option<u32> {
-        self.inner.pid
+        self.inner.server_pid
     }
 
     #[inline(always)]
@@ -271,34 +266,11 @@ impl Session {
         crate::stringhandle::get_string_array(handles, self)
     }
 
-    pub fn initialize(&self) -> Result<()> {
-        debug!("Initializing session");
-        debug_assert!(self.is_valid());
-        let res = crate::ffi::initialize_session(self, &self.inner.options);
-        match res {
-            Ok(_) => Ok(()),
-            Err(HapiError::Hapi { result_code, .. })
-                if matches!(result_code.0, HapiResult::AlreadyInitialized) =>
-            {
-                warn!("Session already initialized, skipping");
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    /// Cleanup the session. Session will not be valid after this call
-    /// and needs to be initialized again
-    pub fn cleanup(&self) -> Result<()> {
+    /// Consumes and cleanups up the session. Session becomes invalid after this call
+    pub fn cleanup(self) -> Result<()> {
         debug!("Cleaning session");
         debug_assert!(self.is_valid());
-        crate::ffi::cleanup_session(self)
-    }
-
-    /// Check if session is initialized
-    pub fn is_initialized(&self) -> bool {
-        debug_assert!(self.is_valid());
-        crate::ffi::is_session_initialized(self)
+        crate::ffi::cleanup_session(&self)
     }
 
     /// Create an input geometry node which can accept modifications
@@ -832,7 +804,7 @@ impl Drop for Session {
             debug!("Dropping session pid: {:?}", self.server_pid());
             if self.is_valid() {
                 if self.inner.options.cleanup
-                    && let Err(e) = self.cleanup()
+                    && let Err(e) = crate::ffi::cleanup_session(self)
                 {
                     error!("Session cleanup failed in Drop: {}", e);
                 }
@@ -846,8 +818,12 @@ impl Drop for Session {
                 // The server should automatically delete the pipe file when closed successfully,
                 // but we could try a cleanup just in case.
                 debug!("Session was invalid in Drop!");
-                if let ConnectionType::ThriftPipe(f) = &self.inner.connection {
-                    let _ = std::fs::remove_file(f);
+                if let Some(server_options) = &self.inner.server_options {
+                    if let crate::server::ThriftTransport::Pipe(transport) =
+                        &server_options.thrift_transport
+                    {
+                        let _ = std::fs::remove_file(&transport.pipe_path);
+                    }
                 }
             }
         }
@@ -859,14 +835,10 @@ impl Drop for Session {
 pub struct SessionOptions {
     /// Session cook options
     pub cook_opt: CookOptions,
-    /// Session connection options
-    pub session_info: SessionInfo,
     /// Create a Threaded server connection
     pub threaded: bool,
     /// Cleanup session upon close
     pub cleanup: bool,
-    /// Do not error out if session is already initialized
-    pub ignore_already_init: bool,
     pub env_files: Option<CString>,
     pub otl_path: Option<CString>,
     pub dso_path: Option<CString>,
@@ -878,10 +850,8 @@ impl Default for SessionOptions {
     fn default() -> Self {
         SessionOptions {
             cook_opt: CookOptions::default(),
-            session_info: SessionInfo::default(),
             threaded: false,
             cleanup: false,
-            ignore_already_init: true,
             env_files: None,
             otl_path: None,
             dso_path: None,
@@ -952,33 +922,15 @@ impl SessionOptions {
         self
     }
 
-    /// Do not error when connecting to a server process which has a session already initialized.
-    pub fn ignore_already_init(mut self, ignore: bool) -> Self {
-        self.ignore_already_init = ignore;
-        self
-    }
-
     /// Pass session [`CookOptions`]
     pub fn cook_options(mut self, options: CookOptions) -> Self {
         self.cook_opt = options;
         self
     }
 
-    /// Session init options [`SessionInfo`]
-    pub fn session_info(mut self, info: SessionInfo) -> Self {
-        self.session_info = info;
-        self
-    }
-
     /// Makes the server operate in threaded mode. See the official docs for more info.
     pub fn threaded(mut self, threaded: bool) -> Self {
         self.threaded = threaded;
-        self
-    }
-
-    /// Cleanup the server session when the last connection drops.
-    pub fn cleanup_on_close(mut self, cleanup: bool) -> Self {
-        self.cleanup = cleanup;
         self
     }
 }
@@ -989,55 +941,42 @@ impl SessionOptions {
 pub fn new_in_process_session(options: Option<SessionOptions>) -> Result<Session> {
     debug!("Creating new in-process session");
     let session_options = options.unwrap_or_default();
-    let handle = crate::ffi::create_inprocess_session(&session_options.session_info.0)?;
-    let connection = ConnectionType::InProcess;
-    let session = Session::new(
-        handle,
-        connection,
-        session_options,
-        Some(std::process::id()),
-    );
-    session.initialize()?;
-    Ok(session)
+    let session_info = SessionInfo::default();
+    let handle = crate::ffi::create_inprocess_session(&session_info.0)?;
+    Ok(Session {
+        inner: Arc::new(SessionInner {
+            handle,
+            options: session_options,
+            lock: ReentrantMutex::new(()),
+            server_options: None,
+            server_pid: Some(std::process::id()),
+        }),
+    })
 }
 
 /// Start a Thrift server and initialize a session with it.
 pub fn new_thrift_session(
     session_options: SessionOptions,
-    server_options: crate::server::ServerOptions,
+    server_options: ServerOptions,
 ) -> Result<Session> {
-    match server_options.transport().clone() {
-        crate::server::ThriftTransport::SharedMemory(config) => {
-            let pid = crate::server::start_engine_shared_memory_server(
-                &config.memory_name,
-                &server_options,
-            )
-            .context("Could not start shared memory server")?;
-            crate::server::connect_to_memory_server(
-                &config.memory_name,
-                session_options,
-                server_options.connection_timeout,
-                Some(pid),
-            )
-            .context("Could not connect to shared memory server")
+    match server_options.thrift_transport {
+        crate::server::ThriftTransport::SharedMemory(_) => {
+            let pid = crate::server::start_engine_server(&server_options)?;
+            crate::server::connect_to_memory_server(server_options, Some(pid))
+                .context("Could not connect to shared memory server")?
+                .initialize(session_options)
         }
-        crate::server::ThriftTransport::Pipe(config) => {
-            let pipe_path = config.pipe_path.clone();
-            let pid = crate::server::start_engine_pipe_server(&pipe_path, &server_options)
-                .context("Could not start pipe server")?;
-            crate::server::connect_to_pipe_server(
-                &pipe_path,
-                session_options,
-                server_options.connection_timeout,
-                Some(pid),
-            )
-            .context("Could not connect to pipe server")
+        crate::server::ThriftTransport::Pipe(_) => {
+            let pid = crate::server::start_engine_server(&server_options)?;
+            crate::server::connect_to_pipe_server(server_options, Some(pid))
+                .context("Could not connect to pipe server")?
+                .initialize(session_options)
         }
-        crate::server::ThriftTransport::Socket(config) => {
-            let address = config.address;
-            let pid = crate::server::start_engine_socket_server(address.port(), &server_options)
-                .context("Could not start socket server")?;
-            crate::server::connect_to_socket_server(address, session_options, Some(pid))
+        crate::server::ThriftTransport::Socket(_) => {
+            let pid = crate::server::start_engine_server(&server_options)?;
+            crate::server::connect_to_socket_server(server_options, Some(pid))
+                .context("Could not connect to socket server")?
+                .initialize(session_options)
                 .context("Could not connect to socket server")
         }
     }

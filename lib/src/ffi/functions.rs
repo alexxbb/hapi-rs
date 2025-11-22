@@ -857,7 +857,7 @@ pub fn start_thrift_socket_server(
             pid.as_mut_ptr(),
             log_file.map_or(null(), CStr::as_ptr),
         )
-        .error_message("Calling HAPI_StartThriftSocketServer: failed")?;
+        .error_message("Calling HAPI_StartThriftSocketServer")?;
         Ok(pid.assume_init())
     }
 }
@@ -875,7 +875,13 @@ pub fn start_thrift_shared_memory_server(
             pid.as_mut_ptr(),
             log_file.map_or(null(), CStr::as_ptr),
         )
-        .error_message("Calling HAPI_StartThriftSharedMemoryServer")?;
+        // .error_message("Calling HAPI_StartThriftSharedMemoryServer")?;
+        .with_error_message(|| {
+            let err = get_connection_error(true).unwrap_or("Unknown".to_string());
+            format!(
+                "Calling HAPI_StartThriftSharedMemoryServer failed with connection error: {err}"
+            )
+        })?;
         Ok(pid.assume_init())
     }
 }
@@ -933,10 +939,10 @@ pub fn new_thrift_shared_memory_session(
     Ok(session)
 }
 
-pub fn initialize_session(session: &Session, options: &SessionOptions) -> Result<()> {
+pub fn initialize_session(session: raw::HAPI_Session, options: &SessionOptions) -> Result<()> {
     unsafe {
-        let res = raw::HAPI_Initialize(
-            session.ptr(),
+        raw::HAPI_Initialize(
+            &session,
             options.cook_opt.ptr(),
             options.threaded as i8,
             -1,
@@ -965,11 +971,12 @@ pub fn initialize_session(session: &Session, options: &SessionOptions) -> Result
                 .as_ref()
                 .map(|p| p.as_ptr())
                 .unwrap_or(null()),
-        );
-        match is_session_valid(session) {
-            true => res.check_err(session, || "Calling HAPI_Initialize"),
-            false => res.error_message("Could not initialize session"),
-        }
+        )
+        .with_error_message(|| {
+            let err = get_connection_error(true).unwrap_or("Unknown".to_string());
+            format!("Calling HAPI_Initialize failed with connection error: {err}")
+        })?;
+        Ok(())
     }
 }
 

@@ -13,131 +13,168 @@ use temp_env;
 use crate::{
     errors::{ErrorContext, HapiError, Result},
     ffi::{self, ThriftServerOptions, enums::StatusVerbosity},
-    session::{ConnectionType, Session, SessionOptions},
+    session::UninitializedSession,
     utils,
 };
 
 pub use crate::ffi::raw::ThriftSharedMemoryBufferType;
 
 #[derive(Clone, Debug)]
-pub struct SharedMemoryTransport {
+pub struct ThriftSharedMemoryTransport {
     pub memory_name: String,
-}
-
-impl SharedMemoryTransport {
-    fn new_random() -> Self {
-        Self {
-            memory_name: format!("shared-memory-{}", utils::random_string(16)),
-        }
-    }
+    pub buffer_type: ThriftSharedMemoryBufferType,
+    pub buffer_size: i64,
 }
 
 #[derive(Clone, Debug)]
-pub struct SocketTransport {
+pub struct ThriftSocketTransport {
     pub address: SocketAddrV4,
 }
 
 #[derive(Clone, Debug)]
-pub struct PipeTransport {
+pub struct ThriftPipeTransport {
     pub pipe_path: PathBuf,
 }
 
 #[derive(Clone, Debug)]
 pub enum ThriftTransport {
-    SharedMemory(SharedMemoryTransport),
-    Pipe(PipeTransport),
-    Socket(SocketTransport),
+    SharedMemory(ThriftSharedMemoryTransport),
+    Pipe(ThriftPipeTransport),
+    Socket(ThriftSocketTransport),
 }
 
+pub struct ThriftSharedMemoryTransportBuilder {
+    memory_name: String,
+    buffer_type: ThriftSharedMemoryBufferType,
+    buffer_size: i64,
+}
+
+impl Default for ThriftSharedMemoryTransportBuilder {
+    fn default() -> Self {
+        Self {
+            memory_name: format!("shared-memory-{}", utils::random_string(16)),
+            buffer_type: ThriftSharedMemoryBufferType::Buffer,
+            buffer_size: 1024, // MB
+        }
+    }
+}
+
+impl ThriftSharedMemoryTransportBuilder {
+    pub fn with_memory_name(mut self, name: impl Into<String>) -> Self {
+        self.memory_name = name.into();
+        self
+    }
+    pub fn with_buffer_type(mut self, buffer_type: ThriftSharedMemoryBufferType) -> Self {
+        self.buffer_type = buffer_type;
+        self
+    }
+    pub fn with_buffer_size(mut self, buffer_size: i64) -> Self {
+        self.buffer_size = buffer_size;
+        self
+    }
+    pub fn build(self) -> ThriftSharedMemoryTransport {
+        ThriftSharedMemoryTransport {
+            memory_name: self.memory_name,
+            buffer_type: self.buffer_type,
+            buffer_size: self.buffer_size,
+        }
+    }
+}
+
+// TODO: rename ServerConfiguration
+#[derive(Clone, Debug)]
 pub struct ServerOptions {
-    transport: ThriftTransport,
-    thrift_options: ThriftServerOptions,
-    log_file: Option<CString>,
-    env_variables: Option<Vec<(OsString, OsString)>>,
-    pub(crate) connection_timeout: Option<Duration>,
+    pub thrift_transport: ThriftTransport,
+    pub auto_close: bool,
+    // Timeout in milliseconds for waiting on the server to signal that it’s ready to serve.
+    pub timeout_ms: f32,
+    pub verbosity: StatusVerbosity,
+    pub log_file: Option<CString>,
+    pub env_variables: Option<Vec<(OsString, OsString)>>,
+    pub(crate) connection_retry_interval: Option<Duration>,
 }
 
 impl ServerOptions {
     /// Create options for a shared-memory transport with a random name.
-    pub fn shared_memory() -> Self {
-        Self::from_transport(ThriftTransport::SharedMemory(
-            SharedMemoryTransport::new_random(),
-        ))
+    pub fn shared_memory_with_defaults() -> Self {
+        Self {
+            thrift_transport: ThriftTransport::SharedMemory(
+                ThriftSharedMemoryTransportBuilder::default().build(),
+            ),
+            auto_close: true,
+            timeout_ms: 0.0,
+            verbosity: StatusVerbosity::Statusverbosity0,
+            log_file: None,
+            env_variables: None,
+            connection_retry_interval: None,
+        }
     }
 
     /// Create options for a named pipe transport.
-    pub fn pipe(path: impl Into<PathBuf>) -> Self {
-        Self::from_transport(ThriftTransport::Pipe(PipeTransport {
-            pipe_path: path.into(),
-        }))
+    pub fn pipe_with_defaults() -> Self {
+        Self {
+            thrift_transport: ThriftTransport::Pipe(ThriftPipeTransport {
+                pipe_path: PathBuf::from(format!("hapi-pipe-{}", utils::random_string(16))),
+            }),
+            auto_close: true,
+            timeout_ms: 0.0,
+            verbosity: StatusVerbosity::Statusverbosity0,
+            log_file: None,
+            env_variables: None,
+            connection_retry_interval: None,
+        }
     }
 
     /// Create options for a socket transport.
-    pub fn socket(address: SocketAddrV4) -> Self {
-        Self::from_transport(ThriftTransport::Socket(SocketTransport { address }))
-    }
-
-    fn from_transport(transport: ThriftTransport) -> Self {
+    pub fn socket_with_defaults(address: SocketAddrV4) -> Self {
         Self {
-            transport,
-            thrift_options: ThriftServerOptions::default()
-                .with_timeout_ms(4000f32)
-                .with_verbosity(StatusVerbosity::Statusverbosity0),
+            thrift_transport: ThriftTransport::Socket(ThriftSocketTransport { address }),
+            auto_close: true,
+            timeout_ms: 0.0,
+            verbosity: StatusVerbosity::Statusverbosity0,
             log_file: None,
             env_variables: None,
-            connection_timeout: None,
+            connection_retry_interval: None,
         }
     }
 
-    pub fn transport(&self) -> &ThriftTransport {
-        &self.transport
+    pub(crate) fn session_info(&self) -> crate::ffi::SessionInfo {
+        todo!("Implement this");
     }
 
-    /// Replace the transport configuration.
-    pub fn with_transport(mut self, transport: ThriftTransport) -> Self {
-        self.transport = transport;
-        self
+    pub fn thrift_transport(&self) -> &ThriftTransport {
+        &self.thrift_transport
     }
 
-    /// Provide a custom shared memory name. Only used if transport is [`ThriftTransport::SharedMemory`].
-    pub fn memory_name(mut self, name: impl Into<String>) -> Self {
-        if let ThriftTransport::SharedMemory(ref mut cfg) = self.transport {
-            cfg.memory_name = name.into();
+    pub(crate) fn thrift_options(&self) -> crate::ffi::ThriftServerOptions {
+        let mut options = ThriftServerOptions::default()
+            .with_auto_close(self.auto_close)
+            .with_timeout_ms(self.timeout_ms)
+            .with_verbosity(self.verbosity);
+
+        if let ThriftTransport::SharedMemory(transport) = &self.thrift_transport {
+            options.set_shared_memory_buffer_type(transport.buffer_type);
+            options.set_shared_memory_buffer_size(transport.buffer_size);
         }
-        self
+
+        options
     }
 
-    /// Override the pipe path. Only used if transport is [`ThriftTransport::Pipe`].
-    pub fn pipe_path(mut self, path: impl Into<PathBuf>) -> Self {
-        if let ThriftTransport::Pipe(ref mut cfg) = self.transport {
-            cfg.pipe_path = path.into();
+    pub fn with_thrift_transport(transport: ThriftTransport) -> Self {
+        Self {
+            thrift_transport: transport,
+            auto_close: true,
+            timeout_ms: 0.0,
+            verbosity: StatusVerbosity::Statusverbosity0,
+            log_file: None,
+            env_variables: None,
+            connection_retry_interval: None,
         }
-        self
-    }
-
-    /// Override the socket address used to connect to the server. Only used if transport is [`ThriftTransport::Socket`].
-    pub fn socket_address(mut self, addr: SocketAddrV4) -> Self {
-        if let ThriftTransport::Socket(ref mut cfg) = self.transport {
-            cfg.address = addr;
-        }
-        self
     }
 
     /// Set a connection timeout used when establishing Thrift sessions.
-    pub fn connection_timeout(mut self, timeout: Option<Duration>) -> Self {
-        self.connection_timeout = timeout;
-        self
-    }
-
-    /// Set the thrift server options. See [`ThriftServerOptions`] for more details.
-    pub fn with_thrift_options(mut self, options: ThriftServerOptions) -> Self {
-        self.thrift_options = options;
-        self
-    }
-
-    /// Mutate the underlying [`ThriftServerOptions`] via a closure.
-    pub fn configure_thrift(mut self, configure: impl FnOnce(&mut ThriftServerOptions)) -> Self {
-        configure(&mut self.thrift_options);
+    pub fn with_connection_timeout(mut self, timeout: Option<Duration>) -> Self {
+        self.connection_retry_interval = timeout;
         self
     }
 
@@ -164,8 +201,8 @@ impl ServerOptions {
     }
 
     /// Automatically close the server when the last connection drops.
-    pub fn auto_close(mut self, auto_close: bool) -> Self {
-        self.thrift_options.set_auto_close(auto_close);
+    pub fn with_auto_close(mut self, auto_close: bool) -> Self {
+        self.auto_close = auto_close;
         self
     }
 
@@ -182,158 +219,167 @@ impl ServerOptions {
     }
 }
 
-/// Connect to the engine process via a pipe file.
-/// If `timeout` is Some, function will try to connect to
-/// the server multiple times every 100ms until `timeout` is reached.
+/// Connect to the Thrift pipe server and return an uninitialized session.
 pub fn connect_to_pipe_server(
-    pipe: impl AsRef<Path>,
-    session_options: SessionOptions,
-    timeout: Option<Duration>,
+    server_options: ServerOptions,
     pid: Option<u32>,
-) -> Result<Session> {
-    debug!("Connecting to Thrift session: {:?}", pipe.as_ref());
-    let c_str = utils::path_to_cstring(&pipe)?;
-    let pipe = pipe.as_ref().as_os_str().to_os_string();
-    let timeout = timeout.unwrap_or_default();
-    let mut waited = Duration::from_secs(0);
-    let wait_ms = Duration::from_millis(100);
-    let handle = loop {
-        let mut last_error = None;
-        debug!("Trying to connect to pipe server");
-        match ffi::new_thrift_piped_session(&c_str, &session_options.session_info.0) {
-            Ok(handle) => break handle,
-            Err(e) => {
-                last_error.replace(e);
-                thread::sleep(wait_ms);
-                waited += wait_ms;
-            }
-        }
-        if waited > timeout {
-            // last_error is guaranteed to be Some().
-            return Err(last_error.unwrap()).context("Connection timeout");
-        }
+) -> Result<UninitializedSession> {
+    let ThriftTransport::Pipe(ThriftPipeTransport { pipe_path }) =
+        server_options.thrift_transport()
+    else {
+        return Err(HapiError::Internal(
+            "ServerOptions is not configured for pipe transport".to_owned(),
+        ));
     };
-    let connection = ConnectionType::ThriftPipe(pipe);
-    let session = Session::new(handle, connection, session_options, pid);
-    session.initialize()?;
-    Ok(session)
-}
-
-pub fn connect_to_memory_server(
-    memory_name: &str,
-    session_options: SessionOptions,
-    timeout: Option<Duration>,
-    pid: Option<u32>,
-) -> Result<Session> {
-    debug!("Connecting to shared memory session: {memory_name}");
-    let mem_name = String::from(memory_name);
-    let mem_name_cstr = CString::new(memory_name)?;
-    let timeout = timeout.unwrap_or_default();
-    let mut waited = Duration::from_secs(0);
-    let wait_ms = Duration::from_millis(100);
-    let handle = loop {
-        let mut last_error = None;
-        match ffi::new_thrift_shared_memory_session(&mem_name_cstr, &session_options.session_info.0)
-        {
-            Ok(handle) => break handle,
-            Err(e) => {
-                last_error.replace(e);
-                thread::sleep(wait_ms);
-                waited += wait_ms;
-            }
-        }
-        if waited > timeout {
-            return Err(last_error.unwrap()).context("Connection timeout");
-        }
-    };
-
-    let connection = ConnectionType::SharedMemory(mem_name);
-    let session = Session::new(handle, connection, session_options, pid);
-    session.initialize()?;
-    Ok(session)
-}
-
-/// Connect to the engine process via a Unix socket
-pub fn connect_to_socket_server(
-    addr: SocketAddrV4,
-    session_options: SessionOptions,
-    pid: Option<u32>,
-) -> Result<Session> {
-    debug!("Connecting to socket server: {:?}", addr);
-    let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
-    let handle =
-        ffi::new_thrift_socket_session(addr.port() as i32, &host, &session_options.session_info.0)?;
-    let connection = ConnectionType::ThriftSocket(addr);
-    let session = Session::new(handle, connection, session_options, pid);
-    session.initialize()?;
-    Ok(session)
-}
-
-/// Spawn a new pipe Engine process and return its PID
-pub fn start_engine_pipe_server(
-    path: impl AsRef<Path>,
-    server_options: &ServerOptions,
-) -> Result<u32> {
-    debug!("Starting named pipe server: {:?}", path.as_ref());
-    let pipe_name = utils::path_to_cstring(path)?;
-    ffi::clear_connection_error()?;
-    server_options.run_with_environment(|| {
-        ffi::start_thrift_pipe_server(
-            &pipe_name,
-            &server_options.thrift_options.0,
-            server_options.log_file.as_deref(),
-        )
+    let pipe_name = utils::path_to_cstring(&pipe_path)?;
+    let handle = try_connect_with_timeout(
+        server_options.connection_retry_interval.unwrap_or_default(),
+        Duration::from_millis(100),
+        || ffi::new_thrift_piped_session(&pipe_name, &server_options.session_info().0),
+    )?;
+    Ok(UninitializedSession {
+        session_handle: handle,
+        server_options,
+        server_pid: pid,
     })
 }
 
-/// Spawn a new socket Engine server and return its PID
-pub fn start_engine_socket_server(port: u16, server_options: &ServerOptions) -> Result<u32> {
-    debug!("Starting socket server on port: {}", port);
-    ffi::clear_connection_error()?;
-    let timeout = server_options.connection_timeout.unwrap_or_default();
-    let wait_ms = Duration::from_millis(100);
+/// Connect to the Thrift shared memory server and return an uninitialized session.
+pub fn connect_to_memory_server(
+    server_options: ServerOptions,
+    pid: Option<u32>,
+) -> Result<UninitializedSession> {
+    let ThriftTransport::SharedMemory(ThriftSharedMemoryTransport { memory_name, .. }) =
+        server_options.thrift_transport()
+    else {
+        return Err(HapiError::Internal(
+            "ServerOptions is not configured for shared memory transport".to_owned(),
+        ));
+    };
+    let mem_name_cstr = CString::new(memory_name.clone())?;
+    let handle = try_connect_with_timeout(
+        server_options.connection_retry_interval.unwrap_or_default(),
+        Duration::from_millis(100),
+        || ffi::new_thrift_shared_memory_session(&mem_name_cstr, &server_options.session_info().0),
+    )?;
+    Ok(UninitializedSession {
+        session_handle: handle,
+        server_options,
+        server_pid: pid,
+    })
+}
+
+fn try_connect_with_timeout<F: Fn() -> Result<crate::ffi::raw::HAPI_Session>>(
+    timeout: Duration,
+    wait_ms: Duration,
+    f: F,
+) -> Result<crate::ffi::raw::HAPI_Session> {
     let mut waited = Duration::from_secs(0);
-    loop {
-        match server_options.run_with_environment(|| {
-            ffi::start_thrift_socket_server(
-                port as i32,
-                &server_options.thrift_options.0,
-                server_options.log_file.as_deref(),
-            )
-        }) {
-            Ok(pid) => break Ok(pid),
+    let mut last_error = None;
+    let handle = loop {
+        match f() {
+            Ok(handle) => break handle,
             Err(e) => {
-                if timeout.is_zero() || waited > timeout {
-                    break Err(e).context("Could not start socket server");
-                }
+                last_error.replace(e);
                 thread::sleep(wait_ms);
                 waited += wait_ms;
-                if waited > timeout {
-                    break Err(e).context("Socket server start timeout");
-                }
             }
+        }
+        if waited > timeout {
+            // last_error is guaranteed to be Some() because we break out of the loop if we get a result.
+            return Err(last_error.unwrap()).context("Connection timeout");
+        }
+    };
+    Ok(handle)
+}
+
+/// Connect to the Thrift socket server and return an uninitialized session.
+pub fn connect_to_socket_server(
+    server_options: ServerOptions,
+    pid: Option<u32>,
+) -> Result<UninitializedSession> {
+    let ThriftTransport::Socket(ThriftSocketTransport { address }) =
+        server_options.thrift_transport()
+    else {
+        return Err(HapiError::Internal(
+            "ServerOptions is not configured for socket transport".to_owned(),
+        ));
+    };
+    debug!("Connecting to socket server: {:?}", address);
+    let host = CString::new(address.ip().to_string()).expect("SocketAddr->CString");
+    let handle = try_connect_with_timeout(
+        server_options.connection_retry_interval.unwrap_or_default(),
+        Duration::from_millis(100),
+        || {
+            ffi::new_thrift_socket_session(
+                address.port() as i32,
+                &host,
+                &server_options.session_info().0,
+            )
+        },
+    )?;
+    Ok(UninitializedSession {
+        session_handle: handle,
+        server_options,
+        server_pid: pid,
+    })
+}
+
+pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
+    match &server_options.thrift_transport {
+        ThriftTransport::SharedMemory(transport) => {
+            debug!(
+                "Starting shared memory server name: {}",
+                transport.memory_name
+            );
+            let memory_name = CString::new(transport.memory_name.clone())?;
+            ffi::clear_connection_error()?;
+            server_options.run_with_environment(|| {
+                ffi::start_thrift_shared_memory_server(
+                    &memory_name,
+                    &server_options.thrift_options().0,
+                    server_options.log_file.as_deref(),
+                )
+                .with_context(|| {
+                    format!(
+                        "Failed to start shared memory server: {}",
+                        transport.memory_name
+                    )
+                })
+            })
+        }
+        ThriftTransport::Pipe(transport) => {
+            debug!("Starting named pipe server: {:?}", transport.pipe_path);
+            let pipe_name = utils::path_to_cstring(&transport.pipe_path)?;
+            ffi::clear_connection_error()?;
+            server_options.run_with_environment(|| {
+                ffi::start_thrift_pipe_server(
+                    &pipe_name,
+                    &server_options.thrift_options().0,
+                    server_options.log_file.as_deref(),
+                )
+                .with_context(|| format!("Failed to start pipe server: {:?}", transport.pipe_path))
+            })
+        }
+        ThriftTransport::Socket(transport) => {
+            debug!(
+                "Starting socket server on port: {}",
+                transport.address.port()
+            );
+            ffi::clear_connection_error()?;
+            server_options.run_with_environment(|| {
+                ffi::start_thrift_socket_server(
+                    transport.address.port() as i32,
+                    &server_options.thrift_options().0,
+                    server_options.log_file.as_deref(),
+                )
+            })
         }
     }
 }
 
-/// Spawn a new Engine server utilizing shared memory to transfer data.
-pub fn start_engine_shared_memory_server(
-    memory_name: &str,
-    server_options: &ServerOptions,
-) -> Result<u32> {
-    debug!("Starting shared memory server name: {memory_name}");
-    let memory_name = CString::new(memory_name)?;
-    ffi::clear_connection_error()?;
-    server_options.run_with_environment(|| {
-        ffi::start_thrift_shared_memory_server(
-            &memory_name,
-            &server_options.thrift_options.0,
-            server_options.log_file.as_deref(),
-        )
-    })
-}
-
 /// Start an interactive Houdini session with engine server embedded.
+/// TODO: Add setting env variables prior to starting the server
 pub fn start_houdini_server(
     pipe_name: impl AsRef<str>,
     houdini_executable: impl AsRef<Path>,

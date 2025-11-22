@@ -10,7 +10,7 @@ use tempfile::NamedTempFile;
 fn main() -> Result<()> {
     let sess = new_thrift_session(
         SessionOptions::default().threaded(true),
-        ServerOptions::shared_memory(),
+        ServerOptions::shared_memory_with_defaults(),
     )?;
 
     println!("Generating scene");
@@ -22,10 +22,6 @@ fn main() -> Result<()> {
     let hip_file = NamedTempFile::with_suffix(".hip")?;
     println!("Saving scene to {}", hip_file.path().display());
     sess.save_hip(hip_file.path(), false)?;
-
-    println!("Cleaning up");
-    sess.cleanup()?;
-    sess.initialize()?;
 
     println!("Loading scene {}", hip_file.path().display());
     sess.load_hip(hip_file.path(), true)?;

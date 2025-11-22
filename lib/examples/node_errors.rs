@@ -31,7 +31,7 @@ fn main() -> Result<()> {
     let log_file = std::env::temp_dir().join("hapi.log");
     let session = new_thrift_session(
         SessionOptions::default().threaded(true),
-        ServerOptions::shared_memory().with_log_file(&log_file),
+        ServerOptions::shared_memory_with_defaults().with_log_file(&log_file),
     )?;
     let asset = session.load_asset_file(otl)?.try_create_first()?;
     let geo = asset.geometry()?.unwrap();
