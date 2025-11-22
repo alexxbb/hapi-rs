@@ -17,6 +17,8 @@ use crate::{
     utils,
 };
 
+pub use crate::ffi::raw::ThriftSharedMemoryBufferType;
+
 #[derive(Clone, Debug)]
 pub struct SharedMemoryTransport {
     pub memory_name: String,
@@ -27,10 +29,6 @@ impl SharedMemoryTransport {
         Self {
             memory_name: format!("shared-memory-{}", utils::random_string(16)),
         }
-    }
-
-    pub fn memory_name(&self) -> &str {
-        &self.memory_name
     }
 }
 

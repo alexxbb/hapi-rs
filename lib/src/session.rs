@@ -1008,12 +1008,13 @@ pub fn new_thrift_session(
 ) -> Result<Session> {
     match server_options.transport().clone() {
         crate::server::ThriftTransport::SharedMemory(config) => {
-            let memory_name = config.memory_name().to_string();
-            let pid =
-                crate::server::start_engine_shared_memory_server(&memory_name, &server_options)
-                    .context("Could not start shared memory server")?;
+            let pid = crate::server::start_engine_shared_memory_server(
+                &config.memory_name,
+                &server_options,
+            )
+            .context("Could not start shared memory server")?;
             crate::server::connect_to_memory_server(
-                &memory_name,
+                &config.memory_name,
                 session_options,
                 server_options.connection_timeout,
                 Some(pid),
