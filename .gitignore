@@ -1,6 +1,7 @@
 Cargo.lock
 .idea
 .vscode
+engine_docs
 build
 backup
 otls/backup
