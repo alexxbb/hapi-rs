@@ -968,3 +968,11 @@ pub fn new_thrift_session(
         }
     }
 }
+
+/// Shortcut for creating a simple Thrift session with good defaults.
+pub fn simple_session() -> Result<Session> {
+    new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::shared_memory_with_defaults(),
+    )
+}
