@@ -190,8 +190,11 @@ mod tests {
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init().ok();
-        new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())
-            .expect("Could not create test session")
+        new_thrift_session(
+            SessionOptions::default(),
+            ServerOptions::shared_memory_with_defaults(),
+        )
+        .expect("Could not create test session")
     });
 
     #[test]

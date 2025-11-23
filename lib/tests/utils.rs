@@ -13,7 +13,7 @@ use once_cell::sync::Lazy;
 thread_local! {
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init();
-        new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())
+        new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory_with_defaults())
             .expect("Could not create test session")
     });
 
@@ -21,13 +21,13 @@ thread_local! {
         let _ = env_logger::try_init();
         let mut session_info = SessionInfo::default();
         // For async attribute access connection_count must be > 0 according to SESI support, otherwise HARS crashes.
+        println!("FIXME: H21.0 has a bug around connection count. Async tests are disabled for now.");
         session_info.set_connection_count(2);
         let opt = SessionOptions {
             threaded: true,
-            session_info,
             ..Default::default()
         };
-        new_thrift_session(opt, ServerOptions::shared_memory()).expect("Could not create async test session")
+        new_thrift_session(opt, ServerOptions::shared_memory_with_defaults()).expect("Could not create async test session")
     });
 }
 

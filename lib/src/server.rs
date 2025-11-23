@@ -235,16 +235,16 @@ pub fn connect_to_pipe_server(
             "ServerOptions is not configured for pipe transport".to_owned(),
         ));
     };
-    let pipe_name = utils::path_to_cstring(&pipe_path)?;
+    let pipe_name = utils::path_to_cstring(pipe_path)?;
     debug!("Connecting to pipe server: {:?}", pipe_path.display());
     let handle = try_connect_with_timeout(
-        server_options.connection_retry_interval.clone(),
+        server_options.connection_retry_interval,
         Duration::from_millis(100),
         || ffi::new_thrift_piped_session(&pipe_name, &server_options.session_info().0),
     )?;
     Ok(UninitializedSession {
         session_handle: handle,
-        server_options,
+        server_options: Some(server_options),
         server_pid: pid,
     })
 }
@@ -264,13 +264,13 @@ pub fn connect_to_memory_server(
     let mem_name_cstr = CString::new(memory_name.clone())?;
     debug!("Connecting to shared memory server: {:?}", memory_name);
     let handle = try_connect_with_timeout(
-        server_options.connection_retry_interval.clone(),
+        server_options.connection_retry_interval,
         Duration::from_millis(100),
         || ffi::new_thrift_shared_memory_session(&mem_name_cstr, &server_options.session_info().0),
     )?;
     Ok(UninitializedSession {
         session_handle: handle,
-        server_options,
+        server_options: Some(server_options),
         server_pid: pid,
     })
 }
@@ -293,13 +293,13 @@ fn try_connect_with_timeout<F: Fn() -> Result<crate::ffi::raw::HAPI_Session>>(
                 waited += wait_ms;
             }
         }
-        if let Some(timeout) = timeout {
-            if waited > timeout {
-                // last_error is guaranteed to be Some() because we break out of the loop if we get a result.
-                return Err(last_error.unwrap()).context(format!(
-                    "Could not connect to server within timeout: {timeout:?}"
-                ));
-            }
+        if let Some(timeout) = timeout
+            && waited > timeout
+        {
+            // last_error is guaranteed to be Some() because we break out of the loop if we get a result.
+            return Err(last_error.unwrap()).context(format!(
+                "Could not connect to server within timeout: {timeout:?}"
+            ));
         }
     };
     Ok(handle)
@@ -320,7 +320,7 @@ pub fn connect_to_socket_server(
     debug!("Connecting to socket server: {:?}", address);
     let host = CString::new(address.ip().to_string()).expect("SocketAddr->CString");
     let handle = try_connect_with_timeout(
-        server_options.connection_retry_interval.clone(),
+        server_options.connection_retry_interval,
         Duration::from_millis(100),
         || {
             ffi::new_thrift_socket_session(
@@ -332,7 +332,7 @@ pub fn connect_to_socket_server(
     )?;
     Ok(UninitializedSession {
         session_handle: handle,
-        server_options,
+        server_options: Some(server_options),
         server_pid: pid,
     })
 }

@@ -189,7 +189,7 @@ impl PartialEq for Session {
 
 pub struct UninitializedSession {
     pub(crate) session_handle: raw::HAPI_Session,
-    pub(crate) server_options: ServerOptions,
+    pub(crate) server_options: Option<ServerOptions>,
     pub(crate) server_pid: Option<u32>,
 }
 
@@ -202,7 +202,7 @@ impl UninitializedSession {
                     handle: self.session_handle,
                     options: session_options,
                     lock: ReentrantMutex::new(()),
-                    server_options: Some(self.server_options),
+                    server_options: self.server_options,
                     server_pid: self.server_pid,
                 }),
             })
@@ -217,7 +217,6 @@ impl Session {
     }
 
     /// Return enum with extra connection data such as pipe file or socket.
-
     pub fn server_pid(&self) -> Option<u32> {
         self.inner.server_pid
     }
@@ -818,12 +817,11 @@ impl Drop for Session {
                 // The server should automatically delete the pipe file when closed successfully,
                 // but we could try a cleanup just in case.
                 debug!("Session was invalid in Drop!");
-                if let Some(server_options) = &self.inner.server_options {
-                    if let crate::server::ThriftTransport::Pipe(transport) =
+                if let Some(server_options) = &self.inner.server_options
+                    && let crate::server::ThriftTransport::Pipe(transport) =
                         &server_options.thrift_transport
-                    {
-                        let _ = std::fs::remove_file(&transport.pipe_path);
-                    }
+                {
+                    let _ = std::fs::remove_file(&transport.pipe_path);
                 }
             }
         }
@@ -831,7 +829,7 @@ impl Drop for Session {
 }
 
 /// Session options passed to session create functions like [`crate::server::connect_to_pipe_server`]
-#[derive(Clone, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct SessionOptions {
     /// Session cook options
     pub cook_opt: CookOptions,
@@ -844,21 +842,6 @@ pub struct SessionOptions {
     pub dso_path: Option<CString>,
     pub img_dso_path: Option<CString>,
     pub aud_dso_path: Option<CString>,
-}
-
-impl Default for SessionOptions {
-    fn default() -> Self {
-        SessionOptions {
-            cook_opt: CookOptions::default(),
-            threaded: false,
-            cleanup: false,
-            env_files: None,
-            otl_path: None,
-            dso_path: None,
-            img_dso_path: None,
-            aud_dso_path: None,
-        }
-    }
 }
 
 impl SessionOptions {
@@ -933,6 +916,12 @@ impl SessionOptions {
         self.threaded = threaded;
         self
     }
+
+    /// Set whether to cleanup the session upon close
+    pub fn cleanup(mut self, cleanup: bool) -> Self {
+        self.cleanup = cleanup;
+        self
+    }
 }
 
 /// Create an in-process session.
@@ -943,15 +932,13 @@ pub fn new_in_process_session(options: Option<SessionOptions>) -> Result<Session
     let session_options = options.unwrap_or_default();
     let session_info = SessionInfo::default();
     let handle = crate::ffi::create_inprocess_session(&session_info.0)?;
-    Ok(Session {
-        inner: Arc::new(SessionInner {
-            handle,
-            options: session_options,
-            lock: ReentrantMutex::new(()),
-            server_options: None,
-            server_pid: Some(std::process::id()),
-        }),
-    })
+    let session = UninitializedSession {
+        session_handle: handle,
+        server_options: None,
+        server_pid: Some(std::process::id()),
+    }
+    .initialize(session_options)?;
+    Ok(session)
 }
 
 /// Start a Thrift server and initialize a session with it.

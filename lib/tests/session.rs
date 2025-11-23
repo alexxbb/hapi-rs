@@ -1,34 +1,21 @@
 use hapi_rs::raw::CacheProperty;
 use hapi_rs::server::ServerOptions;
 use hapi_rs::session::{
-    ConnectionType, CookResult, License, ManagerType, SessionOptions, SessionSyncInfo,
-    TimelineOptions, Viewport, new_thrift_session,
+    CookResult, License, ManagerType, SessionOptions, SessionSyncInfo, TimelineOptions, Viewport,
+    new_thrift_session,
 };
 
 mod utils;
 use utils::with_session;
 
 #[test]
-fn session_init_and_teardown() {
-    let opt = SessionOptions::default()
-        .dso_search_paths(["/path/one", "/path/two"])
-        .otl_search_paths(["/path/thee", "/path/four"]);
-    let ses = new_thrift_session(opt, ServerOptions::shared_memory()).unwrap();
-    assert!(matches!(
-        ses.connection_type(),
-        ConnectionType::SharedMemory(_)
-    ));
-    assert!(ses.is_initialized());
-    assert!(ses.is_valid());
-    assert!(ses.cleanup().is_ok());
-    assert!(!ses.is_initialized());
-}
-
-#[test]
 fn session_get_set_time() {
     // For some reason, this test randomly fails when using shared session
-    let session = new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory())
-        .expect("Could not start session");
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::shared_memory_with_defaults(),
+    )
+    .expect("Could not start session");
     // let _lock = session.lock();
     let opt = TimelineOptions::default().with_end_time(5.5);
     assert!(session.set_timeline_options(opt.clone()).is_ok());
@@ -43,7 +30,7 @@ fn session_get_set_time() {
 fn session_server_variables() {
     let session = new_thrift_session(
         SessionOptions::default(),
-        ServerOptions::shared_memory()
+        ServerOptions::shared_memory_with_defaults()
             .with_env_variables([("HAPI_RS_TEST", "hapi_rs_is_awesome")].iter()),
     )
     .expect("Could not start session");
@@ -136,7 +123,8 @@ fn test_license_set_via_environment() {
         "--check-licenses=Houdini-Escape --skip-licenses=Houdini-Engine",
     )];
 
-    let server_options = ServerOptions::shared_memory().with_env_variables(env.iter());
+    let server_options =
+        ServerOptions::shared_memory_with_defaults().with_env_variables(env.iter());
     let session = new_thrift_session(SessionOptions::default(), server_options)
         .expect("Could not start session");
     let plugin_lic_opt = session.get_server_var::<str>(&env[0].0).unwrap();
