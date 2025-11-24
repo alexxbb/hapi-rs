@@ -54,7 +54,7 @@ fn main() -> Result<()> {
             // Edit the executable path if necessary.
             let hfs = std::env::var_os("HFS").ok_or_else(|| anyhow!("Missing HFS"))?;
             let executable = Path::new(&hfs).join("bin").join("houdini");
-            let child = start_houdini_server(PIPE, executable, false)?;
+            let child = start_houdini_server(PIPE, executable, false, None)?;
             // While trying to connect, it will print some errors, these can be ignored.
             connect_to_pipe_server(server_options, Some(child.id()))?
         }

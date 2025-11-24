@@ -1,5 +1,5 @@
 use std::{
-    ffi::{CString, OsString},
+    ffi::{CString, OsStr, OsString},
     net::SocketAddrV4,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
@@ -211,11 +211,14 @@ impl ServerOptions {
         self
     }
 
-    fn run_with_environment<R, F: FnOnce() -> Result<R>>(&self, f: F) -> Result<R> {
-        if let Some(env_variables) = &self.env_variables {
-            let env_variables = env_variables
+    fn run_with_environment<R, T: AsRef<OsStr>, F: FnOnce() -> Result<R>>(
+        variables: Option<&[(T, T)]>,
+        f: F,
+    ) -> Result<R> {
+        if let Some(env_variables) = variables {
+            let env_variables: Vec<(&OsStr, Option<&OsStr>)> = env_variables
                 .iter()
-                .map(|(k, v)| (k, Some(v)))
+                .map(|(k, v)| (k.as_ref(), Some(v.as_ref())))
                 .collect::<Vec<_>>();
             temp_env::with_vars(env_variables.as_slice(), f)
         } else {
@@ -347,7 +350,7 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
             );
             let memory_name = CString::new(transport.memory_name.clone())?;
             ffi::clear_connection_error()?;
-            server_options.run_with_environment(|| {
+            ServerOptions::run_with_environment(server_options.env_variables.as_deref(), || {
                 ffi::start_thrift_shared_memory_server(
                     &memory_name,
                     &server_options.thrift_options().0,
@@ -365,7 +368,7 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
             debug!("Starting named pipe server: {:?}", transport.pipe_path);
             let pipe_name = utils::path_to_cstring(&transport.pipe_path)?;
             ffi::clear_connection_error()?;
-            server_options.run_with_environment(|| {
+            ServerOptions::run_with_environment(server_options.env_variables.as_deref(), || {
                 ffi::start_thrift_pipe_server(
                     &pipe_name,
                     &server_options.thrift_options().0,
@@ -380,7 +383,7 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
                 transport.address.port()
             );
             ffi::clear_connection_error()?;
-            server_options.run_with_environment(|| {
+            ServerOptions::run_with_environment(server_options.env_variables.as_deref(), || {
                 ffi::start_thrift_socket_server(
                     transport.address.port() as i32,
                     &server_options.thrift_options().0,
@@ -392,22 +395,25 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
 }
 
 /// Start an interactive Houdini session with engine server embedded.
-/// TODO: Add setting env variables prior to starting the server
 pub fn start_houdini_server(
     pipe_name: impl AsRef<str>,
     houdini_executable: impl AsRef<Path>,
     fx_license: bool,
+    env_variables: Option<&[(String, String)]>,
 ) -> Result<Child> {
-    Command::new(houdini_executable.as_ref())
-        .arg(format!("-hess=pipe:{}", pipe_name.as_ref()))
-        .arg(if fx_license {
-            "-force-fx-license"
-        } else {
-            "-core"
-        })
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(HapiError::from)
+    let mut command = Command::new(houdini_executable.as_ref());
+    ServerOptions::run_with_environment(env_variables, move || {
+        command
+            .arg(format!("-hess=pipe:{}", pipe_name.as_ref()))
+            .arg(if fx_license {
+                "-force-fx-license"
+            } else {
+                "-core"
+            })
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(HapiError::from)
+    })
 }
