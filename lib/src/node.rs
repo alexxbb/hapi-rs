@@ -495,7 +495,7 @@ impl HoudiniNode {
             .collect())
     }
 
-    /// If node is an HDA, return [`AssetInfo'] about it.
+    /// If node is an HDA, return [`AssetInfo`] about it.
     pub fn asset_info(&self) -> Result<AssetInfo> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         Ok(AssetInfo(

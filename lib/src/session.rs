@@ -9,8 +9,10 @@
 //! When the last instance of the `Session` is about to get dropped, it'll be cleaned up
 //! (if [SessionOptions::cleanup] was set) and automatically closed.
 //!
-//! The Engine process (pipe or socket) can be auto-terminated as well if told so when starting the server:
-//! See [`crate::server::start_engine_pipe_server`] and [`crate::server::start_engine_socket_server`]
+//! The Engine process (pipe, socket, or shared memory) can be auto-terminated as well if told so when starting
+//! the server. See [`crate::server::start_engine_server`] together with the transport helpers
+//! [`crate::server::connect_to_pipe_server`], [`crate::server::connect_to_socket_server`], and
+//! [`crate::server::connect_to_memory_server`].
 //!
 //! Helper constructors terminate the server by default. This is useful for quick one-off jobs.
 //!

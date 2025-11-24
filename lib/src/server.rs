@@ -189,7 +189,8 @@ impl ServerOptions {
     }
 
     /// Set **real** environment variables before the server starts.
-    /// Unlike [Session::set_server_var()], where the variables are set in the session, after the server starts.
+    /// Unlike [`crate::session::Session::set_server_var`], where the variables are set in the session after the
+    /// server starts.
     pub fn with_env_variables<'a, I, K, V>(mut self, variables: I) -> Self
     where
         I: Iterator<Item = &'a (K, V)>,

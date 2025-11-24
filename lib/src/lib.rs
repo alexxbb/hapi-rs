@@ -53,8 +53,8 @@
 //! - [`asset`], [`session`], [`node`], [`geometry`], [`attribute`], [`parameter`], [`material`], [`volume`],
 //!   and [`pdg`] modules roughly follow the sections from the Houdini Engine manual so that the mental model
 //!   stays close to the C API.
-//! - The [`ffi`] module is still available when you need exact HAPI symbols; `crate::raw` re-exports the
-//!   bindgen-generated items for advanced integrations.
+//! - Raw HAPI symbols remain accessible through [`raw`], the bindgen-generated module re-exported for
+//!   advanced integrations when you need to drop straight to the C API.
 //!
 //! ## Sessions and servers
 //! The [`session::Session`] type encapsulates a live connection to Houdini Engine. Internally it stores an
@@ -173,7 +173,7 @@
 //! [`geometry::Geometry::get_attribute`] will fetch any attribute by owner/name, while convenience helpers such
 //! as [`geometry::Geometry::get_position_attribute`] cover common cases. To create new attributes you build an
 //! [`geometry::AttributeInfo`] (it implements [`Default`] + builder setters), then call one of the
-//! `add_*_attribute` methods. Array and dictionary attributes lean on [`attribute::array::DataArray`] and the
+//! `add_*_attribute` methods. Array and dictionary attributes lean on [`attribute::DataArray`] and the
 //! async helpers in [`attribute::async_]` for large transfers. Examples like `lib/examples/curve_output.rs` and
 //! `lib/examples/groups.rs` showcase real-world usages.
 //!
@@ -262,11 +262,12 @@
 //! ```
 //!
 //! ## Error handling and diagnostics
-//! Every public API returns [`Result`](crate::Result), an alias for `std::result::Result<T, [`HapiError`]>`.
+//! Every public API returns [`Result`], an alias for `std::result::Result<T, [`HapiError`]>`.
 //! `HapiError::Hapi` stores the [`errors::HapiResultCode`] plus an optional server message fetched through
 //! [`session::Session::get_status_string`]. Additional context strings accumulate automatically when you call
-//! `.context(...)` / `.with_context(...)` from [`errors::ErrorContext`], making it easier to track which
-//! operation failed (for example `geometry::Geometry::get_attribute` annotates the attribute name and owner).
+//! `.context(...)` / `.with_context(...)` using the helper methods defined in the `errors` module, making it
+//! easier to track which operation failed (for example `geometry::Geometry::get_attribute` annotates the
+//! attribute name and owner).
 //!
 //! Other variants (null-byte, UTF-8, IO, internal) map directly to common Rust errors. When a cook happens in
 //! threaded mode, methods return [`session::CookResult`] so you can inspect the cook-state message even if the

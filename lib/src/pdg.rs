@@ -231,9 +231,9 @@ impl TopNode {
     /// The closure returns [`Result<ControlFlow<bool>>`] which is handled like this:
     ///
     /// If its an `Err(_)` - bubble up the error.
-    /// If it's [`ControlFlow::Break(bool)`] then the `bool` is either to cancel the cooking
+    /// If it's [`ControlFlow::Break`] then the `bool` is either to cancel the cooking
     /// or just break the loop and return.
-    /// In case of [`ControlFlow::Continue(_)`] run until completion.
+    /// In case of [`ControlFlow::Continue`] run until completion.
     ///
     /// See the `pdg_cook` example in the `/examples` folder.
     pub fn cook_async<F>(
