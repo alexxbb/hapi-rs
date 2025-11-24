@@ -42,8 +42,8 @@ fn main() -> Result<()> {
     let args: Args = argh::from_env();
     const PIPE: &str = "hapi";
     // Try to connect toa possibly running session
-    let server_options =
-        ServerOptions::with_thrift_transport(ThriftTransport::Pipe(ThriftPipeTransport {
+    let server_options = ServerOptions::pipe_with_defaults()
+        .with_thrift_transport(ThriftTransport::Pipe(ThriftPipeTransport {
             pipe_path: PathBuf::from(PIPE),
         }))
         .with_connection_timeout(Some(Duration::from_secs(3)));

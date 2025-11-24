@@ -27,21 +27,23 @@ pub enum LicensePreference {
     HoudiniEngineAndCore,
 }
 
-impl ToString for LicensePreference {
-    fn to_string(&self) -> String {
-        match self {
-            LicensePreference::AnyAvailable => {
-                "--check-licenses=Houdini-Engine,Houdini-Escape,Houdini-Fx".to_owned()
+impl std::fmt::Display for LicensePreference {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                LicensePreference::AnyAvailable => {
+                    "--check-licenses=Houdini-Engine,Houdini-Escape,Houdini-Fx"
+                }
+                LicensePreference::HoudiniEngineOnly => {
+                    "--check-licenses=Houdini-Engine --skip-licenses=Houdini-Escape,Houdini-Fx"
+                }
+                LicensePreference::HoudiniEngineAndCore => {
+                    "--check-licenses=Houdini-Engine,Houdini-Escape --skip-licenses=Houdini-Fx"
+                }
             }
-            LicensePreference::HoudiniEngineOnly => {
-                "--check-licenses=Houdini-Engine --skip-licenses=Houdini-Escape,Houdini-Fx"
-                    .to_owned()
-            }
-            LicensePreference::HoudiniEngineAndCore => {
-                "--check-licenses=Houdini-Engine,Houdini-Escape --skip-licenses=Houdini-Fx"
-                    .to_owned()
-            }
-        }
+        )
     }
 }
 
@@ -119,9 +121,8 @@ pub struct ServerOptions {
     pub(crate) connection_retry_interval: Option<Duration>,
 }
 
-impl ServerOptions {
-    /// Create options for a shared-memory transport with a random name.
-    pub fn shared_memory_with_defaults() -> Self {
+impl Default for ServerOptions {
+    fn default() -> Self {
         Self {
             thrift_transport: ThriftTransport::SharedMemory(
                 ThriftSharedMemoryTransportBuilder::default().build(),
@@ -134,76 +135,32 @@ impl ServerOptions {
             connection_retry_interval: Some(Duration::from_secs(10)),
         }
     }
+}
+
+impl ServerOptions {
+    /// Create options for a shared-memory transport with a random name.
+    pub fn shared_memory_with_defaults() -> Self {
+        Self::default().with_thrift_transport(ThriftTransport::SharedMemory(
+            ThriftSharedMemoryTransportBuilder::default().build(),
+        ))
+    }
 
     /// Create options for a named pipe transport.
     pub fn pipe_with_defaults() -> Self {
-        Self {
-            thrift_transport: ThriftTransport::Pipe(ThriftPipeTransport {
-                pipe_path: PathBuf::from(format!("hapi-pipe-{}", utils::random_string(16))),
-            }),
-            auto_close: true,
-            verbosity: StatusVerbosity::Statusverbosity0,
-            log_file: None,
-            env_variables: None,
-            license_preference: None,
-            connection_retry_interval: Some(Duration::from_secs(10)),
-        }
+        Self::default().with_thrift_transport(ThriftTransport::Pipe(ThriftPipeTransport {
+            pipe_path: PathBuf::from(format!("hapi-pipe-{}", utils::random_string(16))),
+        }))
     }
 
     /// Create options for a socket transport.
     pub fn socket_with_defaults(address: SocketAddrV4) -> Self {
-        Self {
-            thrift_transport: ThriftTransport::Socket(ThriftSocketTransport { address }),
-            auto_close: true,
-            verbosity: StatusVerbosity::Statusverbosity0,
-            log_file: None,
-            env_variables: None,
-            license_preference: None,
-            connection_retry_interval: Some(Duration::from_secs(10)),
-        }
+        Self::default()
+            .with_thrift_transport(ThriftTransport::Socket(ThriftSocketTransport { address }))
     }
 
-    pub(crate) fn session_info(&self) -> crate::ffi::SessionInfo {
-        // FIXME: connection_count should be configurable!
-        // It's set to 0 because of a bug in HARS which prevents session creation if the value is > 0.
-        // However, async attribute access requires a connection count > 0 according to SESI support, otherwise HARS crashes too.
-        let mut session_info = crate::ffi::SessionInfo::default().with_connection_count(0);
-
-        if let ThriftTransport::SharedMemory(transport) = &self.thrift_transport {
-            session_info.set_shared_memory_buffer_type(transport.buffer_type);
-            session_info.set_shared_memory_buffer_size(transport.buffer_size);
-        }
-
-        session_info
-    }
-
-    pub fn thrift_transport(&self) -> &ThriftTransport {
-        &self.thrift_transport
-    }
-
-    pub(crate) fn thrift_options(&self) -> crate::ffi::ThriftServerOptions {
-        let mut options = ThriftServerOptions::default()
-            .with_auto_close(self.auto_close)
-            .with_verbosity(self.verbosity);
-
-        if let ThriftTransport::SharedMemory(transport) = &self.thrift_transport {
-            options.set_shared_memory_buffer_type(transport.buffer_type);
-            options.set_shared_memory_buffer_size(transport.buffer_size);
-        }
-
-        options
-    }
-
-    pub fn with_thrift_transport(transport: ThriftTransport) -> Self {
-        Self {
-            thrift_transport: transport,
-            auto_close: true,
-            verbosity: StatusVerbosity::Statusverbosity0,
-            log_file: None,
-            env_variables: None,
-            license_preference: None,
-            connection_retry_interval: Some(Duration::from_secs(10)),
-        }
+    pub fn with_thrift_transport(mut self, transport: ThriftTransport) -> Self {
+        self.thrift_transport = transport;
+        self
     }
 
     /// Set a connection timeout used when establishing Thrift sessions.
@@ -260,19 +217,53 @@ impl ServerOptions {
         self
     }
 
-    fn run_with_environment<R, T: AsRef<OsStr>, F: FnOnce() -> Result<R>>(
-        variables: Option<&[(T, T)]>,
-        f: F,
-    ) -> Result<R> {
-        if let Some(env_variables) = variables {
-            let env_variables: Vec<(&OsStr, Option<&OsStr>)> = env_variables
-                .iter()
-                .map(|(k, v)| (k.as_ref(), Some(v.as_ref())))
-                .collect::<Vec<_>>();
-            temp_env::with_vars(env_variables.as_slice(), f)
-        } else {
-            f()
+    /// Set the verbosity level for the server.
+    pub fn with_verbosity(mut self, verbosity: StatusVerbosity) -> Self {
+        self.verbosity = verbosity;
+        self
+    }
+
+    pub(crate) fn session_info(&self) -> crate::ffi::SessionInfo {
+        // FIXME: connection_count should be configurable!
+        // It's set to 0 because of a bug in HARS which prevents session creation if the value is > 0.
+        // However, async attribute access requires a connection count > 0 according to SESI support, otherwise HARS crashes too.
+        let mut session_info = crate::ffi::SessionInfo::default().with_connection_count(0);
+
+        if let ThriftTransport::SharedMemory(transport) = &self.thrift_transport {
+            session_info.set_shared_memory_buffer_type(transport.buffer_type);
+            session_info.set_shared_memory_buffer_size(transport.buffer_size);
         }
+
+        session_info
+    }
+
+    pub(crate) fn thrift_options(&self) -> crate::ffi::ThriftServerOptions {
+        let mut options = ThriftServerOptions::default()
+            .with_auto_close(self.auto_close)
+            .with_verbosity(self.verbosity);
+
+        if let ThriftTransport::SharedMemory(transport) = &self.thrift_transport {
+            options.set_shared_memory_buffer_type(transport.buffer_type);
+            options.set_shared_memory_buffer_size(transport.buffer_size);
+        }
+
+        options
+    }
+}
+
+fn call_with_temp_environment<R, T, F>(variables: Option<&[(T, T)]>, f: F) -> Result<R>
+where
+    T: AsRef<OsStr>,
+    F: FnOnce() -> Result<R>,
+{
+    if let Some(env_variables) = variables {
+        let env_variables: Vec<(&OsStr, Option<&OsStr>)> = env_variables
+            .iter()
+            .map(|(k, v)| (k.as_ref(), Some(v.as_ref())))
+            .collect::<Vec<_>>();
+        temp_env::with_vars(env_variables.as_slice(), f)
+    } else {
+        f()
     }
 }
 
@@ -281,8 +272,7 @@ pub fn connect_to_pipe_server(
     server_options: ServerOptions,
     pid: Option<u32>,
 ) -> Result<UninitializedSession> {
-    let ThriftTransport::Pipe(ThriftPipeTransport { pipe_path }) =
-        server_options.thrift_transport()
+    let ThriftTransport::Pipe(ThriftPipeTransport { pipe_path }) = &server_options.thrift_transport
     else {
         return Err(HapiError::Internal(
             "ServerOptions is not configured for pipe transport".to_owned(),
@@ -308,7 +298,7 @@ pub fn connect_to_memory_server(
     pid: Option<u32>,
 ) -> Result<UninitializedSession> {
     let ThriftTransport::SharedMemory(ThriftSharedMemoryTransport { memory_name, .. }) =
-        server_options.thrift_transport()
+        &server_options.thrift_transport
     else {
         return Err(HapiError::Internal(
             "ServerOptions is not configured for shared memory transport".to_owned(),
@@ -364,7 +354,7 @@ pub fn connect_to_socket_server(
     pid: Option<u32>,
 ) -> Result<UninitializedSession> {
     let ThriftTransport::Socket(ThriftSocketTransport { address }) =
-        server_options.thrift_transport()
+        &server_options.thrift_transport
     else {
         return Err(HapiError::Internal(
             "ServerOptions is not configured for socket transport".to_owned(),
@@ -405,7 +395,7 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
             );
             let memory_name = CString::new(transport.memory_name.clone())?;
             ffi::clear_connection_error()?;
-            ServerOptions::run_with_environment(env_variables.as_deref(), || {
+            call_with_temp_environment(env_variables.as_deref(), || {
                 ffi::start_thrift_shared_memory_server(
                     &memory_name,
                     &server_options.thrift_options().0,
@@ -423,7 +413,7 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
             debug!("Starting named pipe server: {:?}", transport.pipe_path);
             let pipe_name = utils::path_to_cstring(&transport.pipe_path)?;
             ffi::clear_connection_error()?;
-            ServerOptions::run_with_environment(env_variables.as_deref(), || {
+            call_with_temp_environment(env_variables.as_deref(), || {
                 ffi::start_thrift_pipe_server(
                     &pipe_name,
                     &server_options.thrift_options().0,
@@ -438,7 +428,7 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
                 transport.address.port()
             );
             ffi::clear_connection_error()?;
-            ServerOptions::run_with_environment(env_variables.as_deref(), || {
+            call_with_temp_environment(env_variables.as_deref(), || {
                 ffi::start_thrift_socket_server(
                     transport.address.port() as i32,
                     &server_options.thrift_options().0,
@@ -457,7 +447,7 @@ pub fn start_houdini_server(
     env_variables: Option<&[(String, String)]>,
 ) -> Result<Child> {
     let mut command = Command::new(houdini_executable.as_ref());
-    ServerOptions::run_with_environment(env_variables, move || {
+    call_with_temp_environment(env_variables, move || {
         command
             .arg(format!("-hess=pipe:{}", pipe_name.as_ref()))
             .arg(if fx_license {

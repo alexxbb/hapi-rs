@@ -67,14 +67,15 @@
 //! [`session::simple_session`] bootstraps a Thrift shared-memory server via [`session::new_thrift_session`]
 //! and [`server::ServerOptions::shared_memory_with_defaults`]. You can override transports, buffer sizes,
 //! environment variables, or timeouts with [`server::ServerOptions`]—see `lib/examples/setup_server.rs` for
-//! an advanced configuration that tweaks shared-memory names and cook options.
+//! an advanced configuration.
+//!
+//! License preference can be set with [`server::ServerOptions::with_license_preference`].
 //!
 //! Sessions expose helpers that map closely to the HAPI entry points:
 //! - [`session::Session::load_asset_file`] returns an [`asset::AssetLibrary`] so you can instantiate HDAs.
 //! - [`session::Session::create_node`], [`session::Session::node_builder`], and
-//!   [`session::Session::create_input_node`] cover custom networks and editable geometry inputs.
-//! - [`session::Session::set_server_var`] / [`session::Session::get_server_var`] mirror HAPI environment
-//!   variable APIs for post-launch tweaks.
+//!   [`session::Session::create_input_node`] for editable geometry inputs.
+//! - [`session::Session::set_server_var`] / [`session::Session::get_server_var`] variable APIs.
 //! - [`session::Session::cook`] reports [`session::CookResult`] when you run in threaded mode.
 //!
 //! ```rust

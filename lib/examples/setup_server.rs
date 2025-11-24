@@ -13,16 +13,17 @@ fn simple_default_thrift_session() -> Result<Session> {
 }
 
 fn thirft_advanced_setup() -> Result<Session> {
-    let server_options = ServerOptions::with_thrift_transport(ThriftTransport::SharedMemory(
-        ThriftSharedMemoryTransportBuilder::default()
-            .with_memory_name("hapi-rs-advanced-server")
-            .with_buffer_size(1000)
-            .with_buffer_type(ThriftSharedMemoryBufferType::Buffer)
-            .build(),
-    ))
-    .with_connection_timeout(Some(Duration::from_secs(10)))
-    .with_env_variables(vec![("HAPI_RS_ADVANCED_SERVER", "hello")].iter())
-    .with_license_preference(LicensePreference::HoudiniEngineOnly);
+    let server_options = ServerOptions::default()
+        .with_thrift_transport(ThriftTransport::SharedMemory(
+            ThriftSharedMemoryTransportBuilder::default()
+                .with_memory_name("hapi-rs-advanced-server")
+                .with_buffer_size(1000)
+                .with_buffer_type(ThriftSharedMemoryBufferType::Buffer)
+                .build(),
+        ))
+        .with_connection_timeout(Some(Duration::from_secs(10)))
+        .with_env_variables(vec![("HAPI_RS_ADVANCED_SERVER", "hello")].iter())
+        .with_license_preference(LicensePreference::HoudiniEngineOnly);
     new_thrift_session(
         SessionOptions::default()
             .threaded(true)
