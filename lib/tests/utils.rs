@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use hapi_rs::server::ServerOptions;
+use hapi_rs::server::{LicensePreference, ServerOptions};
 use hapi_rs::{
     Result,
     asset::AssetLibrary,
@@ -13,7 +13,8 @@ use once_cell::sync::Lazy;
 thread_local! {
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init();
-        new_thrift_session(SessionOptions::default(), ServerOptions::shared_memory_with_defaults())
+        let server_options = ServerOptions::shared_memory_with_defaults().with_license_preference(LicensePreference::HoudiniEngineAndCore);
+        new_thrift_session(SessionOptions::default(), server_options)
             .expect("Could not create test session")
     });
 
@@ -27,7 +28,8 @@ thread_local! {
             threaded: true,
             ..Default::default()
         };
-        new_thrift_session(opt, ServerOptions::shared_memory_with_defaults()).expect("Could not create async test session")
+        let server_options = ServerOptions::shared_memory_with_defaults().with_license_preference(LicensePreference::HoudiniEngineAndCore);
+        new_thrift_session(opt, server_options).expect("Could not create async test session")
     });
 }
 

@@ -37,6 +37,7 @@ pub use crate::{
 
 // A result of HAPI_GetStatus with HAPI_STATUS_COOK_STATE
 pub type SessionState = State;
+pub type LicenseType = raw::License;
 
 use crate::ffi::ImageInfo;
 use crate::stringhandle::StringHandle;
@@ -654,7 +655,7 @@ impl Session {
     }
 
     /// Get license type used by this session
-    pub fn get_license_type(&self) -> Result<License> {
+    pub fn get_license_type(&self) -> Result<LicenseType> {
         debug_assert!(self.is_valid());
         crate::ffi::session_get_license_type(self)
     }

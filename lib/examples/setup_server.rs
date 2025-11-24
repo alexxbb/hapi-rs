@@ -3,7 +3,7 @@ use std::time::Duration;
 use hapi_rs::Result;
 use hapi_rs::node::CookOptions;
 use hapi_rs::server::*;
-use hapi_rs::session::{Session, SessionOptions, new_thrift_session};
+use hapi_rs::session::{LicenseType, Session, SessionOptions, new_thrift_session};
 
 fn simple_default_thrift_session() -> Result<Session> {
     new_thrift_session(
@@ -21,7 +21,8 @@ fn thirft_advanced_setup() -> Result<Session> {
             .build(),
     ))
     .with_connection_timeout(Some(Duration::from_secs(10)))
-    .with_env_variables(vec![("HAPI_RS_ADVANCED_SERVER", "hello")].iter());
+    .with_env_variables(vec![("HAPI_RS_ADVANCED_SERVER", "hello")].iter())
+    .with_license_preference(LicensePreference::HoudiniEngineOnly);
     new_thrift_session(
         SessionOptions::default()
             .threaded(true)
@@ -35,8 +36,13 @@ fn main() -> Result<()> {
     let _ = simple_default_thrift_session()?;
     println!("Simple default thrift session created");
 
-    let _ = thirft_advanced_setup()?;
-    println!("Advanced thrift session created");
+    let session = thirft_advanced_setup()?;
+    session.create_node("Object/null")?.cook_blocking()?;
+    assert_eq!(session.get_license_type()?, LicenseType::HoudiniEngine);
+    println!(
+        "Advanced thrift session created with license type: {:?}",
+        LicenseType::HoudiniEngine
+    );
 
     Ok(())
 }

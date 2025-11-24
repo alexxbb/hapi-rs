@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     ffi::{CString, OsStr, OsString},
     net::SocketAddrV4,
     path::{Path, PathBuf},
@@ -18,6 +19,31 @@ use crate::{
 };
 
 pub use crate::ffi::raw::ThriftSharedMemoryBufferType;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum LicensePreference {
+    AnyAvailable,
+    HoudiniEngineOnly,
+    HoudiniEngineAndCore,
+}
+
+impl ToString for LicensePreference {
+    fn to_string(&self) -> String {
+        match self {
+            LicensePreference::AnyAvailable => {
+                "--check-licenses=Houdini-Engine,Houdini-Escape,Houdini-Fx".to_owned()
+            }
+            LicensePreference::HoudiniEngineOnly => {
+                "--check-licenses=Houdini-Engine --skip-licenses=Houdini-Escape,Houdini-Fx"
+                    .to_owned()
+            }
+            LicensePreference::HoudiniEngineAndCore => {
+                "--check-licenses=Houdini-Engine,Houdini-Escape --skip-licenses=Houdini-Fx"
+                    .to_owned()
+            }
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct ThriftSharedMemoryTransport {
@@ -88,7 +114,8 @@ pub struct ServerOptions {
     pub auto_close: bool,
     pub verbosity: StatusVerbosity,
     pub log_file: Option<CString>,
-    pub env_variables: Option<Vec<(OsString, OsString)>>,
+    pub env_variables: Option<HashMap<OsString, OsString>>,
+    pub license_preference: Option<LicensePreference>,
     pub(crate) connection_retry_interval: Option<Duration>,
 }
 
@@ -103,6 +130,7 @@ impl ServerOptions {
             verbosity: StatusVerbosity::Statusverbosity0,
             log_file: None,
             env_variables: None,
+            license_preference: None,
             connection_retry_interval: Some(Duration::from_secs(10)),
         }
     }
@@ -117,6 +145,7 @@ impl ServerOptions {
             verbosity: StatusVerbosity::Statusverbosity0,
             log_file: None,
             env_variables: None,
+            license_preference: None,
             connection_retry_interval: Some(Duration::from_secs(10)),
         }
     }
@@ -129,6 +158,7 @@ impl ServerOptions {
             verbosity: StatusVerbosity::Statusverbosity0,
             log_file: None,
             env_variables: None,
+            license_preference: None,
             connection_retry_interval: Some(Duration::from_secs(10)),
         }
     }
@@ -171,6 +201,7 @@ impl ServerOptions {
             verbosity: StatusVerbosity::Statusverbosity0,
             log_file: None,
             env_variables: None,
+            license_preference: None,
             connection_retry_interval: Some(Duration::from_secs(10)),
         }
     }
@@ -178,6 +209,24 @@ impl ServerOptions {
     /// Set a connection timeout used when establishing Thrift sessions.
     pub fn with_connection_timeout(mut self, timeout: Option<Duration>) -> Self {
         self.connection_retry_interval = timeout;
+        self
+    }
+
+    /// Set the license preference for the server.
+    /// For more information, see https://www.sidefx.com/docs/houdini//licensing/system.html
+    /// Default is No preference, the server decides which license to check out.
+    pub fn with_license_preference(mut self, license_preference: LicensePreference) -> Self {
+        self.license_preference.replace(license_preference);
+
+        if let Some(license_preference) = self.license_preference {
+            self.env_variables.as_mut().map(|env_variables| {
+                env_variables.insert(
+                    OsString::from("HOUDINI_PLUGIN_LIC_OPT"),
+                    OsString::from(license_preference.to_string()),
+                )
+            });
+        }
+
         self
     }
 
@@ -342,6 +391,12 @@ pub fn connect_to_socket_server(
 }
 
 pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
+    let env_variables = server_options.env_variables.as_ref().map(|env_variables| {
+        env_variables
+            .iter()
+            .map(|(k, v)| (k.as_os_str(), v.as_os_str()))
+            .collect::<Vec<_>>()
+    });
     match &server_options.thrift_transport {
         ThriftTransport::SharedMemory(transport) => {
             debug!(
@@ -350,7 +405,7 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
             );
             let memory_name = CString::new(transport.memory_name.clone())?;
             ffi::clear_connection_error()?;
-            ServerOptions::run_with_environment(server_options.env_variables.as_deref(), || {
+            ServerOptions::run_with_environment(env_variables.as_deref(), || {
                 ffi::start_thrift_shared_memory_server(
                     &memory_name,
                     &server_options.thrift_options().0,
@@ -368,7 +423,7 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
             debug!("Starting named pipe server: {:?}", transport.pipe_path);
             let pipe_name = utils::path_to_cstring(&transport.pipe_path)?;
             ffi::clear_connection_error()?;
-            ServerOptions::run_with_environment(server_options.env_variables.as_deref(), || {
+            ServerOptions::run_with_environment(env_variables.as_deref(), || {
                 ffi::start_thrift_pipe_server(
                     &pipe_name,
                     &server_options.thrift_options().0,
@@ -383,7 +438,7 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
                 transport.address.port()
             );
             ffi::clear_connection_error()?;
-            ServerOptions::run_with_environment(server_options.env_variables.as_deref(), || {
+            ServerOptions::run_with_environment(env_variables.as_deref(), || {
                 ffi::start_thrift_socket_server(
                     transport.address.port() as i32,
                     &server_options.thrift_options().0,
