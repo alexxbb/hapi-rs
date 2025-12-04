@@ -39,6 +39,7 @@ pub use crate::{
 pub type SessionState = State;
 pub type LicenseType = raw::License;
 
+use crate::cop::CopImageDescription;
 use crate::ffi::ImageInfo;
 use crate::stringhandle::StringHandle;
 use crate::{ffi::raw, utils};
@@ -247,12 +248,14 @@ impl Session {
         key: &str,
     ) -> Result<<T::Type as ToOwned>::Owned> {
         debug_assert!(self.is_valid());
+        debug!("Querying server variable {key}");
         T::get_value(self, key)
     }
 
     /// Retrieve all server variables
     pub fn get_server_variables(&self) -> Result<StringArray> {
         debug_assert!(self.is_valid());
+        debug!("Querying all server variables");
         let count = crate::ffi::get_server_env_var_count(self)?;
         let handles = crate::ffi::get_server_env_var_list(self, count)?;
         crate::stringhandle::get_string_array(&handles, self).context("Calling get_string_array")
@@ -270,7 +273,7 @@ impl Session {
 
     /// Consumes and cleanups up the session. Session becomes invalid after this call
     pub fn cleanup(self) -> Result<()> {
-        debug!("Cleaning session");
+        debug!("Cleaning up session");
         debug_assert!(self.is_valid());
         crate::ffi::cleanup_session(&self)
     }
@@ -336,7 +339,10 @@ impl Session {
         P: Into<Option<NodeHandle>>,
     {
         let parent = parent.into();
-        debug!("Creating node instance: {}", name);
+        debug!(
+            "Creating node instance for op: {}, with parent: {:?}",
+            name, parent
+        );
         debug_assert!(self.is_valid());
         debug_assert!(
             parent.is_some() || name.contains('/'),
@@ -364,7 +370,13 @@ impl Session {
 
     /// Delete the node from the session. See also [`HoudiniNode::delete`]
     pub fn delete_node<H: Into<NodeHandle>>(&self, node: H) -> Result<()> {
-        crate::ffi::delete_node(node.into(), self)
+        let node = node.into();
+        debug!(
+            "Deleting node {}",
+            node.path(self)
+                .unwrap_or_else(|_| "Could not get path".to_owned())
+        );
+        crate::ffi::delete_node(node, self)
     }
 
     /// Find a node given an absolute path. To find a child node, pass the `parent` node
@@ -487,6 +499,7 @@ impl Session {
     /// Interrupt session cooking
     pub fn interrupt(&self) -> Result<()> {
         debug_assert!(self.is_valid());
+        debug!("Interrupting session cooking");
         crate::ffi::interrupt(self)
     }
 
@@ -664,16 +677,43 @@ impl Session {
     pub fn render_cop_to_image(
         &self,
         cop_node: impl Into<NodeHandle>,
+        output_name: Option<&str>,
         image_planes: impl AsRef<str>,
-        path: impl AsRef<Path>,
+        out_image: impl AsRef<Path>,
     ) -> Result<String> {
-        debug!("Start rendering COP to image.");
         let cop_node = cop_node.into();
+        let out_image = out_image.as_ref();
+        debug!("Start rendering COP to image file {}", out_image.display());
         debug_assert!(cop_node.is_valid(self)?);
-        crate::ffi::render_cop_to_image(self, cop_node)?;
-        crate::material::extract_image_to_file(self, cop_node, image_planes, path)
+        if let Some(output_name) = output_name {
+            let output_name = CString::new(output_name)?;
+            crate::ffi::render_cop_output_to_image(self, cop_node, &output_name)?;
+        } else {
+            crate::ffi::render_cop_to_image(self, cop_node)?;
+        }
+        crate::material::extract_image_to_file(self, cop_node, image_planes, out_image)
     }
 
+    /// Loads some raw image data into a COP node.
+    /// TODO: Figure out which node the data is actually ends up in as the API doesn't say.
+    pub fn create_cop_image(
+        &self,
+        description: CopImageDescription,
+        parent_node: Option<NodeHandle>,
+    ) -> Result<()> {
+        crate::ffi::create_cop_image(
+            self,
+            parent_node,
+            description.width,
+            description.height,
+            description.packing,
+            description.flip_x,
+            description.flip_y,
+            description.image_data,
+        )
+    }
+
+    // TODO: consider removing this in favour of ['Material'] helper struct which has this API
     pub fn render_texture_to_image(
         &self,
         node: impl Into<NodeHandle>,
@@ -686,6 +726,7 @@ impl Session {
         crate::ffi::render_texture_to_image(self, node, crate::parameter::ParmHandle(id))
     }
 
+    // TODO: consider removing this in favour of ['Material'] helper struct which has this API
     pub fn extract_image_to_file(
         &self,
         node: impl Into<NodeHandle>,
@@ -695,6 +736,7 @@ impl Session {
         crate::material::extract_image_to_file(self, node.into(), image_planes, path)
     }
 
+    // TODO: consider removing this in favour of ['Material'] helper struct which has this API
     pub fn extract_image_to_memory(
         &self,
         node: impl Into<NodeHandle>,
@@ -706,12 +748,14 @@ impl Session {
         crate::material::extract_image_to_memory(self, node.into(), buffer, image_planes, format)
     }
 
+    // TODO: consider removing this in favour of ['Material'] helper struct which has this API
     pub fn get_image_info(&self, node: impl Into<NodeHandle>) -> Result<ImageInfo> {
         debug_assert!(self.is_valid());
         crate::ffi::get_image_info(self, node.into()).map(ImageInfo)
     }
 
     /// Render a COP node to a memory buffer
+    // TODO: consider removing this in favour of ['Material'] helper struct which has this API
     pub fn render_cop_to_memory(
         &self,
         cop_node: impl Into<NodeHandle>,

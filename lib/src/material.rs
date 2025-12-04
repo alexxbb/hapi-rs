@@ -96,7 +96,7 @@ pub(crate) fn extract_image_to_file(
             .to_uppercase(),
     )?;
     let image_planes = CString::new(image_planes.as_ref())?;
-    let dest_folder = CString::new(path.parent().expect("parent").to_string_lossy().to_string())?;
+    let dest_folder = crate::utils::path_to_cstring(path.parent().expect("parent"))?;
     let dest_file = CString::new(
         path.file_stem()
             .expect("extension")

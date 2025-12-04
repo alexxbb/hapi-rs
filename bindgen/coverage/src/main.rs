@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 fn source_dir() -> PathBuf {
-    PathBuf::from("../../lib/src")
+    PathBuf::from("lib/src")
 }
 
 fn raw_hapi_function_names() -> HashSet<Item> {

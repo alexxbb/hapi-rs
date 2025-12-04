@@ -1,4 +1,5 @@
 #![allow(clippy::missing_safety_doc)]
+#![allow(clippy::too_many_arguments)]
 
 use duplicate::duplicate_item;
 use log::debug;
@@ -3150,6 +3151,44 @@ pub fn render_cop_to_image(session: &Session, cop_node: NodeHandle) -> Result<()
     unsafe {
         raw::HAPI_RenderCOPToImage(session.ptr(), cop_node.0)
             .check_err(session, || "Calling HAPI_RenderCOPToImage")
+    }
+}
+
+pub fn create_cop_image(
+    session: &Session,
+    parent_node: Option<NodeHandle>,
+    width: u32,
+    height: u32,
+    image_packing: raw::ImagePacking,
+    flip_x: bool,
+    flip_y: bool,
+    image_data: &[f32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_CreateCOPImage(
+            session.ptr(),
+            parent_node.map(|h| h.0).unwrap_or(-1),
+            width as i32,
+            height as i32,
+            image_packing,
+            flip_x as i8,
+            flip_y as i8,
+            image_data.as_ptr(),
+            0,
+            image_data.len() as i32,
+        )
+    }
+    .check_err(session, || "Calling HAPI_CreateCOPImage")
+}
+
+pub fn render_cop_output_to_image(
+    session: &Session,
+    cop_node: NodeHandle,
+    cop_output_name: &CStr,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_RenderCOPOutputToImage(session.ptr(), cop_node.0, cop_output_name.as_ptr())
+            .check_err(session, || "Calling HAPI_RenderCOPOutputToImage")
     }
 }
 

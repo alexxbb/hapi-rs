@@ -285,6 +285,7 @@ pub mod attribute;
 pub mod geometry;
 pub mod material;
 pub mod node;
+pub mod cop;
 pub mod parameter;
 pub mod server;
 pub mod session;
