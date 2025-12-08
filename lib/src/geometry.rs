@@ -430,7 +430,7 @@ impl Geometry {
     }
 
     /// Add a new numeric attribute to geometry.
-    pub fn add_numeric_attribute<T: AttribAccess>(
+    pub fn add_numeric_attribute<T: AttribValueType>(
         &self,
         name: &str,
         part_id: i32,
@@ -456,7 +456,7 @@ impl Geometry {
         info: AttributeInfo,
     ) -> Result<NumericArrayAttr<T>>
     where
-        T: AttribAccess,
+        T: AttribValueType,
         [T]: ToOwned<Owned = Vec<T>>,
     {
         debug_assert_eq!(info.storage(), T::storage_array());

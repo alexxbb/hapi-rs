@@ -40,7 +40,7 @@ pub type JobId = i32;
 mod private {
     pub trait Sealed {}
 }
-pub trait AttribAccess: private::Sealed + Clone + Default + Send + Sized + 'static {
+pub trait AttribValueType: private::Sealed + Clone + Default + Send + Sized + 'static {
     fn storage() -> StorageType;
     fn storage_array() -> StorageType;
     fn get(
@@ -142,7 +142,7 @@ macro_rules! impl_sealed {
 impl_sealed!(u8, i8, i16, i32, i64, f32, f64);
 
 impl StorageType {
-    // Helper for matching array types to actual data type,
+    // Helper for matching array storage types to actual data type,
     // e.g. StorageType::Array is actually an array of StorageType::Int,
     // StorageType::FloatArray is StorageType::Float
     pub(crate) fn type_matches(&self, other: StorageType) -> bool {
@@ -164,9 +164,9 @@ pub(crate) struct AttributeBundle {
     pub(crate) node: HoudiniNode,
 }
 
-pub struct NumericAttr<T: AttribAccess>(pub(crate) AttributeBundle, PhantomData<T>);
+pub struct NumericAttr<T: AttribValueType>(pub(crate) AttributeBundle, PhantomData<T>);
 
-pub struct NumericArrayAttr<T: AttribAccess>(pub(crate) AttributeBundle, PhantomData<T>);
+pub struct NumericArrayAttr<T: AttribValueType>(pub(crate) AttributeBundle, PhantomData<T>);
 
 pub struct StringAttr(pub(crate) AttributeBundle);
 
@@ -176,7 +176,7 @@ pub struct DictionaryAttr(pub(crate) AttributeBundle);
 
 pub struct DictionaryArrayAttr(pub(crate) AttributeBundle);
 
-impl<T: AttribAccess> NumericArrayAttr<T>
+impl<T: AttribValueType> NumericArrayAttr<T>
 where
     [T]: ToOwned<Owned = Vec<T>>,
 {
@@ -231,7 +231,7 @@ where
     }
 }
 
-impl<T: AttribAccess> NumericAttr<T> {
+impl<T: AttribValueType> NumericAttr<T> {
     pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode) -> NumericAttr<T> {
         NumericAttr(AttributeBundle { info, name, node }, PhantomData)
     }
@@ -611,7 +611,7 @@ pub trait AsAttribute: Send {
     fn node(&self) -> &HoudiniNode;
 }
 
-impl<T: AttribAccess> AsAttribute for NumericAttr<T> {
+impl<T: AttribValueType> AsAttribute for NumericAttr<T> {
     fn info(&self) -> &AttributeInfo {
         &self.0.info
     }
@@ -628,7 +628,7 @@ impl<T: AttribAccess> AsAttribute for NumericAttr<T> {
     }
 }
 
-impl<T: AttribAccess> AsAttribute for NumericArrayAttr<T> {
+impl<T: AttribValueType> AsAttribute for NumericArrayAttr<T> {
     fn info(&self) -> &AttributeInfo {
         &self.0.info
     }
