@@ -1,6 +1,6 @@
 use hapi_rs::attribute::{
-    AsAttribute, AttributeInfo, DataArray, NumericArrayAttr, NumericAttr, StorageType,
-    StringArrayAttr, StringAttr,
+    AsAttribute, AttributeInfo, DataArray, DictionaryArrayAttr, NumericArrayAttr, NumericAttr,
+    StorageType, StringArrayAttr, StringAttr,
 };
 use hapi_rs::enums::{AttributeOwner, PartType};
 use hapi_rs::geometry::{AttributeName, PartInfo};
@@ -8,7 +8,10 @@ use std::ffi::CString;
 
 mod utils;
 
-use utils::{create_single_point_geo, create_triangle, with_session, with_test_geometry};
+use utils::{
+    HdaFile, create_single_point_geo, create_triangle, with_session, with_session_asset,
+    with_test_geometry,
+};
 
 #[test]
 fn geometry_wrong_attribute() {
@@ -57,6 +60,36 @@ fn geometry_numeric_attributes() {
         let dat = attr_p.get(0).expect("read_attribute");
         assert_eq!(dat.len(), 9);
         geo.node.delete()
+    })
+    .unwrap()
+}
+
+#[test]
+fn numeric_attr_read_into_reuses_buffer() {
+    with_session(|session| {
+        session.load_asset_file(HdaFile::Geometry.path())?;
+        let node = session.create_node("Object/hapi_geo")?;
+        node.cook_blocking()?;
+        let geo = node.geometry()?.expect("must have geometry");
+        let part = geo.part_info(0)?;
+        let attr = geo
+            .get_attribute(0, AttributeOwner::Point, AttributeName::P)?
+            .expect("P attribute");
+        let attr = attr
+            .downcast::<NumericAttr<f32>>()
+            .expect("NumericAttr<f32>");
+
+        let mut buffer = vec![f32::NAN; 1];
+        attr.read_into(part.part_id(), &mut buffer)?;
+        let expected = attr.get(part.part_id())?;
+        assert_eq!(buffer, expected);
+
+        buffer.truncate(0);
+        buffer.resize(2, 123.0);
+        attr.read_into(part.part_id(), &mut buffer)?;
+        assert_eq!(buffer.len(), expected.len());
+        assert_eq!(buffer, expected);
+        node.delete()
     })
     .unwrap()
 }
@@ -114,6 +147,59 @@ fn geometry_set_unique_str_attrib_value() {
         assert_eq!(iter.next(), Some(c"unique"));
         assert_eq!(iter.last(), Some(c"unique"));
         Ok(())
+    })
+    .unwrap()
+}
+
+#[test]
+fn string_attr_set_indexed_updates_values() {
+    with_session(|session| {
+        session.load_asset_file(HdaFile::Geometry.path())?;
+        let asset_node = session.create_node("Object/hapi_geo")?;
+        asset_node.cook_blocking()?;
+        let asset_geo = asset_node.geometry()?.expect("must have geometry");
+        let point_count = asset_geo.part_info(0)?.point_count();
+        asset_node.delete()?;
+
+        let input = session.create_input_node("indexed_string_attr", None)?;
+        let part = PartInfo::default()
+            .with_part_type(PartType::Mesh)
+            .with_point_count(point_count)
+            .with_vertex_count(0)
+            .with_face_count(0);
+        input.set_part_info(&part)?;
+
+        let p_info = AttributeInfo::default()
+            .with_owner(AttributeOwner::Point)
+            .with_storage(StorageType::Float)
+            .with_tuple_size(3)
+            .with_count(point_count);
+        let p_attr = input.add_numeric_attribute::<f32>("P", 0, p_info)?;
+        let positions = vec![0.0f32; (point_count * 3) as usize];
+        p_attr.set(0, &positions)?;
+
+        let attr_info = AttributeInfo::default()
+            .with_owner(AttributeOwner::Point)
+            .with_storage(StorageType::String)
+            .with_tuple_size(1)
+            .with_count(point_count);
+        let attr = input.add_string_attribute("indexed_name", 0, attr_info)?;
+        let values = [c"even", c"odd"];
+        let indices: Vec<i32> = (0..point_count).map(|i| (i % 2) as i32).collect();
+        attr.set_indexed(0, &values, &indices)?;
+
+        input.commit()?;
+        input.node.cook_blocking()?;
+
+        let fetched = input
+            .get_attribute(0, AttributeOwner::Point, c"indexed_name")?
+            .expect("indexed_name attribute");
+        let fetched = fetched.downcast::<StringAttr>().unwrap();
+        for (idx, value) in fetched.get(0)?.iter_str().enumerate() {
+            let expected = if idx % 2 == 0 { "even" } else { "odd" };
+            assert_eq!(value, expected);
+        }
+        input.node.delete()
     })
     .unwrap()
 }
@@ -269,6 +355,47 @@ fn geometry_test_get_dictionary_attributes() {
 }
 
 #[test]
+fn dictionary_array_attr_get_returns_expected_values() {
+    use std::collections::HashMap;
+    use std::str::FromStr;
+    use tinyjson::JsonValue;
+
+    with_session_asset(HdaFile::Geometry, |lib| {
+        let asset = lib.try_create_first().expect("create_node");
+        let geo = asset.geometry()?.expect("must have geometry");
+        geo.node.cook_blocking().expect("cook_blocking");
+
+        let dict_array = geo
+            .get_attribute(0, AttributeOwner::Point, c"my_dict_array_attr")?
+            .expect("dictionary array attribute");
+        let dict_array = dict_array
+            .downcast::<DictionaryArrayAttr>()
+            .expect("DictionaryArrayAttr");
+        let arrays = dict_array.get(0)?;
+        assert_eq!(arrays.iter().count(), dict_array.info().count() as usize);
+        let (flat, sizes) = arrays.flatten().unwrap();
+        assert_eq!(sizes.len(), dict_array.info().count() as usize);
+        assert_eq!(flat.len(), sizes.iter().sum::<usize>());
+        assert_eq!(sizes.first().copied().unwrap_or_default(), 0);
+
+        let mut start = 0;
+        for (index, size) in sizes.iter().enumerate() {
+            if index == 1 && *size > 0 {
+                let slice = &flat[start..start + *size];
+                let parsed =
+                    JsonValue::from_str(&slice[0]).expect("Json value from dictionary array");
+                let map: &HashMap<_, _> = parsed.get().expect("HashMap");
+                assert_eq!(map["sample"], JsonValue::Number(0.0));
+                break;
+            }
+            start += *size;
+        }
+        Ok(())
+    })
+    .unwrap()
+}
+
+#[test]
 fn geometry_test_set_dictionary_attributes() {
     use std::collections::HashMap;
     use std::str::FromStr;
@@ -307,7 +434,7 @@ fn geometry_test_set_dictionary_attributes() {
 }
 
 #[test]
-fn geometry_test_get_set_dictionary_array_attribute() {
+fn geometry_get_set_dictionary_array_attribute() {
     use std::collections::HashMap;
     use tinyjson::JsonValue;
 
@@ -347,7 +474,7 @@ fn geometry_test_get_set_dictionary_array_attribute() {
 }
 
 #[test]
-fn test_attribute_send() {
+fn attribute_send_to_thread() {
     with_test_geometry(|geo| {
         let str_attr = geo
             .get_attribute(0, AttributeOwner::Point, c"pscale")
