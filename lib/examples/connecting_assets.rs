@@ -10,7 +10,6 @@ fn main() -> Result<()> {
         ServerOptions::shared_memory_with_defaults(),
     )?;
     let geom = session.create_input_node("Cube", None)?;
-    geom.node.cook_blocking()?;
     let part_info = PartInfo::default()
         .with_part_type(PartType::Mesh)
         .with_face_count(6)

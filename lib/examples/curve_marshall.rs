@@ -9,7 +9,6 @@ fn main() -> Result<()> {
         ServerOptions::shared_memory_with_defaults(),
     )?;
     let geom = session.create_input_node("Curve", None)?;
-    geom.node.cook_blocking()?;
     let part_info = PartInfo::default()
         .with_part_type(PartType::Curve)
         .with_face_count(1)

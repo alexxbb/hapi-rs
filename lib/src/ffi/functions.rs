@@ -461,10 +461,14 @@ pub fn get_node_from_path(
     }
 }
 
-pub fn cook_node(node: &HoudiniNode, options: &CookOptions) -> Result<()> {
+pub fn cook_node(node: &HoudiniNode, options: Option<&CookOptions>) -> Result<()> {
     unsafe {
-        raw::HAPI_CookNode(node.session.ptr(), node.handle.0, options.ptr())
-            .check_err(&node.session, || "Calling HAPI_CookNode")
+        raw::HAPI_CookNode(
+            node.session.ptr(),
+            node.handle.0,
+            options.map(|o| o.ptr()).unwrap_or(null()),
+        )
+        .check_err(&node.session, || "Calling HAPI_CookNode")
     }
 }
 

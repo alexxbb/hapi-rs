@@ -4,6 +4,8 @@ mod utils;
 use tempfile::NamedTempFile;
 use utils::{HdaFile, create_triangle, with_session, with_test_geometry};
 
+use crate::utils::with_session_asset;
+
 #[test]
 fn geometry_save_and_load_to_file() {
     with_session(|session| {
@@ -266,15 +268,16 @@ fn geometry_multiple_input_curves() {
 
 #[test]
 fn geometry_read_write_volume() {
-    with_session(|session| {
-        session.load_asset_file(HdaFile::Volume.path())?;
-        let node = session.create_node("Object/hapi_vol").unwrap();
-        node.cook_blocking().unwrap();
-        let source = node.geometry().unwrap().unwrap();
+    with_session_asset(HdaFile::Volume, |lib| {
+        let node = lib.try_create_first().expect("create_node");
+        node.cook_blocking().expect("cook_blocking");
+        let source = node.geometry().expect("geometry").unwrap();
         let source_part = source.part_info(0).unwrap();
         let vol_info = source.volume_info(0).unwrap();
-        let dest_geo = session.create_input_node("volume_copy", None).unwrap();
-        dest_geo.node.cook_blocking().unwrap();
+        let dest_geo = node
+            .session
+            .create_input_node("volume_copy", None)
+            .expect("create_input_node");
         dest_geo.set_part_info(&source_part).unwrap();
         dest_geo.set_volume_info(0, &vol_info).unwrap();
 

@@ -11,7 +11,6 @@ use hapi_rs::session::{Session, SessionOptions, new_thrift_session};
 
 fn create_cube(session: &Session) -> Result<HoudiniNode> {
     let geometry = session.create_input_node("Cube", None)?;
-    geometry.node.cook()?;
 
     let part_info = PartInfo::default()
         .with_part_type(PartType::Mesh)

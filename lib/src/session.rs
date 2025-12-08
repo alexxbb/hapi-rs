@@ -289,7 +289,9 @@ impl Session {
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_node(self, &name, parent)?;
         let node = HoudiniNode::new(self.clone(), NodeHandle(id), None)?;
-        let info = crate::geometry::GeoInfo::from_node(&node)?;
+        crate::ffi::cook_node(&node, None).with_context(|| "Cooking input node")?;
+        let info =
+            crate::geometry::GeoInfo::from_node(&node).with_context(|| "Getting geometry info")?;
         Ok(crate::geometry::Geometry { node, info })
     }
 

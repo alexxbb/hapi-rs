@@ -335,7 +335,7 @@ impl HoudiniNode {
     pub fn cook(&self) -> Result<()> {
         debug!("Start cooking node: {}", self.path()?);
         debug_assert!(self.is_valid()?);
-        crate::ffi::cook_node(self, &CookOptions::default())
+        crate::ffi::cook_node(self, None)
     }
 
     /// Start cooking the node and wait until completed.
@@ -345,7 +345,7 @@ impl HoudiniNode {
     pub fn cook_blocking(&self) -> Result<CookResult> {
         debug!("Start cooking node: {}", self.path()?);
         debug_assert!(self.is_valid()?);
-        crate::ffi::cook_node(self, &CookOptions::default())?;
+        crate::ffi::cook_node(self, None)?;
         self.session.cook()
     }
 
@@ -354,7 +354,7 @@ impl HoudiniNode {
     pub fn cook_with_options(&self, options: &CookOptions, blocking: bool) -> Result<CookResult> {
         debug!("Start cooking node: {}", self.path()?);
         debug_assert!(self.is_valid()?);
-        crate::ffi::cook_node(self, options)?;
+        crate::ffi::cook_node(self, Some(options))?;
         if blocking {
             self.session.cook()
         } else {
