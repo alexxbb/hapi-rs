@@ -371,30 +371,6 @@ impl Geometry {
         crate::ffi::get_attribute_names(&self.node, part.part_id(), count, owner)
     }
 
-    /// Convenient method for getting the P attribute
-    pub fn get_position_attribute(&self, part_id: i32) -> Result<NumericAttr<f32>> {
-        self.assert_node_cooked()?;
-        let name = CString::from(AttributeName::P);
-        let info = AttributeInfo::new(&self.node, part_id, AttributeOwner::Point, name.as_c_str())?;
-        Ok(NumericAttr::new(name, info, self.node.clone()))
-    }
-
-    /// Convenient method for getting the Cd attribute on points
-    pub fn get_point_color_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>> {
-        self.assert_node_cooked()?;
-        let name = CString::from(AttributeName::Cd);
-        let info = AttributeInfo::new(
-            &self.node,
-            part.part_id(),
-            AttributeOwner::Point,
-            name.as_c_str(),
-        )?;
-        if !info.exists() {
-            return Ok(None);
-        }
-        Ok(Some(NumericAttr::new(name, info, self.node.clone())))
-    }
-
     /// Retrieve information about a geometry attribute.
     pub fn get_attribute_info(
         &self,

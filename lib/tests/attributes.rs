@@ -49,6 +49,7 @@ fn geometry_attribute_names() {
 
 #[test]
 fn geometry_numeric_attributes() {
+    use hapi_rs::geometry::extra::GeometryExtension;
     with_session(|session| {
         let geo = create_triangle(&session)?;
         let _attr_p = geo
@@ -56,7 +57,10 @@ fn geometry_numeric_attributes() {
             .unwrap()
             .unwrap();
         let _attr_p = _attr_p.downcast::<NumericAttr<f32>>().unwrap();
-        let attr_p = geo.get_position_attribute(0).unwrap();
+        let attr_p = geo
+            .get_position_attribute(&geo.part_info(0)?)
+            .unwrap()
+            .expect("position attribute");
         let dat = attr_p.get(0).expect("read_attribute");
         assert_eq!(dat.len(), 9);
         geo.node.delete()
