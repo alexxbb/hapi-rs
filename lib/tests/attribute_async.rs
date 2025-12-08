@@ -1,3 +1,4 @@
+// FIXME: This test is disabled because async cooking is sill not stable in Houdini
 #![cfg(feature = "async-cooking")]
 
 use hapi_rs::attribute::{

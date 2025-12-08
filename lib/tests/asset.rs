@@ -1,4 +1,6 @@
 use hapi_rs::asset::{AssetLibrary, ParmValue};
+use hapi_rs::node::NodeType;
+use std::collections::HashSet;
 
 mod utils;
 
@@ -65,6 +67,20 @@ fn asset_get_first_name() {
 }
 
 #[test]
+fn asset_load_from_file() {
+    with_session(|session| {
+        let lib = AssetLibrary::from_file(session.clone(), HdaFile::Parameters.path())?;
+        assert_eq!(lib.get_asset_count()?, 1);
+        assert_eq!(
+            lib.get_first_name()?,
+            Some(String::from("Object/hapi_parms"))
+        );
+        Ok(())
+    })
+    .unwrap()
+}
+
+#[test]
 fn asset_default_parameters() {
     with_session_asset(HdaFile::Parameters, |lib| {
         let parms = lib.get_asset_parms("Object/hapi_parms")?;
@@ -106,12 +122,47 @@ fn asset_menu_parameters() {
 }
 
 #[test]
-fn asset_create_node() {
+fn asset_create_node_fully_qualified() {
+    use hapi_rs::HapiError;
     with_session_asset(HdaFile::Parameters, |lib| {
         lib.create_asset_for_node("Object/hapi_parms", None)
             .unwrap();
         lib.create_asset_for_node("Cop2/color", None)?;
         lib.create_asset_for_node("Top/invoke", None)?;
+        assert!(matches!(
+            lib.create_asset_for_node("foo", None),
+            Err(HapiError::Internal(e)) if e.contains("Incomplete node name")
+        ));
+        Ok(())
+    })
+    .unwrap()
+}
+
+#[test]
+fn asset_try_create_first() {
+    with_session_asset(HdaFile::Parameters, |lib| {
+        assert_eq!(
+            lib.get_first_name()?,
+            Some(String::from("Object/hapi_parms"))
+        );
+        let node = lib.try_create_first()?;
+        assert_eq!(node.info.node_type(), NodeType::Obj);
+        Ok(())
+    })
+    .unwrap()
+}
+
+#[test]
+fn asset_parameters_iter() {
+    with_session_asset(HdaFile::Parameters, |lib| {
+        let parms = lib.get_asset_parms("Object/hapi_parms")?;
+        let mut names = HashSet::new();
+        for parm in &parms {
+            names.insert(parm.name().expect("parameter name"));
+        }
+        for expected in ["single_string", "float3", "string_menu"] {
+            assert!(names.contains(expected), "iterator must yield {expected}");
+        }
         Ok(())
     })
     .unwrap()
