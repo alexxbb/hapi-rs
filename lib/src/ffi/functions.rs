@@ -3924,3 +3924,19 @@ pub fn remove_multiparm_instance(
             .check_err(session, || "Calling HAPI_RemoveMultiparmInstance")
     }
 }
+
+pub fn set_custom_string(session: &Session, string: &CStr) -> Result<StringHandle> {
+    unsafe {
+        let mut handle = uninit!();
+        raw::HAPI_SetCustomString(session.ptr(), string.as_ptr(), handle.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_SetCustomString")?;
+        Ok(StringHandle(handle.assume_init()))
+    }
+}
+
+pub fn remove_custom_string(session: &Session, handle: StringHandle) -> Result<()> {
+    unsafe {
+        raw::HAPI_RemoveCustomString(session.ptr(), handle.0)
+            .check_err(session, || "Calling HAPI_RemoveCustomString")
+    }
+}

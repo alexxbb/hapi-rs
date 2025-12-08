@@ -21,8 +21,6 @@ fn raw_hapi_function_names() -> HashSet<Item> {
         "_Create",
         "_Init",
         "HAPI_CreateCustomSession",
-        "HAPI_SetCustomString",
-        "HAPI_RemoveCustomString",
         "HAPI_GetHandleInfo",
         "HAPI_BindCustomImplementation",
         "HAPI_GetImageFilePath",

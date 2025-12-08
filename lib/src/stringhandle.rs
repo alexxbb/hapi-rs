@@ -228,4 +228,12 @@ mod tests {
         assert_eq!(v[0].to_bytes_with_nul(), b"One\0");
         assert_eq!(v[2].to_bytes_with_nul(), b"Three\0");
     }
+
+    #[test]
+    fn test_set_custom_string() {
+        let handle = SESSION.set_custom_string("HAPI_RS_CUSTOM_STRING").unwrap();
+        assert_eq!(SESSION.get_string(handle).unwrap(), "HAPI_RS_CUSTOM_STRING");
+        SESSION.remove_custom_string(handle).unwrap();
+        assert!(SESSION.get_string(handle).is_err());
+    }
 }

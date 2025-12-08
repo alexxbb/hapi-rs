@@ -271,6 +271,21 @@ impl Session {
         crate::stringhandle::get_string_array(handles, self)
     }
 
+    /// Push a custom string to the server and return a handle to it.
+    pub fn set_custom_string(&self, string: impl AsRef<str>) -> Result<StringHandle> {
+        debug_assert!(self.is_valid());
+        debug!("Setting custom string: {}", string.as_ref());
+        let string = CString::new(string.as_ref())?;
+        crate::ffi::set_custom_string(self, &string)
+    }
+
+    /// Remove a custom string from the server.
+    pub fn remove_custom_string(&self, handle: StringHandle) -> Result<()> {
+        debug_assert!(self.is_valid());
+        debug!("Removing custom string: {handle:?}");
+        crate::ffi::remove_custom_string(self, handle)
+    }
+
     /// Consumes and cleanups up the session. Session becomes invalid after this call
     pub fn cleanup(self) -> Result<()> {
         debug!("Cleaning up session");
