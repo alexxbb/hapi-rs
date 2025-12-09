@@ -190,7 +190,7 @@ fn string_attr_set_indexed_updates_values() {
             .with_count(point_count);
         let attr = input.add_string_attribute("indexed_name", 0, attr_info)?;
         let values = [c"even", c"odd"];
-        let indices: Vec<i32> = (0..point_count).map(|i| (i % 2) as i32).collect();
+        let indices: Vec<i32> = (0..point_count).map(|i| i % 2).collect();
         attr.set_indexed(0, &values, &indices)?;
 
         input.commit()?;

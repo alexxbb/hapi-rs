@@ -63,12 +63,12 @@ fn parameters_get_set() {
         }
 
         // test button callback
-        if let Parameter::Button(ip) = node.parameter("button").unwrap() {
-            if let Parameter::String(sp) = node.parameter("single_string").unwrap() {
-                assert_eq!(sp.get(0).unwrap(), "hello");
-                ip.press_button().unwrap();
-                assert_eq!(sp.get(0).unwrap(), "set from callback");
-            }
+        if let Parameter::Button(ip) = node.parameter("button").unwrap()
+            && let Parameter::String(sp) = node.parameter("single_string").unwrap()
+        {
+            assert_eq!(sp.get(0).unwrap(), "hello");
+            ip.press_button().unwrap();
+            assert_eq!(sp.get(0).unwrap(), "set from callback");
         }
         Ok(())
     })

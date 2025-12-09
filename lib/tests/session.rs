@@ -127,7 +127,7 @@ fn test_license_set_via_environment() {
         ServerOptions::shared_memory_with_defaults().with_env_variables(env.iter());
     let session = new_thrift_session(SessionOptions::default(), server_options)
         .expect("Could not start session");
-    let plugin_lic_opt = session.get_server_var::<str>(&env[0].0).unwrap();
+    let plugin_lic_opt = session.get_server_var::<str>(env[0].0).unwrap();
     session.create_node("Object/null").unwrap();
     let license_type = session.get_license_type().unwrap();
     assert_eq!(plugin_lic_opt, env[0].1.to_string());

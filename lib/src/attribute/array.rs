@@ -186,9 +186,9 @@ mod tests {
     #[test]
     fn data_array_mutate() {
         let mut ar = DataArray::new(&[1, 2, 3, 4, 5, 6], &[2, 1, 3]);
-        let mut iter = ar.iter_mut().map(|v| {
-            v.iter_mut().for_each(|v| *v *= 2);
-            v
+        let mut iter = ar.iter_mut().map(|array| {
+            array.iter_mut().for_each(|v| *v *= 2);
+            array
         });
         assert_eq!(iter.next(), Some([2, 4].as_mut_slice()));
         assert_eq!(iter.next(), Some([6].as_mut_slice()));
