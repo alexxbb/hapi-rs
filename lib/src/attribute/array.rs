@@ -69,10 +69,11 @@ where
 
 /// Represents multi-array string data. Used as storage for string and dictionary array attributes.
 /// Each element of this array is itself a [`StringArray`]
+#[derive(Debug, Clone)]
 pub struct StringMultiArray {
     pub(crate) handles: Vec<StringHandle>,
     pub(crate) sizes: Vec<i32>,
-    pub(crate) session: crate::session::Session,
+    pub(crate) session: debug_ignore::DebugIgnore<crate::session::Session>,
 }
 
 /// Returned by [`DataArray::iter`]

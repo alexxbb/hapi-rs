@@ -9,15 +9,15 @@ use crate::session::Session;
 
 /// A handle to a string returned by some api.
 /// Then the String can be retrieved with [`Session::get_string`]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct StringHandle(pub(crate) i32);
 
 /// Holds a contiguous array of bytes where each individual string value is null-separated.
 /// You can choose how to iterate over it by calling a corresponding iter_* function.
 /// The `Debug` impl has an alternative `{:#?}` representation, which prints as a vec of strings.
-#[derive(Clone)]
-pub struct StringArray(Vec<u8>);
+#[derive(Clone, PartialEq)]
+pub struct StringArray(pub Vec<u8>);
 
 impl std::fmt::Debug for StringArray {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

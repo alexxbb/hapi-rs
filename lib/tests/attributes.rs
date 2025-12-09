@@ -4,6 +4,7 @@ use hapi_rs::attribute::{
 };
 use hapi_rs::enums::{AttributeOwner, PartType};
 use hapi_rs::geometry::{AttributeName, PartInfo};
+use hapi_rs::stringhandle::StringArray;
 use std::ffi::CString;
 
 mod utils;
@@ -259,7 +260,23 @@ fn geometry_create_string_array_attrib() {
         // NOTE: ALWAYS remember to commit AND cook after creating and setting attributes.
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
-        let (data, sizes) = array_attr.get(0).unwrap().flatten().unwrap();
+        let multi_array = array_attr.get(0).unwrap();
+        let mut array_iter = multi_array.iter();
+        assert_eq!(
+            array_iter.next().unwrap().unwrap(),
+            StringArray(b"one\0".to_vec())
+        );
+        assert_eq!(
+            array_iter.next().unwrap().unwrap(),
+            StringArray(b"two\0three\0".to_vec())
+        );
+        assert_eq!(
+            array_iter.next().unwrap().unwrap(),
+            StringArray(b"four\0five\0six\0".to_vec())
+        );
+        assert!(array_iter.next().is_none());
+
+        let (data, sizes) = multi_array.flatten().unwrap();
         assert_eq!(sizes.len(), 3);
         assert_eq!(data.len(), 6);
 

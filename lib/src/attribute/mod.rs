@@ -447,7 +447,7 @@ impl StringArrayAttr {
             StringMultiArray {
                 handles,
                 sizes,
-                session: self.0.node.session.clone(),
+                session: debug_ignore::DebugIgnore(self.0.node.session.clone()),
             },
         ))
     }
@@ -561,7 +561,7 @@ impl DictionaryArrayAttr {
             StringMultiArray {
                 handles,
                 sizes,
-                session: self.0.node.session.clone(),
+                session: debug_ignore::DebugIgnore(self.0.node.session.clone()),
             },
         ))
     }
