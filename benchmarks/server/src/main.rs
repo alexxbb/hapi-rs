@@ -10,7 +10,7 @@ use hapi_rs::geometry::extra::GeometryExtension;
 use hapi_rs::geometry::AttributeInfo;
 use hapi_rs::node::Geometry;
 use hapi_rs::parameter::{FloatParameter, Parameter};
-use hapi_rs::raw::ThriftSharedMemoryBufferType;
+use hapi_rs::raw::{ThriftSharedMemoryBufferType, HAPI_PRIM_MIN_VERTEX_COUNT};
 use hapi_rs::server::ThriftTransport;
 use hapi_rs::server::{ServerOptions, ThriftSharedMemoryTransportBuilder};
 use hapi_rs::session::{new_in_process_session, new_thrift_session, SessionOptions};
@@ -29,7 +29,10 @@ fn random_string<const SIZE: usize>() -> String {
     std::iter::repeat_with(next).take(SIZE).collect()
 }
 
-const N_RUN: usize = 10;
+const NUM_ITERATIONS: usize = 3;
+const NUM_COPIES: usize = 20;
+const WORKLOAD_MULTIPLIER: usize = 1;
+const BUFFER_SIZE: usize = 5_000; // GB
 
 fn copy_geo(source: &Geometry, input_geo: &Geometry) -> Result<()> {
     let part = source.part_info(0)?;
@@ -52,20 +55,26 @@ fn copy_geo(source: &Geometry, input_geo: &Geometry) -> Result<()> {
 
     let payload_c_strings: Vec<&CStr> = payload_data.iter_cstr().collect();
 
-    let color_data = source
-        .get_color_attribute(&part, AttributeOwner::Point)?
-        .expect("Cd attribute")
-        .get(part.part_id())?;
+    let sdf_attr = source
+        .get_attribute(part.part_id(), AttributeOwner::Point, "sdf")?
+        .expect("sdf attribute");
+    let sdf_attr = sdf_attr
+        .downcast::<NumericAttr<f32>>()
+        .expect("sdf is float type");
+    let sdf_data = sdf_attr.get(part.part_id())?;
+
     input_geo
         .create_position_attribute(&part)?
         .set(part.part_id(), &positions_data)?;
-    input_geo
-        .create_point_color_attribute(&part)?
-        .set(part.part_id(), &color_data)?;
     let dest_payload_attr =
         input_geo.add_string_attribute("payload", part.part_id(), payload_attr.info().clone())?;
     dest_payload_attr.set(part.part_id(), &payload_c_strings)?;
+    let dest_sdf_attr =
+        input_geo.add_numeric_attribute::<f32>("sdf", part.part_id(), sdf_attr.info().clone())?;
+    dest_sdf_attr.set(part.part_id(), &sdf_data)?;
     input_geo.commit()?;
+    input_geo.node.cook_blocking()?;
+    // input_geo.save_to_file("/tmp/foo.bgeo")?;
 
     Ok(())
 }
@@ -75,10 +84,16 @@ fn main() -> Result<()> {
     let session_options = SessionOptions::default().threaded(false);
     let conn_name = format!("hapi-bench-{}", random_string::<3>());
     let server_type = args.nth(1).expect("server type");
-    let num_runs: usize = match args.next() {
-        None => N_RUN,
-        Some(v) => v.parse().expect("Second argument must be a number"),
+    let workload_multiplier = match args.next() {
+        None => WORKLOAD_MULTIPLIER,
+        Some(v) => v
+            .parse::<usize>()
+            .expect("Workload multiplier must be a positive number"),
     };
+
+    let num_iterations = NUM_ITERATIONS * workload_multiplier;
+    let num_copies = NUM_COPIES * workload_multiplier;
+
     println!("Starting \"{server_type}\" server");
     let server_options = match server_type.as_str() {
         "pipe" => ServerOptions::pipe_with_defaults(),
@@ -88,18 +103,19 @@ fn main() -> Result<()> {
                 "memory-ring" => ThriftSharedMemoryBufferType::RingBuffer,
                 _ => unreachable!(),
             };
-            ServerOptions::shared_memory_with_defaults()
-                .with_thrift_transport(ThriftTransport::SharedMemory(
+            ServerOptions::shared_memory_with_defaults().with_thrift_transport(
+                ThriftTransport::SharedMemory(
                     ThriftSharedMemoryTransportBuilder::default()
                         .with_buffer_type(buffer_type)
                         .with_memory_name(conn_name)
-                        .with_buffer_size(1) // MB
+                        .with_buffer_size(BUFFER_SIZE as i64) // MB
                         .build(),
-                ))
-                .with_auto_close(false)
+                ),
+            )
         }
         _ => panic!("Server type must be pipe or memory-fixed or memory-ring"),
-    };
+    }
+    .with_auto_close(true);
     let session = new_thrift_session(session_options, server_options)?;
     println!("Session created.");
     let asset_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("benchmark.hda");
@@ -107,28 +123,38 @@ fn main() -> Result<()> {
 
     let asset_node = lib.try_create_first()?;
     println!("Test asset ready.");
-    println!("Running {num_runs} times");
     let start = std::time::Instant::now();
-    let Ok(Parameter::Float(rotate_parm)) = asset_node.parameter("rotate") else {
-        panic!("Missing rotate parameter");
+    let Ok(Parameter::Float(anim_param)) = asset_node.parameter("anim") else {
+        panic!("Missing anim parameter");
     };
 
-    let Ok(Parameter::String(input_str)) = asset_node.parameter("string") else {
-        panic!("Missing string parameter");
+    let Ok(Parameter::String(point_string_param)) = asset_node.parameter("point_string") else {
+        panic!("Missing point_string parameter");
     };
+
+    if let Ok(Parameter::Int(num_copies_param)) = asset_node.parameter("num_copies") {
+        num_copies_param.set(0, num_copies as i32)?;
+    }
+    println!("Running {num_iterations} iterations");
     let mut total_time = Duration::from_millis(0);
-    for n in 0..num_runs {
+    for n in 0..num_iterations {
         let start = std::time::Instant::now();
-        rotate_parm.set(0, (n * 10) as f32);
-        input_str.set(0, random_string::<10>())?;
+        anim_param.set(0, (n * 10) as f32);
+        point_string_param.set(0, random_string::<10>())?;
+        // TODO: substruct cooking time from total time?
         asset_node.cook()?;
         let geometry = asset_node.geometry()?.expect("geometry");
         let input = session.create_input_node(&format!("copy_{n}"), None)?;
         copy_geo(&geometry, &input)?;
+        println!(
+            " - iteration {}/{num_iterations} done in {:.2?} seconds",
+            n + 1,
+            start.elapsed().as_secs_f32()
+        );
         total_time += start.elapsed();
     }
-    let avg_time = total_time.div_f32(num_runs as f32);
-    println!("Server type \"{server_type}\" done in {avg_time:.2?} milliseconds (avg)",);
+    let avg_time = total_time.div_f32(num_iterations as f32).as_secs_f32();
+    println!("Server type \"{server_type}\" done in {avg_time:.2} seconds (avg)",);
     // session.save_hip("c:/Temp/junk/bench.hip", true)?;
     Ok(())
 }
