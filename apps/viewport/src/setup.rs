@@ -329,39 +329,25 @@ impl MeshData {
         };
         let (normals, point_normal) = {
             let mut point_normal = false;
-            let mut vtx_attr = geo.get_attribute(_part_id, AttributeOwner::Vertex, "N")?;
+            let mut vtx_attr = geo.get_normal_attribute(&_part, AttributeOwner::Vertex)?;
             if vtx_attr.is_none() {
                 point_normal = true;
-                vtx_attr = geo.get_attribute(_part_id, AttributeOwner::Point, "N")?;
+                vtx_attr = geo.get_normal_attribute(&_part, AttributeOwner::Point)?;
             }
-            let normals = match vtx_attr {
-                Some(n_attr) => Some(
-                    n_attr
-                        .downcast::<NumericAttr<f32>>()
-                        .expect("N is NumericAttribute")
-                        .get(_part_id)?,
-                ),
-                None => None,
-            };
+            let normals =
+                vtx_attr.map(|n_attr| n_attr.get(_part_id).expect("get attribute API succeeded"));
             (normals, point_normal)
         };
 
         let (colors, point_color) = {
             let mut point_color = false;
-            let mut clr_attr = geo.get_attribute(_part_id, AttributeOwner::Vertex, "Cd")?;
+            let mut clr_attr = geo.get_color_attribute(&_part, AttributeOwner::Vertex)?;
             if clr_attr.is_none() {
                 point_color = true;
-                clr_attr = geo.get_attribute(_part_id, AttributeOwner::Point, "Cd")?;
+                clr_attr = geo.get_color_attribute(&_part, AttributeOwner::Point)?;
             }
-            let colors = match clr_attr {
-                Some(cd_attr) => Some(
-                    cd_attr
-                        .downcast::<NumericAttr<f32>>()
-                        .expect("Cd is NumericAttribute")
-                        .get(_part_id)?,
-                ),
-                None => None,
-            };
+            let colors =
+                clr_attr.map(|cd_attr| cd_attr.get(_part_id).expect("get attribute API succeeded"));
             (colors, point_color)
         };
 
