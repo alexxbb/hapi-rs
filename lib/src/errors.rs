@@ -16,6 +16,17 @@ pub enum HapiError {
         contexts: Vec<String>,
     },
 
+    /// Adds contextual messages to an error (including non-HAPI variants).
+    ///
+    /// This is used by [`ErrorContext::context`] / [`ErrorContext::with_context`] so that
+    /// context is not silently dropped for variants like [`HapiError::Internal`],
+    /// [`HapiError::Io`], [`HapiError::Utf8`], etc.
+    Context {
+        contexts: Vec<String>,
+        #[source]
+        source: Box<HapiError>,
+    },
+
     /// CString conversion error - string contains null byte
     NullByte(#[from] std::ffi::NulError),
 
@@ -108,10 +119,21 @@ impl<T> ErrorContext<T> for Result<T> {
         match self {
             Ok(ok) => Ok(ok),
             Err(mut error) => {
-                if let HapiError::Hapi { contexts, .. } = &mut error {
-                    contexts.push(context.into());
+                let context = context.into();
+                match &mut error {
+                    HapiError::Hapi { contexts, .. } => {
+                        contexts.push(context);
+                        Err(error)
+                    }
+                    HapiError::Context { contexts, .. } => {
+                        contexts.push(context);
+                        Err(error)
+                    }
+                    _ => Err(HapiError::Context {
+                        contexts: vec![context],
+                        source: Box::new(error),
+                    }),
                 }
-                Err(error)
             }
         }
     }
@@ -124,10 +146,21 @@ impl<T> ErrorContext<T> for Result<T> {
         match self {
             Ok(ok) => Ok(ok),
             Err(mut error) => {
-                if let HapiError::Hapi { contexts, .. } = &mut error {
-                    contexts.push(func().into());
+                let context = func().into();
+                match &mut error {
+                    HapiError::Hapi { contexts, .. } => {
+                        contexts.push(context);
+                        Err(error)
+                    }
+                    HapiError::Context { contexts, .. } => {
+                        contexts.push(context);
+                        Err(error)
+                    }
+                    _ => Err(HapiError::Context {
+                        contexts: vec![context],
+                        source: Box::new(error),
+                    }),
                 }
-                Err(error)
             }
         }
     }
@@ -136,36 +169,58 @@ impl<T> ErrorContext<T> for Result<T> {
 // Custom Display to show contexts properly for HAPI errors
 impl std::fmt::Display for HapiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            HapiError::Hapi {
-                result_code,
-                server_message,
-                contexts,
-            } => {
-                write!(f, "[{}]", result_code)?;
-                if let Some(msg) = server_message {
-                    write!(f, ": [Engine Message]: {}", msg)?;
-                }
-                if !contexts.is_empty() {
-                    writeln!(f)?;
-                    for (n, msg) in contexts.iter().enumerate() {
-                        writeln!(f, "\t{}. {}", n, msg)?;
+        fn fmt_base(err: &HapiError, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match err {
+                HapiError::Hapi {
+                    result_code,
+                    server_message,
+                    ..
+                } => {
+                    write!(f, "[{}]", result_code)?;
+                    if let Some(msg) = server_message {
+                        write!(f, ": [Engine Message]: {}", msg)?;
                     }
+                    Ok(())
                 }
-                Ok(())
+                HapiError::Context { source, .. } => fmt_base(source, f),
+                HapiError::NullByte(e) => {
+                    let vec = e.clone().into_vec();
+                    let text = String::from_utf8_lossy(&vec);
+                    write!(f, "String contains null byte in \"{}\"", text)
+                }
+                HapiError::Utf8(e) => {
+                    let text = String::from_utf8_lossy(e.as_bytes());
+                    write!(f, "Invalid UTF-8 in string \"{}\"", text)
+                }
+                HapiError::Io(e) => write!(f, "IO error: {}", e),
+                HapiError::Internal(e) => write!(f, "Internal error: {}", e),
             }
-            HapiError::NullByte(e) => {
-                let vec = e.clone().into_vec();
-                let text = String::from_utf8_lossy(&vec);
-                write!(f, "String contains null byte in \"{}\"", text)
-            }
-            HapiError::Utf8(e) => {
-                let text = String::from_utf8_lossy(e.as_bytes());
-                write!(f, "Invalid UTF-8 in string \"{}\"", text)
-            }
-            HapiError::Io(e) => write!(f, "IO error: {}", e),
-            HapiError::Internal(e) => write!(f, "Internal error: {}", e),
         }
+
+        fn collect_contexts<'a>(err: &'a HapiError, out: &mut Vec<&'a str>) {
+            match err {
+                HapiError::Hapi { contexts, .. } => {
+                    out.extend(contexts.iter().map(|s| s.as_str()));
+                }
+                HapiError::Context { contexts, source } => {
+                    collect_contexts(source, out);
+                    out.extend(contexts.iter().map(|s| s.as_str()));
+                }
+                _ => {}
+            }
+        }
+
+        fmt_base(self, f)?;
+
+        let mut contexts = Vec::new();
+        collect_contexts(self, &mut contexts);
+        if !contexts.is_empty() {
+            writeln!(f)?;
+            for (n, msg) in contexts.iter().enumerate() {
+                writeln!(f, "\t{}. {}", n, msg)?;
+            }
+        }
+        Ok(())
     }
 }
 
