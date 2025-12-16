@@ -1,5 +1,5 @@
 [package]
-name = "hapi-bevy"
+name = "bevy-demo"
 version = "0.1.0"
 edition = "2024"
 

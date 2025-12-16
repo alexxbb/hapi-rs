@@ -23,13 +23,13 @@ use std::sync::Arc;
 use crate::parameters::{ParmKind, UiParameter};
 use hapi_rs::asset::AssetLibrary;
 use hapi_rs::parameter::{Parameter, ParmBaseTrait};
-use hapi_rs::server::connect_to_socket_server;
+use hapi_rs::server::{ServerOptions, connect_to_socket_server};
 use hapi_rs::session::{SessionOptions, new_in_process_session};
 use setup::{Asset, AssetParameters, BufferStats, CookingStats, Stats};
 use ultraviolet::Vec3;
 
-static OTL: &str = "otls/hapi_opengl.hda";
-static ICON: &str = "maps/icon.png";
+static OTL: &str = "apps/viewport/otls/hapi_opengl.hda";
+static ICON: &str = "apps/viewport/maps/icon.png";
 static WIN_TITLE: &str = "HAPI Viewport";
 
 struct ViewportApp {
@@ -324,10 +324,13 @@ fn main() {
     let options = SessionOptions::default();
     let session = match &remote_server {
         None => new_in_process_session(Some(options.clone())).expect("Could not create session"),
-        Some(remote_address) => {
-            connect_to_socket_server(remote_address.clone(), options.clone(), None)
-                .expect("Could not connect to socket")
-        }
+        Some(remote_address) => connect_to_socket_server(
+            ServerOptions::socket_with_defaults(remote_address.clone()),
+            None,
+        )
+        .expect("Could not connect to socket")
+        .initialize(options.clone())
+        .expect("Could not initialize session"),
     };
     if !session.is_valid() {
         eprintln!("Session is not valid!!!!");

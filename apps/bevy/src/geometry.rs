@@ -123,7 +123,8 @@ fn get_houdini_geometry_data_arrays(
     if build_positions {
         positions = Some(
             geometry
-                .get_position_attribute(part.part_id())?
+                .get_position_attribute(&part)?
+                .expect("Position attribute must exist")
                 .get(part.part_id())?,
         )
     }

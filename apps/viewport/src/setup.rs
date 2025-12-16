@@ -4,7 +4,7 @@
 use bytemuck::cast_slice;
 use hapi_rs::Result;
 use hapi_rs::attribute::NumericAttr;
-use hapi_rs::geometry::{AttributeOwner, Geometry, Materials};
+use hapi_rs::geometry::{AttributeOwner, Geometry, Materials, extra::GeometryExtension};
 use hapi_rs::node::Session;
 use hapi_rs::session::HoudiniNode;
 use image::ImageDecoder;
@@ -310,7 +310,10 @@ impl MeshData {
         let _start = Instant::now();
         let _part = geo.part_info(0)?;
         let _part_id = _part.part_id();
-        let positions = geo.get_position_attribute(_part_id)?.get(_part_id)?;
+        let positions = geo
+            .get_position_attribute(&_part)?
+            .expect("Positions attribute");
+        let positions = positions.get(_part_id)?;
         let face_counts = geo.get_face_counts(&_part)?;
         let vertex_list = geo.vertex_list(&_part)?;
         let uvs = {

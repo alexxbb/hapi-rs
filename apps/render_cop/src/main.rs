@@ -40,7 +40,7 @@ fn create_nodes() -> Result<HashMap<Noise, HoudiniNode>> {
     let cwd = cwd.resolve();
     let opt = SessionOptions::default().threaded(false);
     let session = new_in_process_session(Some(opt)).unwrap();
-    let lib = session.load_asset_file(cwd.join("cop_render.hda"))?;
+    let lib = session.load_asset_file(cwd.join("apps/render_cop/cop_render.hda"))?;
     let mut map = HashMap::new();
     map.insert(
         Noise::Voronoi,
