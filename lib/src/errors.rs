@@ -16,11 +16,7 @@ pub enum HapiError {
         contexts: Vec<String>,
     },
 
-    /// Adds contextual messages to an error (including non-HAPI variants).
-    ///
-    /// This is used by [`ErrorContext::context`] / [`ErrorContext::with_context`] so that
-    /// context is not silently dropped for variants like [`HapiError::Internal`],
-    /// [`HapiError::Io`], [`HapiError::Utf8`], etc.
+    /// This is used by [`ErrorContext::context`] / [`ErrorContext::with_context`]
     Context {
         contexts: Vec<String>,
         #[source]
@@ -281,5 +277,61 @@ impl HapiResult {
                 contexts: vec![],
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::error::Error as _;
+
+    #[test]
+    fn context_chain_is_rendered_for_internal_errors() {
+        let err = (Err::<(), HapiError>(HapiError::Internal("root".to_string())))
+            .context("first context")
+            .context("second context")
+            .unwrap_err();
+
+        let s = err.to_string();
+        assert!(s.starts_with("Internal error: root"));
+        assert!(s.contains("\n\t0. first context\n\t1. second context\n"));
+
+        // Verify the source chain is preserved via #[source]
+        let source = err.source().expect("source");
+        assert_eq!(source.to_string(), "Internal error: root");
+    }
+
+    #[test]
+    fn hapi_errors_server_message_and_contexts() {
+        let err = (Err::<(), HapiError>(HapiError::Hapi {
+            result_code: HapiResultCode(HapiResult::Failure),
+            server_message: Some("could not cook".to_string()),
+            contexts: vec!["low-level".to_string()],
+        }))
+        .context("high-level")
+        .unwrap_err();
+
+        let s = err.to_string();
+        assert_eq!(
+            s,
+            "[FAILURE]: [Engine Message]: could not cook\n\t0. low-level\n\t1. high-level\n"
+        );
+    }
+
+    #[test]
+    fn context_added_outside_hapi_error_is_rendered_after_inner_contexts() {
+        // Create a HAPI error with one context, then add an outer wrapper context.
+        let base = HapiError::Hapi {
+            result_code: HapiResultCode(HapiResult::InvalidArgument),
+            server_message: None,
+            contexts: vec!["inner".to_string()],
+        };
+        let wrapped = (Err::<(), HapiError>(base)).context("outer").unwrap_err();
+
+        let s = wrapped.to_string();
+        // Base header comes from the underlying Hapi error
+        assert!(s.starts_with("[INVALID_ARGUMENT]"));
+        // Context order: inner first, then outer
+        assert!(s.contains("\n\t0. inner\n\t1. outer\n"));
     }
 }
