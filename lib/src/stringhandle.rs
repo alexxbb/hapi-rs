@@ -2,7 +2,7 @@
 use std::ffi::{CStr, CString};
 use std::fmt::Formatter;
 
-use crate::errors::{ErrorContext, Result};
+use crate::errors::Result;
 use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
@@ -144,27 +144,15 @@ impl IntoIterator for StringArray {
 }
 
 pub(crate) fn get_string(handle: StringHandle, session: &Session) -> Result<String> {
-    let bytes = get_string_bytes(handle, session).context("Calling get_string_bytes")?;
+    let bytes = crate::ffi::get_string_bytes(session, handle, true)?;
     String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
 }
 
 pub(crate) fn get_cstring(handle: StringHandle, session: &Session) -> Result<CString> {
     unsafe {
-        let bytes = get_string_bytes(handle, session).context("Calling get_string_bytes")?;
+        let bytes = crate::ffi::get_string_bytes(session, handle, false)?;
         // SAFETY: HAPI C API should not return strings with interior zero byte
         Ok(CString::from_vec_unchecked(bytes))
-    }
-}
-
-pub(crate) fn get_string_bytes(handle: StringHandle, session: &Session) -> Result<Vec<u8>> {
-    if handle.0 < 0 {
-        return Ok(Vec::new());
-    }
-    let length = crate::ffi::get_string_buff_len(session, handle.0)?;
-    if length == 0 {
-        Ok(Vec::new())
-    } else {
-        crate::ffi::get_string(session, handle.0, length)
     }
 }
 
@@ -172,7 +160,7 @@ pub fn get_string_array(handles: &[StringHandle], session: &Session) -> Result<S
     let _lock = session.lock();
     let length = crate::ffi::get_string_batch_size(handles, session)?;
     let bytes = if length > 0 {
-        crate::ffi::get_string_batch(length, session)?
+        crate::ffi::get_string_batch_bytes(length, session)?
     } else {
         vec![]
     };

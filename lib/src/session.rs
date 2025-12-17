@@ -502,15 +502,17 @@ impl Session {
         crate::ffi::get_asset_library_ids(self)?
             .into_iter()
             .map(|library_id| {
-                crate::ffi::get_asset_library_file_path(self, library_id).map(|lib_file| {
-                    AssetLibrary {
+                crate::ffi::get_asset_library_file_path(self, library_id).and_then(|bytes| {
+                    let lib_file =
+                        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)?;
+                    Ok(AssetLibrary {
                         lib_id: library_id,
                         session: self.clone(),
                         file: Some(PathBuf::from(lib_file)),
-                    }
+                    })
                 })
             })
-            .collect::<Result<Vec<_>>>()
+            .collect()
     }
 
     /// Interrupt session cooking
@@ -557,7 +559,8 @@ impl Session {
         verbosity: StatusVerbosity,
     ) -> Result<String> {
         debug_assert!(self.is_valid());
-        crate::ffi::get_status_string(self, status, verbosity)
+        let bytes = crate::ffi::get_status_string(self, status, verbosity)?;
+        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
     }
 
     /// Get session cook result status as string

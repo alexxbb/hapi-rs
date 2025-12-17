@@ -224,7 +224,7 @@ impl std::fmt::Debug for ParmChoiceInfo {
         use std::borrow::Cow;
 
         let get_str = |h: i32| -> Cow<str> {
-            match crate::stringhandle::get_string_bytes(StringHandle(h), &self.1) {
+            match crate::ffi::get_string_bytes(&self.1, StringHandle(h), true) {
                 // SAFETY: Don't care about utf in Debug
                 Ok(bytes) => unsafe { Cow::Owned(String::from_utf8_unchecked(bytes)) },
                 Err(_) => Cow::Borrowed("!!! Could not retrieve string"),

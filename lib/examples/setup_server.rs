@@ -1,3 +1,4 @@
+use std::num::NonZeroU64;
 use std::time::Duration;
 
 use hapi_rs::Result;
@@ -17,7 +18,7 @@ fn thirft_advanced_setup() -> Result<Session> {
         .with_thrift_transport(ThriftTransport::SharedMemory(
             ThriftSharedMemoryTransportBuilder::default()
                 .with_memory_name("hapi-rs-advanced-server")
-                .with_buffer_size(1000)
+                .with_buffer_size(NonZeroU64::new(1000).unwrap())
                 .with_buffer_type(ThriftSharedMemoryBufferType::Buffer)
                 .build(),
         ))

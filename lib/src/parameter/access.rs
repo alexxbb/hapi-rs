@@ -127,7 +127,8 @@ impl StringParameter {
         let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         let name = self.c_name()?;
-        crate::ffi::get_parm_string_value(self.0.node, session, &name, index)
+        let bytes = crate::ffi::get_parm_string_value(self.0.node, session, &name, index)?;
+        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
     }
     /// Set all parameter tuple values
     pub fn set_array<T: AsRef<str>>(&self, val: impl AsRef<[T]>) -> Result<()> {
@@ -151,7 +152,7 @@ impl StringParameter {
             self.0.info.string_values_index(),
             self.0.info.size(),
         )
-        .map(|array| array.into())
+        .map(|array| array.into_iter().collect())
     }
 
     /// Save/Download a file referenced in this parameter to a given file.

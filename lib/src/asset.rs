@@ -158,7 +158,10 @@ impl<'a> AssetParm<'a> {
             self.info.id(),
             tag_c_str,
         )?;
-        Ok((String::from_utf8_lossy(&tag_name).to_string(), tag_value))
+        Ok((
+            String::from_utf8_lossy(&tag_name).to_string(),
+            String::from_utf8_lossy(&tag_value).to_string(),
+        ))
     }
 }
 
@@ -322,7 +325,7 @@ impl AssetLibrary {
         let values = AssetParmValues {
             int: values.0,
             float: values.1,
-            string: values.2,
+            string: values.2.into_iter().collect(),
             menus: menus.collect(),
         };
         Ok(AssetParameters {

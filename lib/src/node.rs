@@ -181,7 +181,8 @@ impl NodeHandle {
     /// Returns node's internal path.
     pub fn path(&self, session: &Session) -> Result<String> {
         debug_assert!(self.is_valid(session)?, "Invalid {:?}", self);
-        crate::ffi::get_node_path(session, *self, None)
+        let bytes = crate::ffi::get_node_path(session, *self, None)?;
+        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
     }
 
     /// Returns node's path relative to another node.
@@ -191,7 +192,8 @@ impl NodeHandle {
         to: impl Into<Option<NodeHandle>>,
     ) -> Result<String> {
         debug_assert!(self.is_valid(session)?, "Invalid {:?}", self);
-        crate::ffi::get_node_path(session, *self, to.into())
+        let bytes = crate::ffi::get_node_path(session, *self, to.into())?;
+        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
     }
 
     /// Check if the handle is valid (node wasn't deleted)
@@ -512,7 +514,8 @@ impl HoudiniNode {
     /// Compose the cook result (errors and warnings) of all nodes in the network into a string.
     pub fn get_composed_cook_result_string(&self, verbosity: StatusVerbosity) -> Result<String> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        unsafe { crate::ffi::get_composed_cook_result(self, verbosity) }
+        let bytes = crate::ffi::get_composed_cook_result(self, verbosity)?;
+        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
     }
 
     /// Get the cook errors and warnings on this node as a string
@@ -617,7 +620,11 @@ impl HoudiniNode {
     /// Get names of each HDA output
     pub fn get_output_names(&self) -> Result<Vec<String>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        crate::ffi::get_output_names(self)
+        let bytes = crate::ffi::get_output_names(self)?;
+        bytes
+            .into_iter()
+            .map(|b| String::from_utf8(b).map_err(crate::errors::HapiError::from))
+            .collect()
     }
 
     /// Return all output nodes as Geometry.
@@ -719,7 +726,8 @@ impl HoudiniNode {
     /// Get the name of a node's input.
     pub fn get_input_name(&self, input_index: i32) -> Result<String> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        crate::ffi::get_node_input_name(self, input_index)
+        let bytes = crate::ffi::get_node_input_name(self, input_index)?;
+        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
     }
 
     /// Get the ids of the message nodes specified in the HDA Type Properties

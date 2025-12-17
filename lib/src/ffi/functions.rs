@@ -126,7 +126,7 @@ pub fn get_parm_string_value(
     session: &Session,
     name: &CStr,
     index: i32,
-) -> Result<String> {
+) -> Result<Vec<u8>> {
     let mut handle = uninit!();
     let handle = unsafe {
         raw::HAPI_GetParmStringValue(
@@ -140,7 +140,7 @@ pub fn get_parm_string_value(
         .check_err(session, || "Calling HAPI_GetParmStringValue")?;
         handle.assume_init()
     };
-    crate::stringhandle::get_string(StringHandle(handle), session)
+    get_string_bytes(session, StringHandle(handle), true)
 }
 
 pub fn get_parm_node_value(
@@ -268,7 +268,7 @@ pub fn get_parm_expression(
     session: &Session,
     parm: &CStr,
     index: i32,
-) -> Result<Option<String>> {
+) -> Result<Option<Vec<u8>>> {
     let handle = unsafe {
         let mut handle = uninit!();
         raw::HAPI_GetParmExpression(
@@ -284,9 +284,9 @@ pub fn get_parm_expression(
     match handle {
         0 => Ok(None),
         _ => Ok(
-            match crate::stringhandle::get_string(StringHandle(handle), session)? {
-                s if s.is_empty() => None,
-                s => Some(s),
+            match get_string_bytes(session, StringHandle(handle), true)? {
+                buffer if buffer.is_empty() => None,
+                buffer => Some(buffer),
             },
         ),
     }
@@ -430,7 +430,7 @@ pub fn get_node_path(
     session: &Session,
     node: NodeHandle,
     relative_to: Option<NodeHandle>,
-) -> Result<String> {
+) -> Result<Vec<u8>> {
     unsafe {
         let mut sh = uninit!();
         raw::HAPI_GetNodePath(
@@ -440,7 +440,7 @@ pub fn get_node_path(
             sh.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_GetNodePath")?;
-        crate::stringhandle::get_string(StringHandle(sh.assume_init()), session)
+        get_string_bytes(session, StringHandle(sh.assume_init()), true)
     }
 }
 
@@ -547,12 +547,12 @@ pub fn get_asset_library_ids(session: &Session) -> Result<Vec<raw::HAPI_AssetLib
     }
 }
 
-pub fn get_asset_library_file_path(session: &Session, library_id: i32) -> Result<String> {
+pub fn get_asset_library_file_path(session: &Session, library_id: i32) -> Result<Vec<u8>> {
     unsafe {
         let mut handle = -1;
         raw::HAPI_GetAssetLibraryFilePath(session.ptr(), library_id, &mut handle as *mut _)
             .check_err(session, || "Calling HAPI_GetAssetLibraryFilePath")?;
-        crate::stringhandle::get_string(StringHandle(handle), session)
+        get_string_bytes(session, StringHandle(handle), true)
     }
 }
 
@@ -617,7 +617,7 @@ pub fn get_asset_def_parm_values(
 ) -> Result<(
     Vec<i32>,
     Vec<f32>,
-    Vec<String>,
+    StringArray,
     Vec<raw::HAPI_ParmChoiceInfo>,
 )> {
     let mut int_values = vec![0; count.int_count as usize];
@@ -648,8 +648,7 @@ pub fn get_asset_def_parm_values(
     }
 
     let string_array = crate::stringhandle::get_string_array(&string_handles, session)?;
-    let string_values = string_array.into_iter().collect();
-    Ok((int_values, float_values, string_values, choice_values))
+    Ok((int_values, float_values, string_array, choice_values))
 }
 
 pub fn get_string_batch_size(handles: &[StringHandle], session: &Session) -> Result<i32> {
@@ -668,32 +667,47 @@ pub fn get_string_batch_size(handles: &[StringHandle], session: &Session) -> Res
 }
 
 /// Note: contiguous array of null-terminated strings
-pub fn get_string_batch(length: i32, session: &Session) -> Result<Vec<u8>> {
+pub fn get_string_batch_bytes(length: i32, session: &Session) -> Result<Vec<u8>> {
     let mut buffer = vec![0u8; length as usize];
     unsafe {
         raw::HAPI_GetStringBatch(session.ptr(), buffer.as_mut_ptr() as *mut _, length)
             .check_err(session, || "Calling HAPI_GetStringBatch")?;
     }
-    buffer.truncate(length as usize);
     Ok(buffer)
 }
 
-pub fn get_string_buff_len(session: &Session, handle: i32) -> Result<i32> {
+pub fn get_string_buff_len(session: &Session, handle: StringHandle) -> Result<i32> {
     unsafe {
         let mut length = uninit!();
-        raw::HAPI_GetStringBufLength(session.ptr(), handle, length.as_mut_ptr())
+        raw::HAPI_GetStringBufLength(session.ptr(), handle.0, length.as_mut_ptr())
             .check_err(session, || "Calling HAPI_GetStringBufLength")?;
         Ok(length.assume_init())
     }
 }
 
-pub fn get_string(session: &Session, handle: i32, length: i32) -> Result<Vec<u8>> {
+/// Returns the bytes of the string, optionally truncated to remove the null terminator
+pub fn get_string_bytes(
+    session: &Session,
+    handle: StringHandle,
+    truncate: bool,
+) -> Result<Vec<u8>> {
+    let length = get_string_buff_len(session, handle)?;
+    if length == 0 {
+        return Ok(Vec::new());
+    }
     let mut buffer = vec![0u8; length as usize];
     unsafe {
-        raw::HAPI_GetString(session.ptr(), handle, buffer.as_mut_ptr() as *mut _, length)
-            .check_err(session, || "Calling HAPI_GetString")?;
+        raw::HAPI_GetString(
+            session.ptr(),
+            handle.0,
+            buffer.as_mut_ptr() as *mut _,
+            length,
+        )
+        .check_err(session, || "Calling HAPI_GetString")?;
     }
-    buffer.truncate(length as usize - 1);
+    if truncate {
+        buffer.truncate(length as usize - 1);
+    }
     Ok(buffer)
 }
 
@@ -701,7 +715,7 @@ pub fn get_status_string(
     session: &Session,
     status: raw::StatusType,
     verbosity: raw::StatusVerbosity,
-) -> Result<String> {
+) -> Result<Vec<u8>> {
     let mut length = uninit!();
     let _lock = session.lock();
     unsafe {
@@ -713,9 +727,9 @@ pub fn get_status_string(
             raw::HAPI_GetStatusString(session.ptr(), status, buf.as_mut_ptr() as *mut i8, length)
                 .add_context("Calling HAPI_GetStatusString: failed")?;
             buf.truncate(length as usize - 1);
-            Ok(String::from_utf8_unchecked(buf))
+            Ok(buf)
         } else {
-            Ok(String::new())
+            Ok(Vec::new())
         }
     }
 }
@@ -1352,12 +1366,12 @@ pub fn disconnect_node_input(node: &HoudiniNode, input: i32) -> Result<()> {
     }
 }
 
-pub fn get_node_input_name(node: &HoudiniNode, input: i32) -> Result<String> {
+pub fn get_node_input_name(node: &HoudiniNode, input: i32) -> Result<Vec<u8>> {
     let mut name = uninit!();
     unsafe {
         raw::HAPI_GetNodeInputName(node.session.ptr(), node.handle.0, input, name.as_mut_ptr())
             .check_err(&node.session, || "Calling HAPI_GetNodeInputName")?;
-        crate::stringhandle::get_string(StringHandle(name.assume_init()), &node.session)
+        get_string_bytes(&node.session, StringHandle(name.assume_init()), true)
     }
 }
 
@@ -1442,10 +1456,11 @@ pub fn check_for_specific_errors(
     }
 }
 
-pub unsafe fn get_composed_cook_result(
+// Returns a truncated buffer, without the null terminator
+pub fn get_composed_cook_result(
     node: &HoudiniNode,
     verbosity: raw::StatusVerbosity,
-) -> Result<String> {
+) -> Result<Vec<u8>> {
     let mut len = uninit!();
     unsafe {
         raw::HAPI_ComposeNodeCookResult(
@@ -1463,7 +1478,7 @@ pub unsafe fn get_composed_cook_result(
     }
     .check_err(&node.session, || "Calling HAPI_GetComposedNodeCookResult")?;
     buf.truncate(len as usize - 1);
-    Ok(unsafe { String::from_utf8_unchecked(buf) })
+    Ok(buf)
 }
 
 pub fn get_time(session: &Session) -> Result<f64> {
@@ -1569,7 +1584,7 @@ pub fn get_output_geo_count(node: &HoudiniNode) -> Result<i32> {
     }
 }
 
-pub fn get_output_names(node: &HoudiniNode) -> Result<Vec<String>> {
+pub fn get_output_names(node: &HoudiniNode) -> Result<Vec<Vec<u8>>> {
     let mut names = Vec::new();
     let _ = node.session.lock();
     for output_idx in 0..node.info.output_count() {
@@ -1582,10 +1597,11 @@ pub fn get_output_names(node: &HoudiniNode) -> Result<Vec<String>> {
                 handle.as_mut_ptr(),
             )
             .check_err(&node.session, || "Calling HAPI_GetNodeOutputName")?;
-            names.push(crate::stringhandle::get_string(
-                StringHandle(handle.assume_init()),
+            names.push(get_string_bytes(
                 &node.session,
-            )?)
+                StringHandle(handle.assume_init()),
+                true,
+            )?);
         }
     }
     Ok(names)
@@ -2358,7 +2374,7 @@ pub fn get_parm_tag_name(
     node: NodeHandle,
     parm_id: ParmHandle,
     tag_index: i32,
-) -> Result<String> {
+) -> Result<Vec<u8>> {
     let handle = unsafe {
         let mut handle = uninit!();
         raw::HAPI_GetParmTagName(
@@ -2371,7 +2387,7 @@ pub fn get_parm_tag_name(
         .check_err(session, || "Calling HAPI_GetParmTagName")?;
         handle.assume_init()
     };
-    crate::stringhandle::get_string(StringHandle(handle), session)
+    get_string_bytes(session, StringHandle(handle), true)
 }
 
 pub fn get_parm_tag_value(
@@ -2379,7 +2395,7 @@ pub fn get_parm_tag_value(
     node: NodeHandle,
     parm_id: ParmHandle,
     tag_name: &CStr,
-) -> Result<String> {
+) -> Result<Vec<u8>> {
     let handle = unsafe {
         let mut handle = uninit!();
         raw::HAPI_GetParmTagValue(
@@ -2392,7 +2408,7 @@ pub fn get_parm_tag_value(
         .check_err(session, || "Calling HAPI_GetParmTagValue")?;
         handle.assume_init()
     };
-    crate::stringhandle::get_string(StringHandle(handle), session)
+    get_string_bytes(session, StringHandle(handle), true)
 }
 
 pub fn get_face_counts(
@@ -3219,7 +3235,7 @@ pub fn extract_image_to_file(
     image_planes: &CStr,
     dest_folder: &CStr,
     dest_file: &CStr,
-) -> Result<String> {
+) -> Result<Vec<u8>> {
     let mut handle = uninit!();
     unsafe {
         raw::HAPI_ExtractImageToFile(
@@ -3232,7 +3248,7 @@ pub fn extract_image_to_file(
             handle.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_ExtractImageToFile")?;
-        crate::stringhandle::get_string(StringHandle(handle.assume_init()), session)
+        get_string_bytes(session, StringHandle(handle.assume_init()), true)
     }
 }
 
@@ -3874,7 +3890,7 @@ pub fn get_asset_definition_parm_tag_name(
         )
         .check_err(session, || "Calling HAPI_GetAssetDefinitionParmTagName")?;
         let handle = handle.assume_init();
-        crate::stringhandle::get_string_bytes(StringHandle(handle), session)
+        get_string_bytes(session, StringHandle(handle), true)
     }
 }
 
@@ -3884,7 +3900,7 @@ pub fn get_asset_definition_parm_tag_value(
     asset_name: &CStr,
     parm_id: ParmHandle,
     tag_name: &CStr,
-) -> Result<String> {
+) -> Result<Vec<u8>> {
     let mut handle = uninit!();
     unsafe {
         raw::HAPI_GetAssetDefinitionParmTagValue(
@@ -3897,7 +3913,7 @@ pub fn get_asset_definition_parm_tag_value(
         )
         .check_err(session, || "Calling HAPI_GetAssetDefinitionParmTagValue")?;
         let handle = handle.assume_init();
-        crate::stringhandle::get_string(StringHandle(handle), session)
+        get_string_bytes(session, StringHandle(handle), true)
     }
 }
 
