@@ -2,13 +2,14 @@ use std::{
     collections::HashMap,
     ffi::{CString, OsStr, OsString},
     net::SocketAddrV4,
+    num::NonZeroU64,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
     time::Duration,
 };
 
-use log::{debug, error};
+use log::{debug, error, warn};
 use temp_env;
 
 use crate::{
@@ -96,8 +97,17 @@ impl ThriftSharedMemoryTransportBuilder {
         self.buffer_type = buffer_type;
         self
     }
-    pub fn with_buffer_size(mut self, buffer_size: i64) -> Self {
-        self.buffer_size = buffer_size;
+    pub fn with_buffer_size(mut self, buffer_size: NonZeroU64) -> Self {
+        self.buffer_size = match buffer_size.get().try_into() {
+            Ok(size) => size,
+            Err(_) => {
+                // When u64 can't fit into i64, use default of 1024 MB
+                warn!(
+                    "ThriftSharedMemoryTransport buffer size is too large, using default of 1024"
+                );
+                1024
+            }
+        };
         self
     }
     pub fn build(self) -> ThriftSharedMemoryTransport {
@@ -118,6 +128,8 @@ pub struct ServerOptions {
     pub log_file: Option<CString>,
     pub env_variables: Option<HashMap<OsString, OsString>>,
     pub license_preference: Option<LicensePreference>,
+    pub connection_count: i32,
+    pub server_ready_timeout: Option<u32>,
     pub(crate) connection_retry_interval: Option<Duration>,
 }
 
@@ -132,6 +144,8 @@ impl Default for ServerOptions {
             log_file: None,
             env_variables: None,
             license_preference: None,
+            connection_count: 0,
+            server_ready_timeout: None,
             connection_retry_interval: Some(Duration::from_secs(10)),
         }
     }
@@ -175,14 +189,10 @@ impl ServerOptions {
     pub fn with_license_preference(mut self, license_preference: LicensePreference) -> Self {
         self.license_preference.replace(license_preference);
 
-        if let Some(license_preference) = self.license_preference {
-            self.env_variables.as_mut().map(|env_variables| {
-                env_variables.insert(
-                    OsString::from("HOUDINI_PLUGIN_LIC_OPT"),
-                    OsString::from(license_preference.to_string()),
-                )
-            });
-        }
+        self.env_variables.get_or_insert_default().insert(
+            OsString::from("HOUDINI_PLUGIN_LIC_OPT"),
+            OsString::from(license_preference.to_string()),
+        );
 
         self
     }
@@ -223,11 +233,24 @@ impl ServerOptions {
         self
     }
 
-    pub(crate) fn session_info(&self) -> crate::ffi::SessionInfo {
-        // FIXME: connection_count should be configurable!
-        // It's set to 0 because of a bug in HARS which prevents session creation if the value is > 0.
+    pub fn with_connection_count(mut self, connection_count: i32) -> Self {
+        // BUG: HARS 21.0.* has a bug where the connection count is not respected.
+        // If connection_count is > 0, there is a bug in HARS which prevents session creation.
         // However, async attribute access requires a connection count > 0 according to SESI support, otherwise HARS crashes too.
-        let mut session_info = crate::ffi::SessionInfo::default().with_connection_count(0);
+        self.connection_count = connection_count;
+        self
+    }
+
+    /// Set the timeout for the server to be ready in ms
+    /// This is the timeout for the server to initialize and be ready to accept connections.
+    pub fn with_server_ready_timeout(mut self, timeout: u32) -> Self {
+        self.server_ready_timeout.replace(timeout);
+        self
+    }
+
+    pub(crate) fn session_info(&self) -> crate::ffi::SessionInfo {
+        let mut session_info =
+            crate::ffi::SessionInfo::default().with_connection_count(self.connection_count);
 
         if let ThriftTransport::SharedMemory(transport) = &self.thrift_transport {
             session_info.set_shared_memory_buffer_type(transport.buffer_type);
@@ -245,6 +268,9 @@ impl ServerOptions {
         if let ThriftTransport::SharedMemory(transport) = &self.thrift_transport {
             options.set_shared_memory_buffer_type(transport.buffer_type);
             options.set_shared_memory_buffer_size(transport.buffer_size);
+        }
+        if let Some(timeout) = self.server_ready_timeout {
+            options.set_timeout_ms(timeout as f32);
         }
 
         options
@@ -361,7 +387,9 @@ pub fn connect_to_socket_server(
         ));
     };
     debug!("Connecting to socket server: {:?}", address);
-    let host = CString::new(address.ip().to_string()).expect("SocketAddr->CString");
+    let host = CString::new(address.ip().to_string())
+        .map_err(HapiError::from)
+        .context("Converting SocketAddr to CString")?;
     let handle = try_connect_with_timeout(
         server_options.connection_retry_interval,
         Duration::from_millis(100),
