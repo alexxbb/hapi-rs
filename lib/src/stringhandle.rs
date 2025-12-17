@@ -144,16 +144,13 @@ impl IntoIterator for StringArray {
 }
 
 pub(crate) fn get_string(handle: StringHandle, session: &Session) -> Result<String> {
-    let bytes = crate::ffi::get_string_bytes(session, handle, true)?;
-    String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
+    let bytes = crate::ffi::get_string_bytes(session, handle)?;
+    String::from_utf8(bytes).map_err(crate::HapiError::from)
 }
 
 pub(crate) fn get_cstring(handle: StringHandle, session: &Session) -> Result<CString> {
-    unsafe {
-        let bytes = crate::ffi::get_string_bytes(session, handle, false)?;
-        // SAFETY: HAPI C API should not return strings with interior zero byte
-        Ok(CString::from_vec_unchecked(bytes))
-    }
+    let bytes = crate::ffi::get_string_bytes(session, handle)?;
+    CString::new(bytes).map_err(crate::HapiError::from)
 }
 
 pub fn get_string_array(handles: &[StringHandle], session: &Session) -> Result<StringArray> {

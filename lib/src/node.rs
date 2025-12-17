@@ -181,8 +181,7 @@ impl NodeHandle {
     /// Returns node's internal path.
     pub fn path(&self, session: &Session) -> Result<String> {
         debug_assert!(self.is_valid(session)?, "Invalid {:?}", self);
-        let bytes = crate::ffi::get_node_path(session, *self, None)?;
-        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
+        crate::ffi::get_node_path(session, *self, None)
     }
 
     /// Returns node's path relative to another node.
@@ -192,8 +191,7 @@ impl NodeHandle {
         to: impl Into<Option<NodeHandle>>,
     ) -> Result<String> {
         debug_assert!(self.is_valid(session)?, "Invalid {:?}", self);
-        let bytes = crate::ffi::get_node_path(session, *self, to.into())?;
-        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
+        crate::ffi::get_node_path(session, *self, to.into())
     }
 
     /// Check if the handle is valid (node wasn't deleted)
@@ -620,11 +618,7 @@ impl HoudiniNode {
     /// Get names of each HDA output
     pub fn get_output_names(&self) -> Result<Vec<String>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        let bytes = crate::ffi::get_output_names(self)?;
-        bytes
-            .into_iter()
-            .map(|b| String::from_utf8(b).map_err(crate::errors::HapiError::from))
-            .collect()
+        crate::ffi::get_output_names(self)
     }
 
     /// Return all output nodes as Geometry.
@@ -726,8 +720,7 @@ impl HoudiniNode {
     /// Get the name of a node's input.
     pub fn get_input_name(&self, input_index: i32) -> Result<String> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        let bytes = crate::ffi::get_node_input_name(self, input_index)?;
-        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
+        crate::ffi::get_node_input_name(self, input_index)
     }
 
     /// Get the ids of the message nodes specified in the HDA Type Properties

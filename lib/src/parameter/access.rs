@@ -127,8 +127,7 @@ impl StringParameter {
         let session = &self.0.info.1;
         debug_assert!(self.0.node.is_valid(session)?);
         let name = self.c_name()?;
-        let bytes = crate::ffi::get_parm_string_value(self.0.node, session, &name, index)?;
-        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
+        crate::ffi::get_parm_string_value(self.0.node, session, &name, index)
     }
     /// Set all parameter tuple values
     pub fn set_array<T: AsRef<str>>(&self, val: impl AsRef<[T]>) -> Result<()> {

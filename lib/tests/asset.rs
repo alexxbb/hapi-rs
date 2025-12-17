@@ -40,13 +40,13 @@ fn asset_get_names() {
 #[test]
 fn asset_parameter_tags() {
     with_session_asset(HdaFile::Parameters, |lib| {
-        let parms = lib.get_asset_parms("Object/hapi_parms")?;
+        let parms = lib.get_asset_parms("Object/hapi_parms").unwrap();
         let parm = parms.find_parameter("float3").expect("float3 parameter");
         assert_eq!(parm.tag_count(), 2);
-        let (tag_name, tag_value) = parm.get_tag(0)?;
+        let (tag_name, tag_value) = parm.get_tag(0).unwrap();
         assert_eq!(tag_name, "script_callback_language");
         assert_eq!(tag_value, "python");
-        let (tag_name, tag_value) = parm.get_tag(1)?;
+        let (tag_name, tag_value) = parm.get_tag(1).unwrap();
         assert_eq!(tag_name, "my_tag");
         assert_eq!(tag_value, "foo");
         Ok(())

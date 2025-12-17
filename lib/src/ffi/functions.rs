@@ -126,7 +126,7 @@ pub fn get_parm_string_value(
     session: &Session,
     name: &CStr,
     index: i32,
-) -> Result<Vec<u8>> {
+) -> Result<String> {
     let mut handle = uninit!();
     let handle = unsafe {
         raw::HAPI_GetParmStringValue(
@@ -140,7 +140,8 @@ pub fn get_parm_string_value(
         .check_err(session, || "Calling HAPI_GetParmStringValue")?;
         handle.assume_init()
     };
-    get_string_bytes(session, StringHandle(handle), true)
+    String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+        .map_err(crate::errors::HapiError::from)
 }
 
 pub fn get_parm_node_value(
@@ -268,7 +269,7 @@ pub fn get_parm_expression(
     session: &Session,
     parm: &CStr,
     index: i32,
-) -> Result<Option<Vec<u8>>> {
+) -> Result<String> {
     let handle = unsafe {
         let mut handle = uninit!();
         raw::HAPI_GetParmExpression(
@@ -282,13 +283,9 @@ pub fn get_parm_expression(
         handle.assume_init()
     };
     match handle {
-        0 => Ok(None),
-        _ => Ok(
-            match get_string_bytes(session, StringHandle(handle), true)? {
-                buffer if buffer.is_empty() => None,
-                buffer => Some(buffer),
-            },
-        ),
+        0 => Ok(String::new()),
+        _ => String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+            .map_err(crate::errors::HapiError::from),
     }
 }
 
@@ -430,7 +427,7 @@ pub fn get_node_path(
     session: &Session,
     node: NodeHandle,
     relative_to: Option<NodeHandle>,
-) -> Result<Vec<u8>> {
+) -> Result<String> {
     unsafe {
         let mut sh = uninit!();
         raw::HAPI_GetNodePath(
@@ -440,7 +437,8 @@ pub fn get_node_path(
             sh.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_GetNodePath")?;
-        get_string_bytes(session, StringHandle(sh.assume_init()), true)
+        String::from_utf8(get_string_bytes(session, StringHandle(sh.assume_init()))?)
+            .map_err(crate::errors::HapiError::from)
     }
 }
 
@@ -547,12 +545,13 @@ pub fn get_asset_library_ids(session: &Session) -> Result<Vec<raw::HAPI_AssetLib
     }
 }
 
-pub fn get_asset_library_file_path(session: &Session, library_id: i32) -> Result<Vec<u8>> {
+pub fn get_asset_library_file_path(session: &Session, library_id: i32) -> Result<String> {
     unsafe {
         let mut handle = -1;
         raw::HAPI_GetAssetLibraryFilePath(session.ptr(), library_id, &mut handle as *mut _)
             .check_err(session, || "Calling HAPI_GetAssetLibraryFilePath")?;
-        get_string_bytes(session, StringHandle(handle), true)
+        String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+            .map_err(crate::errors::HapiError::from)
     }
 }
 
@@ -685,12 +684,8 @@ pub fn get_string_buff_len(session: &Session, handle: StringHandle) -> Result<i3
     }
 }
 
-/// Returns the bytes of the string, optionally truncated to remove the null terminator
-pub fn get_string_bytes(
-    session: &Session,
-    handle: StringHandle,
-    truncate: bool,
-) -> Result<Vec<u8>> {
+/// Returns the bytes of the string with trailing null terminator removed
+pub fn get_string_bytes(session: &Session, handle: StringHandle) -> Result<Vec<u8>> {
     let length = get_string_buff_len(session, handle)?;
     if length == 0 {
         return Ok(Vec::new());
@@ -705,9 +700,7 @@ pub fn get_string_bytes(
         )
         .check_err(session, || "Calling HAPI_GetString")?;
     }
-    if truncate {
-        buffer.truncate(length as usize - 1);
-    }
+    buffer.truncate(buffer.len() - 1);
     Ok(buffer)
 }
 
@@ -715,7 +708,7 @@ pub fn get_status_string(
     session: &Session,
     status: raw::StatusType,
     verbosity: raw::StatusVerbosity,
-) -> Result<Vec<u8>> {
+) -> Result<String> {
     let mut length = uninit!();
     let _lock = session.lock();
     unsafe {
@@ -727,9 +720,9 @@ pub fn get_status_string(
             raw::HAPI_GetStatusString(session.ptr(), status, buf.as_mut_ptr() as *mut i8, length)
                 .add_context("Calling HAPI_GetStatusString: failed")?;
             buf.truncate(length as usize - 1);
-            Ok(buf)
+            String::from_utf8(buf).map_err(crate::errors::HapiError::from)
         } else {
-            Ok(Vec::new())
+            Ok(String::new())
         }
     }
 }
@@ -1366,13 +1359,15 @@ pub fn disconnect_node_input(node: &HoudiniNode, input: i32) -> Result<()> {
     }
 }
 
-pub fn get_node_input_name(node: &HoudiniNode, input: i32) -> Result<Vec<u8>> {
+pub fn get_node_input_name(node: &HoudiniNode, input: i32) -> Result<String> {
     let mut name = uninit!();
-    unsafe {
+    let handle = unsafe {
         raw::HAPI_GetNodeInputName(node.session.ptr(), node.handle.0, input, name.as_mut_ptr())
             .check_err(&node.session, || "Calling HAPI_GetNodeInputName")?;
-        get_string_bytes(&node.session, StringHandle(name.assume_init()), true)
-    }
+        name.assume_init()
+    };
+    String::from_utf8(get_string_bytes(&node.session, StringHandle(handle))?)
+        .map_err(crate::errors::HapiError::from)
 }
 
 pub fn disconnect_node_outputs(node: &HoudiniNode, output_index: i32) -> Result<()> {
@@ -1584,7 +1579,7 @@ pub fn get_output_geo_count(node: &HoudiniNode) -> Result<i32> {
     }
 }
 
-pub fn get_output_names(node: &HoudiniNode) -> Result<Vec<Vec<u8>>> {
+pub fn get_output_names(node: &HoudiniNode) -> Result<Vec<String>> {
     let mut names = Vec::new();
     let _ = node.session.lock();
     for output_idx in 0..node.info.output_count() {
@@ -1597,11 +1592,10 @@ pub fn get_output_names(node: &HoudiniNode) -> Result<Vec<Vec<u8>>> {
                 handle.as_mut_ptr(),
             )
             .check_err(&node.session, || "Calling HAPI_GetNodeOutputName")?;
-            names.push(get_string_bytes(
+            names.push(String::from_utf8(get_string_bytes(
                 &node.session,
                 StringHandle(handle.assume_init()),
-                true,
-            )?);
+            )?)?)
         }
     }
     Ok(names)
@@ -2374,7 +2368,7 @@ pub fn get_parm_tag_name(
     node: NodeHandle,
     parm_id: ParmHandle,
     tag_index: i32,
-) -> Result<Vec<u8>> {
+) -> Result<String> {
     let handle = unsafe {
         let mut handle = uninit!();
         raw::HAPI_GetParmTagName(
@@ -2387,7 +2381,8 @@ pub fn get_parm_tag_name(
         .check_err(session, || "Calling HAPI_GetParmTagName")?;
         handle.assume_init()
     };
-    get_string_bytes(session, StringHandle(handle), true)
+    String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+        .map_err(crate::errors::HapiError::from)
 }
 
 pub fn get_parm_tag_value(
@@ -2395,7 +2390,7 @@ pub fn get_parm_tag_value(
     node: NodeHandle,
     parm_id: ParmHandle,
     tag_name: &CStr,
-) -> Result<Vec<u8>> {
+) -> Result<String> {
     let handle = unsafe {
         let mut handle = uninit!();
         raw::HAPI_GetParmTagValue(
@@ -2408,7 +2403,8 @@ pub fn get_parm_tag_value(
         .check_err(session, || "Calling HAPI_GetParmTagValue")?;
         handle.assume_init()
     };
-    get_string_bytes(session, StringHandle(handle), true)
+    String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+        .map_err(crate::errors::HapiError::from)
 }
 
 pub fn get_face_counts(
@@ -3235,7 +3231,7 @@ pub fn extract_image_to_file(
     image_planes: &CStr,
     dest_folder: &CStr,
     dest_file: &CStr,
-) -> Result<Vec<u8>> {
+) -> Result<String> {
     let mut handle = uninit!();
     unsafe {
         raw::HAPI_ExtractImageToFile(
@@ -3248,7 +3244,11 @@ pub fn extract_image_to_file(
             handle.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_ExtractImageToFile")?;
-        get_string_bytes(session, StringHandle(handle.assume_init()), true)
+        String::from_utf8(get_string_bytes(
+            session,
+            StringHandle(handle.assume_init()),
+        )?)
+        .map_err(crate::errors::HapiError::from)
     }
 }
 
@@ -3877,7 +3877,7 @@ pub fn get_asset_definition_parm_tag_name(
     asset_name: &CStr,
     parm_id: ParmHandle,
     index: i32,
-) -> Result<Vec<u8>> {
+) -> Result<String> {
     let mut handle = uninit!();
     unsafe {
         raw::HAPI_GetAssetDefinitionParmTagName(
@@ -3890,7 +3890,8 @@ pub fn get_asset_definition_parm_tag_name(
         )
         .check_err(session, || "Calling HAPI_GetAssetDefinitionParmTagName")?;
         let handle = handle.assume_init();
-        get_string_bytes(session, StringHandle(handle), true)
+        String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+            .map_err(crate::errors::HapiError::from)
     }
 }
 
@@ -3900,7 +3901,7 @@ pub fn get_asset_definition_parm_tag_value(
     asset_name: &CStr,
     parm_id: ParmHandle,
     tag_name: &CStr,
-) -> Result<Vec<u8>> {
+) -> Result<String> {
     let mut handle = uninit!();
     unsafe {
         raw::HAPI_GetAssetDefinitionParmTagValue(
@@ -3913,7 +3914,8 @@ pub fn get_asset_definition_parm_tag_value(
         )
         .check_err(session, || "Calling HAPI_GetAssetDefinitionParmTagValue")?;
         let handle = handle.assume_init();
-        get_string_bytes(session, StringHandle(handle), true)
+        String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+            .map_err(crate::errors::HapiError::from)
     }
 }
 

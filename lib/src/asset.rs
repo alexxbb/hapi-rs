@@ -150,18 +150,15 @@ impl<'a> AssetParm<'a> {
             tag_index,
         )?;
         // SAFETY: string bytes obtained from FFI are null terminated
-        let tag_c_str = unsafe { CStr::from_bytes_with_nul_unchecked(&tag_name) };
+        let tag_c_str = CString::new(tag_name.clone())?;
         let tag_value = crate::ffi::get_asset_definition_parm_tag_value(
             &self.info.1,
             self.library_id,
             self.asset_name,
             self.info.id(),
-            tag_c_str,
+            &tag_c_str,
         )?;
-        Ok((
-            String::from_utf8_lossy(&tag_name).to_string(),
-            String::from_utf8_lossy(&tag_value).to_string(),
-        ))
+        Ok((tag_name, tag_value))
     }
 }
 

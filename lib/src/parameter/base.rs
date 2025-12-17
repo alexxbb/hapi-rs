@@ -113,11 +113,12 @@ pub trait ParmBaseTrait {
         let inner = self.inner();
         debug_assert!(inner.info.1.is_valid());
         let name = self.c_name()?;
-        let bytes = crate::ffi::get_parm_expression(inner.node, &inner.info.1, &name, index)?;
-        bytes
-            .map(String::from_utf8)
-            .transpose()
-            .map_err(crate::errors::HapiError::from)
+        let expr_string = crate::ffi::get_parm_expression(inner.node, &inner.info.1, &name, index)?;
+        Ok(if expr_string.is_empty() {
+            None
+        } else {
+            Some(expr_string)
+        })
     }
 
     /// Checks if parameter has an expression
@@ -168,17 +169,13 @@ pub trait ParmBaseTrait {
     /// Get parameter tag name by index. The number of tags is stored in `self.info().tag_count()`
     fn get_tag_name(&self, tag_index: i32) -> Result<String> {
         let inner = self.inner();
-        let bytes =
-            crate::ffi::get_parm_tag_name(&inner.info.1, inner.node, inner.info.id(), tag_index)?;
-        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
+        crate::ffi::get_parm_tag_name(&inner.info.1, inner.node, inner.info.id(), tag_index)
     }
 
     fn get_tag_value(&self, tag_name: &str) -> Result<String> {
         let inner = self.inner();
         let tag = CString::new(tag_name)?;
-        let bytes =
-            crate::ffi::get_parm_tag_value(&inner.info.1, inner.node, inner.info.id(), &tag)?;
-        String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
+        crate::ffi::get_parm_tag_value(&inner.info.1, inner.node, inner.info.id(), &tag)
     }
 
     #[doc(hidden)]

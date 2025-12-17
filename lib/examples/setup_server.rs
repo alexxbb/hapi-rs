@@ -23,7 +23,7 @@ fn thirft_advanced_setup() -> Result<Session> {
                 .build(),
         ))
         .with_connection_timeout(Some(Duration::from_secs(10)))
-        .with_env_variables(vec![("HAPI_RS_ADVANCED_SERVER", "hello")].iter())
+        .with_env_variables([("HAPI_RS_ADVANCED_SERVER", "hello")].iter())
         .with_license_preference(LicensePreference::HoudiniEngineOnly);
     new_thrift_session(
         SessionOptions::default()

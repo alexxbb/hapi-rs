@@ -103,15 +103,14 @@ pub(crate) fn extract_image_to_file(
             .to_string_lossy()
             .to_string(),
     )?;
-    let string_bytes = crate::ffi::extract_image_to_file(
+    crate::ffi::extract_image_to_file(
         session,
         node,
         &format,
         &image_planes,
         &dest_folder,
         &dest_file,
-    )?;
-    String::from_utf8(string_bytes).map_err(crate::errors::HapiError::from)
+    )
 }
 
 pub(crate) fn extract_image_to_memory(
