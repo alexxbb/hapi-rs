@@ -46,6 +46,108 @@ impl std::fmt::Display for NodeType {
     }
 }
 
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct NodeTypeBits(crate::ffi::raw::HAPI_NodeTypeBits);
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct NodeFlagsBits(crate::ffi::raw::HAPI_NodeFlagsBits);
+
+impl From<NodeTypeBits> for crate::ffi::raw::HAPI_NodeTypeBits {
+    fn from(value: NodeTypeBits) -> Self {
+        value.0
+    }
+}
+
+impl From<NodeFlagsBits> for crate::ffi::raw::HAPI_NodeFlagsBits {
+    fn from(value: NodeFlagsBits) -> Self {
+        value.0
+    }
+}
+
+/// Trait to convert a NodeType to a NodeTypeBits
+pub trait ToNodeTypeBits {
+    fn to_bits(self) -> NodeTypeBits;
+}
+
+/// Trait to convert a NodeFlags to a NodeFlagsBits
+pub trait ToNodeFlagsBits {
+    fn to_bits(self) -> NodeFlagsBits;
+}
+
+impl ToNodeTypeBits for NodeType {
+    fn to_bits(self) -> NodeTypeBits {
+        NodeTypeBits(self as crate::ffi::raw::HAPI_NodeTypeBits)
+    }
+}
+
+impl ToNodeFlagsBits for NodeFlags {
+    fn to_bits(self) -> NodeFlagsBits {
+        NodeFlagsBits(self as crate::ffi::raw::HAPI_NodeFlagsBits)
+    }
+}
+
+impl ToNodeTypeBits for NodeTypeBits {
+    fn to_bits(self) -> NodeTypeBits {
+        NodeTypeBits(self.0)
+    }
+}
+
+impl ToNodeFlagsBits for NodeFlagsBits {
+    fn to_bits(self) -> NodeFlagsBits {
+        NodeFlagsBits(self.0)
+    }
+}
+
+impl std::ops::BitOr for NodeFlags {
+    type Output = NodeFlagsBits;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        NodeFlagsBits(
+            (self as crate::ffi::raw::HAPI_NodeFlagsBits)
+                | (rhs as crate::ffi::raw::HAPI_NodeFlagsBits),
+        )
+    }
+}
+
+impl std::ops::BitOr for NodeType {
+    type Output = NodeTypeBits;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        NodeTypeBits(
+            (self as crate::ffi::raw::HAPI_NodeTypeBits)
+                | (rhs as crate::ffi::raw::HAPI_NodeTypeBits),
+        )
+    }
+}
+
+// To allow chaining of bitwise operations
+impl std::ops::BitOr for NodeTypeBits {
+    type Output = NodeTypeBits;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        NodeTypeBits(self.0 | rhs.0)
+    }
+}
+
+impl std::ops::BitOr for NodeFlagsBits {
+    type Output = NodeFlagsBits;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        NodeFlagsBits(self.0 | rhs.0)
+    }
+}
+
+impl std::ops::BitOr<NodeFlags> for NodeFlagsBits {
+    type Output = NodeFlagsBits;
+    fn bitor(self, rhs: NodeFlags) -> Self::Output {
+        NodeFlagsBits(self.0 | (rhs as crate::ffi::raw::HAPI_NodeFlagsBits))
+    }
+}
+
+impl std::ops::BitOr<NodeType> for NodeTypeBits {
+    type Output = NodeTypeBits;
+    fn bitor(self, rhs: NodeType) -> Self::Output {
+        NodeTypeBits(self.0 | (rhs as crate::ffi::raw::HAPI_NodeTypeBits))
+    }
+}
+
 /// Types of Houdini manager nodes (contexts).
 #[derive(Debug, Copy, Clone)]
 #[non_exhaustive]
@@ -91,8 +193,8 @@ impl From<ManagerType> for NodeType {
 fn get_child_node_list(
     session: &Session,
     parent: impl Into<NodeHandle>,
-    types: NodeType,
-    flags: NodeFlags,
+    types: NodeTypeBits,
+    flags: NodeFlagsBits,
     recursive: bool,
 ) -> Result<Vec<NodeHandle>> {
     let ids =
@@ -108,7 +210,14 @@ fn find_networks_nodes(
     recursive: bool,
 ) -> Result<Vec<HoudiniNode>> {
     debug_assert!(session.is_valid());
-    get_child_node_list(session, parent, types, NodeFlags::Network, recursive).map(|vec| {
+    get_child_node_list(
+        session,
+        parent,
+        types.to_bits(),
+        NodeFlags::Network.to_bits(),
+        recursive,
+    )
+    .map(|vec| {
         vec.into_iter()
             .map(|handle| handle.to_node(session))
             .collect::<Result<Vec<_>>>()
@@ -134,8 +243,8 @@ impl ManagerNode {
         get_child_node_list(
             &self.session,
             self.handle,
-            NodeType::from(self.node_type),
-            NodeFlags::Any,
+            NodeType::from(self.node_type).to_bits(),
+            NodeFlags::Any.to_bits(),
             false,
         )
     }
@@ -176,6 +285,13 @@ impl NodeHandle {
     /// Retrieve info about the node this handle belongs to
     pub fn info(&self, session: &Session) -> Result<NodeInfo> {
         NodeInfo::new(session, *self)
+    }
+
+    pub fn asset_info(&self, session: &Session) -> Result<AssetInfo> {
+        Ok(AssetInfo(
+            crate::ffi::get_asset_info(session, *self)?,
+            session.clone().into(),
+        ))
     }
 
     /// Returns node's internal path.
@@ -365,12 +481,12 @@ impl HoudiniNode {
     /// How many times this node has been cooked.
     pub fn cook_count(
         &self,
-        node_types: NodeType,
-        node_flags: NodeFlags,
+        node_types: impl ToNodeTypeBits,
+        node_flags: impl ToNodeFlagsBits,
         recurse: bool,
     ) -> Result<i32> {
         debug_assert!(self.is_valid()?);
-        crate::ffi::get_total_cook_count(self, node_types, node_flags, recurse)
+        crate::ffi::get_total_cook_count(self, node_types.to_bits(), node_flags.to_bits(), recurse)
     }
 
     /// If the node is of Object type, get the information object about it.
@@ -403,18 +519,30 @@ impl HoudiniNode {
     /// Find all children of this node by type.
     pub fn find_children_by_type(
         &self,
-        types: NodeType,
-        flags: NodeFlags,
+        types: impl ToNodeTypeBits,
+        flags: impl ToNodeFlagsBits,
         recursive: bool,
     ) -> Result<Vec<NodeHandle>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        get_child_node_list(&self.session, self, types, flags, recursive)
+        get_child_node_list(
+            &self.session,
+            self,
+            types.to_bits(),
+            flags.to_bits(),
+            recursive,
+        )
     }
 
     /// Get all children of the node, not recursively.
     pub fn get_children(&self) -> Result<Vec<NodeHandle>> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        get_child_node_list(&self.session, self, NodeType::Any, NodeFlags::Any, false)
+        get_child_node_list(
+            &self.session,
+            self,
+            NodeType::Any.to_bits(),
+            NodeFlags::Any.to_bits(),
+            false,
+        )
     }
 
     /// Get a child node by path.
@@ -498,10 +626,7 @@ impl HoudiniNode {
     /// If node is an HDA, return [`AssetInfo`] about it.
     pub fn asset_info(&self) -> Result<AssetInfo> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        Ok(AssetInfo(
-            crate::ffi::get_asset_info(self)?,
-            self.session.clone().into(),
-        ))
+        self.handle.asset_info(&self.session)
     }
     /// Recursively check all nodes for a specific error.
     pub fn check_for_specific_error(&self, error_bits: i32) -> Result<ErrorCode> {

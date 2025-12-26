@@ -236,12 +236,10 @@ impl AssetLibrary {
                 name.as_ref()
             )));
         };
-        // Strip operator namespace if present
-        let context = if let Some((_, context)) = context.split_once("::") {
-            context
-        } else {
-            context
-        };
+        // Operators with namespace better be handle Houdini directly
+        if context.contains("::") {
+            return self.session.create_node(name.as_ref());
+        }
         // There's no root network manager for Sop node types.
         let (manager, subnet) = if context == "Sop" {
             (None, None)

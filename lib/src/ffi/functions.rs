@@ -18,7 +18,7 @@ use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, Par
 use crate::raw::GroupType;
 use crate::{
     errors::{HapiError, Result},
-    node::{HoudiniNode, NodeHandle},
+    node::{HoudiniNode, NodeFlagsBits, NodeHandle, NodeTypeBits},
     parameter::ParmHandle,
     session::{Session, SessionOptions},
     stringhandle::{StringArray, StringHandle},
@@ -499,11 +499,11 @@ pub fn load_library_from_memory(session: &Session, data: &[i8], _override: bool)
     }
 }
 
-pub fn get_asset_info(node: &HoudiniNode) -> Result<raw::HAPI_AssetInfo> {
+pub fn get_asset_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_AssetInfo> {
     unsafe {
         let mut info = uninit!();
-        raw::HAPI_GetAssetInfo(node.session.ptr(), node.handle.0, info.as_mut_ptr())
-            .check_err(&node.session, || "Calling HAPI_GetAssetInfo")?;
+        raw::HAPI_GetAssetInfo(session.ptr(), node.0, info.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_GetAssetInfo")?;
         Ok(info.assume_init())
     }
 }
@@ -1129,8 +1129,8 @@ pub fn get_connection_error(clear: bool) -> Result<String> {
 
 pub fn get_total_cook_count(
     node: &HoudiniNode,
-    node_types: raw::NodeType,
-    node_flags: raw::NodeFlags,
+    node_types: NodeTypeBits,
+    node_flags: NodeFlagsBits,
     recursive: bool,
 ) -> Result<i32> {
     let mut count = uninit!();
@@ -1138,8 +1138,8 @@ pub fn get_total_cook_count(
         raw::HAPI_GetTotalCookCount(
             node.session.ptr(),
             node.handle.0,
-            node_types as i32,
-            node_flags as i32,
+            node_types.into(),
+            node_flags.into(),
             recursive as i8,
             count.as_mut_ptr(),
         )
@@ -1218,8 +1218,8 @@ pub fn get_manager_node(session: &Session, node_type: raw::NodeType) -> Result<H
 pub fn get_compose_child_node_list(
     session: &Session,
     parent: NodeHandle,
-    types: raw::NodeType,
-    flags: raw::NodeFlags,
+    types: NodeTypeBits,
+    flags: NodeFlagsBits,
     recursive: bool,
 ) -> Result<Vec<i32>> {
     let _lock = session.lock();
@@ -1229,8 +1229,8 @@ pub fn get_compose_child_node_list(
         raw::HAPI_ComposeChildNodeList(
             session.ptr(),
             parent.0,
-            types as i32,
-            flags as i32,
+            types.into(),
+            flags.into(),
             recursive as i8,
             count.as_mut_ptr(),
         )
