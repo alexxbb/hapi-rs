@@ -253,8 +253,8 @@ impl ManagerNode {
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 /// A lightweight handle to a node. Can not be created manually, use [`HoudiniNode`] instead.
-/// Some APIs return a list of such handles for efficiency, for example [`HoudiniNode::find_children_by_type`].
-/// Once you found the node you're looking for, upgrade it to a "full" node type.
+/// Some APIs return a list of such handles for efficiency, for example [`HoudiniNode::get_children_by_type`].
+/// Once you found the node you're looking for, upgrade it to a "full" node type with [`NodeHandle::to_node`].
 pub struct NodeHandle(pub(crate) crate::ffi::raw::HAPI_NodeId);
 
 impl From<NodeHandle> for crate::ffi::raw::HAPI_NodeId {
@@ -323,7 +323,7 @@ impl NodeHandle {
 
     /// Upgrade the handle to Geometry node.
     pub fn as_geometry_node(&self, session: &Session) -> Result<Option<Geometry>> {
-        let info = NodeInfo::new(session, *self)?;
+        let info = self.info(session)?;
         match info.node_type() {
             NodeType::Sop => Ok(Some(Geometry {
                 node: HoudiniNode::new(session.clone(), *self, Some(info))?,
@@ -517,7 +517,7 @@ impl HoudiniNode {
     }
 
     /// Find all children of this node by type.
-    pub fn find_children_by_type(
+    pub fn get_children_by_type(
         &self,
         types: impl ToNodeTypeBits,
         flags: impl ToNodeFlagsBits,
@@ -566,7 +566,7 @@ impl HoudiniNode {
         if !recursive {
             return self.get_child_by_path(name.as_ref());
         }
-        for handle in self.find_children_by_type(NodeType::Any, NodeFlags::Any, recursive)? {
+        for handle in self.get_children_by_type(NodeType::Any, NodeFlags::Any, recursive)? {
             let info = handle.info(&self.session)?;
             if info.name()? == name.as_ref() {
                 return Ok(Some(HoudiniNode::new(
