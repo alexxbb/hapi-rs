@@ -207,7 +207,13 @@ impl AssetLibrary {
     /// Get asset names this library contains
     pub fn get_asset_names(&self) -> Result<Vec<String>> {
         debug_assert!(self.session.is_valid());
-        debug!("Retrieving asset names from: {:?}", self.file);
+        debug!(
+            "Retrieving asset names from: {:?}",
+            self.file
+                .as_deref()
+                .map(|p| p.to_string_lossy())
+                .unwrap_or("<memory bytes>".into())
+        );
         let num_assets = self.get_asset_count()?;
         crate::ffi::get_asset_names(self.lib_id, num_assets, &self.session)
             .map(|a| a.into_iter().collect())
