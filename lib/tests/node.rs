@@ -78,7 +78,7 @@ fn node_search() {
         asset
             .find_child_node("add_color", true)?
             .expect("color node");
-        let children = asset.find_children_by_type(NodeType::Sop, NodeFlags::Display, true)?;
+        let children = asset.get_children_by_type(NodeType::Sop, NodeFlags::Display, true)?;
         assert_ne!(children.len(), 0);
         Ok(())
     })

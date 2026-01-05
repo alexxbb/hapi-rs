@@ -230,9 +230,13 @@ impl HapiResult {
         match self {
             HapiResult::Success => Ok(()),
             _err => {
-                let server_message = session
-                    .get_status_string(StatusType::CallResult, StatusVerbosity::All)
-                    .ok();
+                let server_message = if session.is_valid() {
+                    session
+                        .get_status_string(StatusType::CallResult, StatusVerbosity::All)
+                        .ok()
+                } else {
+                    Some("Session is corrupted: error message not available".to_string())
+                };
 
                 Err(HapiError::Hapi {
                     result_code: HapiResultCode(self),

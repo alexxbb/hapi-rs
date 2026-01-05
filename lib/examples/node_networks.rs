@@ -10,7 +10,7 @@ fn main() -> Result<()> {
     )?;
     let lib = session.load_asset_file("../otls/sesi/FourShapes.hda")?;
     let asset = lib.try_create_first()?;
-    let children = asset.find_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
+    let children = asset.get_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
     println!("Editable Node Network Child Count: {}", children.len());
 
     // Print original children
@@ -29,13 +29,13 @@ fn main() -> Result<()> {
 
     println!("After CONNECT NODE");
     // Print out children again
-    let children = asset.find_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
+    let children = asset.get_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
     print_child_node(&session, &children)?;
 
     // Delete the new node and print one last time
     box_node.delete()?;
     println!("After DELETING NODE");
-    let children = asset.find_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
+    let children = asset.get_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
     print_child_node(&session, &children)?;
 
     Ok(())

@@ -29,7 +29,7 @@ fn main() -> Result<()> {
         co.set_packed_prim_instancing_mode(mode);
         asset.cook_with_options(&co, true)?;
 
-        let nodes = asset.find_children_by_type(NodeType::Sop, NodeFlags::Any, false)?;
+        let nodes = asset.get_children_by_type(NodeType::Sop, NodeFlags::Any, false)?;
         for handle in nodes {
             let node = handle.to_node(&session)?;
             node.cook_with_options(&co, true)?;

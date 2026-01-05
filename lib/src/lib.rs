@@ -296,7 +296,7 @@ mod errors;
 mod utils;
 mod ffi;
 
-pub use errors::{HapiError, Result};
+pub use errors::{HapiError, HapiResult, HapiResultCode, Result};
 pub use ffi::enums;
 pub use ffi::raw;
 
