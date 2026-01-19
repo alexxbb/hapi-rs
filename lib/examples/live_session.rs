@@ -4,7 +4,7 @@
 ///
 /// IMPORTANT: It's recommended to `cargo build ..` the example and run it
 /// directly from the target directory. `cargo run` has issues with CTRL-C..
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -15,7 +15,11 @@ use argh::FromArgs;
 use hapi_rs::{
     enums::CurveType,
     geometry::InputCurveInfo,
-    session::{ManagerType, SessionSyncInfo, Viewport, connect_to_pipe, start_houdini_server},
+    server::{
+        ServerOptions, ThriftPipeTransport, ThriftTransport, connect_to_pipe_server,
+        start_houdini_server,
+    },
+    session::{ManagerType, SessionOptions, SessionSyncInfo, Viewport},
 };
 
 #[derive(FromArgs, Debug)]
@@ -38,18 +42,25 @@ fn main() -> Result<()> {
     let args: Args = argh::from_env();
     const PIPE: &str = "hapi";
     // Try to connect toa possibly running session
-    let session = match connect_to_pipe(PIPE, None, None, None) {
+    let server_options = ServerOptions::pipe_with_defaults()
+        .with_thrift_transport(ThriftTransport::Pipe(ThriftPipeTransport {
+            pipe_path: PathBuf::from(PIPE),
+        }))
+        .with_connection_timeout(Some(Duration::from_secs(3)));
+    let session = match connect_to_pipe_server(server_options.clone(), None) {
         Ok(session) => session,
         Err(_) => {
             // No session running at PIPE, start the Houdini process.
             // Edit the executable path if necessary.
             let hfs = std::env::var_os("HFS").ok_or_else(|| anyhow!("Missing HFS"))?;
             let executable = Path::new(&hfs).join("bin").join("houdini");
-            let child = start_houdini_server(PIPE, executable, true)?;
+            let child = start_houdini_server(PIPE, executable, false, None)?;
             // While trying to connect, it will print some errors, these can be ignored.
-            connect_to_pipe(PIPE, None, Some(Duration::from_secs(90)), Some(child.id()))?
+            connect_to_pipe_server(server_options, Some(child.id()))?
         }
     };
+
+    let session = session.initialize(SessionOptions::default())?;
 
     // Set up camera
     session.set_sync(true)?;

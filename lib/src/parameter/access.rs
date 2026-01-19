@@ -151,7 +151,7 @@ impl StringParameter {
             self.0.info.string_values_index(),
             self.0.info.size(),
         )
-        .map(|array| array.into())
+        .map(|array| array.into_iter().collect())
     }
 
     /// Save/Download a file referenced in this parameter to a given file.

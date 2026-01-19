@@ -9,18 +9,17 @@
 //! When the last instance of the `Session` is about to get dropped, it'll be cleaned up
 //! (if [SessionOptions::cleanup] was set) and automatically closed.
 //!
-//! The Engine process (pipe or socket) can be auto-terminated as well if told so when starting the server:
-//! See [start_engine_pipe_server] and [start_engine_socket_server]
+//! The Engine process (pipe, socket, or shared memory) can be auto-terminated as well if told so when starting
+//! the server. See [`crate::server::start_engine_server`] together with the transport helpers
+//! [`crate::server::connect_to_pipe_server`], [`crate::server::connect_to_socket_server`], and
+//! [`crate::server::connect_to_memory_server`].
 //!
-//! [quick_session] terminates the server by default. This is useful for quick one-off jobs.
+//! Helper constructors terminate the server by default. This is useful for quick one-off jobs.
 //!
-use log::{debug, error, warn};
+use log::{debug, error};
 use parking_lot::ReentrantMutex;
-use std::ffi::{CStr, OsString};
 use std::fmt::Debug;
 use std::path::PathBuf;
-use std::process::Child;
-use std::time::Duration;
 use std::{ffi::CString, path::Path, sync::Arc};
 
 pub use crate::{
@@ -32,12 +31,15 @@ pub use crate::{
     },
     node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType, Transform},
     parameter::Parameter,
+    server::ServerOptions,
     stringhandle::StringArray,
 };
 
 // A result of HAPI_GetStatus with HAPI_STATUS_COOK_STATE
 pub type SessionState = State;
+pub type LicenseType = raw::License;
 
+use crate::cop::CopImageDescription;
 use crate::ffi::ImageInfo;
 use crate::stringhandle::StringHandle;
 use crate::{ffi::raw, utils};
@@ -165,22 +167,14 @@ impl CookResult {
 }
 
 /// By which means the session communicates with the server.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum ConnectionType {
-    ThriftPipe(OsString),
-    ThriftSocket(std::net::SocketAddrV4),
-    SharedMemory(String),
-    InProcess,
-    Custom,
-}
-
 #[derive(Debug)]
 pub(crate) struct SessionInner {
     pub(crate) handle: raw::HAPI_Session,
     pub(crate) options: SessionOptions,
-    pub(crate) connection: ConnectionType,
-    pub(crate) pid: Option<u32>,
+    // Server options are only available for Thrift servers.
+    pub(crate) server_options: Option<ServerOptions>,
     pub(crate) lock: ReentrantMutex<()>,
+    pub(crate) server_pid: Option<u32>,
 }
 
 /// Session represents a unique connection to the Engine instance and all API calls require a valid session.
@@ -197,36 +191,38 @@ impl PartialEq for Session {
     }
 }
 
-impl Session {
-    fn new(
-        handle: raw::HAPI_Session,
-        connection: ConnectionType,
-        options: SessionOptions,
-        pid: Option<u32>,
-    ) -> Session {
-        Session {
-            inner: Arc::new(SessionInner {
-                handle,
-                options,
-                connection,
-                lock: ReentrantMutex::new(()),
-                pid,
-            }),
-        }
-    }
+pub struct UninitializedSession {
+    pub(crate) session_handle: raw::HAPI_Session,
+    pub(crate) server_options: Option<ServerOptions>,
+    pub(crate) server_pid: Option<u32>,
+}
 
+impl UninitializedSession {
+    pub fn initialize(self, session_options: SessionOptions) -> Result<Session> {
+        debug!("Initializing session");
+        crate::ffi::initialize_session(self.session_handle, &session_options)
+            .map(|_| Session {
+                inner: Arc::new(SessionInner {
+                    handle: self.session_handle,
+                    options: session_options,
+                    lock: ReentrantMutex::new(()),
+                    server_options: self.server_options,
+                    server_pid: self.server_pid,
+                }),
+            })
+            .with_context(|| "Calling initialize_session")
+    }
+}
+
+impl Session {
     /// Return [`SessionType`] current session is initialized with.
     pub fn session_type(&self) -> SessionType {
         self.inner.handle.type_
     }
 
     /// Return enum with extra connection data such as pipe file or socket.
-    pub fn connection_type(&self) -> &ConnectionType {
-        &self.inner.connection
-    }
-
     pub fn server_pid(&self) -> Option<u32> {
-        self.inner.pid
+        self.inner.server_pid
     }
 
     #[inline(always)]
@@ -234,7 +230,8 @@ impl Session {
         &(self.inner.handle) as *const _
     }
 
-    /// Set environment variable on the server
+    /// Set environment variable on the server. This is set AFTER the server has started.
+    /// For variables set before the server starts, use [`ServerOptions::with_env_variables`].
     pub fn set_server_var<T: EnvVariable + ?Sized>(
         &self,
         key: &str,
@@ -251,12 +248,14 @@ impl Session {
         key: &str,
     ) -> Result<<T::Type as ToOwned>::Owned> {
         debug_assert!(self.is_valid());
+        debug!("Querying server variable {key}");
         T::get_value(self, key)
     }
 
     /// Retrieve all server variables
     pub fn get_server_variables(&self) -> Result<StringArray> {
         debug_assert!(self.is_valid());
+        debug!("Querying all server variables");
         let count = crate::ffi::get_server_env_var_count(self)?;
         let handles = crate::ffi::get_server_env_var_list(self, count)?;
         crate::stringhandle::get_string_array(&handles, self).context("Calling get_string_array")
@@ -272,35 +271,26 @@ impl Session {
         crate::stringhandle::get_string_array(handles, self)
     }
 
-    pub fn initialize(&self) -> Result<()> {
-        debug!("Initializing session");
+    /// Push a custom string to the server and return a handle to it.
+    pub fn set_custom_string(&self, string: impl AsRef<str>) -> Result<StringHandle> {
         debug_assert!(self.is_valid());
-        let res = crate::ffi::initialize_session(self, &self.inner.options);
-        match res {
-            Ok(_) => Ok(()),
-            Err(HapiError {
-                kind: Kind::Hapi(HapiResult::AlreadyInitialized),
-                ..
-            }) => {
-                warn!("Session already initialized, skipping");
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
+        debug!("Setting custom string: {}", string.as_ref());
+        let string = CString::new(string.as_ref())?;
+        crate::ffi::set_custom_string(self, &string)
     }
 
-    /// Cleanup the session. Session will not be valid after this call
-    /// and needs to be initialized again
-    pub fn cleanup(&self) -> Result<()> {
-        debug!("Cleaning session");
+    /// Remove a custom string from the server.
+    pub fn remove_custom_string(&self, handle: StringHandle) -> Result<()> {
         debug_assert!(self.is_valid());
-        crate::ffi::cleanup_session(self)
+        debug!("Removing custom string: {handle:?}");
+        crate::ffi::remove_custom_string(self, handle)
     }
 
-    /// Check if session is initialized
-    pub fn is_initialized(&self) -> bool {
+    /// Consumes and cleanups up the session. Session becomes invalid after this call
+    pub fn cleanup(self) -> Result<()> {
+        debug!("Cleaning up session");
         debug_assert!(self.is_valid());
-        crate::ffi::is_session_initialized(self)
+        crate::ffi::cleanup_session(&self)
     }
 
     /// Create an input geometry node which can accept modifications
@@ -314,7 +304,9 @@ impl Session {
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_node(self, &name, parent)?;
         let node = HoudiniNode::new(self.clone(), NodeHandle(id), None)?;
-        let info = crate::geometry::GeoInfo::from_node(&node)?;
+        crate::ffi::cook_node(&node, None).with_context(|| "Cooking input node")?;
+        let info =
+            crate::geometry::GeoInfo::from_node(&node).with_context(|| "Getting geometry info")?;
         Ok(crate::geometry::Geometry { node, info })
     }
 
@@ -364,30 +356,30 @@ impl Session {
         P: Into<Option<NodeHandle>>,
     {
         let parent = parent.into();
-        debug!("Creating node instance: {}", name);
+        debug!(
+            "Creating node instance for op: {}, with parent: {:?}",
+            name, parent
+        );
         debug_assert!(self.is_valid());
         debug_assert!(
             parent.is_some() || name.contains('/'),
-            "Node name must be fully qualified if parent is not specified"
+            "Node name must be fully qualified if parent node is not specified"
         );
         debug_assert!(
             !(parent.is_some() && name.contains('/')),
-            "Cannot use fully qualified node name with parent"
+            "Cannot use fully qualified node name with parent node"
         );
         let name = CString::new(name)?;
         let label = label.map(CString::new).transpose()?;
         let node_id = crate::ffi::create_node(&name, label.as_deref(), self, parent, cook)?;
         if self.inner.options.threaded {
-            use std::borrow::Cow;
+            // In async cooking mode, cook() always returns a CookResult::Success, we need to check CookResult for errors
             if let CookResult::FatalErrors(message) = self.cook()? {
-                return Err(HapiError::new(
-                    Kind::Hapi(HapiResult::Failure),
-                    Some(Cow::Owned(format!(
-                        "Could not create node {:?}",
-                        name.to_string_lossy()
-                    ))),
-                    Some(Cow::Owned(message)),
-                ));
+                return Err(HapiError::Hapi {
+                    result_code: HapiResultCode(HapiResult::Failure),
+                    server_message: Some(message),
+                    contexts: Vec::new(),
+                });
             }
         }
         HoudiniNode::new(self.clone(), NodeHandle(node_id), None)
@@ -395,7 +387,13 @@ impl Session {
 
     /// Delete the node from the session. See also [`HoudiniNode::delete`]
     pub fn delete_node<H: Into<NodeHandle>>(&self, node: H) -> Result<()> {
-        crate::ffi::delete_node(node.into(), self)
+        let node = node.into();
+        debug!(
+            "Deleting node {}",
+            node.path(self)
+                .unwrap_or_else(|_| "Could not get path".to_owned())
+        );
+        crate::ffi::delete_node(node, self)
     }
 
     /// Find a node given an absolute path. To find a child node, pass the `parent` node
@@ -410,10 +408,11 @@ impl Session {
         let path = CString::new(path.as_ref())?;
         match crate::ffi::get_node_from_path(self, parent.into(), &path) {
             Ok(handle) => Ok(NodeHandle(handle).to_node(self).ok()),
-            Err(HapiError {
-                kind: Kind::Hapi(HapiResult::InvalidArgument),
-                ..
-            }) => Ok(None),
+            Err(HapiError::Hapi { result_code, .. })
+                if matches!(result_code.0, HapiResult::InvalidArgument) =>
+            {
+                Ok(None)
+            }
             Err(e) => Err(e),
         }
     }
@@ -503,20 +502,19 @@ impl Session {
         crate::ffi::get_asset_library_ids(self)?
             .into_iter()
             .map(|library_id| {
-                crate::ffi::get_asset_library_file_path(self, library_id).map(|lib_file| {
-                    AssetLibrary {
-                        lib_id: library_id,
-                        session: self.clone(),
-                        file: Some(PathBuf::from(lib_file)),
-                    }
+                crate::ffi::get_asset_library_file_path(self, library_id).map(|path| AssetLibrary {
+                    lib_id: library_id,
+                    session: self.clone(),
+                    file: Some(PathBuf::from(path)),
                 })
             })
-            .collect::<Result<Vec<_>>>()
+            .collect()
     }
 
     /// Interrupt session cooking
     pub fn interrupt(&self) -> Result<()> {
         debug_assert!(self.is_valid());
+        debug!("Interrupting session cooking");
         crate::ffi::interrupt(self)
     }
 
@@ -685,7 +683,7 @@ impl Session {
     }
 
     /// Get license type used by this session
-    pub fn get_license_type(&self) -> Result<License> {
+    pub fn get_license_type(&self) -> Result<LicenseType> {
         debug_assert!(self.is_valid());
         crate::ffi::session_get_license_type(self)
     }
@@ -694,16 +692,43 @@ impl Session {
     pub fn render_cop_to_image(
         &self,
         cop_node: impl Into<NodeHandle>,
+        output_name: Option<&str>,
         image_planes: impl AsRef<str>,
-        path: impl AsRef<Path>,
+        out_image: impl AsRef<Path>,
     ) -> Result<String> {
-        debug!("Start rendering COP to image.");
         let cop_node = cop_node.into();
+        let out_image = out_image.as_ref();
+        debug!("Start rendering COP to image file {}", out_image.display());
         debug_assert!(cop_node.is_valid(self)?);
-        crate::ffi::render_cop_to_image(self, cop_node)?;
-        crate::material::extract_image_to_file(self, cop_node, image_planes, path)
+        if let Some(output_name) = output_name {
+            let output_name = CString::new(output_name)?;
+            crate::ffi::render_cop_output_to_image(self, cop_node, &output_name)?;
+        } else {
+            crate::ffi::render_cop_to_image(self, cop_node)?;
+        }
+        crate::material::extract_image_to_file(self, cop_node, image_planes, out_image)
     }
 
+    /// Loads some raw image data into a COP node.
+    /// TODO: Figure out which node the data is actually ends up in as the API doesn't say.
+    pub fn create_cop_image(
+        &self,
+        description: CopImageDescription,
+        parent_node: Option<NodeHandle>,
+    ) -> Result<()> {
+        crate::ffi::create_cop_image(
+            self,
+            parent_node,
+            description.width,
+            description.height,
+            description.packing,
+            description.flip_x,
+            description.flip_y,
+            description.image_data,
+        )
+    }
+
+    // TODO: consider removing this in favour of ['Material'] helper struct which has this API
     pub fn render_texture_to_image(
         &self,
         node: impl Into<NodeHandle>,
@@ -716,6 +741,7 @@ impl Session {
         crate::ffi::render_texture_to_image(self, node, crate::parameter::ParmHandle(id))
     }
 
+    // TODO: consider removing this in favour of ['Material'] helper struct which has this API
     pub fn extract_image_to_file(
         &self,
         node: impl Into<NodeHandle>,
@@ -725,6 +751,7 @@ impl Session {
         crate::material::extract_image_to_file(self, node.into(), image_planes, path)
     }
 
+    // TODO: consider removing this in favour of ['Material'] helper struct which has this API
     pub fn extract_image_to_memory(
         &self,
         node: impl Into<NodeHandle>,
@@ -736,12 +763,14 @@ impl Session {
         crate::material::extract_image_to_memory(self, node.into(), buffer, image_planes, format)
     }
 
+    // TODO: consider removing this in favour of ['Material'] helper struct which has this API
     pub fn get_image_info(&self, node: impl Into<NodeHandle>) -> Result<ImageInfo> {
         debug_assert!(self.is_valid());
         crate::ffi::get_image_info(self, node.into()).map(ImageInfo)
     }
 
     /// Render a COP node to a memory buffer
+    // TODO: consider removing this in favour of ['Material'] helper struct which has this API
     pub fn render_cop_to_memory(
         &self,
         cop_node: impl Into<NodeHandle>,
@@ -836,7 +865,7 @@ impl Drop for Session {
             debug!("Dropping session pid: {:?}", self.server_pid());
             if self.is_valid() {
                 if self.inner.options.cleanup
-                    && let Err(e) = self.cleanup()
+                    && let Err(e) = crate::ffi::cleanup_session(self)
                 {
                     error!("Session cleanup failed in Drop: {}", e);
                 }
@@ -850,159 +879,35 @@ impl Drop for Session {
                 // The server should automatically delete the pipe file when closed successfully,
                 // but we could try a cleanup just in case.
                 debug!("Session was invalid in Drop!");
-                if let ConnectionType::ThriftPipe(f) = &self.inner.connection {
-                    let _ = std::fs::remove_file(f);
+                if let Some(server_options) = &self.inner.server_options
+                    && let crate::server::ThriftTransport::Pipe(transport) =
+                        &server_options.thrift_transport
+                {
+                    let _ = std::fs::remove_file(&transport.pipe_path);
                 }
             }
         }
     }
 }
 
-/// Connect to the engine process via a pipe file.
-/// If `timeout` is Some, function will try to connect to
-/// the server multiple times every 100ms until `timeout` is reached.
-/// Note: Default SessionOptions create a blocking session, non-threaded session,
-/// use [`SessionOptionsBuilder`] to configure this.
-pub fn connect_to_pipe(
-    pipe: impl AsRef<Path>,
-    options: Option<&SessionOptions>,
-    timeout: Option<Duration>,
-    pid: Option<u32>,
-) -> Result<Session> {
-    debug!("Connecting to Thrift session: {:?}", pipe.as_ref());
-    let c_str = utils::path_to_cstring(&pipe)?;
-    let pipe = pipe.as_ref().as_os_str().to_os_string();
-    let timeout = timeout.unwrap_or_default();
-    let options = options.cloned().unwrap_or_default();
-    let mut waited = Duration::from_secs(0);
-    let wait_ms = Duration::from_millis(100);
-    let handle = loop {
-        let mut last_error = None;
-        debug!("Trying to connect to pipe server");
-        match crate::ffi::new_thrift_piped_session(&c_str, &options.session_info.0) {
-            Ok(handle) => break handle,
-            Err(e) => {
-                last_error.replace(e);
-                std::thread::sleep(wait_ms);
-                waited += wait_ms;
-            }
-        }
-        if waited > timeout {
-            // last_error is guarantied to be Some().
-            return Err(last_error.unwrap()).context("Connection timeout");
-        }
-    };
-    let connection = ConnectionType::ThriftPipe(pipe);
-    let session = Session::new(handle, connection, options, pid);
-    session.initialize()?;
-    Ok(session)
-}
-
-pub fn connect_to_memory_server(
-    memory_name: &str,
-    options: Option<&SessionOptions>,
-    pid: Option<u32>,
-) -> Result<Session> {
-    let mem_name = String::from(memory_name);
-    let mem_name_cstr = CString::new(memory_name)?;
-
-    let options = options.cloned().unwrap_or_default();
-    let handle =
-        crate::ffi::new_thrift_shared_memory_session(&mem_name_cstr, &options.session_info.0)?;
-
-    let connection = ConnectionType::SharedMemory(mem_name);
-    let session = Session::new(handle, connection, options, pid);
-    session.initialize()?;
-    Ok(session)
-}
-
-/// Connect to the engine process via a Unix socket
-pub fn connect_to_socket(
-    addr: std::net::SocketAddrV4,
-    options: Option<&SessionOptions>,
-) -> Result<Session> {
-    debug!("Connecting to socket server: {:?}", addr);
-    let host = CString::new(addr.ip().to_string()).expect("SocketAddr->CString");
-    let options = options.cloned().unwrap_or_default();
-    let handle =
-        crate::ffi::new_thrift_socket_session(addr.port() as i32, &host, &options.session_info.0)?;
-    let connection = ConnectionType::ThriftSocket(addr);
-    let session = Session::new(handle, connection, options, None);
-    session.initialize()?;
-    Ok(session)
-}
-
-/// Create in-process session
-pub fn new_in_process(options: Option<&SessionOptions>) -> Result<Session> {
-    debug!("Creating new in-process session");
-    let options = options.cloned().unwrap_or_default();
-    let handle = crate::ffi::create_inprocess_session(&options.session_info.0)?;
-    let connection = ConnectionType::InProcess;
-    let session = Session::new(handle, connection, options, Some(std::process::id()));
-    session.initialize()?;
-    Ok(session)
-}
-
-/// Session options passed to session create functions like [`connect_to_pipe`]
-#[derive(Clone, Debug)]
+/// Session options passed to session create functions like [`crate::server::connect_to_pipe_server`]
+#[derive(Default, Clone, Debug)]
 pub struct SessionOptions {
     /// Session cook options
     pub cook_opt: CookOptions,
-    /// Session connection options
-    pub session_info: SessionInfo,
     /// Create a Threaded server connection
     pub threaded: bool,
     /// Cleanup session upon close
     pub cleanup: bool,
-    pub log_file: Option<CString>,
-    /// Do not error out if session is already initialized
-    pub ignore_already_init: bool,
     pub env_files: Option<CString>,
-    pub env_variables: Option<Vec<(String, String)>>,
     pub otl_path: Option<CString>,
     pub dso_path: Option<CString>,
     pub img_dso_path: Option<CString>,
     pub aud_dso_path: Option<CString>,
 }
 
-impl Default for SessionOptions {
-    fn default() -> Self {
-        SessionOptions {
-            cook_opt: CookOptions::default(),
-            session_info: SessionInfo::default(),
-            threaded: false,
-            cleanup: false,
-            log_file: None,
-            ignore_already_init: true,
-            env_files: None,
-            env_variables: None,
-            otl_path: None,
-            dso_path: None,
-            img_dso_path: None,
-            aud_dso_path: None,
-        }
-    }
-}
-
-#[derive(Default)]
-/// A build for SessionOptions.
-pub struct SessionOptionsBuilder {
-    cook_opt: CookOptions,
-    session_info: SessionInfo,
-    threaded: bool,
-    cleanup: bool,
-    log_file: Option<CString>,
-    ignore_already_init: bool,
-    env_variables: Option<Vec<(String, String)>>,
-    env_files: Option<CString>,
-    otl_path: Option<CString>,
-    dso_path: Option<CString>,
-    img_dso_path: Option<CString>,
-    aud_dso_path: Option<CString>,
-}
-
-impl SessionOptionsBuilder {
-    /// A list of Houdini environment file the Engine will load environment from.
+impl SessionOptions {
+    /// A list of Houdini environment files the Engine will load from.
     pub fn houdini_env_files<I>(mut self, files: I) -> Self
     where
         I: IntoIterator,
@@ -1011,23 +916,6 @@ impl SessionOptionsBuilder {
         let paths = utils::join_paths(files);
         self.env_files
             .replace(CString::new(paths).expect("Zero byte"));
-        self
-    }
-
-    /// Set the server environment variables. See also [`Session::set_server_var`].
-    /// The difference is this method writes out a temp file with the variables and
-    /// implicitly pass it to the engine (as if [`Self::houdini_env_files`] was used.
-    pub fn env_variables<'a, I, K, V>(mut self, variables: I) -> Self
-    where
-        I: Iterator<Item = &'a (K, V)>,
-        K: ToString + 'a,
-        V: ToString + 'a,
-    {
-        self.env_variables.replace(
-            variables
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect(),
-        );
         self
     }
 
@@ -1079,21 +967,9 @@ impl SessionOptionsBuilder {
         self
     }
 
-    /// Do not error when connecting to a server process which has a session already initialized.
-    pub fn ignore_already_init(mut self, ignore: bool) -> Self {
-        self.ignore_already_init = ignore;
-        self
-    }
-
     /// Pass session [`CookOptions`]
     pub fn cook_options(mut self, options: CookOptions) -> Self {
         self.cook_opt = options;
-        self
-    }
-
-    /// Session init options [`SessionInfo`]
-    pub fn session_info(mut self, info: SessionInfo) -> Self {
-        self.session_info = info;
         self
     }
 
@@ -1103,159 +979,62 @@ impl SessionOptionsBuilder {
         self
     }
 
-    /// Cleanup the server session when the last connection drops.
-    pub fn cleanup_on_close(mut self, cleanup: bool) -> Self {
+    /// Set whether to cleanup the session upon close
+    pub fn cleanup(mut self, cleanup: bool) -> Self {
         self.cleanup = cleanup;
         self
     }
+}
 
-    pub fn log_file(mut self, file: impl AsRef<Path>) -> Self {
-        self.log_file = Some(utils::path_to_cstring(file).unwrap());
-        self
+/// Create an in-process session.
+/// Usefull for quick testing and debugging. Session crash will crash the main process.
+/// For production use, use [`new_thrift_session`] instead.
+pub fn new_in_process_session(options: Option<SessionOptions>) -> Result<Session> {
+    debug!("Creating new in-process session");
+    let session_options = options.unwrap_or_default();
+    let session_info = SessionInfo::default();
+    let handle = crate::ffi::create_inprocess_session(&session_info.0)?;
+    let session = UninitializedSession {
+        session_handle: handle,
+        server_options: None,
+        server_pid: Some(std::process::id()),
     }
+    .initialize(session_options)?;
+    Ok(session)
+}
 
-    /// Consume the builder and return the result.
-    pub fn build(mut self) -> SessionOptions {
-        self.write_temp_env_file();
-        SessionOptions {
-            cook_opt: self.cook_opt,
-            session_info: self.session_info,
-            threaded: self.threaded,
-            cleanup: self.cleanup,
-            log_file: self.log_file,
-            ignore_already_init: self.cleanup,
-            env_files: self.env_files,
-            env_variables: self.env_variables,
-            otl_path: self.otl_path,
-            dso_path: self.dso_path,
-            img_dso_path: self.img_dso_path,
-            aud_dso_path: self.aud_dso_path,
+/// Start a Thrift server and initialize a session with it.
+pub fn new_thrift_session(
+    session_options: SessionOptions,
+    server_options: ServerOptions,
+) -> Result<Session> {
+    match server_options.thrift_transport {
+        crate::server::ThriftTransport::SharedMemory(_) => {
+            let pid = crate::server::start_engine_server(&server_options)?;
+            crate::server::connect_to_memory_server(server_options, Some(pid))
+                .context("Could not connect to shared memory server")?
+                .initialize(session_options)
         }
-    }
-    // Helper function for Self::env_variables
-    fn write_temp_env_file(&mut self) {
-        use std::io::Write;
-
-        if let Some(ref env) = self.env_variables {
-            let mut file = tempfile::Builder::new()
-                .suffix("_hars.env")
-                .tempfile()
-                .expect("tempfile");
-            for (k, v) in env.iter() {
-                writeln!(file, "{}={}", k, v).expect("write to .env file");
-            }
-            let (_, tmp_file) = file.keep().expect("persistent tempfile");
-            debug!(
-                "Creating temporary environment file: {}",
-                tmp_file.to_string_lossy()
-            );
-            let tmp_file = CString::new(tmp_file.to_string_lossy().to_string()).expect("null byte");
-
-            if let Some(old) = &mut self.env_files {
-                let mut bytes = old.as_bytes_with_nul().to_vec();
-                bytes.extend(tmp_file.into_bytes_with_nul());
-                self.env_files
-                    // SAFETY: the bytes vec was obtained from the two CString's above.
-                    .replace(unsafe { CString::from_vec_with_nul_unchecked(bytes) });
-            } else {
-                self.env_files.replace(tmp_file);
-            }
+        crate::server::ThriftTransport::Pipe(_) => {
+            let pid = crate::server::start_engine_server(&server_options)?;
+            crate::server::connect_to_pipe_server(server_options, Some(pid))
+                .context("Could not connect to pipe server")?
+                .initialize(session_options)
+        }
+        crate::server::ThriftTransport::Socket(_) => {
+            let pid = crate::server::start_engine_server(&server_options)?;
+            crate::server::connect_to_socket_server(server_options, Some(pid))
+                .context("Could not connect to socket server")?
+                .initialize(session_options)
+                .context("Could not connect to socket server")
         }
     }
 }
 
-impl SessionOptions {
-    /// Create a [`SessionOptionsBuilder`]. Same as [`SessionOptionsBuilder::default()`].
-    pub fn builder() -> SessionOptionsBuilder {
-        SessionOptionsBuilder::default()
-    }
-}
-
-impl From<i32> for SessionState {
-    fn from(s: i32) -> Self {
-        match s {
-            0 => SessionState::Ready,
-            1 => SessionState::ReadyWithFatalErrors,
-            2 => SessionState::ReadyWithCookErrors,
-            3 => SessionState::StartingCook,
-            4 => SessionState::Cooking,
-            5 => SessionState::StartingLoad,
-            6 => SessionState::Loading,
-            7 => SessionState::Max,
-            _ => panic!("Unmatched SessionState - {s}"),
-        }
-    }
-}
-
-/// Spawn a new pipe Engine process and return its PID
-pub fn start_engine_pipe_server(
-    path: impl AsRef<Path>,
-    log_file: Option<&str>,
-    options: &ThriftServerOptions,
-) -> Result<u32> {
-    debug!("Starting named pipe server: {:?}", path.as_ref());
-    let log_file = log_file.map(CString::new).transpose()?;
-    let c_str = utils::path_to_cstring(path)?;
-    crate::ffi::clear_connection_error()?;
-    crate::ffi::start_thrift_pipe_server(&c_str, &options.0, log_file.as_deref())
-}
-
-/// Spawn a new socket Engine server and return its PID
-pub fn start_engine_socket_server(
-    port: u16,
-    log_file: Option<&str>,
-    options: &ThriftServerOptions,
-) -> Result<u32> {
-    debug!("Starting socket server on port: {}", port);
-    let log_file = log_file.map(CString::new).transpose()?;
-    crate::ffi::clear_connection_error()?;
-    crate::ffi::start_thrift_socket_server(port as i32, &options.0, log_file.as_deref())
-}
-
-/// Start an interactive Houdini session with engine server embedded.
-pub fn start_houdini_server(
-    pipe_name: impl AsRef<str>,
-    houdini_executable: impl AsRef<Path>,
-    fx_license: bool,
-) -> Result<Child> {
-    std::process::Command::new(houdini_executable.as_ref())
-        .arg(format!("-hess=pipe:{}", pipe_name.as_ref()))
-        .arg(if fx_license {
-            "-force-fx-license"
-        } else {
-            "-core"
-        })
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .map_err(HapiError::from)
-}
-
-/// Spawn a new Engine server utilizing shared memory to transfer data.
-pub fn start_shared_memory_server(
-    memory_name: &str,
-    options: &ThriftServerOptions,
-    log_file: Option<&CStr>,
-) -> Result<u32> {
-    debug!("Starting shared memory server name: {memory_name}");
-    let memory_name = CString::new(memory_name)?;
-    crate::ffi::clear_connection_error()?;
-    crate::ffi::start_thrift_shared_memory_server(&memory_name, &options.0, log_file)
-}
-
-/// A quick drop-in session, useful for on-off jobs
-/// It starts a **single-threaded** shared memory server and initialize a session with default options
-pub fn quick_session(options: Option<&SessionOptions>) -> Result<Session> {
-    let server_options = ThriftServerOptions::default()
-        .with_auto_close(true)
-        .with_timeout_ms(4000f32)
-        .with_verbosity(StatusVerbosity::Statusverbosity0);
-    let rand_memory_name = format!("shared-memory-{}", utils::random_string(16));
-    let log_file = match &options {
-        None => None,
-        Some(opt) => opt.log_file.as_deref(),
-    };
-    let pid = start_shared_memory_server(&rand_memory_name, &server_options, log_file)?;
-    connect_to_memory_server(&rand_memory_name, options, Some(pid))
+/// Shortcut for creating a simple Thrift session with good defaults.
+pub fn simple_session() -> Result<Session> {
+    new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::shared_memory_with_defaults(),
+    )
 }

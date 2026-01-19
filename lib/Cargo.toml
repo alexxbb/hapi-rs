@@ -12,7 +12,7 @@ categories = [
     "api-bindings",
 ]
 readme = "../README.md"
-version = "21.0.0"
+version = "21.0.1"
 authors = ["Aleksei Rusev <hou.alexx@gmail.com>"]
 edition = "2024"
 license = "MIT"
@@ -25,6 +25,8 @@ parking_lot = "0.12.5"
 duplicate = { version = "2.0.0", features = [], default-features = false }
 debug-ignore = "1.0.5"
 tempfile = "3.23.0"
+thiserror = "2.0"
+temp-env = "0.3.6"
 
 [dev-dependencies]
 once_cell = "1.21.3"
@@ -35,3 +37,6 @@ anyhow = "1.0.100"
 argh = "0.1.13"
 ctrlc = "3.5.0"
 tinyjson = "2.5.1"
+
+[features]
+async-cooking = []

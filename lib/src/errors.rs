@@ -1,19 +1,75 @@
 use crate::session::Session;
 
 pub use crate::ffi::raw::{HapiResult, StatusType, StatusVerbosity};
-use std::borrow::Cow;
+use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, HapiError>;
 
 /// Error type returned by all APIs
-// TODO: This should really be an Enum.
-pub struct HapiError {
-    /// A specific error type.
-    pub kind: Kind,
-    /// Context error messages.
-    pub contexts: Vec<Cow<'static, str>>,
-    /// Error message from server or static if server couldn't respond.
-    pub server_message: Option<Cow<'static, str>>,
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum HapiError {
+    /// HAPI function call failed
+    Hapi {
+        result_code: HapiResultCode,
+        server_message: Option<String>,
+        contexts: Vec<String>,
+    },
+
+    /// This is used by [`ErrorContext::context`] / [`ErrorContext::with_context`]
+    Context {
+        contexts: Vec<String>,
+        #[source]
+        source: Box<HapiError>,
+    },
+
+    /// CString conversion error - string contains null byte
+    NullByte(#[from] std::ffi::NulError),
+
+    /// UTF-8 conversion error
+    Utf8(#[from] std::string::FromUtf8Error),
+
+    /// IO error
+    Io(#[from] std::io::Error),
+
+    /// Internal library error
+    Internal(String),
+}
+
+// Wrapper for HapiResult to provide Display for error messages
+#[derive(Debug, Clone, Copy)]
+pub struct HapiResultCode(pub HapiResult);
+
+impl std::fmt::Display for HapiResultCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use HapiResult::*;
+        let desc = match self.0 {
+            Success => "SUCCESS",
+            Failure => "FAILURE",
+            AlreadyInitialized => "ALREADY_INITIALIZED",
+            NotInitialized => "NOT_INITIALIZED",
+            CantLoadfile => "CANT_LOADFILE",
+            ParmSetFailed => "PARM_SET_FAILED",
+            InvalidArgument => "INVALID_ARGUMENT",
+            CantLoadGeo => "CANT_LOAD_GEO",
+            CantGeneratePreset => "CANT_GENERATE_PRESET",
+            CantLoadPreset => "CANT_LOAD_PRESET",
+            AssetDefAlreadyLoaded => "ASSET_DEF_ALREADY_LOADED",
+            NoLicenseFound => "NO_LICENSE_FOUND",
+            DisallowedNcLicenseFound => "DISALLOWED_NC_LICENSE_FOUND",
+            DisallowedNcAssetWithCLicense => "DISALLOWED_NC_ASSET_WITH_C_LICENSE",
+            DisallowedNcAssetWithLcLicense => "DISALLOWED_NC_ASSET_WITH_LC_LICENSE",
+            DisallowedLcAssetWithCLicense => "DISALLOWED_LC_ASSET_WITH_C_LICENSE",
+            DisallowedHengineindieW3partyPlugin => "DISALLOWED_HENGINEINDIE_W_3PARTY_PLUGIN",
+            AssetInvalid => "ASSET_INVALID",
+            NodeInvalid => "NODE_INVALID",
+            UserInterrupted => "USER_INTERRUPTED",
+            InvalidSession => "INVALID_SESSION",
+            SharedMemoryBufferOverflow => "SHARED_MEMORY_BUFFER_OVERFLOW",
+            InvalidSharedMemoryBuffer => "INVALID_SHARED_MEMORY_BUFFER",
+        };
+        write!(f, "{}", desc)
+    }
 }
 
 // This special case for TryFrom<T, Error = HapiError> where conversion can't fail.
@@ -24,239 +80,263 @@ impl From<std::convert::Infallible> for HapiError {
     }
 }
 
+impl From<HapiResult> for HapiError {
+    fn from(r: HapiResult) -> Self {
+        HapiError::Hapi {
+            result_code: HapiResultCode(r),
+            server_message: None,
+            contexts: Vec::new(),
+        }
+    }
+}
+
+impl From<&str> for HapiError {
+    fn from(value: &str) -> Self {
+        HapiError::Internal(value.to_string())
+    }
+}
+
 pub(crate) trait ErrorContext<T> {
     fn context<C>(self, context: C) -> Result<T>
     where
-        C: Into<Cow<'static, str>>;
+        C: Into<String>;
 
     #[allow(unused)]
     fn with_context<C, F>(self, func: F) -> Result<T>
     where
-        C: Into<Cow<'static, str>>,
+        C: Into<String>,
         F: FnOnce() -> C;
 }
 
 impl<T> ErrorContext<T> for Result<T> {
     fn context<C>(self, context: C) -> Result<T>
     where
-        C: Into<Cow<'static, str>>,
+        C: Into<String>,
     {
         match self {
             Ok(ok) => Ok(ok),
             Err(mut error) => {
-                error.contexts.push(context.into());
-                Err(error)
+                let context = context.into();
+                match &mut error {
+                    HapiError::Hapi { contexts, .. } => {
+                        contexts.push(context);
+                        Err(error)
+                    }
+                    HapiError::Context { contexts, .. } => {
+                        contexts.push(context);
+                        Err(error)
+                    }
+                    _ => Err(HapiError::Context {
+                        contexts: vec![context],
+                        source: Box::new(error),
+                    }),
+                }
             }
         }
     }
 
     fn with_context<C, F>(self, func: F) -> Result<T>
     where
-        C: Into<Cow<'static, str>>,
+        C: Into<String>,
         F: FnOnce() -> C,
     {
         match self {
             Ok(ok) => Ok(ok),
             Err(mut error) => {
-                error.contexts.push(func().into());
-                Err(error)
+                let context = func().into();
+                match &mut error {
+                    HapiError::Hapi { contexts, .. } => {
+                        contexts.push(context);
+                        Err(error)
+                    }
+                    HapiError::Context { contexts, .. } => {
+                        contexts.push(context);
+                        Err(error)
+                    }
+                    _ => Err(HapiError::Context {
+                        contexts: vec![context],
+                        source: Box::new(error),
+                    }),
+                }
             }
         }
     }
 }
 
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum Kind {
-    /// Error returned by ffi calls
-    Hapi(HapiResult),
-    /// CString contains null byte
-    NullByte(std::ffi::NulError),
-    /// String is not a valid utf-8
-    Utf8Error(std::string::FromUtf8Error),
-    /// IO Error
-    Io(std::io::Error),
-    /// Misc error message from this crate.
-    Internal(Cow<'static, str>),
-}
-
-impl Kind {
-    fn description(&self) -> &str {
-        use HapiResult::*;
-
-        match self {
-            Kind::Hapi(Success) => "SUCCESS",
-            Kind::Hapi(Failure) => "FAILURE",
-            Kind::Hapi(AlreadyInitialized) => "ALREADY_INITIALIZED",
-            Kind::Hapi(NotInitialized) => "NOT_INITIALIZED",
-            Kind::Hapi(CantLoadfile) => "CANT_LOADFILE",
-            Kind::Hapi(ParmSetFailed) => "PARM_SET_FAILED",
-            Kind::Hapi(InvalidArgument) => "INVALID_ARGUMENT",
-            Kind::Hapi(CantLoadGeo) => "CANT_LOAD_GEO",
-            Kind::Hapi(CantGeneratePreset) => "CANT_GENERATE_PRESET",
-            Kind::Hapi(CantLoadPreset) => "CANT_LOAD_PRESET",
-            Kind::Hapi(AssetDefAlreadyLoaded) => "ASSET_DEF_ALREADY_LOADED",
-            Kind::Hapi(NoLicenseFound) => "NO_LICENSE_FOUND",
-            Kind::Hapi(DisallowedNcLicenseFound) => "DISALLOWED_NC_LICENSE_FOUND",
-            Kind::Hapi(DisallowedNcAssetWithCLicense) => "DISALLOWED_NC_ASSET_WITH_C_LICENSE",
-            Kind::Hapi(DisallowedNcAssetWithLcLicense) => "DISALLOWED_NC_ASSET_WITH_LC_LICENSE",
-            Kind::Hapi(DisallowedLcAssetWithCLicense) => "DISALLOWED_LC_ASSET_WITH_C_LICENSE",
-            Kind::Hapi(DisallowedHengineindieW3partyPlugin) => {
-                "DISALLOWED_HENGINEINDIE_W_3PARTY_PLUGIN"
-            }
-            Kind::Hapi(AssetInvalid) => "ASSET_INVALID",
-            Kind::Hapi(NodeInvalid) => "NODE_INVALID",
-            Kind::Hapi(UserInterrupted) => "USER_INTERRUPTED",
-            Kind::Hapi(InvalidSession) => "INVALID_SESSION",
-            Kind::Hapi(SharedMemoryBufferOverflow) => "SHARED_MEMORY_BUFFER_OVERFLOW",
-            Kind::NullByte(_) => "String contains null byte!",
-            Kind::Utf8Error(_) => "String is not UTF-8!",
-            Kind::Internal(s) => s,
-            Kind::Io(_) => "IO Error",
-        }
-    }
-}
-
-impl From<HapiResult> for HapiError {
-    fn from(r: HapiResult) -> Self {
-        HapiError {
-            kind: Kind::Hapi(r),
-            contexts: Vec::new(),
-            server_message: None,
-        }
-    }
-}
-
-impl From<std::io::Error> for HapiError {
-    fn from(value: std::io::Error) -> Self {
-        HapiError {
-            kind: Kind::Io(value),
-            contexts: Vec::new(),
-            server_message: None,
-        }
-    }
-}
-
-impl HapiError {
-    pub(crate) fn new(
-        kind: Kind,
-        mut static_message: Option<Cow<'static, str>>,
-        server_message: Option<Cow<'static, str>>,
-    ) -> HapiError {
-        let mut contexts = vec![];
-        if let Some(m) = static_message.take() {
-            contexts.push(m);
-        }
-        HapiError {
-            kind,
-            contexts,
-            server_message,
-        }
-    }
-    pub(crate) fn internal<M: Into<Cow<'static, str>>>(message: M) -> Self {
-        HapiError {
-            kind: Kind::Internal(message.into()),
-            server_message: None,
-            contexts: vec![],
-        }
-    }
-}
-
+// Custom Display to show contexts properly for HAPI errors
 impl std::fmt::Display for HapiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.kind {
-            Kind::Hapi(_) => {
-                write!(f, "[{}]: ", self.kind.description())?;
-                if let Some(ref msg) = self.server_message {
-                    write!(f, "[Engine Message]: {}", msg)?;
+        fn fmt_base(err: &HapiError, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match err {
+                HapiError::Hapi {
+                    result_code,
+                    server_message,
+                    ..
+                } => {
+                    write!(f, "[{}]", result_code)?;
+                    if let Some(msg) = server_message {
+                        write!(f, ": [Engine Message]: {}", msg)?;
+                    }
+                    Ok(())
                 }
-                if !self.contexts.is_empty() {
-                    writeln!(f)?; // blank line
+                HapiError::Context { source, .. } => fmt_base(source, f),
+                HapiError::NullByte(e) => {
+                    let vec = e.clone().into_vec();
+                    let text = String::from_utf8_lossy(&vec);
+                    write!(f, "String contains null byte in \"{}\"", text)
                 }
-                for (n, msg) in self.contexts.iter().enumerate() {
-                    writeln!(f, "\t{}. {}", n, msg)?;
+                HapiError::Utf8(e) => {
+                    let text = String::from_utf8_lossy(e.as_bytes());
+                    write!(f, "Invalid UTF-8 in string \"{}\"", text)
                 }
-                Ok(())
-            }
-            Kind::NullByte(e) => unsafe {
-                let text = e.clone().into_vec();
-                // SAFETY: We don't care about utf8 for error reporting I think
-                let text = std::str::from_utf8_unchecked(&text);
-                write!(f, "{e} in string \"{}\"", text)
-            },
-            Kind::Utf8Error(e) => unsafe {
-                // SAFETY: We don't care about utf8 for error reporting I think
-                let text = std::str::from_utf8_unchecked(e.as_bytes());
-                write!(f, "{e} in string \"{}\"", text)
-            },
-            Kind::Io(e) => {
-                write!(f, "{}", e)
-            }
-            Kind::Internal(e) => {
-                write!(f, "[Internal Error]: {e}")
+                HapiError::Io(e) => write!(f, "IO error: {}", e),
+                HapiError::Internal(e) => write!(f, "Internal error: {}", e),
             }
         }
+
+        fn collect_contexts<'a>(err: &'a HapiError, out: &mut Vec<&'a str>) {
+            match err {
+                HapiError::Hapi { contexts, .. } => {
+                    out.extend(contexts.iter().map(|s| s.as_str()));
+                }
+                HapiError::Context { contexts, source } => {
+                    collect_contexts(source, out);
+                    out.extend(contexts.iter().map(|s| s.as_str()));
+                }
+                _ => {}
+            }
+        }
+
+        fmt_base(self, f)?;
+
+        let mut contexts = Vec::new();
+        collect_contexts(self, &mut contexts);
+        if !contexts.is_empty() {
+            writeln!(f)?;
+            for (n, msg) in contexts.iter().enumerate() {
+                writeln!(f, "\t{}. {}", n, msg)?;
+            }
+        }
+        Ok(())
     }
 }
-
-impl std::fmt::Debug for HapiError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-
-impl From<std::ffi::NulError> for HapiError {
-    fn from(e: std::ffi::NulError) -> Self {
-        HapiError::new(Kind::NullByte(e), None, None)
-    }
-}
-
-impl From<std::string::FromUtf8Error> for HapiError {
-    fn from(e: std::string::FromUtf8Error) -> Self {
-        HapiError::new(Kind::Utf8Error(e), None, None)
-    }
-}
-
-impl From<&str> for HapiError {
-    fn from(value: &str) -> Self {
-        HapiError::new(Kind::Internal(Cow::Owned(value.to_string())), None, None)
-    }
-}
-
-impl std::error::Error for HapiError {}
 
 impl HapiResult {
+    /// Check HAPI_Result status and convert to HapiError if the status is not success.
     pub(crate) fn check_err<F, M>(self, session: &Session, context: F) -> Result<()>
     where
-        M: Into<Cow<'static, str>>,
+        M: Into<String>,
         F: FnOnce() -> M,
     {
         match self {
             HapiResult::Success => Ok(()),
             _err => {
-                let server_message = session
-                    .get_status_string(StatusType::CallResult, StatusVerbosity::All)
-                    .map(Cow::Owned)
-                    .unwrap_or_else(|_| Cow::Borrowed("Could not retrieve error message"));
-                let mut err = HapiError::new(Kind::Hapi(self), None, Some(server_message));
-                err.contexts.push(context().into());
-                Err(err)
+                let server_message = if session.is_valid() {
+                    session
+                        .get_status_string(StatusType::CallResult, StatusVerbosity::All)
+                        .ok()
+                } else {
+                    Some("Session is corrupted: error message not available".to_string())
+                };
+
+                Err(HapiError::Hapi {
+                    result_code: HapiResultCode(self),
+                    server_message: server_message
+                        .or_else(|| Some("Could not retrieve error message".to_string())),
+                    contexts: vec![context().into()],
+                })
             }
         }
     }
 
-    pub(crate) fn error_message<I: Into<Cow<'static, str>>>(self, message: I) -> Result<()> {
+    /// Convert HAPI_Result to HapiError if the status is not success and add a message to the error.
+    pub(crate) fn add_context<I: Into<String>>(self, message: I) -> Result<()> {
         match self {
             HapiResult::Success => Ok(()),
-            _err => {
-                let mut err = HapiError::new(
-                    Kind::Hapi(self),
-                    None,
-                    Some(Cow::Borrowed("Server error message unavailable")),
-                );
-                err.contexts.push(message.into());
-                Err(err)
-            }
+            _err => Err(HapiError::Hapi {
+                result_code: HapiResultCode(self),
+                server_message: None,
+                contexts: vec![message.into()],
+            }),
         }
+    }
+
+    pub(crate) fn with_context<F, M>(self, func: F) -> Result<()>
+    where
+        F: FnOnce() -> M,
+        M: Into<String>,
+    {
+        self.add_context(func())
+    }
+
+    pub(crate) fn with_server_message<F, M>(self, func: F) -> Result<()>
+    where
+        F: FnOnce() -> M,
+        M: Into<String>,
+    {
+        match self {
+            HapiResult::Success => Ok(()),
+            _err => Err(HapiError::Hapi {
+                result_code: HapiResultCode(self),
+                server_message: Some(func().into()),
+                contexts: vec![],
+            }),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::error::Error as _;
+
+    #[test]
+    fn context_chain_is_rendered_for_internal_errors() {
+        let err = (Err::<(), HapiError>(HapiError::Internal("root".to_string())))
+            .context("first context")
+            .context("second context")
+            .unwrap_err();
+
+        let s = err.to_string();
+        assert!(s.starts_with("Internal error: root"));
+        assert!(s.contains("\n\t0. first context\n\t1. second context\n"));
+
+        // Verify the source chain is preserved via #[source]
+        let source = err.source().expect("source");
+        assert_eq!(source.to_string(), "Internal error: root");
+    }
+
+    #[test]
+    fn hapi_errors_server_message_and_contexts() {
+        let err = (Err::<(), HapiError>(HapiError::Hapi {
+            result_code: HapiResultCode(HapiResult::Failure),
+            server_message: Some("could not cook".to_string()),
+            contexts: vec!["low-level".to_string()],
+        }))
+        .context("high-level")
+        .unwrap_err();
+
+        let s = err.to_string();
+        assert_eq!(
+            s,
+            "[FAILURE]: [Engine Message]: could not cook\n\t0. low-level\n\t1. high-level\n"
+        );
+    }
+
+    #[test]
+    fn context_added_outside_hapi_error_is_rendered_after_inner_contexts() {
+        // Create a HAPI error with one context, then add an outer wrapper context.
+        let base = HapiError::Hapi {
+            result_code: HapiResultCode(HapiResult::InvalidArgument),
+            server_message: None,
+            contexts: vec!["inner".to_string()],
+        };
+        let wrapped = (Err::<(), HapiError>(base)).context("outer").unwrap_err();
+
+        let s = wrapped.to_string();
+        // Base header comes from the underlying Hapi error
+        assert!(s.starts_with("[INVALID_ARGUMENT]"));
+        // Context order: inner first, then outer
+        assert!(s.contains("\n\t0. inner\n\t1. outer\n"));
     }
 }

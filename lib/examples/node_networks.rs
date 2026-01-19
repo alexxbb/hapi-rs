@@ -1,12 +1,16 @@
 use hapi_rs::Result;
 use hapi_rs::node::*;
-use hapi_rs::session::*;
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{Session, SessionOptions, new_thrift_session};
 
 fn main() -> Result<()> {
-    let session = quick_session(None)?;
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::shared_memory_with_defaults(),
+    )?;
     let lib = session.load_asset_file("../otls/sesi/FourShapes.hda")?;
     let asset = lib.try_create_first()?;
-    let children = asset.find_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
+    let children = asset.get_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
     println!("Editable Node Network Child Count: {}", children.len());
 
     // Print original children
@@ -25,13 +29,13 @@ fn main() -> Result<()> {
 
     println!("After CONNECT NODE");
     // Print out children again
-    let children = asset.find_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
+    let children = asset.get_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
     print_child_node(&session, &children)?;
 
     // Delete the new node and print one last time
     box_node.delete()?;
     println!("After DELETING NODE");
-    let children = asset.find_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
+    let children = asset.get_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
     print_child_node(&session, &children)?;
 
     Ok(())

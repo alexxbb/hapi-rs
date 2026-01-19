@@ -1,22 +1,12 @@
-use anyhow::anyhow;
-use hapi_rs::session::*;
-use std::path::Path;
-use std::time::Duration;
+use hapi_rs::parameter::Parameter;
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 
 fn main() -> anyhow::Result<()> {
-    const PIPE: &str = "hapi";
-    // Try to connect toa possibly running session
-    let session = match connect_to_pipe(PIPE, None, None, None) {
-        Ok(session) => session,
-        Err(_) => {
-            // No session running at PIPE, start the Houdini process.
-            let hfs = std::env::var_os("HFS").ok_or_else(|| anyhow!("Missing HFS"))?;
-            let executable = Path::new(&hfs).join("bin").join("houdini");
-            let child = start_houdini_server(PIPE, executable, false)?;
-            // While trying to connect, it will print some errors, these can be ignored.
-            connect_to_pipe(PIPE, None, Some(Duration::from_secs(90)), Some(child.id()))?
-        }
-    };
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::pipe_with_defaults(),
+    )?;
 
     let topnet = session.create_node("Object/topnet")?;
     let generator = topnet

@@ -113,7 +113,12 @@ pub trait ParmBaseTrait {
         let inner = self.inner();
         debug_assert!(inner.info.1.is_valid());
         let name = self.c_name()?;
-        crate::ffi::get_parm_expression(inner.node, &inner.info.1, &name, index)
+        let expr_string = crate::ffi::get_parm_expression(inner.node, &inner.info.1, &name, index)?;
+        Ok(if expr_string.is_empty() {
+            None
+        } else {
+            Some(expr_string)
+        })
     }
 
     /// Checks if parameter has an expression

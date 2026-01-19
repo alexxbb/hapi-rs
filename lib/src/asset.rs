@@ -150,15 +150,15 @@ impl<'a> AssetParm<'a> {
             tag_index,
         )?;
         // SAFETY: string bytes obtained from FFI are null terminated
-        let tag_c_str = unsafe { CStr::from_bytes_with_nul_unchecked(&tag_name) };
+        let tag_c_str = CString::new(tag_name.clone())?;
         let tag_value = crate::ffi::get_asset_definition_parm_tag_value(
             &self.info.1,
             self.library_id,
             self.asset_name,
             self.info.id(),
-            tag_c_str,
+            &tag_c_str,
         )?;
-        Ok((String::from_utf8_lossy(&tag_name).to_string(), tag_value))
+        Ok((tag_name, tag_value))
     }
 }
 
@@ -207,7 +207,13 @@ impl AssetLibrary {
     /// Get asset names this library contains
     pub fn get_asset_names(&self) -> Result<Vec<String>> {
         debug_assert!(self.session.is_valid());
-        debug!("Retrieving asset names from: {:?}", self.file);
+        debug!(
+            "Retrieving asset names from: {:?}",
+            self.file
+                .as_deref()
+                .map(|p| p.to_string_lossy())
+                .unwrap_or("<memory bytes>".into())
+        );
         let num_assets = self.get_asset_count()?;
         crate::ffi::get_asset_names(self.lib_id, num_assets, &self.session)
             .map(|a| a.into_iter().collect())
@@ -231,14 +237,15 @@ impl AssetLibrary {
         // but for some assets type like Cop, Top a manager node must be created first
         debug!("Trying to create a node for operator: {}", name.as_ref());
         let Some((context, operator)) = name.as_ref().split_once('/') else {
-            return Err(HapiError::internal("Node name must be fully qualified"));
+            return Err(HapiError::Internal(format!(
+                "Incomplete node name: {}. Name must be fully qualified",
+                name.as_ref()
+            )));
         };
-        // Strip operator namespace if present
-        let context = if let Some((_, context)) = context.split_once("::") {
-            context
-        } else {
-            context
-        };
+        // Operators with namespace better be handle Houdini directly
+        if context.contains("::") {
+            return self.session.create_node(name.as_ref());
+        }
         // There's no root network manager for Sop node types.
         let (manager, subnet) = if context == "Sop" {
             (None, None)
@@ -279,8 +286,9 @@ impl AssetLibrary {
     /// Try to create the first found asset in the library.
     /// This is a convenience function for:
     /// ```
-    /// use hapi_rs::session::{new_in_process};
-    /// let session = new_in_process(None).unwrap();
+    /// use hapi_rs::session::new_in_process_session;
+    /// use hapi_rs::session::SessionOptions;
+    /// let session = new_in_process_session(Some(SessionOptions::default())).unwrap();
     /// let lib = session.load_asset_file("../otls/hapi_geo.hda").unwrap();
     /// let names = lib.get_asset_names().unwrap();
     /// session.create_node(&names[0]).unwrap();
@@ -290,7 +298,7 @@ impl AssetLibrary {
         debug_assert!(self.session.is_valid());
         let name = self
             .get_first_name()?
-            .ok_or_else(|| HapiError::internal("Library file is empty"))?;
+            .ok_or_else(|| HapiError::Internal("Library file is empty".to_string()))?;
         self.create_asset_for_node(name, None)
     }
 
@@ -318,7 +326,7 @@ impl AssetLibrary {
         let values = AssetParmValues {
             int: values.0,
             float: values.1,
-            string: values.2,
+            string: values.2.into_iter().collect(),
             menus: menus.collect(),
         };
         Ok(AssetParameters {

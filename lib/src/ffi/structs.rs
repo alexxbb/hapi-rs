@@ -178,12 +178,23 @@ wrap! {
     [get] min_port->minPort->[i32];
     [get] max_port->maxPort->[i32];
     [get] ports->ports->[[i32;128usize]];
-    [get|set|with] shared_memory_buffer_type->sharedMemoryBufferType->[ThriftSharedMemoryBufferType];
-    [get|set|with] shared_memory_buffer_size->sharedMemoryBufferSize->[i64];
+    [get] shared_memory_buffer_type->sharedMemoryBufferType->[ThriftSharedMemoryBufferType];
+    [get] shared_memory_buffer_size->sharedMemoryBufferSize->[i64];
+}
+
+// We need to make sure the server values match the session values, so we don't allow the user to change this via the SessionInfo struct
+impl SessionInfo {
+    pub(crate) fn set_shared_memory_buffer_type(&mut self, value: ThriftSharedMemoryBufferType) {
+        self.0.sharedMemoryBufferType = value;
+    }
+
+    pub(crate) fn set_shared_memory_buffer_size(&mut self, value: i64) {
+        self.0.sharedMemoryBufferSize = value;
+    }
 }
 
 /// Options to configure a Thrift server being started from HARC.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ThriftServerOptions(pub(crate) HAPI_ThriftServerOptions);
 
 wrap! {
@@ -213,7 +224,7 @@ impl std::fmt::Debug for ParmChoiceInfo {
         use std::borrow::Cow;
 
         let get_str = |h: i32| -> Cow<str> {
-            match crate::stringhandle::get_string_bytes(StringHandle(h), &self.1) {
+            match crate::ffi::get_string_bytes(&self.1, StringHandle(h)) {
                 // SAFETY: Don't care about utf in Debug
                 Ok(bytes) => unsafe { Cow::Owned(String::from_utf8_unchecked(bytes)) },
                 Err(_) => Cow::Borrowed("!!! Could not retrieve string"),

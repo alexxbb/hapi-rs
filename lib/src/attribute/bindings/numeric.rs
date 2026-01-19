@@ -1,4 +1,4 @@
-use crate::attribute::{AttribAccess, JobId, array::DataArray};
+use crate::attribute::{AttribValueType, JobId, array::DataArray};
 use crate::ffi::AttributeInfo;
 use crate::ffi::raw;
 use crate::ffi::raw::StorageType;
@@ -115,7 +115,7 @@ _set_array [HAPI_SetAttributeFloat64ArrayData]
 _set_array_async [HAPI_SetAttributeFloat64ArrayDataAsync]
 ]
 )]
-impl AttribAccess for _val_type {
+impl AttribValueType for _val_type {
     fn storage() -> StorageType {
         _storage
     }

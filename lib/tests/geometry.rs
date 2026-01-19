@@ -1,19 +1,23 @@
+use hapi_rs::geometry::extra::GeometryExtension;
 use hapi_rs::{attribute::*, geometry::*};
 mod utils;
 
+use tempfile::NamedTempFile;
 use utils::{HdaFile, create_triangle, with_session, with_test_geometry};
+
+use crate::utils::with_session_asset;
 
 #[test]
 fn geometry_save_and_load_to_file() {
     with_session(|session| {
         let geo = create_triangle(&session)?;
-        let tmp_file = std::env::temp_dir().join("triangle.geo");
-        geo.save_to_file(&tmp_file.to_string_lossy())
+        let tmp_file = NamedTempFile::new().expect("tempfile");
+        geo.save_to_file(tmp_file.path().to_string_lossy().as_ref())
             .expect("save_to_file");
         geo.node.delete().unwrap();
 
         let geo = session.create_input_node("dummy", None).unwrap();
-        geo.load_from_file(&tmp_file.to_string_lossy())
+        geo.load_from_file(tmp_file.path().to_string_lossy().as_ref())
             .expect("load_from_file");
         geo.node.cook().unwrap();
         assert_eq!(geo.part_info(0).unwrap().point_count(), 3);
@@ -102,6 +106,42 @@ fn geometry_elements() {
 }
 
 #[test]
+fn geometry_partitions_report_counts() {
+    with_test_geometry(|geo| {
+        let info = geo.geo_info()?;
+        let partitions = geo.partitions()?;
+        assert_eq!(partitions.len() as i32, info.part_count());
+        let part = partitions.first().expect("partition info");
+
+        let vertex_list = geo.vertex_list(part)?;
+        assert_eq!(vertex_list.len() as i32, part.vertex_count());
+
+        let face_counts = geo.get_face_counts(part)?;
+        assert_eq!(face_counts.len() as i32, part.face_count());
+        assert_eq!(face_counts.into_iter().sum::<i32>(), part.vertex_count());
+
+        let prim_groups = geo.get_group_names(GroupType::Prim)?;
+        let prim_group_name = prim_groups.iter_str().next().expect("prim group name");
+        let prim_membership = geo.get_group_membership(part, GroupType::Prim, prim_group_name)?;
+        assert_eq!(
+            prim_membership.len() as i32,
+            part.element_count_by_group(GroupType::Prim)
+        );
+
+        let point_groups = geo.get_group_names(GroupType::Point)?;
+        let point_group_name = point_groups.iter_str().next().expect("point group name");
+        let point_membership =
+            geo.get_group_membership(part, GroupType::Point, point_group_name)?;
+        assert_eq!(
+            point_membership.len() as i32,
+            part.element_count_by_group(GroupType::Point)
+        );
+        Ok(())
+    })
+    .unwrap()
+}
+
+#[test]
 fn geometry_delete_attribute() {
     with_session(|session| {
         let geo = create_triangle(&session)?;
@@ -149,6 +189,42 @@ fn geometry_add_and_delete_group() {
         geo.node.cook_blocking().unwrap();
         geo.update().unwrap();
         assert_eq!(geo.group_count_by_type(GroupType::Point).unwrap(), 0);
+        geo.node.delete()
+    })
+    .unwrap()
+}
+
+#[test]
+fn geometry_geo_info_updates_after_group_edits() {
+    with_session(|session| {
+        let mut geo = create_triangle(&session)?;
+        let part = geo.part_info(0).expect("part_info");
+        let baseline = geo.geo_info().expect("geo_info");
+        let baseline_groups = baseline.point_group_count();
+
+        let membership = vec![1; part.point_count() as usize];
+        geo.add_group(
+            part.part_id(),
+            GroupType::Point,
+            "lifecycle_group",
+            Some(&membership),
+        )
+        .expect("add_group");
+        geo.commit().expect("commit");
+        geo.node.cook_blocking().expect("cook_blocking");
+        geo.update().expect("update");
+        let after_add = geo.geo_info().expect("geo_info");
+        assert_eq!(after_add.point_group_count(), baseline_groups + 1);
+        assert_eq!(after_add.part_count(), baseline.part_count());
+
+        geo.delete_group(part.part_id(), GroupType::Point, "lifecycle_group")
+            .expect("delete_group");
+        geo.commit().expect("commit");
+        geo.node.cook_blocking().expect("cook_blocking");
+        geo.update().expect("update");
+        let after_delete = geo.geo_info().expect("geo_info");
+        assert_eq!(after_delete.point_group_count(), baseline_groups);
+        assert_eq!(after_delete.part_count(), baseline.part_count());
         geo.node.delete()
     })
     .unwrap()
@@ -210,8 +286,11 @@ fn geometry_create_input_curve() {
         let geo = session.create_input_curve_node("InputCurve", None).unwrap();
         let positions = &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
         geo.set_input_curve_positions(0, positions).unwrap();
-        let p = geo.get_position_attribute(0).unwrap();
-        let coords = p.get(0).unwrap();
+        let p = geo
+            .get_position_attribute(&geo.part_info(0)?)
+            .unwrap()
+            .expect("position attribute");
+        let coords = p.get(geo.part_info(0)?.part_id()).unwrap();
         assert_eq!(positions, coords.as_slice());
         Ok(())
     })
@@ -254,22 +333,27 @@ fn geometry_multiple_input_curves() {
         p_attrib.set(0, &points).unwrap();
         geo.commit().unwrap();
         geo.node.cook_blocking().unwrap();
-        geo.save_to_file("c:/Temp/curve.geo")
+        let tmp_file = NamedTempFile::new().expect("tempfile");
+        geo.save_to_file(tmp_file.path().to_string_lossy().as_ref())
+            .expect("save_to_file");
+        assert!(tmp_file.path().exists());
+        Ok(())
     })
     .unwrap()
 }
 
 #[test]
 fn geometry_read_write_volume() {
-    with_session(|session| {
-        session.load_asset_file(HdaFile::Volume.path())?;
-        let node = session.create_node("Object/hapi_vol").unwrap();
-        node.cook_blocking().unwrap();
-        let source = node.geometry().unwrap().unwrap();
+    with_session_asset(HdaFile::Volume, |lib| {
+        let node = lib.try_create_first().expect("create_node");
+        node.cook_blocking().expect("cook_blocking");
+        let source = node.geometry().expect("geometry").unwrap();
         let source_part = source.part_info(0).unwrap();
         let vol_info = source.volume_info(0).unwrap();
-        let dest_geo = session.create_input_node("volume_copy", None).unwrap();
-        dest_geo.node.cook_blocking().unwrap();
+        let dest_geo = node
+            .session
+            .create_input_node("volume_copy", None)
+            .expect("create_input_node");
         dest_geo.set_part_info(&source_part).unwrap();
         dest_geo.set_volume_info(0, &vol_info).unwrap();
 
@@ -287,6 +371,66 @@ fn geometry_read_write_volume() {
         dest_geo.commit().unwrap();
         dest_geo.node.cook_blocking()?;
         Ok(())
+    })
+    .unwrap()
+}
+
+#[test]
+fn geometry_extension_helpers_create_attributes() {
+    with_session(|session| {
+        let mut geo = session.create_input_node("extension_helpers", None)?;
+        let part = PartInfo::default()
+            .with_part_type(PartType::Mesh)
+            .with_point_count(2)
+            .with_vertex_count(0)
+            .with_face_count(0);
+        geo.set_part_info(&part)?;
+
+        assert!(geo.get_position_attribute(&part)?.is_none());
+        assert!(
+            geo.get_color_attribute(&part, AttributeOwner::Point)?
+                .is_none()
+        );
+        assert!(
+            geo.get_normal_attribute(&part, AttributeOwner::Point)?
+                .is_none()
+        );
+
+        let positions = geo.create_position_attribute(&part)?;
+        positions.set(part.part_id(), &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0])?;
+
+        let colors = geo.create_point_color_attribute(&part)?;
+        colors.set(part.part_id(), &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0])?;
+
+        geo.commit()?;
+        geo.node.cook_blocking()?;
+        geo.update()?;
+
+        let fetched_positions = geo.get_position_attribute(&part)?.expect("position attr");
+        assert_eq!(fetched_positions.info().tuple_size(), 3);
+        assert_eq!(
+            fetched_positions.get(part.part_id())?,
+            vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        );
+
+        let fetched_colors = geo
+            .get_color_attribute(&part, AttributeOwner::Point)?
+            .expect("color attr");
+        assert_eq!(fetched_colors.info().tuple_size(), 3);
+        assert_eq!(
+            fetched_colors.get(part.part_id())?,
+            vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+        );
+
+        assert!(
+            geo.get_color_attribute(&part, AttributeOwner::Vertex)?
+                .is_none()
+        );
+        assert!(
+            geo.get_normal_attribute(&part, AttributeOwner::Point)?
+                .is_none()
+        );
+        geo.node.delete()
     })
     .unwrap()
 }

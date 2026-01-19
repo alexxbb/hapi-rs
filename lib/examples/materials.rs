@@ -2,10 +2,14 @@ use hapi_rs::Result;
 /// Example extracts material textures to files
 use hapi_rs::geometry::Materials;
 use hapi_rs::parameter::*;
-use hapi_rs::session::quick_session;
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 
 fn main() -> Result<()> {
-    let session = quick_session(None)?;
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::shared_memory_with_defaults(),
+    )?;
     let lib = session.load_asset_file("../otls/sesi/SideFX_spaceship.hda")?;
     let node = lib.try_create_first()?;
     node.cook()?;

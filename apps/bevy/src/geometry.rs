@@ -1,9 +1,9 @@
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::Mesh;
 use bevy::render::mesh::PrimitiveTopology;
-use hapi_rs::attribute::NumericAttr;
-use hapi_rs::geometry::{extra::GeometryExtension, AttributeName, AttributeOwner, Geometry};
 use hapi_rs::Result;
+use hapi_rs::attribute::NumericAttr;
+use hapi_rs::geometry::{AttributeName, AttributeOwner, Geometry, extra::GeometryExtension};
 
 pub enum NormalAttribute {
     Point(Vec<f32>),
@@ -123,7 +123,8 @@ fn get_houdini_geometry_data_arrays(
     if build_positions {
         positions = Some(
             geometry
-                .get_position_attribute(part.part_id())?
+                .get_position_attribute(&part)?
+                .expect("Position attribute must exist")
                 .get(part.part_id())?,
         )
     }

@@ -2,10 +2,14 @@
 use hapi_rs::Result;
 use hapi_rs::attribute::*;
 use hapi_rs::geometry::*;
-use hapi_rs::session::*;
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 
 fn main() -> Result<()> {
-    let session = quick_session(None)?;
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::shared_memory_with_defaults(),
+    )?;
 
     let profile = session.start_performance_monitor_profile("hapi-rs")?;
 

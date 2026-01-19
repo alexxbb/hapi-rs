@@ -4,17 +4,17 @@ mod material;
 use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
 use bevy::prelude::*;
 use bevy::render::mesh::VertexAttributeValues;
-use bevy::tasks::{block_on, futures_lite::future};
 use bevy::tasks::{AsyncComputeTaskPool, Task};
+use bevy::tasks::{block_on, futures_lite::future};
 use bevy::text::FontSmoothing;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
+use hapi_rs::Result as HapiResult;
 use hapi_rs::geometry::Geometry;
 use hapi_rs::node::HoudiniNode;
 use hapi_rs::parameter::Parameter;
 #[allow(unused_imports)]
-use hapi_rs::session::connect_to_memory_server;
-use hapi_rs::session::{new_in_process, SessionOptions};
-use hapi_rs::Result as HapiResult;
+use hapi_rs::server::{ServerOptions, connect_to_memory_server};
+use hapi_rs::session::{SessionOptions, new_in_process_session};
 
 #[derive(Resource)]
 struct HoudiniResource {
@@ -203,13 +203,14 @@ fn input_handler(
 }
 
 fn init_houdini_resource() -> HapiResult<HoudiniResource> {
-    let options = SessionOptions::builder().threaded(false).build();
+    let session_options = SessionOptions::default().threaded(false);
     let session = if cfg!(debug_assertions) {
-        connect_to_memory_server("hapi", Some(&options), None)?
+        let server_options = ServerOptions::shared_memory_with_defaults();
+        connect_to_memory_server(server_options, None)?.initialize(session_options)?
     } else {
-        new_in_process(Some(&options))?
+        new_in_process_session(Some(session_options))?
     };
-    let otl = std::path::absolute(std::env::current_dir()?.join("assets/hda/geo.hda"))?;
+    let otl = std::path::absolute(std::env::current_dir()?.join("apps/bevy/assets/hda/geo.hda"))?;
     let lib = session.load_asset_file(otl)?;
     let asset = lib.try_create_first()?;
     let geometry = asset.geometry()?.expect("geometry");

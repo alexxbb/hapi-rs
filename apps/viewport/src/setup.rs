@@ -2,11 +2,11 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use bytemuck::cast_slice;
+use hapi_rs::Result;
 use hapi_rs::attribute::NumericAttr;
-use hapi_rs::geometry::{AttributeOwner, Geometry, Materials};
+use hapi_rs::geometry::{AttributeOwner, Geometry, Materials, extra::GeometryExtension};
 use hapi_rs::node::Session;
 use hapi_rs::session::HoudiniNode;
-use hapi_rs::Result;
 use image::ImageDecoder;
 use std::io::Cursor;
 
@@ -17,7 +17,7 @@ use std::mem::size_of;
 use std::time::{Duration, Instant};
 
 use crate::camera::Camera;
-use crate::parameters::{build_parm_map, UiParameter};
+use crate::parameters::{UiParameter, build_parm_map};
 
 use hapi_rs::asset::AssetLibrary;
 use ultraviolet::{Mat4, Vec2, Vec3};
@@ -310,7 +310,10 @@ impl MeshData {
         let _start = Instant::now();
         let _part = geo.part_info(0)?;
         let _part_id = _part.part_id();
-        let positions = geo.get_position_attribute(_part_id)?.get(_part_id)?;
+        let positions = geo
+            .get_position_attribute(&_part)?
+            .expect("Positions attribute");
+        let positions = positions.get(_part_id)?;
         let face_counts = geo.get_face_counts(&_part)?;
         let vertex_list = geo.vertex_list(&_part)?;
         let uvs = {
@@ -326,39 +329,25 @@ impl MeshData {
         };
         let (normals, point_normal) = {
             let mut point_normal = false;
-            let mut vtx_attr = geo.get_attribute(_part_id, AttributeOwner::Vertex, "N")?;
+            let mut vtx_attr = geo.get_normal_attribute(&_part, AttributeOwner::Vertex)?;
             if vtx_attr.is_none() {
                 point_normal = true;
-                vtx_attr = geo.get_attribute(_part_id, AttributeOwner::Point, "N")?;
+                vtx_attr = geo.get_normal_attribute(&_part, AttributeOwner::Point)?;
             }
-            let normals = match vtx_attr {
-                Some(n_attr) => Some(
-                    n_attr
-                        .downcast::<NumericAttr<f32>>()
-                        .expect("N is NumericAttribute")
-                        .get(_part_id)?,
-                ),
-                None => None,
-            };
+            let normals =
+                vtx_attr.map(|n_attr| n_attr.get(_part_id).expect("get attribute API succeeded"));
             (normals, point_normal)
         };
 
         let (colors, point_color) = {
             let mut point_color = false;
-            let mut clr_attr = geo.get_attribute(_part_id, AttributeOwner::Vertex, "Cd")?;
+            let mut clr_attr = geo.get_color_attribute(&_part, AttributeOwner::Vertex)?;
             if clr_attr.is_none() {
                 point_color = true;
-                clr_attr = geo.get_attribute(_part_id, AttributeOwner::Point, "Cd")?;
+                clr_attr = geo.get_color_attribute(&_part, AttributeOwner::Point)?;
             }
-            let colors = match clr_attr {
-                Some(cd_attr) => Some(
-                    cd_attr
-                        .downcast::<NumericAttr<f32>>()
-                        .expect("Cd is NumericAttribute")
-                        .get(_part_id)?,
-                ),
-                None => None,
-            };
+            let colors =
+                clr_attr.map(|cd_attr| cd_attr.get(_part_id).expect("get attribute API succeeded"));
             (colors, point_color)
         };
 

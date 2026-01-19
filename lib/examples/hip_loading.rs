@@ -1,11 +1,17 @@
-use hapi_rs::session::*;
+use hapi_rs::Result;
+use hapi_rs::raw::StatusVerbosity;
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, SessionState, new_thrift_session};
 use std::thread::sleep;
 use std::time::Duration;
 use tempfile::NamedTempFile;
 
 /// Demonstrates how to save and load Hip files.
 fn main() -> Result<()> {
-    let sess = quick_session(Some(&SessionOptions::builder().threaded(true).build()))?;
+    let sess = new_thrift_session(
+        SessionOptions::default().threaded(true),
+        ServerOptions::shared_memory_with_defaults(),
+    )?;
 
     println!("Generating scene");
     for _ in 0..10 {
@@ -16,10 +22,6 @@ fn main() -> Result<()> {
     let hip_file = NamedTempFile::with_suffix(".hip")?;
     println!("Saving scene to {}", hip_file.path().display());
     sess.save_hip(hip_file.path(), false)?;
-
-    println!("Cleaning up");
-    sess.cleanup()?;
-    sess.initialize()?;
 
     println!("Loading scene {}", hip_file.path().display());
     sess.load_hip(hip_file.path(), true)?;

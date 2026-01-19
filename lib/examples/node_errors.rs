@@ -5,9 +5,8 @@ use hapi_rs::Result;
 use hapi_rs::enums::StatusVerbosity;
 use hapi_rs::node::{CookResult, HoudiniNode, NodeFlags, NodeHandle, NodeType};
 use hapi_rs::raw::StatusType;
-use hapi_rs::session::{
-    SessionInfo, SessionOptions, SessionOptionsBuilder, connect_to_memory_server, quick_session,
-};
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 
 const OTL: &str = "../otls/hapi_errors.hda";
 
@@ -29,11 +28,11 @@ fn gather_all_messages(asset: HoudiniNode, message_nodes: &[NodeHandle]) -> Resu
 fn main() -> Result<()> {
     let otl = std::env::current_dir().unwrap().join(OTL);
     let otl = std::path::absolute(&otl).unwrap();
-    let opts = SessionOptionsBuilder::default()
-        .threaded(true)
-        .log_file("c:/Temp/hapi.log.txt")
-        .build();
-    let session = quick_session(Some(&opts))?;
+    let log_file = std::env::temp_dir().join("hapi.log");
+    let session = new_thrift_session(
+        SessionOptions::default().threaded(true),
+        ServerOptions::shared_memory_with_defaults().with_log_file(&log_file),
+    )?;
     let asset = session.load_asset_file(otl)?.try_create_first()?;
     let geo = asset.geometry()?.unwrap();
 
@@ -41,11 +40,6 @@ fn main() -> Result<()> {
     let message_nodes = asset.get_message_nodes()?;
     let error = asset.get_composed_cook_result_string(StatusVerbosity::Statusverbosity2)?;
 
-    // let error = match &message_nodes[..] {
-    //     [] => asset.get_composed_cook_result_string(StatusVerbosity::Statusverbosity2)?,
-    //     message_nodes => gather_all_messages(asset, message_nodes)?,
-    // };
-
-    println!("-{}", error);
+    println!("\n------ Node Errors ------{}", error);
     Ok(())
 }

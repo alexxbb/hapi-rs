@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+- When answering questions about Houdini Engine C API, reference the documentation in engine_docs/www.sidefx.com/docs/hengine/

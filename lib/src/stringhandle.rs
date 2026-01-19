@@ -2,22 +2,22 @@
 use std::ffi::{CStr, CString};
 use std::fmt::Formatter;
 
-use crate::errors::{ErrorContext, Result};
+use crate::errors::Result;
 use crate::session::Session;
 
 // StringArray iterators SAFETY: Are Houdini strings expected to be valid utf? Maybe revisit.
 
 /// A handle to a string returned by some api.
 /// Then the String can be retrieved with [`Session::get_string`]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct StringHandle(pub(crate) i32);
 
 /// Holds a contiguous array of bytes where each individual string value is null-separated.
 /// You can choose how to iterate over it by calling a corresponding iter_* function.
 /// The `Debug` impl has an alternative `{:#?}` representation, which prints as a vec of strings.
-#[derive(Clone)]
-pub struct StringArray(Vec<u8>);
+#[derive(Clone, PartialEq)]
+pub struct StringArray(pub Vec<u8>);
 
 impl std::fmt::Debug for StringArray {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -144,35 +144,20 @@ impl IntoIterator for StringArray {
 }
 
 pub(crate) fn get_string(handle: StringHandle, session: &Session) -> Result<String> {
-    let bytes = get_string_bytes(handle, session).context("Calling get_string_bytes")?;
-    String::from_utf8(bytes).map_err(crate::errors::HapiError::from)
+    let bytes = crate::ffi::get_string_bytes(session, handle)?;
+    String::from_utf8(bytes).map_err(crate::HapiError::from)
 }
 
 pub(crate) fn get_cstring(handle: StringHandle, session: &Session) -> Result<CString> {
-    unsafe {
-        let bytes = get_string_bytes(handle, session).context("Calling get_string_bytes")?;
-        // SAFETY: HAPI C API should not return strings with interior zero byte
-        Ok(CString::from_vec_unchecked(bytes))
-    }
-}
-
-pub(crate) fn get_string_bytes(handle: StringHandle, session: &Session) -> Result<Vec<u8>> {
-    if handle.0 < 0 {
-        return Ok(Vec::new());
-    }
-    let length = crate::ffi::get_string_buff_len(session, handle.0)?;
-    if length == 0 {
-        Ok(Vec::new())
-    } else {
-        crate::ffi::get_string(session, handle.0, length)
-    }
+    let bytes = crate::ffi::get_string_bytes(session, handle)?;
+    CString::new(bytes).map_err(crate::HapiError::from)
 }
 
 pub fn get_string_array(handles: &[StringHandle], session: &Session) -> Result<StringArray> {
     let _lock = session.lock();
     let length = crate::ffi::get_string_batch_size(handles, session)?;
     let bytes = if length > 0 {
-        crate::ffi::get_string_batch(length, session)?
+        crate::ffi::get_string_batch_bytes(length, session)?
     } else {
         vec![]
     };
@@ -183,13 +168,18 @@ pub fn get_string_array(handles: &[StringHandle], session: &Session) -> Result<S
 mod tests {
     use super::StringArray;
     use crate::ffi;
-    use crate::session::Session;
+    use crate::server::ServerOptions;
+    use crate::session::{Session, SessionOptions, new_thrift_session};
     use once_cell::sync::Lazy;
     use std::ffi::CString;
 
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init().ok();
-        crate::session::quick_session(None).expect("Could not create test session")
+        new_thrift_session(
+            SessionOptions::default(),
+            ServerOptions::shared_memory_with_defaults(),
+        )
+        .expect("Could not create test session")
     });
 
     #[test]
@@ -222,5 +212,13 @@ mod tests {
         let v: Vec<_> = arr.iter_cstr().collect();
         assert_eq!(v[0].to_bytes_with_nul(), b"One\0");
         assert_eq!(v[2].to_bytes_with_nul(), b"Three\0");
+    }
+
+    #[test]
+    fn test_set_custom_string() {
+        let handle = SESSION.set_custom_string("HAPI_RS_CUSTOM_STRING").unwrap();
+        assert_eq!(SESSION.get_string(handle).unwrap(), "HAPI_RS_CUSTOM_STRING");
+        SESSION.remove_custom_string(handle).unwrap();
+        assert!(SESSION.get_string(handle).is_err());
     }
 }

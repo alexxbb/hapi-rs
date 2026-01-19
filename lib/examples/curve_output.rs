@@ -4,18 +4,19 @@ use hapi_rs::geometry::{
     AttributeName, AttributeOwner, CurveOrders, CurveType, Geometry, PartInfo, PartType,
 };
 use hapi_rs::node::{NodeFlags, NodeType, ObjectInfo};
-use hapi_rs::session::{SessionOptions, quick_session};
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 
 fn main() -> Result<()> {
-    let opt = SessionOptions::builder().threaded(true).build();
-    let session = quick_session(Some(&opt))?;
+    let opt = SessionOptions::default().threaded(true);
+    let session = new_thrift_session(opt, ServerOptions::shared_memory_with_defaults())?;
     let lib = session.load_asset_file("../otls/sesi/nurbs_curve.hda")?;
     let node = lib.try_create_first()?;
     node.cook_blocking()?;
 
     let obj_info = &node.get_objects_info()?[0];
 
-    let children = node.find_children_by_type(NodeType::Sop, NodeFlags::Curve, true)?;
+    let children = node.get_children_by_type(NodeType::Sop, NodeFlags::Curve, true)?;
     for node_h in children {
         let node = node_h.to_node(&session)?;
         let geo = node.geometry()?.expect("geometry");

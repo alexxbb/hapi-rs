@@ -1,6 +1,8 @@
 #![allow(clippy::missing_safety_doc)]
+#![allow(clippy::too_many_arguments)]
 
 use duplicate::duplicate_item;
+use log::debug;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
@@ -9,13 +11,14 @@ use std::vec;
 use raw::HAPI_PDG_EventInfo;
 
 use super::raw;
+use crate::errors::ErrorContext;
 use crate::ffi::bindings::HAPI_StringHandle;
 use crate::ffi::raw::{HAPI_InputCurveInfo, HAPI_NodeId, HAPI_ParmId, RSTOrder};
 use crate::ffi::{CookOptions, CurveInfo, GeoInfo, ImageInfo, InputCurveInfo, PartInfo, Viewport};
 use crate::raw::GroupType;
 use crate::{
-    errors::{HapiError, Kind, Result},
-    node::{HoudiniNode, NodeHandle},
+    errors::{HapiError, Result},
+    node::{HoudiniNode, NodeFlagsBits, NodeHandle, NodeTypeBits},
     parameter::ParmHandle,
     session::{Session, SessionOptions},
     stringhandle::{StringArray, StringHandle},
@@ -137,7 +140,8 @@ pub fn get_parm_string_value(
         .check_err(session, || "Calling HAPI_GetParmStringValue")?;
         handle.assume_init()
     };
-    crate::stringhandle::get_string(StringHandle(handle), session)
+    String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+        .map_err(crate::errors::HapiError::from)
 }
 
 pub fn get_parm_node_value(
@@ -265,7 +269,7 @@ pub fn get_parm_expression(
     session: &Session,
     parm: &CStr,
     index: i32,
-) -> Result<Option<String>> {
+) -> Result<String> {
     let handle = unsafe {
         let mut handle = uninit!();
         raw::HAPI_GetParmExpression(
@@ -279,13 +283,9 @@ pub fn get_parm_expression(
         handle.assume_init()
     };
     match handle {
-        0 => Ok(None),
-        _ => Ok(
-            match crate::stringhandle::get_string(StringHandle(handle), session)? {
-                s if s.is_empty() => None,
-                s => Some(s),
-            },
-        ),
+        0 => Ok(String::new()),
+        _ => String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+            .map_err(crate::errors::HapiError::from),
     }
 }
 
@@ -437,7 +437,8 @@ pub fn get_node_path(
             sh.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_GetNodePath")?;
-        crate::stringhandle::get_string(StringHandle(sh.assume_init()), session)
+        String::from_utf8(get_string_bytes(session, StringHandle(sh.assume_init()))?)
+            .map_err(crate::errors::HapiError::from)
     }
 }
 
@@ -458,10 +459,14 @@ pub fn get_node_from_path(
     }
 }
 
-pub fn cook_node(node: &HoudiniNode, options: &CookOptions) -> Result<()> {
+pub fn cook_node(node: &HoudiniNode, options: Option<&CookOptions>) -> Result<()> {
     unsafe {
-        raw::HAPI_CookNode(node.session.ptr(), node.handle.0, options.ptr())
-            .check_err(&node.session, || "Calling HAPI_CookNode")
+        raw::HAPI_CookNode(
+            node.session.ptr(),
+            node.handle.0,
+            options.map(|o| o.ptr()).unwrap_or(null()),
+        )
+        .check_err(&node.session, || "Calling HAPI_CookNode")
     }
 }
 
@@ -494,11 +499,11 @@ pub fn load_library_from_memory(session: &Session, data: &[i8], _override: bool)
     }
 }
 
-pub fn get_asset_info(node: &HoudiniNode) -> Result<raw::HAPI_AssetInfo> {
+pub fn get_asset_info(session: &Session, node: NodeHandle) -> Result<raw::HAPI_AssetInfo> {
     unsafe {
         let mut info = uninit!();
-        raw::HAPI_GetAssetInfo(node.session.ptr(), node.handle.0, info.as_mut_ptr())
-            .check_err(&node.session, || "Calling HAPI_GetAssetInfo")?;
+        raw::HAPI_GetAssetInfo(session.ptr(), node.0, info.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_GetAssetInfo")?;
         Ok(info.assume_init())
     }
 }
@@ -545,7 +550,8 @@ pub fn get_asset_library_file_path(session: &Session, library_id: i32) -> Result
         let mut handle = -1;
         raw::HAPI_GetAssetLibraryFilePath(session.ptr(), library_id, &mut handle as *mut _)
             .check_err(session, || "Calling HAPI_GetAssetLibraryFilePath")?;
-        crate::stringhandle::get_string(StringHandle(handle), session)
+        String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+            .map_err(crate::errors::HapiError::from)
     }
 }
 
@@ -610,7 +616,7 @@ pub fn get_asset_def_parm_values(
 ) -> Result<(
     Vec<i32>,
     Vec<f32>,
-    Vec<String>,
+    StringArray,
     Vec<raw::HAPI_ParmChoiceInfo>,
 )> {
     let mut int_values = vec![0; count.int_count as usize];
@@ -641,8 +647,7 @@ pub fn get_asset_def_parm_values(
     }
 
     let string_array = crate::stringhandle::get_string_array(&string_handles, session)?;
-    let string_values = string_array.into_iter().collect();
-    Ok((int_values, float_values, string_values, choice_values))
+    Ok((int_values, float_values, string_array, choice_values))
 }
 
 pub fn get_string_batch_size(handles: &[StringHandle], session: &Session) -> Result<i32> {
@@ -661,32 +666,41 @@ pub fn get_string_batch_size(handles: &[StringHandle], session: &Session) -> Res
 }
 
 /// Note: contiguous array of null-terminated strings
-pub fn get_string_batch(length: i32, session: &Session) -> Result<Vec<u8>> {
+pub fn get_string_batch_bytes(length: i32, session: &Session) -> Result<Vec<u8>> {
     let mut buffer = vec![0u8; length as usize];
     unsafe {
         raw::HAPI_GetStringBatch(session.ptr(), buffer.as_mut_ptr() as *mut _, length)
             .check_err(session, || "Calling HAPI_GetStringBatch")?;
     }
-    buffer.truncate(length as usize);
     Ok(buffer)
 }
 
-pub fn get_string_buff_len(session: &Session, handle: i32) -> Result<i32> {
+pub fn get_string_buff_len(session: &Session, handle: StringHandle) -> Result<i32> {
     unsafe {
         let mut length = uninit!();
-        raw::HAPI_GetStringBufLength(session.ptr(), handle, length.as_mut_ptr())
+        raw::HAPI_GetStringBufLength(session.ptr(), handle.0, length.as_mut_ptr())
             .check_err(session, || "Calling HAPI_GetStringBufLength")?;
         Ok(length.assume_init())
     }
 }
 
-pub fn get_string(session: &Session, handle: i32, length: i32) -> Result<Vec<u8>> {
+/// Returns the bytes of the string with trailing null terminator removed
+pub fn get_string_bytes(session: &Session, handle: StringHandle) -> Result<Vec<u8>> {
+    let length = get_string_buff_len(session, handle)?;
+    if length == 0 {
+        return Ok(Vec::new());
+    }
     let mut buffer = vec![0u8; length as usize];
     unsafe {
-        raw::HAPI_GetString(session.ptr(), handle, buffer.as_mut_ptr() as *mut _, length)
-            .check_err(session, || "Calling HAPI_GetString")?;
+        raw::HAPI_GetString(
+            session.ptr(),
+            handle.0,
+            buffer.as_mut_ptr() as *mut _,
+            length,
+        )
+        .check_err(session, || "Calling HAPI_GetString")?;
     }
-    buffer.truncate(length as usize - 1);
+    buffer.truncate(buffer.len() - 1);
     Ok(buffer)
 }
 
@@ -699,14 +713,14 @@ pub fn get_status_string(
     let _lock = session.lock();
     unsafe {
         raw::HAPI_GetStatusStringBufLength(session.ptr(), status, verbosity, length.as_mut_ptr())
-            .error_message("Calling HAPI_GetStatusStringBufLength: failed")?;
+            .add_context("Calling HAPI_GetStatusStringBufLength: failed")?;
         let length = length.assume_init();
         let mut buf = vec![0u8; length as usize];
         if length > 0 {
             raw::HAPI_GetStatusString(session.ptr(), status, buf.as_mut_ptr() as *mut i8, length)
-                .error_message("Calling HAPI_GetStatusString: failed")?;
+                .add_context("Calling HAPI_GetStatusString: failed")?;
             buf.truncate(length as usize - 1);
-            Ok(String::from_utf8_unchecked(buf))
+            String::from_utf8(buf).map_err(crate::errors::HapiError::from)
         } else {
             Ok(String::new())
         }
@@ -715,7 +729,7 @@ pub fn get_status_string(
 
 pub fn clear_connection_error() -> Result<()> {
     unsafe {
-        raw::HAPI_ClearConnectionError().error_message("Calling HAPI_ClearConnectionError: failed")
+        raw::HAPI_ClearConnectionError().add_context("Calling HAPI_ClearConnectionError: failed")
     }
 }
 
@@ -764,14 +778,13 @@ pub fn set_cache_property(
 pub fn create_inprocess_session(info: &raw::HAPI_SessionInfo) -> Result<raw::HAPI_Session> {
     let mut ses = uninit!();
     unsafe {
-        match raw::HAPI_CreateInProcessSession(ses.as_mut_ptr(), info as *const _) {
-            err @ raw::HapiResult::Failure => Err(HapiError::new(
-                Kind::Hapi(err),
-                None,
-                get_connection_error(true).ok().map(std::borrow::Cow::Owned),
-            )),
-            _ => Ok(ses.assume_init()),
-        }
+        raw::HAPI_CreateInProcessSession(ses.as_mut_ptr(), info as *const _).with_context(
+            || {
+                get_connection_error(true)
+                    .unwrap_or("Could not retrieve server connection error".to_string())
+            },
+        )?;
+        Ok(ses.assume_init())
     }
 }
 
@@ -840,8 +853,11 @@ pub fn start_thrift_pipe_server(
             pid.as_mut_ptr(),
             log_file.map(CStr::as_ptr).unwrap_or(null()),
         )
-        .error_message("Calling HAPI_StartThriftNamedPipeServer: failed")?;
-        Ok(pid.assume_init())
+        .add_context("Calling HAPI_StartThriftNamedPipeServer: failed")?;
+        let pid = pid.assume_init();
+        Ok(pid
+            .try_into()
+            .map_err(|_| HapiError::Internal(format!("Server PID={pid} can't fit in u32")))?)
     }
 }
 
@@ -858,8 +874,12 @@ pub fn start_thrift_socket_server(
             pid.as_mut_ptr(),
             log_file.map_or(null(), CStr::as_ptr),
         )
-        .error_message("Calling HAPI_StartThriftSocketServer: failed")?;
-        Ok(pid.assume_init())
+        .with_server_message(|| get_connection_error(true).unwrap_or("Unknown".to_string()))
+        .context("Calling HAPI_StartThriftSocketServer")?;
+        let pid = pid.assume_init();
+        Ok(pid
+            .try_into()
+            .map_err(|_| HapiError::Internal(format!("Server PID={pid} can't fit in u32")))?)
     }
 }
 
@@ -876,8 +896,13 @@ pub fn start_thrift_shared_memory_server(
             pid.as_mut_ptr(),
             log_file.map_or(null(), CStr::as_ptr),
         )
-        .error_message("Calling HAPI_StartThriftSharedMemoryServer")?;
-        Ok(pid.assume_init())
+        // .add_context("Calling HAPI_StartThriftSharedMemoryServer")?;
+        .with_server_message(|| get_connection_error(true).unwrap_or("Unknown".to_string()))
+        .context("Calling HAPI_StartThriftSharedMemoryServer")?;
+        let pid = pid.assume_init();
+        Ok(pid
+            .try_into()
+            .map_err(|_| HapiError::Internal(format!("Server PID={pid} can't fit in u32")))?)
     }
 }
 
@@ -892,7 +917,7 @@ pub fn new_thrift_piped_session(
             path.as_ptr(),
             info as *const _,
         )
-        .error_message("Calling HAPI_CreateThriftNamedPipeSession: failed")?;
+        .add_context("Calling HAPI_CreateThriftNamedPipeSession: failed")?;
         handle.assume_init()
     };
     Ok(session)
@@ -911,7 +936,7 @@ pub fn new_thrift_socket_session(
             port,
             info as *const _,
         )
-        .error_message("Calling HAPI_CreateThriftSocketSession: failed")?;
+        .add_context("Calling HAPI_CreateThriftSocketSession: failed")?;
         handle.assume_init()
     };
     Ok(session)
@@ -921,6 +946,10 @@ pub fn new_thrift_shared_memory_session(
     mem_name: &CStr,
     info: &raw::HAPI_SessionInfo,
 ) -> Result<raw::HAPI_Session> {
+    debug!(
+        "Creating shared memory session: {}",
+        mem_name.to_string_lossy()
+    );
     let mut handle = uninit!();
     let session = unsafe {
         raw::HAPI_CreateThriftSharedMemorySession(
@@ -928,16 +957,16 @@ pub fn new_thrift_shared_memory_session(
             mem_name.as_ptr(),
             info as *const _,
         )
-        .error_message("Calling HAPI_CreateThriftSharedMemorySession")?;
+        .add_context("Calling HAPI_CreateThriftSharedMemorySession")?;
         handle.assume_init()
     };
     Ok(session)
 }
 
-pub fn initialize_session(session: &Session, options: &SessionOptions) -> Result<()> {
+pub fn initialize_session(session: raw::HAPI_Session, options: &SessionOptions) -> Result<()> {
     unsafe {
-        let res = raw::HAPI_Initialize(
-            session.ptr(),
+        raw::HAPI_Initialize(
+            &session,
             options.cook_opt.ptr(),
             options.threaded as i8,
             -1,
@@ -966,11 +995,12 @@ pub fn initialize_session(session: &Session, options: &SessionOptions) -> Result
                 .as_ref()
                 .map(|p| p.as_ptr())
                 .unwrap_or(null()),
-        );
-        match is_session_valid(session) {
-            true => res.check_err(session, || "Calling HAPI_Initialize"),
-            false => res.error_message("Could not initialize session"),
-        }
+        )
+        .with_context(|| {
+            let err = get_connection_error(true).unwrap_or("Unknown".to_string());
+            format!("Calling HAPI_Initialize failed with connection error: {err}")
+        })?;
+        Ok(())
     }
 }
 
@@ -1041,7 +1071,19 @@ pub fn get_status_code(session: &Session, type_: raw::StatusType) -> Result<i32>
 
 pub fn get_cook_state_status(session: &Session) -> Result<raw::State> {
     let status_code = get_status_code(session, raw::StatusType::CookState)?;
-    Ok(raw::State::from(status_code))
+
+    Ok(match status_code {
+        0 => raw::State::Ready,
+        1 => raw::State::ReadyWithFatalErrors,
+        2 => raw::State::ReadyWithCookErrors,
+        3 => raw::State::StartingCook,
+        4 => raw::State::Cooking,
+        5 => raw::State::StartingLoad,
+        6 => raw::State::Loading,
+        7 => raw::State::Max,
+        // This signals either the HAPI_State has changed or a bug in the engine
+        _ => panic!("Unmatched raw::State - {status_code}"),
+    })
 }
 
 // pub fn get_cook_result_status(session: &Session) -> Result<raw::State> {
@@ -1080,12 +1122,13 @@ pub fn get_connection_error(clear: bool) -> Result<String> {
     unsafe {
         let mut length = uninit!();
         raw::HAPI_GetConnectionErrorLength(length.as_mut_ptr())
-            .error_message("Calling HAPI_GetConnectionErrorLength: failed")?;
+            .add_context("Calling HAPI_GetConnectionErrorLength: failed")?;
         let length = length.assume_init();
         if length > 0 {
             let mut buf = vec![0u8; length as usize];
             raw::HAPI_GetConnectionError(buf.as_mut_ptr() as *mut _, length, clear as i8)
-                .error_message("Calling HAPI_GetConnectionError: failed")?;
+                .add_context("Calling HAPI_GetConnectionError: failed")?;
+            buf.truncate(length as usize - 1);
             Ok(String::from_utf8_unchecked(buf))
         } else {
             Ok(String::new())
@@ -1095,8 +1138,8 @@ pub fn get_connection_error(clear: bool) -> Result<String> {
 
 pub fn get_total_cook_count(
     node: &HoudiniNode,
-    node_types: raw::NodeType,
-    node_flags: raw::NodeFlags,
+    node_types: NodeTypeBits,
+    node_flags: NodeFlagsBits,
     recursive: bool,
 ) -> Result<i32> {
     let mut count = uninit!();
@@ -1104,8 +1147,8 @@ pub fn get_total_cook_count(
         raw::HAPI_GetTotalCookCount(
             node.session.ptr(),
             node.handle.0,
-            node_types as i32,
-            node_flags as i32,
+            node_types.into(),
+            node_flags.into(),
             recursive as i8,
             count.as_mut_ptr(),
         )
@@ -1184,35 +1227,33 @@ pub fn get_manager_node(session: &Session, node_type: raw::NodeType) -> Result<H
 pub fn get_compose_child_node_list(
     session: &Session,
     parent: NodeHandle,
-    types: raw::NodeType,
-    flags: raw::NodeFlags,
+    types: NodeTypeBits,
+    flags: NodeFlagsBits,
     recursive: bool,
 ) -> Result<Vec<i32>> {
     let _lock = session.lock();
     unsafe {
         let mut count = uninit!();
-        let _lock = session.lock();
         raw::HAPI_ComposeChildNodeList(
             session.ptr(),
             parent.0,
-            types as i32,
-            flags as i32,
+            types.into(),
+            flags.into(),
             recursive as i8,
             count.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_ComposeChildNodeList")?;
-
         let count = count.assume_init();
         if count > 0 {
-            let mut obj_infos = vec![0i32; count as usize];
+            let mut node_ids = vec![0i32; count as usize];
             raw::HAPI_GetComposedChildNodeList(
                 session.ptr(),
                 parent.0,
-                obj_infos.as_mut_ptr(),
+                node_ids.as_mut_ptr(),
                 count,
             )
             .check_err(session, || "Calling HAPI_GetComposedChildNodeList")?;
-            Ok(obj_infos)
+            Ok(node_ids)
         } else {
             Ok(vec![])
         }
@@ -1327,11 +1368,13 @@ pub fn disconnect_node_input(node: &HoudiniNode, input: i32) -> Result<()> {
 
 pub fn get_node_input_name(node: &HoudiniNode, input: i32) -> Result<String> {
     let mut name = uninit!();
-    unsafe {
+    let handle = unsafe {
         raw::HAPI_GetNodeInputName(node.session.ptr(), node.handle.0, input, name.as_mut_ptr())
             .check_err(&node.session, || "Calling HAPI_GetNodeInputName")?;
-        crate::stringhandle::get_string(StringHandle(name.assume_init()), &node.session)
-    }
+        name.assume_init()
+    };
+    String::from_utf8(get_string_bytes(&node.session, StringHandle(handle))?)
+        .map_err(crate::errors::HapiError::from)
 }
 
 pub fn disconnect_node_outputs(node: &HoudiniNode, output_index: i32) -> Result<()> {
@@ -1415,10 +1458,11 @@ pub fn check_for_specific_errors(
     }
 }
 
-pub unsafe fn get_composed_cook_result(
+// Returns a truncated buffer, without the null terminator
+pub fn get_composed_cook_result(
     node: &HoudiniNode,
     verbosity: raw::StatusVerbosity,
-) -> Result<String> {
+) -> Result<Vec<u8>> {
     let mut len = uninit!();
     unsafe {
         raw::HAPI_ComposeNodeCookResult(
@@ -1436,7 +1480,7 @@ pub unsafe fn get_composed_cook_result(
     }
     .check_err(&node.session, || "Calling HAPI_GetComposedNodeCookResult")?;
     buf.truncate(len as usize - 1);
-    Ok(unsafe { String::from_utf8_unchecked(buf) })
+    Ok(buf)
 }
 
 pub fn get_time(session: &Session) -> Result<f64> {
@@ -1555,10 +1599,10 @@ pub fn get_output_names(node: &HoudiniNode) -> Result<Vec<String>> {
                 handle.as_mut_ptr(),
             )
             .check_err(&node.session, || "Calling HAPI_GetNodeOutputName")?;
-            names.push(crate::stringhandle::get_string(
-                StringHandle(handle.assume_init()),
+            names.push(String::from_utf8(get_string_bytes(
                 &node.session,
-            )?)
+                StringHandle(handle.assume_init()),
+            )?)?)
         }
     }
     Ok(names)
@@ -2344,7 +2388,8 @@ pub fn get_parm_tag_name(
         .check_err(session, || "Calling HAPI_GetParmTagName")?;
         handle.assume_init()
     };
-    crate::stringhandle::get_string(StringHandle(handle), session)
+    String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+        .map_err(crate::errors::HapiError::from)
 }
 
 pub fn get_parm_tag_value(
@@ -2365,7 +2410,8 @@ pub fn get_parm_tag_value(
         .check_err(session, || "Calling HAPI_GetParmTagValue")?;
         handle.assume_init()
     };
-    crate::stringhandle::get_string(StringHandle(handle), session)
+    String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+        .map_err(crate::errors::HapiError::from)
 }
 
 pub fn get_face_counts(
@@ -2731,7 +2777,10 @@ pub fn save_geo_to_memory(session: &Session, node: NodeHandle, format: &CStr) ->
         raw::HAPI_GetGeoSize(session.ptr(), node.0, format.as_ptr(), size.as_mut_ptr())
             .check_err(session, || "Calling HAPI_GetGeoSize")?;
         let size = size.assume_init();
-        let mut buffer = vec![0; size as usize];
+        let _usize: usize = size.try_into().map_err(|_| {
+            HapiError::Internal("API returned an invalid geometry buffer size".to_string())
+        })?;
+        let mut buffer = vec![0; _usize];
         raw::HAPI_SaveGeoToMemory(session.ptr(), node.0, buffer.as_mut_ptr(), size)
             .check_err(session, || "Calling HAPI_SaveGeoToMemory")?;
         Ok(buffer)
@@ -2780,7 +2829,12 @@ pub fn session_get_license_type(session: &Session) -> Result<raw::License> {
         )
         .check_err(session, || "Calling HAPI_GetSessionEnvInt")?;
         let lic = ret.assume_init();
-        assert!((0..=7).contains(&lic));
+        if !(0..=7).contains(&lic) {
+            return Err(HapiError::Internal(format!(
+                "API returned an invalid license integer: {}",
+                lic
+            )));
+        }
         // SAFETY: License enum is repr i32
         Ok(std::mem::transmute::<i32, raw::License>(lic))
     }
@@ -2790,7 +2844,7 @@ pub fn get_environment_int(_type: raw::EnvIntType) -> Result<i32> {
     unsafe {
         let mut ret = uninit!();
         raw::HAPI_GetEnvInt(_type, ret.as_mut_ptr())
-            .error_message("Calling HAPI_GetEvnInt: failed")?;
+            .add_context("Calling HAPI_GetEvnInt: failed")?;
         Ok(ret.assume_init())
     }
 }
@@ -3123,6 +3177,44 @@ pub fn render_cop_to_image(session: &Session, cop_node: NodeHandle) -> Result<()
     }
 }
 
+pub fn create_cop_image(
+    session: &Session,
+    parent_node: Option<NodeHandle>,
+    width: u32,
+    height: u32,
+    image_packing: raw::ImagePacking,
+    flip_x: bool,
+    flip_y: bool,
+    image_data: &[f32],
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_CreateCOPImage(
+            session.ptr(),
+            parent_node.map(|h| h.0).unwrap_or(-1),
+            width as i32,
+            height as i32,
+            image_packing,
+            flip_x as i8,
+            flip_y as i8,
+            image_data.as_ptr(),
+            0,
+            image_data.len() as i32,
+        )
+    }
+    .check_err(session, || "Calling HAPI_CreateCOPImage")
+}
+
+pub fn render_cop_output_to_image(
+    session: &Session,
+    cop_node: NodeHandle,
+    cop_output_name: &CStr,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_RenderCOPOutputToImage(session.ptr(), cop_node.0, cop_output_name.as_ptr())
+            .check_err(session, || "Calling HAPI_RenderCOPOutputToImage")
+    }
+}
+
 pub fn set_image_info(session: &Session, material: NodeHandle, info: &ImageInfo) -> Result<()> {
     unsafe {
         raw::HAPI_SetImageInfo(session.ptr(), material.0, info.ptr())
@@ -3159,7 +3251,11 @@ pub fn extract_image_to_file(
             handle.as_mut_ptr(),
         )
         .check_err(session, || "Calling HAPI_ExtractImageToFile")?;
-        crate::stringhandle::get_string(StringHandle(handle.assume_init()), session)
+        String::from_utf8(get_string_bytes(
+            session,
+            StringHandle(handle.assume_init()),
+        )?)
+        .map_err(crate::errors::HapiError::from)
     }
 }
 
@@ -3788,7 +3884,7 @@ pub fn get_asset_definition_parm_tag_name(
     asset_name: &CStr,
     parm_id: ParmHandle,
     index: i32,
-) -> Result<Vec<u8>> {
+) -> Result<String> {
     let mut handle = uninit!();
     unsafe {
         raw::HAPI_GetAssetDefinitionParmTagName(
@@ -3801,7 +3897,8 @@ pub fn get_asset_definition_parm_tag_name(
         )
         .check_err(session, || "Calling HAPI_GetAssetDefinitionParmTagName")?;
         let handle = handle.assume_init();
-        crate::stringhandle::get_string_bytes(StringHandle(handle), session)
+        String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+            .map_err(crate::errors::HapiError::from)
     }
 }
 
@@ -3824,7 +3921,8 @@ pub fn get_asset_definition_parm_tag_value(
         )
         .check_err(session, || "Calling HAPI_GetAssetDefinitionParmTagValue")?;
         let handle = handle.assume_init();
-        crate::stringhandle::get_string(StringHandle(handle), session)
+        String::from_utf8(get_string_bytes(session, StringHandle(handle))?)
+            .map_err(crate::errors::HapiError::from)
     }
 }
 
@@ -3849,5 +3947,21 @@ pub fn remove_multiparm_instance(
     unsafe {
         raw::HAPI_RemoveMultiparmInstance(session.ptr(), node.0, parm.0, position)
             .check_err(session, || "Calling HAPI_RemoveMultiparmInstance")
+    }
+}
+
+pub fn set_custom_string(session: &Session, string: &CStr) -> Result<StringHandle> {
+    unsafe {
+        let mut handle = uninit!();
+        raw::HAPI_SetCustomString(session.ptr(), string.as_ptr(), handle.as_mut_ptr())
+            .check_err(session, || "Calling HAPI_SetCustomString")?;
+        Ok(StringHandle(handle.assume_init()))
+    }
+}
+
+pub fn remove_custom_string(session: &Session, handle: StringHandle) -> Result<()> {
+    unsafe {
+        raw::HAPI_RemoveCustomString(session.ptr(), handle.0)
+            .check_err(session, || "Calling HAPI_RemoveCustomString")
     }
 }

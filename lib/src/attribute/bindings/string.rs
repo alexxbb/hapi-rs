@@ -164,7 +164,7 @@ pub(crate) fn _rust_fn(
         Ok(StringMultiArray {
             handles: data_array,
             sizes: sizes_fixed_array,
-            session: node.session.clone(),
+            session: debug_ignore::DebugIgnore(node.session.clone()),
         })
     }
 }

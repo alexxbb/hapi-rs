@@ -7,7 +7,7 @@ use eframe::egui::{
     Context, Key, Modifiers, PointerButton, Sense, ViewportBuilder, ViewportCommand,
 };
 
-use eframe::{egui, Frame};
+use eframe::{Frame, egui};
 use egui::mutex::Mutex;
 use egui::viewport::IconData;
 use egui_glow::CallbackFn;
@@ -23,12 +23,13 @@ use std::sync::Arc;
 use crate::parameters::{ParmKind, UiParameter};
 use hapi_rs::asset::AssetLibrary;
 use hapi_rs::parameter::{Parameter, ParmBaseTrait};
-use hapi_rs::session::SessionOptions;
+use hapi_rs::server::{ServerOptions, connect_to_socket_server};
+use hapi_rs::session::{SessionOptions, new_in_process_session};
 use setup::{Asset, AssetParameters, BufferStats, CookingStats, Stats};
 use ultraviolet::Vec3;
 
-static OTL: &str = "otls/hapi_opengl.hda";
-static ICON: &str = "maps/icon.png";
+static OTL: &str = "apps/viewport/otls/hapi_opengl.hda";
+static ICON: &str = "apps/viewport/maps/icon.png";
 static WIN_TITLE: &str = "HAPI Viewport";
 
 struct ViewportApp {
@@ -322,11 +323,14 @@ fn main() {
         .with_icon(load_icon().expect("ICON image"));
     let options = SessionOptions::default();
     let session = match &remote_server {
-        None => hapi_rs::session::new_in_process(Some(&options)).expect("Could not create session"),
-        Some(remote_address) => {
-            hapi_rs::session::connect_to_socket(remote_address.clone(), Some(&options))
-                .expect("Could not connect to socket")
-        }
+        None => new_in_process_session(Some(options.clone())).expect("Could not create session"),
+        Some(remote_address) => connect_to_socket_server(
+            ServerOptions::socket_with_defaults(remote_address.clone()),
+            None,
+        )
+        .expect("Could not connect to socket")
+        .initialize(options.clone())
+        .expect("Could not initialize session"),
     };
     if !session.is_valid() {
         eprintln!("Session is not valid!!!!");

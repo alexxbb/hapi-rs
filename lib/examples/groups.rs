@@ -6,11 +6,11 @@ use hapi_rs::geometry::{
 };
 use hapi_rs::node::HoudiniNode;
 use hapi_rs::parameter::Parameter;
-use hapi_rs::session::{Session, quick_session};
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{Session, SessionOptions, new_thrift_session};
 
 fn create_cube(session: &Session) -> Result<HoudiniNode> {
     let geometry = session.create_input_node("Cube", None)?;
-    geometry.node.cook()?;
 
     let part_info = PartInfo::default()
         .with_part_type(PartType::Mesh)
@@ -62,7 +62,10 @@ fn create_cube(session: &Session) -> Result<HoudiniNode> {
 }
 
 fn main() -> Result<()> {
-    let session = quick_session(None)?;
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::shared_memory_with_defaults(),
+    )?;
     let cube = create_cube(&session)?;
     let xform = session.create_node("Sop/xform")?;
     xform.connect_input(0, &cube, 0)?;

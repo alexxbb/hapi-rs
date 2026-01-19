@@ -4,10 +4,14 @@
 use hapi_rs::Result;
 use hapi_rs::geometry::{PackedPrimInstancingMode as IM, *};
 use hapi_rs::node::*;
-use hapi_rs::session::*;
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{CookOptions, SessionOptions, new_thrift_session};
 
 fn main() -> Result<()> {
-    let session = quick_session(None)?;
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::shared_memory_with_defaults(),
+    )?;
 
     let lib = session.load_asset_file("../otls/sesi/PackedPrimitive.hda")?;
     let asset = lib.try_create_first()?;
@@ -25,7 +29,7 @@ fn main() -> Result<()> {
         co.set_packed_prim_instancing_mode(mode);
         asset.cook_with_options(&co, true)?;
 
-        let nodes = asset.find_children_by_type(NodeType::Sop, NodeFlags::Any, false)?;
+        let nodes = asset.get_children_by_type(NodeType::Sop, NodeFlags::Any, false)?;
         for handle in nodes {
             let node = handle.to_node(&session)?;
             node.cook_with_options(&co, true)?;

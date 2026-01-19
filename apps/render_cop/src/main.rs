@@ -4,10 +4,8 @@
 use anyhow::{anyhow, Context, Result};
 use hapi_rs::asset::AssetLibrary;
 use hapi_rs::node::{HoudiniNode, NodeFlags, NodeType};
-use hapi_rs::{
-    parameter::*,
-    session::{connect_to_pipe, new_in_process, quick_session, Session, SessionOptionsBuilder},
-};
+use hapi_rs::parameter::*;
+use hapi_rs::session::{new_in_process_session, SessionOptions};
 use iced::keyboard::KeyCode::Space;
 use iced::widget::image;
 use iced::widget::pane_grid::Axis::Horizontal;
@@ -40,9 +38,9 @@ static TITLE: &str = "Render Houdini COP with Rust/Iced";
 fn create_nodes() -> Result<HashMap<Noise, HoudiniNode>> {
     let cwd = std::env::current_dir()?;
     let cwd = cwd.resolve();
-    let opt = SessionOptionsBuilder::default().threaded(false).build();
-    let session = new_in_process(Some(&opt)).unwrap();
-    let lib = session.load_asset_file(cwd.join("cop_render.hda"))?;
+    let opt = SessionOptions::default().threaded(false);
+    let session = new_in_process_session(Some(opt)).unwrap();
+    let lib = session.load_asset_file(cwd.join("apps/render_cop/cop_render.hda"))?;
     let mut map = HashMap::new();
     map.insert(
         Noise::Voronoi,

@@ -22,19 +22,19 @@ https://user-images.githubusercontent.com/10694389/227816361-b9ffa083-7932-40e4-
 
 ```rust
 use hapi_rs::Result;
-use hapi_rs::session::quick_session;
+use hapi_rs::session::simple_session;
 use hapi_rs::parameter::*;
 
 fn main() -> Result<()> {
-    // Start a standalone engine process
-    let session = quick_session(None)?;
+    // Start a standalone engine process with sensible defaults
+    let session = simple_session()?;
     // Load a Houdini Asset and create a node
     let lib = session.load_asset_file("otls/hapi_geo.hda")?;
     let node = lib.create_asset_for_node("Object/hapi_geo", None)?;
     // Set the "scale" parameter
     if let Parameter::Float(parm) = node.parameter("scale")? {
         parm.set(0, 3.0)?;
-        node.cook(None)?;
+        node.cook()?;
     }
     // Get a reference to the node's internal geometry
     let geometry = node.geometry()?.expect("geometry");
@@ -49,11 +49,9 @@ fn main() -> Result<()> {
 The crate version matches the supported Houdini MAJOR.MINOR version i.e. `21.0.0` is built work with `Houdini 21.0`
 Mixing and matching different versions of Houdini and this crate is not guranteed to work.
 
-# Building
+# Documentation
 
-Check the documentation [building section](https://docs.rs/hapi-rs/latest/hapi_rs/#building-and-running)
+[docs.rs](https://docs.rs/hapi-rs/latest/hapi_rs/)
 
 [HAPI C Documentation](https://www.sidefx.com/docs/hengine/)
-
-[More Examples](https://github.com/alexxbb/hapi-rs/tree/main/lib/examples)
 

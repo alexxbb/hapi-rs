@@ -1,22 +1,35 @@
 #![allow(dead_code)]
+use hapi_rs::server::{LicensePreference, ServerOptions};
 use hapi_rs::{
     Result,
     asset::AssetLibrary,
     attribute::*,
     enums::{AttributeOwner, PartType},
     geometry::{Geometry, PartInfo},
-    session::{CookResult, Session, SessionInfo, SessionOptions, quick_session},
+    session::{CookResult, Session, SessionInfo, SessionOptions, new_thrift_session},
 };
 use once_cell::sync::Lazy;
 
 thread_local! {
     static SESSION: Lazy<Session> = Lazy::new(|| {
         let _ = env_logger::try_init();
+        let server_options = ServerOptions::shared_memory_with_defaults().with_license_preference(LicensePreference::HoudiniEngineAndCore);
+        new_thrift_session(SessionOptions::default(), server_options)
+            .expect("Could not create test session")
+    });
+
+    static ASYNC_SESSION: Lazy<Session> = Lazy::new(|| {
+        let _ = env_logger::try_init();
         let mut session_info = SessionInfo::default();
         // For async attribute access connection_count must be > 0 according to SESI support, otherwise HARS crashes.
+        println!("FIXME: H21.0 has a bug around connection count. Async tests are disabled for now.");
         session_info.set_connection_count(2);
-        let opt = SessionOptions::builder().threaded(true).session_info(session_info).build();
-        quick_session(Some(&opt)).expect("Could not create test session")
+        let opt = SessionOptions {
+            threaded: true,
+            ..Default::default()
+        };
+        let server_options = ServerOptions::shared_memory_with_defaults().with_license_preference(LicensePreference::HoudiniEngineAndCore);
+        new_thrift_session(opt, server_options).expect("Could not create async test session")
     });
 }
 
@@ -43,6 +56,13 @@ where
     F: FnOnce(Session) -> Result<R>,
 {
     SESSION.with(|session| f((*session).clone()))
+}
+
+pub fn with_async_session<F, R>(f: F) -> Result<R>
+where
+    F: FnOnce(Session) -> Result<R>,
+{
+    ASYNC_SESSION.with(|session| f((*session).clone()))
 }
 
 pub fn with_session_asset<F>(hda_file: HdaFile, f: F) -> Result<()>

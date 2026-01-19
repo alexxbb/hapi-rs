@@ -1,0 +1,27 @@
+[workspace]
+resolver = "2"
+
+# All workspace members
+members = [
+    "lib",
+    "apps/viewport",
+    "apps/bevy",
+    "apps/render_cop",
+    "benchmarks/server",
+    "bindgen/hapi-bindgen",
+    "bindgen/coverage",
+]
+
+# Only build 'lib' by default when running cargo build/test/etc at workspace root
+default-members = ["lib"]
+
+[workspace.package]
+version = "21.0.0"
+authors = ["Aleksei Rusev <hou.alexx@gmail.com>"]
+edition = "2024"
+license = "MIT"
+
+# Optimize dependencies for faster development builds (especially for Bevy)
+[profile.dev.package."*"]
+opt-level = 3
+

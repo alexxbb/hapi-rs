@@ -1,10 +1,14 @@
+use hapi_rs::server::ServerOptions;
+use hapi_rs::session::{SessionOptions, new_thrift_session};
 /// curve_marshall.cpp
-use hapi_rs::{Result, attribute::*, geometry::*, session::*};
+use hapi_rs::{Result, attribute::*, geometry::*};
 
 fn main() -> Result<()> {
-    let session = quick_session(None)?;
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        ServerOptions::shared_memory_with_defaults(),
+    )?;
     let geom = session.create_input_node("Curve", None)?;
-    geom.node.cook_blocking()?;
     let part_info = PartInfo::default()
         .with_part_type(PartType::Curve)
         .with_face_count(1)
