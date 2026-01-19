@@ -66,6 +66,7 @@ impl std::fmt::Display for HapiResultCode {
             UserInterrupted => "USER_INTERRUPTED",
             InvalidSession => "INVALID_SESSION",
             SharedMemoryBufferOverflow => "SHARED_MEMORY_BUFFER_OVERFLOW",
+            InvalidSharedMemoryBuffer => "INVALID_SHARED_MEMORY_BUFFER",
         };
         write!(f, "{}", desc)
     }

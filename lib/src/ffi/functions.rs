@@ -854,7 +854,10 @@ pub fn start_thrift_pipe_server(
             log_file.map(CStr::as_ptr).unwrap_or(null()),
         )
         .add_context("Calling HAPI_StartThriftNamedPipeServer: failed")?;
-        Ok(pid.assume_init())
+        let pid = pid.assume_init();
+        Ok(pid
+            .try_into()
+            .map_err(|_| HapiError::Internal(format!("Server PID={pid} can't fit in u32")))?)
     }
 }
 
@@ -873,7 +876,10 @@ pub fn start_thrift_socket_server(
         )
         .with_server_message(|| get_connection_error(true).unwrap_or("Unknown".to_string()))
         .context("Calling HAPI_StartThriftSocketServer")?;
-        Ok(pid.assume_init())
+        let pid = pid.assume_init();
+        Ok(pid
+            .try_into()
+            .map_err(|_| HapiError::Internal(format!("Server PID={pid} can't fit in u32")))?)
     }
 }
 
@@ -893,7 +899,10 @@ pub fn start_thrift_shared_memory_server(
         // .add_context("Calling HAPI_StartThriftSharedMemoryServer")?;
         .with_server_message(|| get_connection_error(true).unwrap_or("Unknown".to_string()))
         .context("Calling HAPI_StartThriftSharedMemoryServer")?;
-        Ok(pid.assume_init())
+        let pid = pid.assume_init();
+        Ok(pid
+            .try_into()
+            .map_err(|_| HapiError::Internal(format!("Server PID={pid} can't fit in u32")))?)
     }
 }
 
