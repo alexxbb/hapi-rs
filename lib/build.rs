@@ -4,6 +4,10 @@ fn main() {
     if std::env::var("DOCS_RS").is_ok() {
         return;
     }
+    if std::env::var("CI").is_ok() {
+        println!("cargo:warning=Skipping build script in CI");
+        return;
+    }
     let hfs = std::env::var("HFS").expect("HFS variable not set");
     let version_file = Path::new(&hfs).join("toolkit").join("hdk_api_version.txt");
 
