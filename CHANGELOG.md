@@ -1,4 +1,10 @@
 # hapi-rs changelog
+## [21.0.1]
+- Regenerate bindings with Houdini 21.0.512
+- New server architecture - Introduced a server module with support for multiple transport options (shared memory, pipes, sockets) and license preference via `LicensePreference` enum.
+- Session initialization refactor - Replaced the old `quick_session` pattern with a new two-step initialization flow (`UninitializedSession` → `initialize()`) and added `new_thrift_session` and `simple_session` convenience methods
+- Various session, asset, geometry, attribute and node API updates and improved error handling.
+- Fix an issue with passing bitflags to FFI as Rust doesn't support them natively. Intorduced the `ToNodeTypeBits` and `ToNodeFlagBits` to support this.
 
 ## [21.0.0]
 - Regenerate bindings with Houdini 21.0.440

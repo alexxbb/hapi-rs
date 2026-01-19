@@ -12,7 +12,7 @@ categories = [
     "api-bindings",
 ]
 readme = "../README.md"
-version = "21.0.0"
+version = "21.0.1"
 authors = ["Aleksei Rusev <hou.alexx@gmail.com>"]
 edition = "2024"
 license = "MIT"
