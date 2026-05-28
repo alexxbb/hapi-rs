@@ -82,7 +82,7 @@ pub trait ParmBaseTrait {
     }
 
     /// If the parameter is a multiparm, return its children parms.
-    /// NOTE: THis is not a recommended way to traverse parameters in general,
+    /// NOTE: `THis` is not a recommended way to traverse parameters in general,
     /// this is here for convenience only
     fn multiparm_children(&self) -> Result<Option<Vec<Parameter>>> {
         let inner = self.inner();
@@ -155,8 +155,10 @@ pub trait ParmBaseTrait {
         let inner = self.inner();
         debug_assert!(inner.info.1.is_valid());
         // SAFETY: Both structures have the same memory layout.
-        let keys =
-            unsafe { std::mem::transmute::<&[KeyFrame], &[crate::ffi::raw::HAPI_Keyframe]>(keys) };
+        let keys = unsafe {
+            &*(std::ptr::from_ref::<[crate::ffi::structs::KeyFrame]>(keys)
+                as *const [crate::ffi::raw::HAPI_Keyframe])
+        };
         crate::ffi::set_parm_anim_curve(&inner.info.1, inner.node, inner.info.id(), index, keys)
     }
 

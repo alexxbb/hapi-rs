@@ -8,7 +8,7 @@ use hapi_rs::raw::StatusType;
 use hapi_rs::server::ServerOptions;
 use hapi_rs::session::{SessionOptions, new_thrift_session};
 
-const OTL: &str = "../otls/hapi_errors.hda";
+const OTL: &str = "otls/hapi_errors.hda";
 
 fn gather_all_messages(asset: HoudiniNode, message_nodes: &[NodeHandle]) -> Result<String> {
     let mut message = String::new();
@@ -26,8 +26,7 @@ fn gather_all_messages(asset: HoudiniNode, message_nodes: &[NodeHandle]) -> Resu
 }
 
 fn main() -> Result<()> {
-    let otl = std::env::current_dir().unwrap().join(OTL);
-    let otl = std::path::absolute(&otl).unwrap();
+    let otl = std::path::absolute(OTL).unwrap();
     let log_file = std::env::temp_dir().join("hapi.log");
     let session = new_thrift_session(
         SessionOptions::default().threaded(true),

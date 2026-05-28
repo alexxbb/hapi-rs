@@ -4,12 +4,11 @@ resolver = "2"
 # All workspace members
 members = [
     "lib",
+    "xtask",
     "apps/viewport",
     "apps/bevy",
     "apps/render_cop",
     "benchmarks/server",
-    "bindgen/hapi-bindgen",
-    "bindgen/coverage",
 ]
 
 # Only build 'lib' by default when running cargo build/test/etc at workspace root

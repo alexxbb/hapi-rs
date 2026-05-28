@@ -1,10 +1,11 @@
-use super::*;
+use super::{FloatParameter, IntParameter, NodeHandle, ParmBaseTrait, StringParameter};
 
 use std::ffi::CString;
 
 pub use crate::ffi::enums::ParmType;
 
 use crate::errors::Result;
+use crate::utils::uzize_to_i32;
 
 impl IntParameter {
     /// Set parameter value at index.
@@ -95,7 +96,7 @@ impl FloatParameter {
             self.0.node,
             session,
             self.0.info.float_values_index(),
-            size as i32,
+            uzize_to_i32(size),
             values,
         )
     }
@@ -158,8 +159,8 @@ impl StringParameter {
     /// `filename` must include the desired extension to work properly.
     pub fn save_parm_file(&self, destination_dir: &std::path::Path, filename: &str) -> Result<()> {
         log::debug!(
-            "Saving parameter file to: {:?}/{}",
-            destination_dir,
+            "Saving parameter file to: {}/{}",
+            destination_dir.display(),
             filename
         );
         let dest_dir = crate::utils::path_to_cstring(destination_dir)?;

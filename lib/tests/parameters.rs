@@ -1,84 +1,84 @@
 use hapi_rs::{
-    Result,
+    HapiError, Result,
     parameter::{KeyFrame, Parameter, ParmBaseTrait, ParmType},
 };
+use pretty_assertions::assert_eq;
 
 mod utils;
 use utils::{HdaFile, with_session};
 
 #[test]
-fn parameters_get_set() {
+fn parameters_get_set() -> Result<()> {
     with_session(|session| {
-        session.load_asset_file(HdaFile::Parameters.path())?;
         let node = session
             .load_asset_file(HdaFile::Parameters.path())?
-            .try_create_first()
-            .expect("create_node");
-        for p in node.parameters().unwrap() {
-            assert!(p.name().is_ok());
+            .try_create_first()?;
+        for p in node.parameters()? {
+            p.name()?;
         }
-        if let Parameter::Float(p) = node.parameter("color").unwrap() {
-            let val = p.get_array().unwrap();
+        if let Parameter::Float(p) = node.parameter("color")? {
+            let val = p.get_array()?;
             assert_eq!(&val, &[0.55f32, 0.75, 0.95]);
-            p.set_array([0.7, 0.5, 0.3]).unwrap();
-            let val = p.get_array().unwrap();
+            p.set_array([0.7, 0.5, 0.3])?;
+            let val = p.get_array()?;
             assert_eq!(&val, &[0.7f32, 0.5, 0.3]);
         }
 
-        if let Parameter::String(p) = node.parameter("multi_string").unwrap() {
-            let value = p.get_array().unwrap();
+        if let Parameter::String(p) = node.parameter("multi_string")? {
+            let value = p.get_array()?;
             assert_eq!(vec!["foo 1", "bar 2", "baz 3"], value);
-            p.set(1, "cheese").unwrap();
-            assert_eq!("cheese", p.get(1).unwrap());
+            p.set(1, "cheese")?;
+            assert_eq!("cheese", p.get(1)?);
         }
 
-        let menu_folder = node.parameter("folder1_0").unwrap();
+        let menu_folder = node.parameter("folder1_0")?;
         assert_eq!(menu_folder.info().parm_type(), ParmType::Folder);
-        if let ref parm @ Parameter::Int(ref p) = node.parameter("ord_menu").unwrap() {
+        if let ref parm @ Parameter::Int(ref p) = node.parameter("ord_menu")? {
             assert_eq!(
-                parm.parent().unwrap().unwrap().id(),
+                parm.parent()?
+                    .ok_or_else(|| HapiError::Internal("ord_menu parent".into()))?
+                    .id(),
                 menu_folder.info().id()
             );
             assert!(p.is_menu());
-            assert_eq!(p.get(0).unwrap(), 0);
-            if let Some(items) = p.menu_items().unwrap() {
-                assert_eq!(items[0].value().unwrap(), "foo");
-                assert_eq!(items[0].label().unwrap(), "Foo");
+            assert_eq!(p.get(0)?, 0);
+            if let Some(items) = p.menu_items()? {
+                assert_eq!(items[0].value()?, "foo");
+                assert_eq!(items[0].label()?, "Foo");
             }
         }
 
-        if let Parameter::String(p) = node.parameter("script_menu").unwrap() {
+        if let Parameter::String(p) = node.parameter("script_menu")? {
             assert!(p.is_menu());
-            assert_eq!(p.get(0).unwrap(), "rs");
-            if let Some(items) = p.menu_items().unwrap() {
-                assert_eq!(items[0].value().unwrap(), "rs");
-                assert_eq!(items[0].label().unwrap(), "Rust");
+            assert_eq!(p.get(0)?, "rs");
+            if let Some(items) = p.menu_items()? {
+                assert_eq!(items[0].value()?, "rs");
+                assert_eq!(items[0].label()?, "Rust");
             }
         }
 
-        if let Parameter::Int(p) = node.parameter("toggle").unwrap() {
-            assert_eq!(p.get(0).unwrap(), 0);
-            p.set(0, 1).unwrap();
-            assert_eq!(p.get(0).unwrap(), 1);
+        if let Parameter::Int(p) = node.parameter("toggle")? {
+            assert_eq!(p.get(0)?, 0);
+            p.set(0, 1)?;
+            assert_eq!(p.get(0)?, 1);
         }
 
         // test button callback
-        if let Parameter::Button(ip) = node.parameter("button").unwrap()
-            && let Parameter::String(sp) = node.parameter("single_string").unwrap()
+        if let Parameter::Button(ip) = node.parameter("button")?
+            && let Parameter::String(sp) = node.parameter("single_string")?
         {
-            assert_eq!(sp.get(0).unwrap(), "hello");
-            ip.press_button().unwrap();
-            assert_eq!(sp.get(0).unwrap(), "set from callback");
+            assert_eq!(sp.get(0)?, "hello");
+            ip.press_button()?;
+            assert_eq!(sp.get(0)?, "set from callback");
         }
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn parameters_set_anim_expression() {
+fn parameters_set_anim_expression() -> Result<()> {
     with_session(|session| {
-        let node = session.create_node("Object/null").unwrap();
+        let node = session.create_node("Object/null")?;
 
         if let Ok(Parameter::Float(p)) = node.parameter("scale") {
             let keys = vec![
@@ -96,111 +96,102 @@ fn parameters_set_anim_expression() {
                 },
             ];
 
-            p.set_anim_curve(0, &keys).expect("set_anim_curve");
-            assert!(p.has_expression(0).unwrap());
-            session.set_time(1.0).unwrap();
-            assert_eq!(p.get(0).unwrap(), 3.0);
-            p.remove_expression(0).unwrap();
-            assert!(!p.has_expression(0).unwrap());
-            assert_eq!(p.expression(0).unwrap(), None);
-            p.set_expression("$T", 0).unwrap();
-            assert_eq!(p.expression(0).unwrap().as_deref(), Some("$T"));
-            session.set_time(10.0).unwrap();
-            assert_eq!(p.get(0).unwrap(), 10.0);
-            p.remove_expression(0).unwrap();
-            assert_eq!(p.expression(0).unwrap(), None);
+            p.set_anim_curve(0, &keys)?;
+            assert!(p.has_expression(0)?);
+            session.set_time(1.0)?;
+            assert_eq!(p.get(0)?, 3.0);
+            p.remove_expression(0)?;
+            assert!(!p.has_expression(0)?);
+            assert_eq!(p.expression(0)?, None);
+            p.set_expression("$T", 0)?;
+            assert_eq!(p.expression(0)?.as_deref(), Some("$T"));
+            session.set_time(10.0)?;
+            assert_eq!(p.get(0)?, 10.0);
+            p.remove_expression(0)?;
+            assert_eq!(p.expression(0)?, None);
         }
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn parameters_reset_to_default() {
+fn parameters_reset_to_default() -> Result<()> {
     with_session(|session| {
         let node = session
             .load_asset_file(HdaFile::Parameters.path())?
-            .try_create_first()
-            .expect("create_node");
-        let parm = node.parameter("single_float").unwrap();
+            .try_create_first()?;
+        let parm = node.parameter("single_float")?;
         if let Parameter::Float(p) = parm {
-            let default = p.get(0).unwrap();
-            p.set(0, 0.01).unwrap();
-            p.revert_to_default(Some(0)).unwrap();
-            assert_eq!(p.get(0).unwrap(), default);
+            let default = p.get(0)?;
+            p.set(0, 0.01)?;
+            p.revert_to_default(Some(0))?;
+            assert_eq!(p.get(0)?, default);
         }
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn parameter_tags() {
+fn parameter_tags() -> Result<()> {
     with_session(|session| {
         let node = session
             .load_asset_file(HdaFile::Parameters.path())?
-            .try_create_first()
-            .expect("create_node");
+            .try_create_first()?;
         if let Ok(Parameter::Button(parm)) = node.parameter("button") {
-            assert!(parm.has_tag("script_callback").unwrap());
-            let tag_name = parm.get_tag_name(1).unwrap();
+            assert!(parm.has_tag("script_callback")?);
+            let tag_name = parm.get_tag_name(1)?;
             assert_eq!(tag_name, "script_callback_language");
-            let tag_value = parm.get_tag_value("script_callback_language").unwrap();
+            let tag_value = parm.get_tag_value("script_callback_language")?;
             assert_eq!(tag_value, "python");
         }
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn parameters_save_parm_file() {
+fn parameters_save_parm_file() -> Result<()> {
     with_session(|session| {
         let node = session
             .load_asset_file(HdaFile::Parameters.path())?
-            .try_create_first()
-            .expect("create_node");
+            .try_create_first()?;
 
-        if let Parameter::String(geo_parm) = node.parameter("geo_file").unwrap() {
-            let dir = tempfile::TempDir::new().unwrap();
+        if let Parameter::String(geo_parm) = node.parameter("geo_file")? {
+            let dir = tempfile::TempDir::new()?;
             let dir = dir.keep();
             let filename = "geo.bgeo.sc";
-            geo_parm.save_parm_file(&dir, filename).unwrap();
-            let filesize = std::fs::metadata(dir.join(filename)).unwrap().len();
+            geo_parm.save_parm_file(&dir, filename)?;
+            let filesize = std::fs::metadata(dir.join(filename))?.len();
             assert!(filesize > 1024);
-            std::fs::remove_dir_all(dir).unwrap();
+            std::fs::remove_dir_all(dir)?;
         }
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn get_set_value_as_node() {
+fn get_set_value_as_node() -> Result<()> {
     with_session(|session| {
         let node = session
             .load_asset_file(HdaFile::Parameters.path())?
-            .try_create_first()
-            .expect("create_node");
-        let Ok(Parameter::String(parm)) = node.parameter("op_path") else {
-            panic!("op_node string parameter not found");
+            .try_create_first()?;
+        let Parameter::String(parm) = node.parameter("op_path")? else {
+            return Err(HapiError::Internal(
+                "op_node string parameter not found".into(),
+            ));
         };
         assert_eq!(parm.info().parm_type(), ParmType::Node);
-        let null_node = session.create_node("Object/null").unwrap();
-        parm.set_value_as_node(&null_node)
-            .expect("op_path parameter set");
+        let null_node = session.create_node("Object/null")?;
+        parm.set_value_as_node(&null_node)?;
         let value = parm
-            .get_value_as_node()
-            .unwrap()
-            .expect("op_path node not found");
+            .get_value_as_node()?
+            .ok_or_else(|| HapiError::Internal("op_path node not found".into()))?;
         assert_eq!(null_node.handle, value);
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn parameters_concurrent_access() {
+fn parameters_concurrent_access() -> Result<()> {
     // This is a dumb test of accessing parameters randomly from multiple threads
     // HAPI claims each session is protected with a lock....
     fn set_parm_value(parm: &Parameter) -> Result<()> {
@@ -254,7 +245,7 @@ fn parameters_concurrent_access() {
             .try_create_first()?;
         node.cook_blocking()?;
         let parameters = node.parameters()?;
-        std::thread::scope(|scope| {
+        std::thread::scope(|scope| -> Result<()> {
             let mut handles = Vec::new();
             for _ in 0..3 {
                 let handle = scope.spawn(|| -> Result<()> {
@@ -274,11 +265,16 @@ fn parameters_concurrent_access() {
                 handles.push(handle);
             }
             for h in handles {
-                h.join().unwrap().unwrap();
+                match h.join() {
+                    Ok(result) => result?,
+                    Err(_) => {
+                        return Err(HapiError::Internal("thread panicked".into()));
+                    }
+                }
             }
-        });
+            Ok(())
+        })?;
 
         Ok(())
     })
-    .unwrap()
 }

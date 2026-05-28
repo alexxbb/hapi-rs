@@ -34,10 +34,12 @@ where
     }
 
     /// Get reference to the data buffer.
+    #[must_use]
     pub fn data(&self) -> &[T] {
         self.data.as_ref()
     }
     /// Get reference to the sizes array.
+    #[must_use]
     pub fn sizes(&self) -> &[i32] {
         self.sizes.as_ref()
     }
@@ -50,6 +52,7 @@ where
     }
 
     /// Create an iterator over the data .
+    #[must_use]
     pub fn iter(&'a self) -> ArrayIter<'a, T> {
         ArrayIter {
             sizes: self.sizes.iter(),
@@ -64,6 +67,30 @@ where
             data: self.data.to_mut().as_mut(),
             cursor: 0,
         }
+    }
+}
+
+impl<'a, T> IntoIterator for &'a DataArray<'a, T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    type Item = &'a [T];
+    type IntoIter = ArrayIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut DataArray<'a, T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    type Item = &'a mut [T];
+    type IntoIter = ArrayIterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
     }
 }
 
@@ -127,13 +154,16 @@ impl<'a, T> Iterator for ArrayIterMut<'a, T> {
                 self.cursor = end;
                 // SAFETY: Compiler can't know that we're never return overlapping references
                 // so we "erase" the lifetime by casting to pointer and back.
-                Some(unsafe { &mut *(self.data.get_unchecked_mut(start..end) as *mut [T]) })
+                Some(unsafe {
+                    &mut *std::ptr::from_mut::<[T]>(self.data.get_unchecked_mut(start..end))
+                })
             }
         }
     }
 }
 
 impl StringMultiArray {
+    #[must_use]
     pub fn iter(&self) -> MultiArrayIter<'_> {
         MultiArrayIter {
             handles: self.handles.iter(),
@@ -147,9 +177,18 @@ impl StringMultiArray {
         let mut flat_array = Vec::with_capacity(self.sizes.iter().sum::<i32>() as usize);
         let mut iter = self.iter();
         while let Some(Ok(string_array)) = iter.next() {
-            flat_array.extend(string_array.into_iter());
+            flat_array.extend(string_array);
         }
         Ok((flat_array, self.sizes.iter().map(|v| *v as usize).collect()))
+    }
+}
+
+impl<'a> IntoIterator for &'a StringMultiArray {
+    type Item = Result<StringArray>;
+    type IntoIter = MultiArrayIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 

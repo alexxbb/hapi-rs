@@ -23,7 +23,7 @@ pub enum HapiError {
         source: Box<HapiError>,
     },
 
-    /// CString conversion error - string contains null byte
+    /// `CString` conversion error - string contains null byte
     NullByte(#[from] std::ffi::NulError),
 
     /// UTF-8 conversion error
@@ -42,7 +42,14 @@ pub struct HapiResultCode(pub HapiResult);
 
 impl std::fmt::Display for HapiResultCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use HapiResult::*;
+        use HapiResult::{
+            AlreadyInitialized, AssetDefAlreadyLoaded, AssetInvalid, CantGeneratePreset,
+            CantLoadGeo, CantLoadPreset, CantLoadfile, DisallowedHengineindieW3partyPlugin,
+            DisallowedLcAssetWithCLicense, DisallowedNcAssetWithCLicense,
+            DisallowedNcAssetWithLcLicense, DisallowedNcLicenseFound, Failure, InvalidArgument,
+            InvalidSession, InvalidSharedMemoryBuffer, NoLicenseFound, NodeInvalid, NotInitialized,
+            ParmSetFailed, SharedMemoryBufferOverflow, Success, UserInterrupted,
+        };
         let desc = match self.0 {
             Success => "SUCCESS",
             Failure => "FAILURE",
@@ -68,7 +75,7 @@ impl std::fmt::Display for HapiResultCode {
             SharedMemoryBufferOverflow => "SHARED_MEMORY_BUFFER_OVERFLOW",
             InvalidSharedMemoryBuffer => "INVALID_SHARED_MEMORY_BUFFER",
         };
-        write!(f, "{}", desc)
+        write!(f, "{desc}")
     }
 }
 
@@ -118,11 +125,7 @@ impl<T> ErrorContext<T> for Result<T> {
             Err(mut error) => {
                 let context = context.into();
                 match &mut error {
-                    HapiError::Hapi { contexts, .. } => {
-                        contexts.push(context);
-                        Err(error)
-                    }
-                    HapiError::Context { contexts, .. } => {
+                    HapiError::Hapi { contexts, .. } | HapiError::Context { contexts, .. } => {
                         contexts.push(context);
                         Err(error)
                     }
@@ -145,11 +148,7 @@ impl<T> ErrorContext<T> for Result<T> {
             Err(mut error) => {
                 let context = func().into();
                 match &mut error {
-                    HapiError::Hapi { contexts, .. } => {
-                        contexts.push(context);
-                        Err(error)
-                    }
-                    HapiError::Context { contexts, .. } => {
+                    HapiError::Hapi { contexts, .. } | HapiError::Context { contexts, .. } => {
                         contexts.push(context);
                         Err(error)
                     }
@@ -173,9 +172,9 @@ impl std::fmt::Display for HapiError {
                     server_message,
                     ..
                 } => {
-                    write!(f, "[{}]", result_code)?;
+                    write!(f, "[{result_code}]")?;
                     if let Some(msg) = server_message {
-                        write!(f, ": [Engine Message]: {}", msg)?;
+                        write!(f, ": [Engine Message]: {msg}")?;
                     }
                     Ok(())
                 }
@@ -183,25 +182,25 @@ impl std::fmt::Display for HapiError {
                 HapiError::NullByte(e) => {
                     let vec = e.clone().into_vec();
                     let text = String::from_utf8_lossy(&vec);
-                    write!(f, "String contains null byte in \"{}\"", text)
+                    write!(f, "String contains null byte in \"{text}\"")
                 }
                 HapiError::Utf8(e) => {
                     let text = String::from_utf8_lossy(e.as_bytes());
-                    write!(f, "Invalid UTF-8 in string \"{}\"", text)
+                    write!(f, "Invalid UTF-8 in string \"{text}\"")
                 }
-                HapiError::Io(e) => write!(f, "IO error: {}", e),
-                HapiError::Internal(e) => write!(f, "Internal error: {}", e),
+                HapiError::Io(e) => write!(f, "IO error: {e}"),
+                HapiError::Internal(e) => write!(f, "Internal error: {e}"),
             }
         }
 
         fn collect_contexts<'a>(err: &'a HapiError, out: &mut Vec<&'a str>) {
             match err {
                 HapiError::Hapi { contexts, .. } => {
-                    out.extend(contexts.iter().map(|s| s.as_str()));
+                    out.extend(contexts.iter().map(std::string::String::as_str));
                 }
                 HapiError::Context { contexts, source } => {
                     collect_contexts(source, out);
-                    out.extend(contexts.iter().map(|s| s.as_str()));
+                    out.extend(contexts.iter().map(std::string::String::as_str));
                 }
                 _ => {}
             }
@@ -214,7 +213,7 @@ impl std::fmt::Display for HapiError {
         if !contexts.is_empty() {
             writeln!(f)?;
             for (n, msg) in contexts.iter().enumerate() {
-                writeln!(f, "\t{}. {}", n, msg)?;
+                writeln!(f, "\t{n}. {msg}")?;
             }
         }
         Ok(())
@@ -222,7 +221,7 @@ impl std::fmt::Display for HapiError {
 }
 
 impl HapiResult {
-    /// Check HAPI_Result status and convert to HapiError if the status is not success.
+    /// Check `HAPI_Result` status and convert to `HapiError` if the status is not success.
     pub(crate) fn check_err<F, M>(self, session: &Session, context: F) -> Result<()>
     where
         M: Into<String>,
@@ -249,7 +248,7 @@ impl HapiResult {
         }
     }
 
-    /// Convert HAPI_Result to HapiError if the status is not success and add a message to the error.
+    /// Convert `HAPI_Result` to `HapiError` if the status is not success and add a message to the error.
     pub(crate) fn add_context<I: Into<String>>(self, message: I) -> Result<()> {
         match self {
             HapiResult::Success => Ok(()),

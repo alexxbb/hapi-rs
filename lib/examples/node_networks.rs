@@ -8,7 +8,11 @@ fn main() -> Result<()> {
         SessionOptions::default(),
         ServerOptions::shared_memory_with_defaults(),
     )?;
-    let lib = session.load_asset_file("../otls/sesi/FourShapes.hda")?;
+    let lib = session.load_asset_file(
+        std::path::absolute("otls/sesi/FourShapes.hda")
+            .unwrap()
+            .as_path(),
+    )?;
     let asset = lib.try_create_first()?;
     let children = asset.get_children_by_type(NodeType::Any, NodeFlags::Any, false)?;
     println!("Editable Node Network Child Count: {}", children.len());

@@ -1,8 +1,11 @@
+use hapi_rs::Result;
+use pretty_assertions::assert_eq;
+
 mod utils;
 use utils::with_session;
 
 #[test]
-fn pdg_create_workitems() {
+fn pdg_create_workitems() -> Result<()> {
     with_session(|session| {
         let topnet = session.create_node("Object/topnet")?;
         let generator = topnet
@@ -11,7 +14,7 @@ fn pdg_create_workitems() {
             .with_parent(&topnet)
             .create()?
             .to_top_node()
-            .expect("TOP node");
+            .ok_or_else(|| hapi_rs::HapiError::Internal("TOP node".into()))?;
 
         generator.node.cook_blocking()?;
         let workitem = generator.create_workitem("test_1", 0, None)?;
@@ -25,5 +28,4 @@ fn pdg_create_workitems() {
         assert_eq!(&f_data, &[1.0, 2.0, 3.0]);
         Ok(())
     })
-    .unwrap()
 }

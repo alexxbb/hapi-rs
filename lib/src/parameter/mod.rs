@@ -77,6 +77,7 @@ impl Parameter {
     }
     /// Information about the parameter
     #[inline]
+    #[must_use]
     pub fn info(&self) -> &ParmInfo {
         &self.base().info
     }
@@ -95,6 +96,7 @@ impl Parameter {
 
     /// Number or elements in the parameter
     #[inline]
+    #[must_use]
     pub fn size(&self) -> i32 {
         self.info().size()
     }
@@ -114,6 +116,7 @@ impl Parameter {
     }
 
     pub(crate) fn base(&self) -> &ParmInfoWrap {
+        #[allow(clippy::match_same_arms)]
         match self {
             Parameter::Float(p) => &p.0,
             Parameter::Int(p) => &p.0,
@@ -130,6 +133,7 @@ impl ParmBaseTrait for Parameter {
     }
 
     fn inner_mut(&mut self) -> &mut ParmInfoWrap {
+        #[allow(clippy::match_same_arms)]
         match self {
             Parameter::Float(p) => &mut p.0,
             Parameter::Int(p) => &mut p.0,

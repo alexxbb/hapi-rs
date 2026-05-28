@@ -25,18 +25,18 @@ impl std::fmt::Debug for StringArray {
             let strings = self.iter_str().collect::<Vec<_>>();
             strings.fmt(f)
         } else {
-            let count = self.0.iter().filter(|v| **v == b'\0').count();
+            let count = bytecount::count(self.0.as_slice(), b'\0');
             write!(f, "StringArray[num_strings = {count}]")
         }
     }
 }
 
-/// Iterator over &str, returned from StringArray::iter_str()
+/// Iterator over &str, returned from `StringArray::iter_str()`
 pub struct StringIter<'a> {
     inner: &'a [u8],
 }
 
-/// Consuming iterator over String, returned from StringArray::into_iter()
+/// Consuming iterator over String, returned from `StringArray::into_iter()`
 pub struct OwnedStringIter {
     inner: Vec<u8>,
     cursor: usize,
@@ -63,33 +63,38 @@ impl Iterator for OwnedStringIter {
     }
 }
 
-/// Iterator over CStrings returned from StringArray::iter_cstr()
+/// Iterator over `CStrings` returned from `StringArray::iter_cstr()`
 pub struct CStringIter<'a> {
     inner: &'a [u8],
 }
 
 impl<'a> StringArray {
-    /// Create an empty StringArray
+    /// Create an empty `StringArray`
+    #[must_use]
     pub fn empty() -> StringArray {
         StringArray(vec![])
     }
     /// Return an iterator over &str
+    #[must_use]
     pub fn iter_str(&'a self) -> StringIter<'a> {
         StringIter { inner: &self.0 }
     }
 
-    /// Return an iterator over &CStr
+    /// Return an iterator over &`CStr`
+    #[must_use]
     pub fn iter_cstr(&'a self) -> CStringIter<'a> {
         CStringIter { inner: &self.0 }
     }
 
     #[inline]
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
     /// Reference to underlying bytes
     #[inline]
+    #[must_use]
     pub fn bytes(&self) -> &[u8] {
         self.0.as_slice()
     }
@@ -123,7 +128,7 @@ impl<'a> Iterator for CStringIter<'a> {
         match self.inner.iter().position(|c| *c == b'\0') {
             None => None,
             Some(idx) => {
-                let ret = &self.inner[..idx + 1];
+                let ret = &self.inner[..=idx];
                 self.inner = &self.inner[idx + 1..];
                 unsafe { Some(CStr::from_bytes_with_nul_unchecked(ret)) }
             }
@@ -170,10 +175,9 @@ mod tests {
     use crate::ffi;
     use crate::server::ServerOptions;
     use crate::session::{Session, SessionOptions, new_thrift_session};
-    use once_cell::sync::Lazy;
     use std::ffi::CString;
 
-    static SESSION: Lazy<Session> = Lazy::new(|| {
+    static SESSION: std::sync::LazyLock<Session> = std::sync::LazyLock::new(|| {
         let _ = env_logger::try_init().ok();
         new_thrift_session(
             SessionOptions::default(),

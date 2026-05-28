@@ -12,8 +12,6 @@ use hapi_rs::Result as HapiResult;
 use hapi_rs::geometry::Geometry;
 use hapi_rs::node::HoudiniNode;
 use hapi_rs::parameter::Parameter;
-#[allow(unused_imports)]
-use hapi_rs::server::{ServerOptions, connect_to_memory_server};
 use hapi_rs::session::{SessionOptions, new_in_process_session};
 
 #[derive(Resource)]
@@ -204,12 +202,7 @@ fn input_handler(
 
 fn init_houdini_resource() -> HapiResult<HoudiniResource> {
     let session_options = SessionOptions::default().threaded(false);
-    let session = if cfg!(debug_assertions) {
-        let server_options = ServerOptions::shared_memory_with_defaults();
-        connect_to_memory_server(server_options, None)?.initialize(session_options)?
-    } else {
-        new_in_process_session(Some(session_options))?
-    };
+    let session = new_in_process_session(Some(session_options))?;
     let otl = std::path::absolute(std::env::current_dir()?.join("apps/bevy/assets/hda/geo.hda"))?;
     let lib = session.load_asset_file(otl)?;
     let asset = lib.try_create_first()?;

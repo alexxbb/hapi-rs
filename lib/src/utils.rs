@@ -37,8 +37,29 @@ pub fn random_string(len: usize) -> String {
 
     let mut seed = RandomState::new().build_hasher().finish();
     let next = || {
-        seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
-        ((seed % 26) + 97) as u8 as char
+        seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+        let letter = u8::try_from(seed % 26).expect("seed modulo 26 always fits in u8");
+        char::from(letter + b'a')
     };
     std::iter::repeat_with(next).take(len).collect()
+}
+
+#[inline]
+pub(crate) fn uzize_to_i32(value: usize) -> i32 {
+    i32::try_from(value).expect("usize->i32 overflow")
+}
+
+#[inline]
+pub(crate) fn i32_to_usize(value: i32) -> usize {
+    usize::try_from(value).expect("i32->usize underflow")
+}
+
+#[inline]
+pub(crate) fn i64_to_usize(value: i64) -> usize {
+    usize::try_from(value).expect("i64->usize underflow")
+}
+
+#[inline]
+pub(crate) fn i64_to_i32_clamped(value: i64) -> i32 {
+    i32::try_from(value.clamp(i64::from(i32::MIN), i64::from(i32::MAX))).unwrap()
 }

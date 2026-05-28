@@ -33,7 +33,7 @@ const NUM_ITERATIONS: usize = 1;
 const NUM_COPIES: usize = 10;
 const WORKLOAD_MULTIPLIER: usize = 1;
 const STR_LENGTH: usize = 10;
-const BUFFER_SIZE: usize = 5_000; // GB
+const BUFFER_SIZE: u64 = 5_000; // GB
 
 fn copy_geo(source: &Geometry, input_geo: &Geometry) -> Result<()> {
     let part = source.part_info(0)?;
@@ -122,7 +122,7 @@ fn main() -> Result<()> {
                     ThriftSharedMemoryTransportBuilder::default()
                         .with_buffer_type(buffer_type)
                         .with_memory_name(conn_name)
-                        .with_buffer_size(BUFFER_SIZE as i64) // MB
+                        .with_buffer_size(std::num::NonZeroU64::new(BUFFER_SIZE).unwrap()) // MB
                         .build(),
                 ),
             )
