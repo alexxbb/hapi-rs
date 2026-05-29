@@ -80,23 +80,49 @@ fn asset_load_from_file() -> Result<()> {
 
 #[test]
 fn asset_default_parameters() -> Result<()> {
+    macro_rules! assert_parm_value {
+        ($parm:expr, $variant:ident, $expected:expr) => {
+            match $parm {
+                ParmValue::$variant(val) => assert_eq!(val, $expected),
+                other => {
+                    return Err(hapi_rs::HapiError::Internal(format!(
+                        "expected {} parameter, got {other:?}",
+                        stringify!($variant)
+                    )));
+                }
+            }
+        };
+    }
     with_session_asset(HdaFile::Parameters, |lib| {
-        let parms = lib.get_asset_parms("Object/hapi_parms")?;
+        let all_parms = lib.get_asset_parms("Object/hapi_parms")?;
 
-        let parm = parms
+        let string_parm = all_parms
             .find_parameter("single_string")
             .ok_or_else(|| hapi_rs::HapiError::Internal("single_string parameter".into()))?;
-        if let ParmValue::String([val]) = parm.default_value() {
-            assert_eq!(val, "hello");
-        }
-        let parm = parms
+        assert_parm_value!(string_parm.default_value(), String, &["hello"]);
+        let float_parm = all_parms
             .find_parameter("float3")
             .ok_or_else(|| hapi_rs::HapiError::Internal("float3 parameter".into()))?;
-        if let ParmValue::Float(val) = parm.default_value() {
-            assert_eq!(val, &[0.1, 0.2, 0.3]);
-        } else {
-            return Err(hapi_rs::HapiError::Internal("parm is not a float3".into()));
-        }
+
+        let int_button_parm = all_parms
+            .find_parameter("button")
+            .ok_or_else(|| hapi_rs::HapiError::Internal("button parameter".into()))?;
+
+        assert_parm_value!(int_button_parm.default_value(), Int, &[0]);
+        assert!(int_button_parm.menu_items().is_none());
+
+        let toggle_parm = all_parms
+            .find_parameter("toggle")
+            .ok_or_else(|| hapi_rs::HapiError::Internal("toggle parameter".into()))?;
+
+        assert_parm_value!(toggle_parm.default_value(), Toggle, false);
+        let toggle_menu_items = toggle_parm
+            .menu_items()
+            .expect("toggle parameter should have menu items");
+        assert_eq!(toggle_menu_items[0].label()?, "off");
+        assert_eq!(toggle_menu_items[0].value()?, "off");
+
+        assert_parm_value!(float_parm.default_value(), Float, &[0.1, 0.2, 0.3]);
         Ok(())
     })
 }
@@ -160,7 +186,14 @@ fn asset_try_create_first() -> Result<()> {
 #[test]
 fn asset_parameters_iter() -> Result<()> {
     with_session_asset(HdaFile::Parameters, |lib| {
+        assert!(
+            lib.get_asset_parms("Object/non-existent-asset-should-fail")
+                .is_err()
+        );
         let parms = lib.get_asset_parms("Object/hapi_parms")?;
+        // test iterator path
+        #[allow(unused_variables)]
+        let _iter = parms.iter();
         let mut names = HashSet::new();
         for parm in &parms {
             names.insert(parm.name()?);
