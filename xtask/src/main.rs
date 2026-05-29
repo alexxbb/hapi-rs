@@ -68,7 +68,8 @@ Examples:
   cargo xtask bindgen -- --outdir /tmp
   cargo xtask ffi-coverage
   cargo xtask test-coverage
-  cargo xtask test-coverage --html"
+  cargo xtask test-coverage --html
+  cargo xtask test-coverage --json"
     );
     process::exit(code);
 }

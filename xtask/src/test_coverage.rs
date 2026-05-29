@@ -12,6 +12,9 @@ pub fn run(workspace_root: &Path, args: &[String]) -> Result<(), Box<dyn Error>>
         print_usage();
         return Ok(());
     }
+    if options.json && options.html {
+        return Err("cannot use --json together with --html".into());
+    }
 
     ensure_cargo_llvm_cov(workspace_root)?;
 
@@ -22,7 +25,9 @@ pub fn run(workspace_root: &Path, args: &[String]) -> Result<(), Box<dyn Error>>
         .arg("--package")
         .arg(PACKAGE);
 
-    if options.html {
+    if options.json {
+        command.arg("--json").arg("--summary-only");
+    } else if options.html {
         command
             .arg("--html")
             .arg("--output-dir")
@@ -36,7 +41,9 @@ pub fn run(workspace_root: &Path, args: &[String]) -> Result<(), Box<dyn Error>>
         command.arg("--").arg(test_pattern);
     }
 
-    eprintln!("Running: {}", command_line(&command));
+    if !options.json {
+        eprintln!("Running: {}", command_line(&command));
+    }
     let status = command.status()?;
     if !status.success() {
         return Err(format!("test coverage failed with {status}").into());
@@ -52,6 +59,7 @@ pub fn run(workspace_root: &Path, args: &[String]) -> Result<(), Box<dyn Error>>
 #[derive(Debug)]
 struct Options {
     html: bool,
+    json: bool,
     help: bool,
     test_pattern: Option<String>,
     forwarded_args: Vec<String>,
@@ -60,6 +68,7 @@ struct Options {
 impl Options {
     fn parse(args: &[String]) -> Result<Self, Box<dyn Error>> {
         let mut html = false;
+        let mut json = false;
         let mut help = false;
         let mut test_pattern = None;
         let mut forwarded_args = Vec::new();
@@ -74,6 +83,7 @@ impl Options {
 
             match arg.as_str() {
                 "--html" => html = true,
+                "--json" => json = true,
                 "-h" | "--help" => help = true,
                 "--" => forward_rest = true,
                 "--pattern" => {
@@ -96,6 +106,7 @@ impl Options {
 
         Ok(Self {
             html,
+            json,
             help,
             test_pattern,
             forwarded_args,
@@ -134,17 +145,19 @@ fn command_line(command: &Command) -> String {
 
 fn print_usage() {
     println!(
-        "Usage: cargo xtask test-coverage [--html] [--pattern <pattern>] [-- <cargo-llvm-cov args>]
+        "Usage: cargo xtask test-coverage [--html] [--json] [--pattern <pattern>] [-- <cargo-llvm-cov args>]
 
 Runs Rust test coverage for the hapi-rs library crate using cargo-llvm-cov.
 
 Options:
   --html                    Generate an HTML report at target/llvm-cov/html/index.html
+  --json                    Print per-file summary coverage as JSON to stdout
   --pattern <pattern>       Only run tests whose names contain the pattern
 
 Examples:
   cargo xtask test-coverage
   cargo xtask test-coverage --html
+  cargo xtask test-coverage --json
   cargo xtask test-coverage --pattern node_"
     );
 }

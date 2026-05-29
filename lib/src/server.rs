@@ -248,6 +248,7 @@ impl ServerOptions {
     }
 
     #[must_use]
+    #[cfg(feature = "async-cooking")]
     pub fn with_connection_count(mut self, connection_count: i32) -> Self {
         // BUG: HARS 21.0.* has a bug where the connection count is not respected.
         // If connection_count is > 0, there is a bug in HARS which prevents session creation.
