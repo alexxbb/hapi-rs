@@ -1,0 +1,63 @@
+{
+  "source_node": "/obj/hapi_geo1/geo/python1",
+  "point_count": 96,
+  "vertex_count": 384,
+  "prim_count": 96,
+  "attributes": [
+    {
+      "name": "Cd",
+      "class": "point",
+      "data_type": "float[3]"
+    },
+    {
+      "name": "P",
+      "class": "point",
+      "data_type": "float[3]"
+    },
+    {
+      "name": "my_dict_array_attr",
+      "class": "point",
+      "data_type": "dict[]"
+    },
+    {
+      "name": "my_float_array",
+      "class": "point",
+      "data_type": "float[]"
+    },
+    {
+      "name": "my_int_array",
+      "class": "point",
+      "data_type": "int[]"
+    },
+    {
+      "name": "my_str_array",
+      "class": "point",
+      "data_type": "str[]"
+    },
+    {
+      "name": "pscale",
+      "class": "point",
+      "data_type": "float"
+    },
+    {
+      "name": "ptname",
+      "class": "point",
+      "data_type": "str"
+    },
+    {
+      "name": "N",
+      "class": "vertex",
+      "data_type": "float[3]"
+    },
+    {
+      "name": "primname",
+      "class": "prim",
+      "data_type": "str"
+    },
+    {
+      "name": "my_dict_attr",
+      "class": "detail",
+      "data_type": "dict"
+    }
+  ]
+}

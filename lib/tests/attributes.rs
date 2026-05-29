@@ -1,13 +1,13 @@
 use hapi_rs::Result;
 use hapi_rs::attribute::{
-    AsAttribute, AttributeInfo, DataArray, DictionaryArrayAttr, NumericArrayAttr, NumericAttr,
-    StorageType, StringArrayAttr, StringAttr,
+    AsAttribute, Attribute, AttributeInfo, DataArray, DictionaryArrayAttr, DictionaryAttr,
+    NumericArrayAttr, NumericAttr, StorageType, StringArrayAttr, StringAttr,
 };
-use hapi_rs::enums::{AttributeOwner, PartType};
+use hapi_rs::enums::{AttributeOwner, AttributeTypeInfo, PartType};
 use hapi_rs::geometry::{AttributeName, PartInfo};
 use hapi_rs::stringhandle::StringArray;
 use pretty_assertions::assert_eq;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 
 mod utils;
 
@@ -279,35 +279,237 @@ fn geometry_create_string_array_attrib() -> Result<()> {
 }
 
 #[test]
-fn geometry_attribute_storage_type() -> Result<()> {
+fn geometry_attribute_metadata_and_lengths_match_fixture() -> Result<()> {
+    #[derive(Clone, Copy)]
+    struct AttributeSpec {
+        name: &'static CStr,
+        owner: AttributeOwner,
+        info_storage: StorageType,
+        attr_storage: StorageType,
+        type_info: AttributeTypeInfo,
+        tuple_size: i32,
+    }
+
+    let attribute_specs = [
+        AttributeSpec {
+            name: c"Cd",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::Float,
+            attr_storage: StorageType::Float,
+            type_info: AttributeTypeInfo::Color,
+            tuple_size: 3,
+        },
+        AttributeSpec {
+            name: c"P",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::Float,
+            attr_storage: StorageType::Float,
+            type_info: AttributeTypeInfo::Point,
+            tuple_size: 3,
+        },
+        AttributeSpec {
+            name: c"my_dict_array_attr",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::DictionaryArray,
+            attr_storage: StorageType::DictionaryArray,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"my_float_array",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::FloatArray,
+            attr_storage: StorageType::Float,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"my_int_array",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::IntArray,
+            attr_storage: StorageType::Int,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"my_str_array",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::StringArray,
+            attr_storage: StorageType::StringArray,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"pscale",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::Float,
+            attr_storage: StorageType::Float,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"ptname",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::String,
+            attr_storage: StorageType::String,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"N",
+            owner: AttributeOwner::Vertex,
+            info_storage: StorageType::Float,
+            attr_storage: StorageType::Float,
+            type_info: AttributeTypeInfo::Normal,
+            tuple_size: 3,
+        },
+        AttributeSpec {
+            name: c"primname",
+            owner: AttributeOwner::Prim,
+            info_storage: StorageType::String,
+            attr_storage: StorageType::String,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"my_dict_attr",
+            owner: AttributeOwner::Detail,
+            info_storage: StorageType::Dictionary,
+            attr_storage: StorageType::Dictionary,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+    ];
+
     with_test_geometry(|geo| {
-        let attrib_list = [
-            ("Cd", AttributeOwner::Point, StorageType::Float),
-            ("pscale", AttributeOwner::Point, StorageType::Float),
-            ("P", AttributeOwner::Point, StorageType::Float),
-            ("my_int_array", AttributeOwner::Point, StorageType::IntArray),
-            (
-                "my_float_array",
-                AttributeOwner::Point,
-                StorageType::FloatArray,
-            ),
-            (
-                "my_str_array",
-                AttributeOwner::Point,
-                StorageType::StringArray,
-            ),
-        ];
-        for (name, owner, expected_storage) in attrib_list {
-            let info = geo.get_attribute_info(0, owner, name)?;
-            let storage = info.storage();
+        let geo_info = geo.geo_info()?;
+        assert_eq!(geo_info.part_count(), 1);
+
+        let part = geo.part_info(0)?;
+
+        for spec in attribute_specs {
+            let attr = geo
+                .get_attribute(part.part_id(), spec.owner, spec.name)?
+                .ok_or_else(|| {
+                    hapi_rs::HapiError::Internal(format!(
+                        "{} {:?} attribute",
+                        spec.name.to_string_lossy(),
+                        spec.owner
+                    ))
+                })?;
+            let expected_count = match spec.owner {
+                AttributeOwner::Point => part.point_count(),
+                AttributeOwner::Vertex => part.vertex_count(),
+                AttributeOwner::Prim => part.face_count(),
+                AttributeOwner::Detail => 1,
+                AttributeOwner::Invalid | AttributeOwner::Max => unreachable!(),
+                _ => unreachable!(),
+            };
+            let expected_len = (expected_count * spec.tuple_size) as usize;
+            let name = spec.name.to_string_lossy();
+
+            assert_eq!(attr.name().as_ref(), name.as_ref());
+            assert_eq!(attr.storage(), spec.attr_storage, "{name} attr storage");
+            assert_eq!(attr.info().owner(), spec.owner, "{name} owner");
             assert_eq!(
-                expected_storage, storage,
-                "Attribute {} unexpected storage {:?} != {:?}",
-                name, storage, expected_storage
+                attr.info().storage(),
+                spec.info_storage,
+                "{name} info storage"
             );
+            assert_eq!(attr.info().type_info(), spec.type_info, "{name} type info");
+            assert_eq!(attr.info().tuple_size(), spec.tuple_size, "{name} tuple");
+            assert_eq!(attr.info().count(), expected_count, "{name} count");
+
+            assert_attribute_node_and_length(&attr, &geo.node, part.part_id(), expected_len)?;
         }
         Ok(())
     })
+}
+
+fn assert_attribute_node_and_length(
+    attr: &Attribute,
+    node: &hapi_rs::node::HoudiniNode,
+    part_id: i32,
+    expected_len: usize,
+) -> Result<()> {
+    match attr.info().storage() {
+        StorageType::Int => {
+            let attr = attr
+                .downcast::<NumericAttr<i32>>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("NumericAttr<i32>".into()))?;
+            assert_eq!(attr.node(), node);
+            assert_eq!(attr.get(part_id)?.len(), expected_len);
+        }
+        StorageType::Float => {
+            let attr = attr
+                .downcast::<NumericAttr<f32>>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("NumericAttr<f32>".into()))?;
+            assert_eq!(attr.node(), node);
+            assert_eq!(attr.get(part_id)?.len(), expected_len);
+        }
+        StorageType::String => {
+            let attr = attr
+                .downcast::<StringAttr>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("StringAttr".into()))?;
+            assert_eq!(attr.node(), node);
+            assert_eq!(attr.get(part_id)?.iter_str().count(), expected_len);
+        }
+        StorageType::IntArray => {
+            let attr = attr
+                .downcast::<NumericArrayAttr<i32>>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("NumericArrayAttr<i32>".into()))?;
+            assert_eq!(attr.node(), node);
+            let data = attr.get(part_id)?;
+            assert_eq!(data.iter().count(), expected_len);
+            assert_eq!(data.sizes().len(), expected_len);
+            assert_eq!(data.data().len() as i64, attr.info().total_array_elements());
+        }
+        StorageType::FloatArray => {
+            let attr = attr
+                .downcast::<NumericArrayAttr<f32>>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("NumericArrayAttr<f32>".into()))?;
+            assert_eq!(attr.node(), node);
+            let data = attr.get(part_id)?;
+            assert_eq!(data.iter().count(), expected_len);
+            assert_eq!(data.sizes().len(), expected_len);
+            assert_eq!(data.data().len() as i64, attr.info().total_array_elements());
+        }
+        StorageType::StringArray => {
+            let attr = attr
+                .downcast::<StringArrayAttr>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("StringArrayAttr".into()))?;
+            assert_eq!(attr.node(), node);
+            let data = attr.get(part_id)?;
+            assert_eq!(data.iter().count(), expected_len);
+            let (flat, sizes) = data.flatten()?;
+            assert_eq!(sizes.len(), expected_len);
+            assert_eq!(flat.len() as i64, attr.info().total_array_elements());
+        }
+        StorageType::Dictionary => {
+            let attr = attr
+                .downcast::<DictionaryAttr>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("DictionaryAttr".into()))?;
+            assert_eq!(attr.node(), node);
+            assert_eq!(attr.get(part_id)?.iter_str().count(), expected_len);
+        }
+        StorageType::DictionaryArray => {
+            let attr = attr
+                .downcast::<DictionaryArrayAttr>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("DictionaryArrayAttr".into()))?;
+            assert_eq!(attr.node(), node);
+            let data = attr.get(part_id)?;
+            assert_eq!(data.iter().count(), expected_len);
+            let (flat, sizes) = data.flatten()?;
+            assert_eq!(sizes.len(), expected_len);
+            assert_eq!(flat.len() as i64, attr.info().total_array_elements());
+        }
+        storage => {
+            return Err(hapi_rs::HapiError::Internal(format!(
+                "unexpected storage {storage:?}"
+            )));
+        }
+    }
+    Ok(())
 }
 
 #[test]
