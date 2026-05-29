@@ -516,3 +516,118 @@ pub fn start_houdini_server(
             .map_err(HapiError::from)
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{ffi::OsString, net::Ipv4Addr, num::NonZeroU64};
+
+    use crate::ffi::enums::StatusVerbosity;
+
+    #[test]
+    fn license_preference_display_strings() {
+        assert_eq!(
+            LicensePreference::AnyAvailable.to_string(),
+            "--check-licenses=Houdini-Engine,Houdini-Escape,Houdini-Fx"
+        );
+        assert_eq!(
+            LicensePreference::HoudiniEngineOnly.to_string(),
+            "--check-licenses=Houdini-Engine --skip-licenses=Houdini-Escape,Houdini-Fx"
+        );
+        assert_eq!(
+            LicensePreference::HoudiniEngineAndCore.to_string(),
+            "--check-licenses=Houdini-Engine,Houdini-Escape --skip-licenses=Houdini-Fx"
+        );
+    }
+
+    #[test]
+    fn shared_memory_transport_builder_applies_options() {
+        let transport = ThriftSharedMemoryTransportBuilder::default()
+            .with_memory_name("test-memory")
+            .with_buffer_type(ThriftSharedMemoryBufferType::RingBuffer)
+            .with_buffer_size(NonZeroU64::new(512).unwrap())
+            .build();
+
+        assert_eq!(transport.memory_name, "test-memory");
+        assert_eq!(transport.buffer_type, ThriftSharedMemoryBufferType::RingBuffer);
+        assert_eq!(transport.buffer_size, 512);
+    }
+
+    #[test]
+    fn shared_memory_transport_builder_clamps_oversized_buffer() {
+        let transport = ThriftSharedMemoryTransportBuilder::default()
+            .with_buffer_size(NonZeroU64::new(i64::MAX as u64 + 1).unwrap())
+            .build();
+
+        assert_eq!(transport.buffer_size, 1024);
+    }
+
+    #[test]
+    fn server_options_shared_memory_maps_to_session_and_thrift_options() {
+        let transport = ThriftSharedMemoryTransportBuilder::default()
+            .with_buffer_type(ThriftSharedMemoryBufferType::RingBuffer)
+            .with_buffer_size(NonZeroU64::new(256).unwrap())
+            .build();
+        let options = ServerOptions::default()
+            .with_auto_close(false)
+            .with_verbosity(StatusVerbosity::Statusverbosity2)
+            .with_server_ready_timeout(5_000)
+            .with_thrift_transport(ThriftTransport::SharedMemory(transport.clone()));
+
+        let session_info = options.session_info();
+        assert_eq!(
+            session_info.shared_memory_buffer_type(),
+            ThriftSharedMemoryBufferType::RingBuffer
+        );
+        assert_eq!(session_info.shared_memory_buffer_size(), 256);
+
+        let thrift_options = options.thrift_options();
+        assert!(!thrift_options.auto_close());
+        assert_eq!(thrift_options.verbosity(), StatusVerbosity::Statusverbosity2);
+        assert_eq!(
+            thrift_options.shared_memory_buffer_type(),
+            ThriftSharedMemoryBufferType::RingBuffer
+        );
+        assert_eq!(thrift_options.shared_memory_buffer_size(), 256);
+        assert_eq!(thrift_options.timeout_ms(), 5_000.0);
+    }
+
+    #[test]
+    fn server_options_license_preference_sets_plugin_env() {
+        let options =
+            ServerOptions::default().with_license_preference(LicensePreference::HoudiniEngineOnly);
+        let env = options.env_variables.expect("env map");
+        assert_eq!(
+            env.get(&OsString::from("HOUDINI_PLUGIN_LIC_OPT")),
+            Some(&OsString::from(
+                "--check-licenses=Houdini-Engine --skip-licenses=Houdini-Escape,Houdini-Fx"
+            ))
+        );
+    }
+
+    #[test]
+    fn socket_with_defaults_preserves_address() {
+        let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 12_345);
+        let options = ServerOptions::socket_with_defaults(address);
+        let ThriftTransport::Socket(ThriftSocketTransport { address: actual }) =
+            options.thrift_transport
+        else {
+            panic!("expected socket transport");
+        };
+        assert_eq!(actual, address);
+    }
+
+    #[test]
+    fn connect_rejects_mismatched_transport_without_calling_hapi() {
+        let memory_options = ServerOptions::shared_memory_with_defaults();
+        let pipe_options = ServerOptions::pipe_with_defaults();
+        let socket_options =
+            ServerOptions::socket_with_defaults(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 9_999));
+
+        assert!(connect_to_memory_server(pipe_options.clone(), None).is_err());
+        assert!(connect_to_pipe_server(memory_options.clone(), None).is_err());
+        assert!(connect_to_socket_server(memory_options, None).is_err());
+        assert!(connect_to_memory_server(socket_options.clone(), None).is_err());
+        assert!(connect_to_pipe_server(socket_options, None).is_err());
+    }
+}

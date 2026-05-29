@@ -194,6 +194,7 @@ impl PartialEq for Session {
     }
 }
 
+#[derive(Debug)]
 pub struct UninitializedSession {
     pub(crate) session_handle: raw::HAPI_Session,
     pub(crate) server_options: Option<ServerOptions>,

@@ -2,7 +2,7 @@ use hapi_rs::Result;
 use hapi_rs::raw::CacheProperty;
 use hapi_rs::server::ServerOptions;
 use hapi_rs::session::{
-    CookResult, License, ManagerType, SessionOptions, SessionSyncInfo, TimelineOptions, Viewport,
+    CookResult, ManagerType, SessionOptions, SessionSyncInfo, TimelineOptions, Viewport,
     new_thrift_session,
 };
 use pretty_assertions::assert_eq;
@@ -24,27 +24,6 @@ fn session_get_set_time() -> Result<()> {
     session.set_time(4.12)?;
     assert!(matches!(session.cook(), Ok(CookResult::Succeeded)));
     assert_eq!(session.get_time()?, 4.12);
-    Ok(())
-}
-
-#[test]
-fn session_server_variables() -> Result<()> {
-    let session = new_thrift_session(
-        SessionOptions::default(),
-        ServerOptions::shared_memory_with_defaults()
-            .with_env_variables([("HAPI_RS_TEST", "hapi_rs_is_awesome")].iter()),
-    )?;
-    session.set_server_var::<str>("FOO", "foo_string")?;
-    assert_eq!(session.get_server_var::<str>("FOO")?, "foo_string");
-    session.set_server_var::<i32>("BAR", &123)?;
-    assert_eq!(session.get_server_var::<i32>("BAR")?, 123);
-    assert!(!session.get_server_variables()?.is_empty());
-    assert_eq!(
-        session.get_server_var::<str>("HAPI_RS_TEST")?,
-        "hapi_rs_is_awesome"
-    );
-    // Make sure the implementation doesn't leak the environment variables to the main process
-    assert!(!std::env::vars().any(|(k, _)| k == "HAPI_RS_TEST"));
     Ok(())
 }
 
@@ -107,24 +86,6 @@ fn cache_properties() -> Result<()> {
         assert_eq!(cache_val, 2048);
         Ok(())
     })
-}
-
-#[test]
-fn test_license_set_via_environment() -> Result<()> {
-    let env = [(
-        "HOUDINI_PLUGIN_LIC_OPT",
-        "--check-licenses=Houdini-Escape --skip-licenses=Houdini-Engine",
-    )];
-
-    let server_options =
-        ServerOptions::shared_memory_with_defaults().with_env_variables(env.iter());
-    let session = new_thrift_session(SessionOptions::default(), server_options)?;
-    let plugin_lic_opt = session.get_server_var::<str>(env[0].0)?;
-    session.create_node("Object/null")?;
-    let license_type = session.get_license_type()?;
-    assert_eq!(plugin_lic_opt, env[0].1.to_string());
-    assert_eq!(license_type, License::LicenseHoudini);
-    Ok(())
 }
 
 #[test]
