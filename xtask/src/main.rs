@@ -61,7 +61,7 @@ fn print_usage_and_exit(code: i32) -> ! {
 Commands:
   bindgen        Generate lib/src/ffi/bindings.rs
   ffi-coverage   Report wrapped vs raw HAPI coverage
-  test-coverage  Report Rust test coverage with cargo-llvm-cov
+  test-coverage  Run tests and report Rust coverage (cargo llvm-cov)
 
 Examples:
   cargo xtask bindgen
@@ -69,7 +69,8 @@ Examples:
   cargo xtask ffi-coverage
   cargo xtask test-coverage
   cargo xtask test-coverage --html
-  cargo xtask test-coverage --json"
+  cargo xtask test-coverage --help
+  cargo xtask test-coverage -- --json --summary-only"
     );
     process::exit(code);
 }
