@@ -260,6 +260,7 @@ fn geometry_create_input_curve() -> Result<()> {
         let geo = session.create_input_curve_node("InputCurve", None)?;
         let positions = &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
         geo.set_input_curve_positions(0, positions)?;
+        let _ = geo.get_input_curve_info(0)?;
         let p = geo
             .get_position_attribute(&geo.part_info(0)?)?
             .ok_or_else(|| hapi_rs::HapiError::Internal("position attribute".into()))?;
@@ -304,6 +305,9 @@ fn geometry_multiple_input_curves() -> Result<()> {
         p_attrib.set(0, &points)?;
         geo.commit()?;
         geo.node.cook_blocking()?;
+        let info = geo.curve_info(0)?;
+        assert_eq!(info.curve_count(), 3);
+        assert_eq!(geo.curve_counts(0, 0, 3)?, vec![2, 2, 2]);
         let tmp_file = NamedTempFile::new()?;
         geo.save_to_file(tmp_file.path().to_string_lossy().as_ref())?;
         assert!(tmp_file.path().exists());
@@ -321,6 +325,8 @@ fn geometry_read_write_volume() -> Result<()> {
             .ok_or_else(|| hapi_rs::HapiError::Internal("geometry".into()))?;
         let source_part = source.part_info(0)?;
         let vol_info = source.volume_info(0)?;
+        let _ = source.volume_bounds(0)?;
+        let _ = source.get_volume_visual_info(0)?;
         let dest_geo = node.session.create_input_node("volume_copy", None)?;
         dest_geo.set_part_info(&source_part)?;
         dest_geo.set_volume_info(0, &vol_info)?;
@@ -334,6 +340,9 @@ fn geometry_read_write_volume() -> Result<()> {
                 .write_volume_tile::<f32>(0, tile.info, &values)
                 .unwrap();
         })?;
+        let mut voxel = vec![0.0f32];
+        source.read_volume_voxel(0, 0, 0, 0, &mut voxel)?;
+        dest_geo.write_volume_voxel(0, 0, 0, 0, &voxel)?;
         dest_geo.commit()?;
         dest_geo.node.cook_blocking()?;
         Ok(())

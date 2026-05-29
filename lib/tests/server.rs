@@ -133,13 +133,16 @@ fn server_env_variables_visible_in_session() -> Result<()> {
 }
 
 #[test]
-fn license_set_via_server_environment() -> Result<()> {
-    let server_options = server_options_with_temp_log(ServerOptions::shared_memory_with_defaults());
-    let session = new_thrift_session(SessionOptions::default(), server_options)?;
+fn license_preference() -> Result<()> {
+    let server_options = server_options_with_temp_log(
+        ServerOptions::shared_memory_with_defaults()
+            .with_license_preference(LicensePreference::HoudiniEngineAndCore),
+    );
+    let session = thrift_session_from_start_and_connect(server_options, connect_to_memory_server)?;
     assert_thrift_session(&session);
     session.create_node("Object/null")?;
     let license_type = session.get_license_type()?;
-    assert_eq!(license_type, License::LicenseHoudini);
+    assert!([License::LicenseHoudini, License::HoudiniEngine].contains(&license_type));
     Ok(())
 }
 

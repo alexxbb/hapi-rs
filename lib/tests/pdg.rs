@@ -26,6 +26,11 @@ fn pdg_create_workitems() -> Result<()> {
         assert_eq!(&i_data, &[1, 2, 3]);
         let f_data = workitem.get_float_data("my_float_data")?;
         assert_eq!(&f_data, &[1.0, 2.0, 3.0]);
+        let _ = generator.get_current_state(None)?;
+        let items = generator.get_all_workitems()?;
+        assert!(!items.is_empty());
+        let _ = generator.get_workitem(items[0].id)?.get_results()?;
+        generator.dirty_node(true)?;
         Ok(())
     })
 }

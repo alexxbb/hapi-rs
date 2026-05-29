@@ -580,6 +580,8 @@ impl HoudiniNode {
     }
 
     /// Given if Self is an asset or a subnet SOP node, get its output node at index.
+    // NOTE: Not clear what this is API is for and I could't figure how to use it.
+    #[allow(unused)]
     pub fn get_sop_output_node(&self, index: i32) -> Result<NodeHandle> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_sop_output_node(&self.session, self.handle, index)

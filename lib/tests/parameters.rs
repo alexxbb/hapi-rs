@@ -42,6 +42,7 @@ fn parameters_get_set() -> Result<()> {
             );
             assert!(p.is_menu());
             assert_eq!(p.get(0)?, 0);
+            assert_eq!(p.get_array()?, vec![0]);
             if let Some(items) = p.menu_items()? {
                 assert_eq!(items[0].value()?, "foo");
                 assert_eq!(items[0].label()?, "Foo");
@@ -125,6 +126,9 @@ fn parameters_reset_to_default() -> Result<()> {
             let default = p.get(0)?;
             p.set(0, 0.01)?;
             p.revert_to_default(Some(0))?;
+            assert_eq!(p.get(0)?, default);
+            p.set(0, 0.01)?;
+            p.revert_to_default(None)?;
             assert_eq!(p.get(0)?, default);
         }
         Ok(())

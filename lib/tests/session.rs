@@ -97,3 +97,24 @@ fn test_get_preset_names() -> Result<()> {
         Ok(())
     })
 }
+
+#[test]
+fn session_hip_timing_and_cook_progress() -> Result<()> {
+    with_session(|session| {
+        session.create_node("Object/null")?;
+        let tmp = tempfile::NamedTempFile::new()?;
+        let path = tmp.path();
+        session.save_hip(path, false)?;
+        session.set_use_houdini_time(true)?;
+        assert!(session.get_use_houdini_time()?);
+        session.set_use_houdini_time(false)?;
+        session.load_hip(path, true)?;
+        let hip_id = session.merge_hip(&path.to_string_lossy(), true)?;
+        assert!(!session.get_hip_file_nodes(hip_id)?.is_empty());
+        session.cook()?;
+        let _ = session.get_cook_state_status()?;
+        let _ = session.cooking_total_count()?;
+        let _ = session.cooking_current_count()?;
+        Ok(())
+    })
+}

@@ -396,6 +396,7 @@ pub fn get_node_info(node: NodeHandle, session: &Session) -> Result<raw::HAPI_No
     }
 }
 
+#[allow(unused)]
 pub fn get_sop_output_node(session: &Session, node: NodeHandle, output: i32) -> Result<NodeHandle> {
     unsafe {
         let mut out_node = -1;

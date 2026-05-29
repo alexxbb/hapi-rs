@@ -228,3 +228,25 @@ fn node_get_set_preset() -> Result<()> {
         Ok(())
     })
 }
+
+#[test]
+fn node_wiring_paths_and_cook_metadata() -> Result<()> {
+    with_session(|session| {
+        let obj = session.create_node("Object/geo")?;
+        let sphere = session.node_builder("sphere").with_parent(&obj).create()?;
+        let merge = session.node_builder("merge").with_parent(&obj).create()?;
+        merge.connect_input(0, &sphere, 0)?;
+        assert!(merge.input_node(0)?.is_some());
+        merge.disconnect_input(0)?;
+        assert!(merge.input_node(0)?.is_none());
+        sphere.rename("sphere_renamed")?;
+        assert!(sphere.path()?.contains("sphere_renamed"));
+        assert!(!obj.get_objects_info()?.is_empty());
+
+        session.load_asset_file(HdaFile::Geometry.path())?;
+        let asset = session.create_node("Object/hapi_geo")?;
+        asset.cook_blocking()?;
+        let _ = asset.get_composed_cook_result_string(StatusVerbosity::Statusverbosity0)?;
+        Ok(())
+    })
+}
