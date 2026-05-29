@@ -1,9 +1,9 @@
 # hapi-rs changelog
 ## [21.0.2]
-- Add AGENTS.md. Until now no AI has ever directly touched the code.
 - Regenerate with Houdini 21.0.700
-- Project structure cleanup
+- Use xtask for internal tools
 - Fixed most clippy pedantic warnings
+
 ## [21.0.1]
 - Regenerate bindings with Houdini 21.0.512
 - New server architecture - Introduced a server module with support for multiple transport options (shared memory, pipes, sockets) and license preference via `LicensePreference` enum.
