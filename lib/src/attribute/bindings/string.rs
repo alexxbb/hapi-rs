@@ -1,5 +1,8 @@
+#[cfg(feature = "async-cooking")]
+use crate::attribute::JobId;
+#[cfg(feature = "async-cooking")]
 use crate::attribute::async_::AsyncAttribResult;
-use crate::attribute::{AttributeInfo, JobId, StringMultiArray};
+use crate::attribute::{AttributeInfo, StringMultiArray};
 use crate::errors::Result;
 use crate::node::HoudiniNode;
 use crate::raw;
@@ -21,7 +24,7 @@ _rust_fn [get_attribute_dictionary_array_data_async]
 _ffi_fn [HAPI_GetAttributeDictionaryArrayDataAsync]
 ]
 )]
-
+#[cfg(feature = "async-cooking")]
 pub(crate) fn _rust_fn(
     node: &HoudiniNode,
     name: &CStr,
@@ -62,7 +65,7 @@ _rust_fn [set_attribute_dictionary_array_data_async]
 _ffi_fn [HAPI_SetAttributeDictionaryArrayDataAsync]
 ]
 )]
-
+#[cfg(feature = "async-cooking")]
 pub(crate) fn _rust_fn(
     node: &HoudiniNode,
     name: &CStr,
@@ -260,7 +263,7 @@ _rust_fn [set_attribute_dictionary_data_async]
 _ffi_fn [HAPI_SetAttributeDictionaryDataAsync]
 ]
 )]
-
+#[cfg(feature = "async-cooking")]
 pub(crate) fn _rust_fn(
     node: &HoudiniNode,
     name: &CStr,
@@ -299,6 +302,7 @@ _get_async_ffi_fn [HAPI_GetAttributeDictionaryDataAsync]
 ]
 
 )]
+#[cfg(feature = "async-cooking")]
 pub(crate) fn _get_async_rust_fn(
     node: &HoudiniNode,
     part_id: i32,
@@ -376,7 +380,7 @@ _val_type [*const ::std::os::raw::c_char]
 ]
 
 )]
-
+#[cfg(feature = "async-cooking")]
 pub(crate) fn _rust_fn(
     node: &HoudiniNode,
     name: &CStr,
@@ -431,6 +435,7 @@ pub(crate) fn set_attribute_indexed_string_data(
     }
 }
 
+#[cfg(feature = "async-cooking")]
 pub(crate) fn set_attribute_indexed_string_data_async(
     node: &HoudiniNode,
     part_id: i32,

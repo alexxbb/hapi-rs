@@ -1,4 +1,6 @@
-use crate::attribute::{AttribValueType, JobId, array::DataArray};
+#[cfg(feature = "async-cooking")]
+use crate::attribute::JobId;
+use crate::attribute::{AttribValueType, array::DataArray};
 use crate::ffi::AttributeInfo;
 use crate::ffi::raw;
 use crate::ffi::raw::StorageType;
@@ -150,6 +152,7 @@ impl AttribValueType for _val_type {
             .check_err(&node.session, || stringify!(Calling _get))
         }
     }
+    #[cfg(feature = "async-cooking")]
     fn get_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -203,6 +206,7 @@ impl AttribValueType for _val_type {
         }
     }
 
+    #[cfg(feature = "async-cooking")]
     fn set_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -255,6 +259,7 @@ impl AttribValueType for _val_type {
         }
     }
 
+    #[cfg(feature = "async-cooking")]
     fn set_unique_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -313,6 +318,7 @@ impl AttribValueType for _val_type {
         Ok(DataArray::new_owned(data, sizes))
     }
 
+    #[cfg(feature = "async-cooking")]
     fn get_array_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -371,6 +377,7 @@ impl AttribValueType for _val_type {
         Ok(())
     }
 
+    #[cfg(feature = "async-cooking")]
     fn set_array_async(
         name: &CStr,
         node: &HoudiniNode,

@@ -1,6 +1,7 @@
 use crate::errors::{ErrorContext, Result};
 use crate::node::Session;
 
+#[cfg(feature = "async-cooking")]
 #[derive(Debug)]
 pub struct AsyncAttribResult<T: Sized + Send + 'static> {
     pub(crate) job_id: i32,
@@ -9,6 +10,7 @@ pub struct AsyncAttribResult<T: Sized + Send + 'static> {
     pub(crate) session: Session,
 }
 
+#[cfg(feature = "async-cooking")]
 impl<T: Sized + Send + 'static> AsyncAttribResult<T> {
     pub fn is_ready(&self) -> Result<bool> {
         self.session
