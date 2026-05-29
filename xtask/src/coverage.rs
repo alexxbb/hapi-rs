@@ -20,7 +20,8 @@ impl Hash for Item {
 }
 
 pub fn run(workspace_root: &Path, _args: &[String]) -> Result<(), Box<dyn Error>> {
-    let mut ffi_functions = Vec::from_iter(raw_hapi_function_names(workspace_root));
+    let raw_functions = raw_hapi_function_names(workspace_root);
+    let mut ffi_functions = Vec::from_iter(raw_functions.coverage_candidates);
     ffi_functions.sort();
     let wrapped = wrapped_rs_function_names(workspace_root)?;
     let mut num_missed = 0;
@@ -30,7 +31,14 @@ pub fn run(workspace_root: &Path, _args: &[String]) -> Result<(), Box<dyn Error>
             num_missed += 1;
         }
     }
-    println!("Missed {num_missed} functions");
+    let num_bound = ffi_functions.len() - num_missed;
+    println!(
+        "Coverage summary ({} raw FFI functions):",
+        raw_functions.total
+    );
+    println!("  {:<7} {:>4}", "Bound", num_bound);
+    println!("  {:<7} {:>4}", "Ignored", raw_functions.ignored);
+    println!("  {:<7} {:>4}", "Missed", num_missed);
     Ok(())
 }
 
@@ -38,7 +46,13 @@ fn source_dir(workspace_root: &Path) -> PathBuf {
     workspace_root.join("lib/src")
 }
 
-fn raw_hapi_function_names(workspace_root: &Path) -> HashSet<Item> {
+struct RawHapiFunctionNames {
+    coverage_candidates: HashSet<Item>,
+    ignored: usize,
+    total: usize,
+}
+
+fn raw_hapi_function_names(workspace_root: &Path) -> RawHapiFunctionNames {
     const IGNORE_SUFFIX: &[&str] = &[
         "_IsString",
         "_IsNonValue",
@@ -63,16 +77,24 @@ fn raw_hapi_function_names(workspace_root: &Path) -> HashSet<Item> {
     let raw = source_dir(workspace_root).join("ffi/bindings.rs");
     let text = std::fs::read_to_string(raw).expect("bindings.rs");
     let rx = Regex::new(r#"pub fn (HAPI\w+)\("#).expect("valid regex");
-    rx.captures_iter(&text)
-        .filter_map(|m| {
-            let name = &m[1];
-            if IGNORE_SUFFIX.iter().any(|suffix| name.ends_with(suffix)) {
-                None
-            } else {
-                Some(Item(name.to_string()))
-            }
-        })
-        .collect()
+    let mut coverage_candidates = HashSet::new();
+    let mut ignored = 0;
+    let mut total = 0;
+    for m in rx.captures_iter(&text) {
+        total += 1;
+        let name = &m[1];
+        if IGNORE_SUFFIX.iter().any(|suffix| name.ends_with(suffix)) {
+            ignored += 1;
+        } else {
+            coverage_candidates.insert(Item(name.to_string()));
+        }
+    }
+
+    RawHapiFunctionNames {
+        coverage_candidates,
+        ignored,
+        total,
+    }
 }
 
 fn wrapped_rs_function_names(workspace_root: &Path) -> Result<HashSet<Item>, Box<dyn Error>> {
