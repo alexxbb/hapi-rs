@@ -63,3 +63,28 @@ pub(crate) fn i64_to_usize(value: i64) -> usize {
 pub(crate) fn i64_to_i32_clamped(value: i64) -> i32 {
     i32::try_from(value.clamp(i64::from(i32::MIN), i64::from(i32::MAX))).unwrap()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::join_paths;
+
+    const SEP: char = if cfg!(windows) { ';' } else { ':' };
+
+    #[test]
+    fn join_paths_empty() {
+        assert_eq!(join_paths([] as [&str; 0]), "");
+    }
+
+    #[test]
+    fn join_paths_single() {
+        assert_eq!(join_paths(["/one/path"]), "/one/path");
+    }
+
+    #[test]
+    fn join_paths_multiple() {
+        assert_eq!(
+            join_paths(["/a", "/b", "/c"]),
+            format!("/a{SEP}/b{SEP}/c")
+        );
+    }
+}
