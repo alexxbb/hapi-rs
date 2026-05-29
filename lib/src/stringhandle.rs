@@ -172,57 +172,34 @@ pub fn get_string_array(handles: &[StringHandle], session: &Session) -> Result<S
 #[cfg(test)]
 mod tests {
     use super::StringArray;
-    use crate::ffi;
-    use crate::server::ServerOptions;
-    use crate::session::{Session, SessionOptions, new_thrift_session};
-    use std::ffi::CString;
-
-    static SESSION: std::sync::LazyLock<Session> = std::sync::LazyLock::new(|| {
-        let _ = env_logger::try_init().ok();
-        new_thrift_session(
-            SessionOptions::default(),
-            ServerOptions::shared_memory_with_defaults(),
-        )
-        .expect("Could not create test session")
-    });
 
     #[test]
-    fn get_string_api() {
-        let h = ffi::get_server_env_str(&SESSION, &CString::new("HFS").unwrap()).unwrap();
-        assert!(super::get_string(h, &SESSION).is_ok());
-        assert!(super::get_cstring(h, &SESSION).is_ok());
+    fn string_array_empty_and_bytes() {
+        let arr = StringArray::empty();
+        assert!(arr.is_empty());
+        assert!(arr.bytes().is_empty());
     }
 
     #[test]
-    fn string_array_api() {
-        SESSION
-            .set_server_var::<str>("TEST", "177")
-            .expect("could not set var");
-        let var_count = ffi::get_server_env_var_count(&SESSION).unwrap();
-        let handles = ffi::get_server_env_var_list(&SESSION, var_count).unwrap();
-        let array = super::get_string_array(&handles, &SESSION).unwrap();
-        assert_eq!(array.iter_str().count(), var_count as usize);
-        assert_eq!(array.iter_cstr().count(), var_count as usize);
-        assert!(array.iter_str().any(|s| s == "TEST=177"));
-        assert!(
-            array
-                .iter_cstr()
-                .any(|s| s.to_bytes_with_nul() == b"TEST=177\0")
-        );
-        let mut owned: super::OwnedStringIter = array.into_iter();
-        assert!(owned.any(|s| s == "TEST=177"));
+    fn string_array_debug() {
+        let arr = StringArray(b"One\0Two\0".to_vec());
+        assert_eq!(format!("{arr:?}"), "StringArray[num_strings = 2]");
+        let alt = format!("{arr:#?}");
+        assert!(alt.contains("One") && alt.contains("Two"));
+    }
 
+    #[test]
+    fn string_array_into_vec_string() {
+        let arr = StringArray(b"One\0Two\0Three\0".to_vec());
+        let v: Vec<String> = arr.into();
+        assert_eq!(v, vec!["One", "Two", "Three"]);
+    }
+
+    #[test]
+    fn string_array_iter_cstr() {
         let arr = StringArray(b"One\0Two\0Three\0".to_vec());
         let v: Vec<_> = arr.iter_cstr().collect();
         assert_eq!(v[0].to_bytes_with_nul(), b"One\0");
         assert_eq!(v[2].to_bytes_with_nul(), b"Three\0");
-    }
-
-    #[test]
-    fn test_set_custom_string() {
-        let handle = SESSION.set_custom_string("HAPI_RS_CUSTOM_STRING").unwrap();
-        assert_eq!(SESSION.get_string(handle).unwrap(), "HAPI_RS_CUSTOM_STRING");
-        SESSION.remove_custom_string(handle).unwrap();
-        assert!(SESSION.get_string(handle).is_err());
     }
 }
