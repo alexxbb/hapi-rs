@@ -42,6 +42,7 @@ thread_local! {
 
     #[cfg(feature = "async-cooking")]
     static ASYNC_SESSION: std::sync::LazyLock<Session> = std::sync::LazyLock::new(|| {
+        use hapi_rs::session::SessionInfo;
         let _ = env_logger::try_init();
         let mut session_info = SessionInfo::default();
         // For async attribute access connection_count must be > 0 according to SESI support, otherwise HARS crashes.

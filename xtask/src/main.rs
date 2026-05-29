@@ -2,8 +2,9 @@ use std::env;
 use std::path::PathBuf;
 use std::process;
 
-mod coverage;
+mod ffi_coverage;
 mod hapi_bindgen;
+mod test_coverage;
 
 fn main() {
     let mut args = env::args().skip(1);
@@ -16,7 +17,8 @@ fn main() {
     let workspace_root = workspace_root();
     let exit_code = match command.as_str() {
         "bindgen" => run_command(hapi_bindgen::run(&workspace_root, &extra_args)),
-        "coverage" => run_command(coverage::run(&workspace_root, &extra_args)),
+        "ffi-coverage" => run_command(ffi_coverage::run(&workspace_root, &extra_args)),
+        "test-coverage" => run_command(test_coverage::run(&workspace_root, &extra_args)),
         "-h" | "--help" | "help" => {
             print_usage_and_exit(0);
         }
@@ -57,13 +59,16 @@ fn print_usage_and_exit(code: i32) -> ! {
         "Usage: cargo xtask <command> [-- <args>]
 
 Commands:
-  bindgen   Generate lib/src/ffi/bindings.rs
-  coverage  Report wrapped vs raw HAPI coverage
+  bindgen        Generate lib/src/ffi/bindings.rs
+  ffi-coverage   Report wrapped vs raw HAPI coverage
+  test-coverage  Report Rust test coverage with cargo-llvm-cov
 
 Examples:
   cargo xtask bindgen
   cargo xtask bindgen -- --outdir /tmp
-  cargo xtask coverage"
+  cargo xtask ffi-coverage
+  cargo xtask test-coverage
+  cargo xtask test-coverage --html"
     );
     process::exit(code);
 }
