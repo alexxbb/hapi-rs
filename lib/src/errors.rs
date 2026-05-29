@@ -338,4 +338,120 @@ mod tests {
         // Context order: inner first, then outer
         assert!(s.contains("\n\t0. inner\n\t1. outer\n"));
     }
+
+    #[test]
+    fn result_with_context_adds_context_on_error() {
+        let err = Err::<(), HapiError>(HapiError::Internal("root".to_string()))
+            .with_context(|| "deferred context")
+            .unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            "Internal error: root\n\t0. deferred context\n"
+        );
+        assert_eq!(
+            err.source().expect("source").to_string(),
+            "Internal error: root"
+        );
+    }
+
+    #[test]
+    fn hapi_result_add_context_returns_hapi_error_on_failure() {
+        let err = HapiResult::InvalidArgument
+            .add_context("invalid parm")
+            .unwrap_err();
+
+        match err {
+            HapiError::Hapi {
+                result_code,
+                server_message,
+                contexts,
+            } => {
+                assert_eq!(result_code.to_string(), "INVALID_ARGUMENT");
+                assert_eq!(server_message, None);
+                assert_eq!(contexts, vec!["invalid parm"]);
+            }
+            other => panic!("expected Hapi error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn hapi_result_with_context_returns_hapi_error_on_failure() {
+        let err = HapiResult::Failure
+            .with_context(|| "deferred hapi context")
+            .unwrap_err();
+
+        assert_eq!(err.to_string(), "[FAILURE]\n\t0. deferred hapi context\n");
+    }
+
+    #[test]
+    fn hapi_result_with_server_message_returns_hapi_error_on_failure() {
+        let err = HapiResult::CantLoadfile
+            .with_server_message(|| "could not load asset")
+            .unwrap_err();
+
+        match err {
+            HapiError::Hapi {
+                result_code,
+                server_message,
+                contexts,
+            } => {
+                assert_eq!(result_code.to_string(), "CANT_LOADFILE");
+                assert_eq!(server_message, Some("could not load asset".to_string()));
+                assert!(contexts.is_empty());
+            }
+            other => panic!("expected Hapi error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn null_byte_errors_are_rendered() {
+        let err = std::ffi::CString::new(b"ab\0cd".to_vec()).unwrap_err();
+        let err = HapiError::from(err);
+
+        assert_eq!(err.to_string(), "String contains null byte in \"ab\0cd\"");
+    }
+
+    #[test]
+    fn utf8_errors_are_rendered() {
+        let err = String::from_utf8(vec![b'a', 0xff, b'b']).unwrap_err();
+        let err = HapiError::from(err);
+
+        assert_eq!(err.to_string(), "Invalid UTF-8 in string \"a\u{FFFD}b\"");
+    }
+
+    #[test]
+    fn io_errors_are_rendered() {
+        let err = HapiError::from(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "missing file",
+        ));
+
+        assert_eq!(err.to_string(), "IO error: missing file");
+    }
+
+    #[test]
+    fn str_converts_to_internal_error() {
+        let err = HapiError::from("bad state");
+
+        assert_eq!(err.to_string(), "Internal error: bad state");
+    }
+
+    #[test]
+    fn hapi_result_converts_to_hapi_error() {
+        let err = HapiError::from(HapiResult::ParmSetFailed);
+
+        match err {
+            HapiError::Hapi {
+                result_code,
+                server_message,
+                contexts,
+            } => {
+                assert_eq!(result_code.to_string(), "PARM_SET_FAILED");
+                assert_eq!(server_message, None);
+                assert!(contexts.is_empty());
+            }
+            other => panic!("expected Hapi error, got {other:?}"),
+        }
+    }
 }
