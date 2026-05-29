@@ -65,4 +65,5 @@ fn main() {
     }
     println!("cargo:rustc-link-search=native={lib_dir}");
     println!("cargo:rustc-link-lib=dylib={filename}");
+    println!("cargo:rerun-if-env-changed=HFS");
 }
