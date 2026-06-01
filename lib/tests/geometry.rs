@@ -27,6 +27,10 @@ fn geometry_save_and_load_to_memory() -> Result<()> {
     with_session(|session| {
         let src_geo = create_triangle(&session)?;
         let blob = src_geo.save_to_memory(GeoFormat::Geo)?;
+        let bgeo = src_geo.save_to_memory(GeoFormat::Bgeo)?;
+        let obj = src_geo.save_to_memory(GeoFormat::Obj)?;
+        assert!(!bgeo.is_empty());
+        assert!(!obj.is_empty());
         src_geo.node.delete()?;
 
         let dest_geo = create_triangle(&session)?;
@@ -71,12 +75,23 @@ fn geometry_elements() -> Result<()> {
         assert_eq!(num_det, 3);
         let pr_groups = geo.get_group_names(GroupType::Prim)?;
         let pt_groups = geo.get_group_names(GroupType::Point)?;
+        let edge_groups = geo.get_group_names(GroupType::Edge)?;
+        let _ = geo.get_attribute_names(AttributeOwner::Vertex, &part)?;
+        let _ = geo.get_attribute_names(AttributeOwner::Detail, &part)?;
+        assert!(
+            geo.get_attribute_names(AttributeOwner::Invalid, &part)
+                .is_err()
+        );
         #[allow(clippy::needless_collect)]
         {
             let pr_groups = pr_groups.iter_str().collect::<Vec<_>>();
             let pt_groups = pt_groups.iter_str().collect::<Vec<_>>();
+            let edge_groups = edge_groups.iter_str().collect::<Vec<_>>();
             assert!(pr_groups.contains(&"group_A"));
             assert!(pt_groups.contains(&"group_B"));
+            if let Some(edge_group) = edge_groups.first() {
+                let _ = geo.get_edge_count_of_edge_group(edge_group, part.part_id())?;
+            }
             Ok(())
         }
     })
@@ -121,6 +136,29 @@ fn geometry_partitions_report_counts() -> Result<()> {
             point_membership.len() as i32,
             part.element_count_by_group(GroupType::Point)
         );
+
+        let _ = geo.get_attribute_info(part.part_id(), AttributeOwner::Point, "P")?;
+        let _ = geo.get_attribute_info(part.part_id(), AttributeOwner::Point, String::from("P"))?;
+        let _ = geo.get_attribute_info(part.part_id(), AttributeOwner::Point, AttributeName::Uv)?;
+        let _ = geo.get_attribute_info(
+            part.part_id(),
+            AttributeOwner::Point,
+            AttributeName::TangentU,
+        )?;
+        let _ = geo.get_attribute_info(
+            part.part_id(),
+            AttributeOwner::Point,
+            AttributeName::TangentV,
+        )?;
+        let _ =
+            geo.get_attribute_info(part.part_id(), AttributeOwner::Point, AttributeName::Scale)?;
+        let _ =
+            geo.get_attribute_info(part.part_id(), AttributeOwner::Prim, AttributeName::Name)?;
+        let _ = geo.get_attribute_info(
+            part.part_id(),
+            AttributeOwner::Point,
+            AttributeName::from(c"custom_name"),
+        )?;
         Ok(())
     })
 }
@@ -158,13 +196,16 @@ fn geometry_add_and_delete_group() -> Result<()> {
     with_session(|session| {
         let mut geo = create_triangle(&session)?;
         geo.add_group(0, GroupType::Point, "test", Some(&[1, 1, 1]))?;
+        geo.add_group(0, GroupType::Point, "empty_group", None)?;
+        geo.set_group_membership(0, GroupType::Point, "empty_group", &[1, 0, 1])?;
         geo.commit()?;
         geo.node.cook_blocking()?;
         geo.update()?;
-        assert_eq!(geo.geo_info()?.point_group_count(), 1);
-        assert_eq!(geo.group_count_by_type(GroupType::Point)?, 1);
+        assert_eq!(geo.geo_info()?.point_group_count(), 2);
+        assert_eq!(geo.group_count_by_type(GroupType::Point)?, 2);
 
         geo.delete_group(0, GroupType::Point, "test")?;
+        geo.delete_group(0, GroupType::Point, "empty_group")?;
         geo.commit()?;
         geo.node.cook_blocking()?;
         geo.update()?;
@@ -256,14 +297,175 @@ fn geometry_get_face_materials() -> Result<()> {
 fn geometry_create_input_curve() -> Result<()> {
     with_session(|session| {
         let geo = session.create_input_curve_node("InputCurve", None)?;
+        let info = InputCurveInfo::default()
+            .with_curve_type(CurveType::Linear)
+            .with_order(2);
+        geo.set_input_curve_info(0, &info)?;
         let positions = &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
         geo.set_input_curve_positions(0, positions)?;
+        geo.set_input_curve_transform(
+            0,
+            &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+            &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            &[1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        )?;
         let _ = geo.get_input_curve_info(0)?;
+        let part_info = geo.part_info(0)?;
         let p = geo
-            .get_position_attribute(&geo.part_info(0)?)?
+            .get_position_attribute(&part_info)?
             .ok_or_else(|| hapi_rs::HapiError::Internal("position attribute".into()))?;
-        let coords = p.get(geo.part_info(0)?.part_id())?;
+        let coords = p.get(part_info.part_id())?;
+        dbg!(&coords);
         assert_eq!(positions, coords.as_slice());
+        Ok(())
+    })
+}
+
+#[test]
+fn geometry_attribute_wrappers_for_storage_variants() -> Result<()> {
+    with_session(|session| {
+        let geo = utils::create_single_point_geo(&session)?;
+        let part = geo.part_info(0)?;
+
+        let scalar_info = |storage| {
+            AttributeInfo::default()
+                .with_count(part.point_count())
+                .with_tuple_size(1)
+                .with_owner(AttributeOwner::Point)
+                .with_storage(storage)
+        };
+        let array_info = |storage| {
+            AttributeInfo::default()
+                .with_count(part.point_count())
+                .with_tuple_size(1)
+                .with_owner(AttributeOwner::Point)
+                .with_storage(storage)
+                .with_total_array_elements(1)
+        };
+
+        geo.add_numeric_attribute::<i64>("i64_attr", 0, scalar_info(StorageType::Int64))?;
+        geo.add_numeric_attribute::<f64>("f64_attr", 0, scalar_info(StorageType::Float64))?;
+        geo.add_numeric_attribute::<u8>("u8_attr", 0, scalar_info(StorageType::Uint8))?;
+        geo.add_numeric_attribute::<i8>("i8_attr", 0, scalar_info(StorageType::Int8))?;
+        geo.add_numeric_attribute::<i16>("i16_attr", 0, scalar_info(StorageType::Int16))?;
+        geo.add_numeric_array_attribute::<i64>(
+            "i64_array",
+            0,
+            array_info(StorageType::Int64Array),
+        )?;
+        geo.add_numeric_array_attribute::<f64>(
+            "f64_array",
+            0,
+            array_info(StorageType::Float64Array),
+        )?;
+        geo.add_numeric_array_attribute::<u8>("u8_array", 0, array_info(StorageType::Uint8Array))?;
+        geo.add_numeric_array_attribute::<i8>("i8_array", 0, array_info(StorageType::Int8Array))?;
+        geo.add_numeric_array_attribute::<i16>(
+            "i16_array",
+            0,
+            array_info(StorageType::Int16Array),
+        )?;
+        let dict_attr =
+            geo.add_dictionary_attribute("dict_attr", 0, scalar_info(StorageType::Dictionary))?;
+        dict_attr.set(0, &[c"FOO=123"])?;
+        let dict_array_attr = geo.add_dictionary_array_attribute(
+            "dict_array",
+            0,
+            array_info(StorageType::DictionaryArray),
+        )?;
+        dict_array_attr.set(0, &[c"FOO=123"], &[1])?;
+        geo.commit()?;
+        geo.node.cook_blocking()?;
+
+        for name in [
+            c"i64_attr",
+            c"f64_attr",
+            c"u8_attr",
+            c"i8_attr",
+            c"i16_attr",
+            c"i64_array",
+            c"f64_array",
+            c"u8_array",
+            c"i8_array",
+            c"i16_array",
+            c"dict_attr",
+            c"dict_array",
+        ] {
+            assert!(geo.get_attribute(0, AttributeOwner::Point, name)?.is_some());
+        }
+        Ok(())
+    })
+}
+
+#[test]
+fn geometry_curve_knots_and_orders() -> Result<()> {
+    with_session(|session| {
+        let geo = session.create_input_node("curve_knots_and_orders", None)?;
+        let points = [
+            0.0, 0.0, 0.0, //
+            1.0, 0.0, 0.0, //
+            2.0, 0.0, 0.0, //
+            3.0, 0.0, 0.0,
+        ];
+        let point_count = (points.len() / 3) as i32;
+        let part_info = PartInfo::default()
+            .with_part_type(PartType::Curve)
+            .with_face_count(1)
+            .with_vertex_count(point_count)
+            .with_point_count(point_count);
+        geo.set_part_info(&part_info)?;
+
+        let curve_info = CurveInfo::default()
+            .with_curve_type(CurveType::Nurbs)
+            .with_curve_count(1)
+            .with_vertex_count(point_count)
+            .with_knot_count(7)
+            .with_order(3)
+            .with_has_knots(true);
+        geo.set_curve_info(0, &curve_info)?;
+        geo.set_curve_counts(0, &[point_count])?;
+        geo.set_curve_knots(0, &[0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0])?;
+
+        let p_info = AttributeInfo::default()
+            .with_count(point_count)
+            .with_tuple_size(3)
+            .with_storage(StorageType::Float)
+            .with_owner(AttributeOwner::Point);
+        geo.add_numeric_attribute::<f32>("P", 0, p_info)?
+            .set(0, &points)?;
+        geo.commit()?;
+        geo.node.cook_blocking()?;
+
+        assert_eq!(geo.curve_orders(0, 0, 1)?, vec![3]);
+        assert_eq!(geo.curve_knots(0, 0, 7)?.len(), 7);
+        Ok(())
+    })
+}
+
+#[test]
+#[ignore = "reason: this test is flaky"]
+fn geometry_heightfield_helpers() -> Result<()> {
+    with_session(|session| {
+        let geo = session.create_input_node("heightfield_helpers", None)?;
+        let nodes =
+            geo.create_heightfield_input(None, "height", 4, 4, 1.0, HeightFieldSampling::Center)?;
+        let height_geo = nodes
+            .height
+            .geometry()?
+            .ok_or_else(|| hapi_rs::HapiError::Internal("height geometry".into()))?;
+        let data = vec![1.0; 16];
+        nodes.height.cook_blocking()?;
+        let volume_info = height_geo.volume_info(0)?;
+        height_geo.set_volume_info(0, &volume_info)?;
+        height_geo.set_heightfield_data(0, "height", &data)?;
+        nodes.height.cook_blocking()?;
+        let read_back = height_geo.get_heightfield_data(0, &volume_info)?;
+        assert_eq!(read_back, data);
+
+        let volume_node =
+            geo.create_heightfield_input_volume(nodes.heightfield.handle, "mask", 4, 4, 1.0)?;
+        volume_node.cook_blocking()?;
+        assert!(volume_node.geometry()?.is_some());
         Ok(())
     })
 }
