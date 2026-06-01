@@ -59,6 +59,7 @@ thread_local! {
 
 pub enum HdaFile {
     Geometry,
+    Top,
     Volume,
     Parameters,
     Spaceship,
@@ -68,6 +69,7 @@ impl HdaFile {
     pub fn path(&self) -> &'static str {
         match self {
             HdaFile::Geometry => "../otls/hapi_geo.hda",
+            HdaFile::Top => "../otls/pdg_examples.hda",
             HdaFile::Volume => "../otls/hapi_vol.hda",
             HdaFile::Parameters => "../otls/hapi_parms.hda",
             HdaFile::Spaceship => "../otls/sesi/SideFX_spaceship.hda",

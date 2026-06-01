@@ -41,7 +41,7 @@ fn volume_read_write_float() -> Result<()> {
         dest_geo.save_to_file("/tmp/volume.bgeo")?;
 
         let mut read_back = vec![0.0f32];
-        let r = dest_geo.volume_info(part_id)?;
+        let _ = dest_geo.volume_info(part_id)?;
         dest_geo.read_volume_voxel(part_id, 0, 0, 0, &mut read_back)?;
         assert_eq!(voxel, read_back);
 

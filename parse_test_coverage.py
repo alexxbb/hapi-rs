@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Run `cargo xtask test-coverage` with LCOV export, then emit marked sources for LLM review.
+Run `cargo xtask coverage` with LCOV export, then emit marked sources for LLM review.
 
 Uses cargo-llvm-cov's `--lcov` export (llvm-cov export -format=lcov). Per the LCOV tracefile
 format, instrumented lines appear as `DA:<line>,<execution_count>`; lines with a zero count
@@ -33,7 +33,7 @@ def run_test_coverage_lcov(lcov_path: Path, ignore_regex: str) -> None:
     cmd = [
         "cargo",
         "xtask",
-        "test-coverage",
+        "coverage",
         "--",
         "--lcov",
         "--output-path",
@@ -178,7 +178,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skip-run",
         action="store_true",
-        help="Do not run test-coverage; only parse an existing LCOV file",
+        help="Do not run coverage; only parse an existing LCOV file",
     )
     parser.add_argument(
         "--lcov",
@@ -211,7 +211,7 @@ def main() -> int:
         try:
             run_test_coverage_lcov(lcov_path, args.ignore_filename_regex)
         except subprocess.CalledProcessError as err:
-            print(f"test-coverage failed (exit {err.returncode})", file=sys.stderr)
+            print(f"coverage failed (exit {err.returncode})", file=sys.stderr)
             return err.returncode or 1
 
     if not lcov_path.is_file():

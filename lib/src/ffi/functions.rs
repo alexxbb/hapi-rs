@@ -1425,7 +1425,7 @@ pub fn query_node_input(node: &HoudiniNode, idx: i32) -> Result<i32> {
 pub fn check_for_specific_errors(
     node: &HoudiniNode,
     error_bits: raw::HAPI_ErrorCodeBits,
-) -> Result<raw::ErrorCode> {
+) -> Result<raw::HAPI_ErrorCodeBits> {
     unsafe {
         let mut code = uninit!();
         raw::HAPI_CheckForSpecificErrors(
@@ -1435,7 +1435,7 @@ pub fn check_for_specific_errors(
             code.as_mut_ptr(),
         )
         .check_err(&node.session, || "Calling HAPI_CheckForSpecificErrors")?;
-        Ok(std::mem::transmute::<raw::HAPI_ErrorCodeBits, raw::ErrorCode>(code.assume_init()))
+        Ok(code.assume_init())
     }
 }
 
@@ -3797,7 +3797,7 @@ pub fn get_job_status(session: &Session, job_id: i32) -> Result<raw::JobStatus> 
 
 pub fn get_instanced_object_ids(node: &HoudiniNode) -> Result<Vec<NodeHandle>> {
     let count = get_compose_object_list(&node.session, node.parent_node().unwrap_or_default())?;
-    let mut handles = Vec::with_capacity(count as usize);
+    let mut handles = Vec::with_capacity(i32_to_usize(count));
     unsafe {
         raw::HAPI_GetInstancedObjectIds(
             node.session.ptr(),
