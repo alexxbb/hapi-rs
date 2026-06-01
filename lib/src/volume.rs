@@ -58,9 +58,9 @@ impl VolumeStorage for i32 {
         part: i32,
         fill_value: Self,
         values: &mut [Self],
-        info: &HAPI_VolumeTileInfo,
+        tile: &HAPI_VolumeTileInfo,
     ) -> Result<()> {
-        crate::ffi::get_volume_tile_int_data(node, part, fill_value, values, info)
+        crate::ffi::get_volume_tile_int_data(node, part, fill_value, values, tile)
     }
 
     fn read_voxel(
@@ -101,9 +101,9 @@ impl VolumeStorage for f32 {
         part: i32,
         fill_value: Self,
         values: &mut [Self],
-        info: &HAPI_VolumeTileInfo,
+        tile: &HAPI_VolumeTileInfo,
     ) -> Result<()> {
-        crate::ffi::get_volume_tile_float_data(node, part, fill_value, values, info)
+        crate::ffi::get_volume_tile_float_data(node, part, fill_value, values, tile)
     }
 
     fn read_voxel(

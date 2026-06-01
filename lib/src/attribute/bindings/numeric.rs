@@ -1,7 +1,10 @@
-use crate::attribute::{AttribValueType, JobId, array::DataArray};
+#[cfg(feature = "async-cooking")]
+use crate::attribute::JobId;
+use crate::attribute::{AttribValueType, array::DataArray};
 use crate::ffi::AttributeInfo;
 use crate::ffi::raw;
 use crate::ffi::raw::StorageType;
+use crate::utils::{i64_to_i32_clamped, i64_to_usize};
 use crate::{Result, node::HoudiniNode};
 use duplicate::duplicate_item;
 use std::ffi::CStr;
@@ -140,7 +143,7 @@ impl AttribValueType for _val_type {
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                info.ptr() as *mut _,
+                info.ptr().cast_mut(),
                 -1,
                 buffer.as_mut_ptr(),
                 0,
@@ -149,6 +152,7 @@ impl AttribValueType for _val_type {
             .check_err(&node.session, || stringify!(Calling _get))
         }
     }
+    #[cfg(feature = "async-cooking")]
     fn get_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -166,12 +170,12 @@ impl AttribValueType for _val_type {
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                info.ptr() as *mut _,
+                info.ptr().cast_mut(),
                 -1,
                 buffer.as_mut_ptr(),
                 0,
                 info.0.count,
-                &mut job_id as *mut _,
+                &raw mut job_id,
             )
             .check_err(&node.session, || stringify!(Calling _get_async))?;
             Ok(job_id)
@@ -202,6 +206,7 @@ impl AttribValueType for _val_type {
         }
     }
 
+    #[cfg(feature = "async-cooking")]
     fn set_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -223,7 +228,7 @@ impl AttribValueType for _val_type {
                 data.as_ptr(),
                 start,
                 len,
-                &mut job_id as *mut _,
+                &raw mut job_id,
             )
             .check_err(&node.session, || stringify!(Calling _set_async))?;
         }
@@ -254,6 +259,7 @@ impl AttribValueType for _val_type {
         }
     }
 
+    #[cfg(feature = "async-cooking")]
     fn set_unique_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -274,7 +280,7 @@ impl AttribValueType for _val_type {
                 info.0.tupleSize,
                 start,
                 info.0.count,
-                &mut job_id as *mut _,
+                &raw mut job_id,
             )
             .check_err(&node.session, || stringify!(Calling _set_unique_async))?;
         }
@@ -291,7 +297,7 @@ impl AttribValueType for _val_type {
         [Self]: ToOwned<Owned = Vec<Self>>,
     {
         debug_assert!(node.is_valid()?);
-        let mut data = vec![_val_type::default(); info.0.totalArrayElements as usize];
+        let mut data = vec![_val_type::default(); i64_to_usize(info.0.totalArrayElements)];
         let mut sizes = vec![0; info.0.count as usize];
         unsafe {
             raw::_get_array(
@@ -299,9 +305,9 @@ impl AttribValueType for _val_type {
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                &info.0 as *const _ as *mut _,
+                info.ptr().cast_mut(),
                 data.as_mut_ptr(),
-                info.0.totalArrayElements as i32,
+                i64_to_i32_clamped(info.0.totalArrayElements),
                 sizes.as_mut_ptr(),
                 0,
                 info.0.count,
@@ -312,6 +318,7 @@ impl AttribValueType for _val_type {
         Ok(DataArray::new_owned(data, sizes))
     }
 
+    #[cfg(feature = "async-cooking")]
     fn get_array_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -323,17 +330,17 @@ impl AttribValueType for _val_type {
         let mut job_id: i32 = -1;
         unsafe {
             raw::_get_array_async(
-                node.session.ptr(),                 // 	const HAPI_Session * 	session,
-                node.handle.0,                      // HAPI_NodeId 	node_id,
-                part,                               // HAPI_PartId 	part_id,
-                name.as_ptr(),                      // const char * 	attr_name,
-                info.ptr() as *mut _,               // HAPI_AttributeInfo * 	attr_info,
-                data.as_mut_ptr(),                  // HAPI_UInt8 * 	data_fixed_array,
-                info.total_array_elements() as i32, // int 	data_fixed_length,
-                sizes.as_mut_ptr(),                 // int * 	sizes_fixed_array,
-                0,                                  // int 	start,
-                info.count(),                       // int 	sizes_fixed_length,
-                &mut job_id as *mut _,              // int * 	job_id
+                node.session.ptr(),                              // 	const HAPI_Session * 	session,
+                node.handle.0,                                   // HAPI_NodeId 	node_id,
+                part,                                            // HAPI_PartId 	part_id,
+                name.as_ptr(),                                   // const char * 	attr_name,
+                info.ptr().cast_mut(),                           // HAPI_AttributeInfo * 	attr_info,
+                data.as_mut_ptr(),                               // HAPI_UInt8 * 	data_fixed_array,
+                i64_to_i32_clamped(info.total_array_elements()), // int 	data_fixed_length,
+                sizes.as_mut_ptr(),                              // int * 	sizes_fixed_array,
+                0,                                               // int 	start,
+                info.count(),                                    // int 	sizes_fixed_length,
+                &raw mut job_id,                                 // int * 	job_id
             )
             .check_err(&node.session, || stringify!(Calling _get_array_async))?;
         }
@@ -357,9 +364,9 @@ impl AttribValueType for _val_type {
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                &info.0,
+                &raw const info.0,
                 data.as_ptr(),
-                info.0.totalArrayElements as i32,
+                i64_to_i32_clamped(info.0.totalArrayElements),
                 sizes.as_ptr(),
                 0,
                 info.0.count,
@@ -370,6 +377,7 @@ impl AttribValueType for _val_type {
         Ok(())
     }
 
+    #[cfg(feature = "async-cooking")]
     fn set_array_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -385,13 +393,13 @@ impl AttribValueType for _val_type {
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                &info.0,
+                &raw const info.0,
                 data.as_ptr(),
-                info.0.totalArrayElements as i32,
+                i64_to_i32_clamped(info.0.totalArrayElements),
                 sizes.as_ptr(),
                 0,
                 info.0.count,
-                &mut job_id as *mut _,
+                &raw mut job_id,
             )
             .check_err(&node.session, || stringify!(Calling set_array_async))?;
         }

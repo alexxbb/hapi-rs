@@ -3,11 +3,11 @@
 //! The Engine [promises](https://www.sidefx.com/docs/hengine/_h_a_p_i__sessions.html#HAPI_Sessions_Multithreading)
 //! to be thread-safe when accessing a single `Session` from multiple threads.
 //! `hapi-rs` relies on this promise and the [Session] struct holds only an `Arc` pointer to the session,
-//! and *does not* protect the session with Mutex, although there is a [ReentrantMutex]
+//! and *does not* protect the session with Mutex, although there is a [`ReentrantMutex`]
 //! private member which is used internally in a few cases where API calls must be sequential.
 //!
 //! When the last instance of the `Session` is about to get dropped, it'll be cleaned up
-//! (if [SessionOptions::cleanup] was set) and automatically closed.
+//! (if [`SessionOptions::cleanup`] was set) and automatically closed.
 //!
 //! The Engine process (pipe, socket, or shared memory) can be auto-terminated as well if told so when starting
 //! the server. See [`crate::server::start_engine_server`] together with the transport helpers
@@ -55,18 +55,21 @@ pub struct NodeBuilder<'s> {
 
 impl NodeBuilder<'_> {
     /// Give new node a label
+    #[must_use]
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
         self
     }
 
     /// Create new node as child of a parent node.
+    #[must_use]
     pub fn with_parent<H: AsRef<NodeHandle>>(mut self, parent: H) -> Self {
         self.parent.replace(*parent.as_ref());
         self
     }
 
     /// Cook node after creation.
+    #[must_use]
     pub fn cook(mut self, cook: bool) -> Self {
         self.cook = cook;
         self
@@ -157,11 +160,11 @@ pub enum CookResult {
 
 impl CookResult {
     /// Convenient method for cook result message if any
+    #[must_use]
     pub fn message(&self) -> Option<&str> {
         match self {
             Self::Succeeded => None,
-            Self::CookErrors(msg) => Some(msg.as_str()),
-            Self::FatalErrors(msg) => Some(msg.as_str()),
+            Self::CookErrors(msg) | Self::FatalErrors(msg) => Some(msg.as_str()),
         }
     }
 }
@@ -191,6 +194,7 @@ impl PartialEq for Session {
     }
 }
 
+#[derive(Debug)]
 pub struct UninitializedSession {
     pub(crate) session_handle: raw::HAPI_Session,
     pub(crate) server_options: Option<ServerOptions>,
@@ -201,7 +205,7 @@ impl UninitializedSession {
     pub fn initialize(self, session_options: SessionOptions) -> Result<Session> {
         debug!("Initializing session");
         crate::ffi::initialize_session(self.session_handle, &session_options)
-            .map(|_| Session {
+            .map(|()| Session {
                 inner: Arc::new(SessionInner {
                     handle: self.session_handle,
                     options: session_options,
@@ -216,18 +220,20 @@ impl UninitializedSession {
 
 impl Session {
     /// Return [`SessionType`] current session is initialized with.
+    #[must_use]
     pub fn session_type(&self) -> SessionType {
         self.inner.handle.type_
     }
 
     /// Return enum with extra connection data such as pipe file or socket.
+    #[must_use]
     pub fn server_pid(&self) -> Option<u32> {
         self.inner.server_pid
     }
 
-    #[inline(always)]
+    #[inline]
     pub(crate) fn ptr(&self) -> *const raw::HAPI_Session {
-        &(self.inner.handle) as *const _
+        &raw const self.inner.handle
     }
 
     /// Set environment variable on the server. This is set AFTER the server has started.
@@ -252,7 +258,8 @@ impl Session {
         T::get_value(self, key)
     }
 
-    /// Retrieve all server variables
+    /// Retrieve all server variables as contiguous string array.
+    /// Iterating over the array will yield strings like "TEST=177".
     pub fn get_server_variables(&self) -> Result<StringArray> {
         debug_assert!(self.is_valid());
         debug!("Querying all server variables");
@@ -299,7 +306,7 @@ impl Session {
         name: &str,
         parent: Option<NodeHandle>,
     ) -> Result<crate::geometry::Geometry> {
-        debug!("Creating input node: {}", name);
+        debug!("Creating input node: {name}");
         debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_node(self, &name, parent)?;
@@ -316,7 +323,7 @@ impl Session {
         name: &str,
         parent: Option<NodeHandle>,
     ) -> Result<crate::geometry::Geometry> {
-        debug!("Creating input curve node: {}", name);
+        debug!("Creating input curve node: {name}");
         debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         let id = crate::ffi::create_input_curve_node(self, &name, parent)?;
@@ -326,7 +333,7 @@ impl Session {
     }
 
     /// Create a node. `name` must start with a network category, e.g, "Object/geo", "Sop/box",
-    /// in operator namespace was used, the full name may look like this: namespace::Object/mynode
+    /// in operator namespace was used, the full name may look like this: `namespace::Object/mynode`
     /// If you need more creating options, see the [`Session::node_builder`] API.
     /// New node will *not* be cooked.
     pub fn create_node(&self, name: impl AsRef<str>) -> Result<HoudiniNode> {
@@ -356,10 +363,7 @@ impl Session {
         P: Into<Option<NodeHandle>>,
     {
         let parent = parent.into();
-        debug!(
-            "Creating node instance for op: {}, with parent: {:?}",
-            name, parent
-        );
+        debug!("Creating node instance for op: {name}, with parent: {parent:?}");
         debug_assert!(self.is_valid());
         debug_assert!(
             parent.is_some() || name.contains('/'),
@@ -429,7 +433,7 @@ impl Session {
             return Ok(None);
         };
         let Some(node) = self.get_node_from_path(path, start)? else {
-            debug!("Node {} not found", path);
+            debug!("Node {path} not found");
             return Ok(None);
         };
         Ok(node.parameter(parm).ok())
@@ -438,7 +442,7 @@ impl Session {
     /// Returns a manager (root) node such as OBJ, TOP, CHOP, etc
     pub fn get_manager_node(&self, manager: ManagerType) -> Result<ManagerNode> {
         debug_assert!(self.is_valid());
-        debug!("Getting Manager node of type: {:?}", manager);
+        debug!("Getting Manager node of type: {manager:?}");
         let node_type = NodeType::from(manager);
         let handle = crate::ffi::get_manager_node(self, node_type)?;
         Ok(ManagerNode {
@@ -461,7 +465,7 @@ impl Session {
 
     /// Save current session to hip file
     pub fn save_hip(&self, path: impl AsRef<Path>, lock_nodes: bool) -> Result<()> {
-        debug!("Saving hip file: {:?}", path.as_ref());
+        debug!("Saving hip file: {}", path.as_ref().display());
         debug_assert!(self.is_valid());
         let path = utils::path_to_cstring(path)?;
         crate::ffi::save_hip(self, &path, lock_nodes)
@@ -469,7 +473,7 @@ impl Session {
 
     /// Load a hip file into current session
     pub fn load_hip(&self, path: impl AsRef<Path>, cook: bool) -> Result<()> {
-        debug!("Loading hip file: {:?}", path.as_ref());
+        debug!("Loading hip file: {}", path.as_ref().display());
         debug_assert!(self.is_valid());
         let path = utils::path_to_cstring(path)?;
         crate::ffi::load_hip(self, &path, cook)
@@ -477,7 +481,7 @@ impl Session {
 
     /// Merge a hip file into current session
     pub fn merge_hip(&self, name: &str, cook: bool) -> Result<i32> {
-        debug!("Merging hip file: {}", name);
+        debug!("Merging hip file: {name}");
         debug_assert!(self.is_valid());
         let name = CString::new(name)?;
         crate::ffi::merge_hip(self, &name, cook)
@@ -543,7 +547,8 @@ impl Session {
     }
 
     /// Explicit check if the session is valid. Many APIs do this check in the debug build.
-    #[inline(always)]
+    #[inline]
+    #[must_use]
     pub fn is_valid(&self) -> bool {
         crate::ffi::is_session_valid(self)
     }
@@ -630,7 +635,7 @@ impl Session {
     }
 
     /// Set Houdini timeline options
-    pub fn set_timeline_options(&self, options: TimelineOptions) -> Result<()> {
+    pub fn set_timeline_options(&self, options: &TimelineOptions) -> Result<()> {
         debug_assert!(self.is_valid());
         crate::ffi::set_timeline_options(self, &options.0)
     }
@@ -854,6 +859,7 @@ impl Session {
         crate::ffi::stop_performance_monitor_profile(self, profile_id, &output_file)
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn get_job_status(&self, job_id: i32) -> Result<JobStatus> {
         crate::ffi::get_job_status(self, job_id)
     }
@@ -867,13 +873,13 @@ impl Drop for Session {
                 if self.inner.options.cleanup
                     && let Err(e) = crate::ffi::cleanup_session(self)
                 {
-                    error!("Session cleanup failed in Drop: {}", e);
+                    error!("Session cleanup failed in Drop: {e}");
                 }
                 if let Err(e) = crate::ffi::shutdown_session(self) {
-                    error!("Could not shutdown session in Drop: {}", e);
+                    error!("Could not shutdown session in Drop: {e}");
                 }
                 if let Err(e) = crate::ffi::close_session(self) {
-                    error!("Closing session failed in Drop: {}", e);
+                    error!("Closing session failed in Drop: {e}");
                 }
             } else {
                 // The server should automatically delete the pipe file when closed successfully,
@@ -908,6 +914,10 @@ pub struct SessionOptions {
 
 impl SessionOptions {
     /// A list of Houdini environment files the Engine will load from.
+    ///
+    /// # Panics
+    /// Panics if the joined path list contains an interior null byte.
+    #[must_use]
     pub fn houdini_env_files<I>(mut self, files: I) -> Self
     where
         I: IntoIterator,
@@ -920,6 +930,10 @@ impl SessionOptions {
     }
 
     /// Add search paths for the Engine to find HDAs.
+    ///
+    /// # Panics
+    /// Panics if the joined path list contains an interior null byte.
+    #[must_use]
     pub fn otl_search_paths<I>(mut self, paths: I) -> Self
     where
         I: IntoIterator,
@@ -932,6 +946,10 @@ impl SessionOptions {
     }
 
     /// Add search paths for the Engine to find DSO plugins.
+    ///
+    /// # Panics
+    /// Panics if the joined path list contains an interior null byte.
+    #[must_use]
     pub fn dso_search_paths<P>(mut self, paths: P) -> Self
     where
         P: IntoIterator,
@@ -944,6 +962,10 @@ impl SessionOptions {
     }
 
     /// Add search paths for the Engine to find image plugins.
+    ///
+    /// # Panics
+    /// Panics if the joined path list contains an interior null byte.
+    #[must_use]
     pub fn image_search_paths<P>(mut self, paths: P) -> Self
     where
         P: IntoIterator,
@@ -956,6 +978,10 @@ impl SessionOptions {
     }
 
     /// Add search paths for the Engine to find audio files.
+    ///
+    /// # Panics
+    /// Panics if the joined path list contains an interior null byte.
+    #[must_use]
     pub fn audio_search_paths<P>(mut self, paths: P) -> Self
     where
         P: IntoIterator,
@@ -968,18 +994,21 @@ impl SessionOptions {
     }
 
     /// Pass session [`CookOptions`]
+    #[must_use]
     pub fn cook_options(mut self, options: CookOptions) -> Self {
         self.cook_opt = options;
         self
     }
 
     /// Makes the server operate in threaded mode. See the official docs for more info.
+    #[must_use]
     pub fn threaded(mut self, threaded: bool) -> Self {
         self.threaded = threaded;
         self
     }
 
     /// Set whether to cleanup the session upon close
+    #[must_use]
     pub fn cleanup(mut self, cleanup: bool) -> Self {
         self.cleanup = cleanup;
         self

@@ -20,15 +20,22 @@
 //!
 //! ```
 mod array;
+#[cfg(feature = "async-cooking")]
 mod async_;
 mod bindings;
 
-use crate::errors::{ErrorContext, Result};
+use crate::errors::Result;
 pub use crate::ffi::AttributeInfo;
 pub use crate::ffi::enums::StorageType;
 use crate::node::HoudiniNode;
-use crate::stringhandle::{StringArray, StringHandle};
+use crate::stringhandle::StringArray;
+#[cfg(feature = "async-cooking")]
+use crate::stringhandle::StringHandle;
+#[cfg(feature = "async-cooking")]
+use crate::utils::i32_to_usize;
+use crate::utils::{i64_to_usize, uzize_to_i32};
 pub use array::*;
+#[cfg(feature = "async-cooking")]
 use async_::AsyncAttribResult;
 use std::any::Any;
 use std::borrow::Cow;
@@ -50,6 +57,7 @@ pub trait AttribValueType: private::Sealed + Clone + Default + Send + Sized + 's
         part_id: i32,
         buffer: &mut Vec<Self>,
     ) -> Result<()>;
+    #[cfg(feature = "async-cooking")]
     fn get_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -67,6 +75,7 @@ pub trait AttribValueType: private::Sealed + Clone + Default + Send + Sized + 's
         len: i32,
     ) -> Result<()>;
 
+    #[cfg(feature = "async-cooking")]
     fn set_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -86,6 +95,7 @@ pub trait AttribValueType: private::Sealed + Clone + Default + Send + Sized + 's
         start: i32,
     ) -> Result<()>;
 
+    #[cfg(feature = "async-cooking")]
     fn set_unique_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -104,6 +114,7 @@ pub trait AttribValueType: private::Sealed + Clone + Default + Send + Sized + 's
     where
         [Self]: ToOwned<Owned = Vec<Self>>;
 
+    #[cfg(feature = "async-cooking")]
     fn get_array_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -123,6 +134,7 @@ pub trait AttribValueType: private::Sealed + Clone + Default + Send + Sized + 's
     where
         [Self]: ToOwned<Owned = Vec<Self>>;
 
+    #[cfg(feature = "async-cooking")]
     fn set_array_async(
         name: &CStr,
         node: &HoudiniNode,
@@ -145,15 +157,18 @@ impl StorageType {
     // Helper for matching array storage types to actual data type,
     // e.g. StorageType::Array is actually an array of StorageType::Int,
     // StorageType::FloatArray is StorageType::Float
-    pub(crate) fn type_matches(&self, other: StorageType) -> bool {
-        use StorageType::*;
+    pub(crate) fn type_matches(self, other: StorageType) -> bool {
+        use StorageType::{
+            Float, Float64, Float64Array, FloatArray, Int, Int8Array, Int16, Int16Array, Int64,
+            Int64Array, IntArray, StringArray, Uint8, Uint8Array,
+        };
         match other {
             IntArray | Uint8Array | Int8Array | Int16Array | Int64Array => {
-                matches!(*self, Int | Uint8 | Int16 | Int64)
+                matches!(self, Int | Uint8 | Int16 | Int64)
             }
-            FloatArray | Float64Array => matches!(*self, Float | Float64),
-            StringArray => matches!(*self, StringArray),
-            _st => matches!(*self, _st),
+            FloatArray | Float64Array => matches!(self, Float | Float64),
+            StringArray => matches!(self, StringArray),
+            _st => matches!(self, _st),
         }
     }
 }
@@ -192,11 +207,12 @@ where
         T::get_array(&self.0.name, &self.0.node, &self.0.info, part_id)
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn get_async(&self, part_id: i32) -> Result<(JobId, DataArray<'_, T>)> {
         let info = &self.0.info;
         debug_assert!(info.storage().type_matches(T::storage()));
-        let mut data = vec![T::default(); info.total_array_elements() as usize];
-        let mut sizes = vec![0i32; info.count() as usize];
+        let mut data = vec![T::default(); i64_to_usize(info.total_array_elements())];
+        let mut sizes = vec![0i32; i32_to_usize(info.count())];
         let job_id = T::get_array_async(
             &self.0.name,
             &self.0.node,
@@ -212,12 +228,12 @@ where
         debug_assert!(self.0.info.storage().type_matches(T::storage()));
         debug_assert_eq!(
             self.0.info.count(),
-            values.sizes().len() as i32,
+            uzize_to_i32(values.sizes().len()),
             "sizes array must be the same as AttributeInfo::count"
         );
         debug_assert_eq!(
-            self.0.info.total_array_elements(),
-            values.data().len() as i64,
+            i64_to_usize(self.0.info.total_array_elements()),
+            values.data().len(),
             "data array must be the same as AttributeInfo::total_array_elements"
         );
         T::set_array(
@@ -250,6 +266,7 @@ impl<T: AttribValueType> NumericAttr<T> {
     }
     /// Start filling a given buffer asynchronously and return a job id.
     /// It's important to keep the buffer alive until the job is complete
+    #[cfg(feature = "async-cooking")]
     pub fn read_async_into(&self, part_id: i32, buffer: &mut Vec<T>) -> Result<i32> {
         // TODO: Get an updated attribute info since point count can change between calls.
         // but there's looks like some use after free on the C side, when AttributeInfo gets
@@ -265,6 +282,7 @@ impl<T: AttribValueType> NumericAttr<T> {
         })
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn get_async(&self, part_id: i32) -> Result<AsyncAttribResult<T>> {
         let info = &self.0.info;
         let size = (info.count() * info.tuple_size()) as usize;
@@ -301,7 +319,7 @@ impl<T: AttribValueType> NumericAttr<T> {
             part_id,
             values,
             0,
-            self.0.info.count().min(values.len() as i32),
+            self.0.info.count().min(uzize_to_i32(values.len())),
         )
     }
 
@@ -328,6 +346,7 @@ impl StringAttr {
         )
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn get_async(&self, part_id: i32) -> Result<AsyncAttribResult<StringHandle>> {
         bindings::get_attribute_string_data_async(
             &self.0.node,
@@ -348,6 +367,7 @@ impl StringAttr {
         )
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn set_async(&self, part_id: i32, values: &[impl AsRef<CStr>]) -> Result<JobId> {
         let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
         bindings::set_attribute_string_data_async(
@@ -371,6 +391,7 @@ impl StringAttr {
     }
 
     /// Set multiple attribute string data to the same unique value asynchronously.
+    #[cfg(feature = "async-cooking")]
     pub fn set_unique_async(&self, part: i32, value: &CStr) -> Result<JobId> {
         bindings::set_attribute_string_unique_data_async(
             &self.0.node,
@@ -399,6 +420,7 @@ impl StringAttr {
         )
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn set_indexed_async(
         &self,
         part_id: i32,
@@ -431,8 +453,10 @@ impl StringArrayAttr {
         )
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn get_async(&self, part_id: i32) -> Result<(JobId, StringMultiArray)> {
-        let mut handles = vec![StringHandle(-1); self.0.info.total_array_elements() as usize];
+        let total_array_elements = i64_to_usize(self.0.info.total_array_elements());
+        let mut handles = vec![StringHandle(-1); total_array_elements];
         let mut sizes = vec![0; self.0.info.count() as usize];
         let job_id = bindings::get_attribute_string_array_data_async(
             &self.0.node,
@@ -464,6 +488,7 @@ impl StringArrayAttr {
         )
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn set_async(
         &self,
         part_id: i32,
@@ -498,6 +523,7 @@ impl DictionaryAttr {
         )
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn set_async(&self, part_id: i32, values: &[impl AsRef<CStr>]) -> Result<JobId> {
         let mut ptrs: Vec<*const i8> = values.iter().map(|cs| cs.as_ref().as_ptr()).collect();
         bindings::set_attribute_dictionary_data_async(
@@ -509,6 +535,7 @@ impl DictionaryAttr {
         )
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn get_async(&self, part_id: i32) -> Result<AsyncAttribResult<StringHandle>> {
         bindings::get_attribute_dictionary_data_async(
             &self.0.node,
@@ -545,8 +572,10 @@ impl DictionaryArrayAttr {
         )
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn get_async(&self, part_id: i32) -> Result<(JobId, StringMultiArray)> {
-        let mut handles = vec![StringHandle(-1); self.0.info.total_array_elements() as usize];
+        let array_elements = i64_to_usize(self.0.info.total_array_elements());
+        let mut handles = vec![StringHandle(-1); array_elements];
         let mut sizes = vec![0; self.0.info.count() as usize];
         let job_id = bindings::get_attribute_dictionary_array_data_async(
             &self.0.node,
@@ -578,6 +607,7 @@ impl DictionaryArrayAttr {
         )
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn set_async(
         &self,
         part_id: i32,
@@ -732,15 +762,19 @@ impl Attribute {
     pub(crate) fn new(attr_obj: Box<dyn AnyAttribWrapper>) -> Self {
         Attribute(attr_obj)
     }
+    #[must_use]
     pub fn downcast<T: AnyAttribWrapper>(&self) -> Option<&T> {
         self.0.as_any().downcast_ref::<T>()
     }
+    #[must_use]
     pub fn name(&self) -> Cow<'_, str> {
         self.0.name().to_string_lossy()
     }
+    #[must_use]
     pub fn storage(&self) -> StorageType {
         self.0.storage()
     }
+    #[must_use]
     pub fn info(&self) -> &AttributeInfo {
         self.0.info()
     }

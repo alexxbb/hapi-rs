@@ -16,12 +16,10 @@ fn main() {
         .trim()
         .to_owned();
 
-    if hdk_api_version.len() != 8 {
-        panic!(
-            "Invalid version string in hdk_api_version.txt: {}",
-            hdk_api_version
-        );
-    }
+    assert!(
+        hdk_api_version.len() == 8,
+        "Invalid version string in hdk_api_version.txt: {hdk_api_version}"
+    );
 
     let (hdk_major, hdk_minor, _) = {
         let version_number: i32 = hdk_api_version
@@ -37,35 +35,35 @@ fn main() {
         std::env::var("CARGO_PKG_VERSION").unwrap_or_else(|_| "unknown".to_string());
     let crate_version_parts = crate_version
         .split('.')
-        .map(|part| part.parse())
+        .map(str::parse)
         .collect::<Result<Vec<i32>, ParseIntError>>()
         .expect("Failed to parse crate version string into components");
 
-    if crate_version_parts.len() < 3 {
-        panic!("Invalid crate version string in Cargo.toml, expected at least 3 components");
-    }
+    assert!(
+        crate_version_parts.len() >= 3,
+        "Invalid crate version string in Cargo.toml, expected at least 3 components"
+    );
 
     let (crate_major, crate_minor) = (crate_version_parts[0], crate_version_parts[1]);
-    if crate_major != hdk_major || crate_minor != hdk_minor {
-        panic!(
-            "Version mismatch: crate version {} does not match runtime Houdini version pointed by HFS: {}",
-            crate_version, hfs
-        );
-    }
+    assert!(
+        !(crate_major != hdk_major || crate_minor != hdk_minor),
+        "Version mismatch: crate version {crate_version} does not match runtime Houdini version pointed by HFS: {hfs}"
+    );
 
     let filename;
     let lib_dir;
     if cfg!(target_os = "macos") {
         filename = "HAPIL";
-        let _lib_dir = Path::new(&hfs).parent().unwrap().join("Libraries");
-        lib_dir = _lib_dir.to_string_lossy().to_string();
+        let macos_lib_dir = Path::new(&hfs).parent().unwrap().join("Libraries");
+        lib_dir = macos_lib_dir.to_string_lossy().to_string();
     } else if cfg!(target_os = "windows") {
         filename = "libHAPIL";
-        lib_dir = format!("{}/custom/houdini/dsolib", hfs);
+        lib_dir = format!("{hfs}/custom/houdini/dsolib");
     } else {
         filename = "HAPIL";
-        lib_dir = format!("{}/dsolib", hfs);
+        lib_dir = format!("{hfs}/dsolib");
     }
-    println!("cargo:rustc-link-search=native={}", lib_dir);
-    println!("cargo:rustc-link-lib=dylib={}", filename);
+    println!("cargo:rustc-link-search=native={lib_dir}");
+    println!("cargo:rustc-link-lib=dylib={filename}");
+    println!("cargo:rerun-if-env-changed=HFS");
 }

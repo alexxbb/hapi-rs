@@ -266,7 +266,7 @@ impl TopNode {
                                 graph_name,
                             }) {
                                 Err(e) => return Err(e),
-                                Ok(ControlFlow::Continue(_)) => {}
+                                Ok(ControlFlow::Continue(())) => {}
                                 Ok(ControlFlow::Break(stop_cooking)) => {
                                     if stop_cooking {
                                         // TODO: Should we call this for all graph ids?
@@ -284,8 +284,8 @@ impl TopNode {
     }
 
     /// Trigger PDG cooking and wait for completion.
-    /// If all_outputs is true and this TOP node is of topnet type, cook all network outptus.
-    /// Results can then be retrieved from workitems with get_all_workitems()
+    /// If `all_outputs` is true and this TOP node is of topnet type, cook all network outptus.
+    /// Results can then be retrieved from workitems with `get_all_workitems()`
     pub fn cook_pdg_blocking(&self, all_outputs: bool) -> Result<()> {
         ffi::cook_pdg(
             &self.node.session,

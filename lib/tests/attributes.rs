@@ -1,11 +1,13 @@
+use hapi_rs::Result;
 use hapi_rs::attribute::{
-    AsAttribute, AttributeInfo, DataArray, DictionaryArrayAttr, NumericArrayAttr, NumericAttr,
-    StorageType, StringArrayAttr, StringAttr,
+    AsAttribute, Attribute, AttributeInfo, DataArray, DictionaryArrayAttr, DictionaryAttr,
+    NumericArrayAttr, NumericAttr, StorageType, StringArrayAttr, StringAttr,
 };
-use hapi_rs::enums::{AttributeOwner, PartType};
+use hapi_rs::enums::{AttributeOwner, AttributeTypeInfo, PartType};
 use hapi_rs::geometry::{AttributeName, PartInfo};
 use hapi_rs::stringhandle::StringArray;
-use std::ffi::CString;
+use pretty_assertions::assert_eq;
+use std::ffi::{CStr, CString};
 
 mod utils;
 
@@ -15,74 +17,67 @@ use utils::{
 };
 
 #[test]
-fn geometry_wrong_attribute() {
+fn geometry_wrong_attribute() -> Result<()> {
     with_test_geometry(|geometry| {
-        let foo_bar = geometry
-            .get_attribute(0, AttributeOwner::Prim, c"foo_bar")
-            .expect("attribute");
+        let foo_bar = geometry.get_attribute(0, AttributeOwner::Prim, c"foo_bar")?;
         assert!(foo_bar.is_none());
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn geometry_attribute_names() {
+fn geometry_attribute_names() -> Result<()> {
     with_test_geometry(|geo| {
-        let part = geo.part_info(0).unwrap();
-        let iter = geo
-            .get_attribute_names(AttributeOwner::Point, &part)
-            .unwrap();
+        let part = geo.part_info(0)?;
+        let iter = geo.get_attribute_names(AttributeOwner::Point, &part)?;
         let names: Vec<_> = iter.iter_str().collect();
         assert!(names.contains(&"Cd"));
         assert!(names.contains(&"my_float_array"));
         assert!(names.contains(&"pscale"));
-        let iter = geo
-            .get_attribute_names(AttributeOwner::Prim, &part)
-            .unwrap();
+        let iter = geo.get_attribute_names(AttributeOwner::Prim, &part)?;
         let names: Vec<_> = iter.iter_str().collect();
         assert!(names.contains(&"primname"));
         assert!(names.contains(&"shop_materialpath"));
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn geometry_numeric_attributes() {
+fn geometry_numeric_attributes() -> Result<()> {
     use hapi_rs::geometry::extra::GeometryExtension;
     with_session(|session| {
         let geo = create_triangle(&session)?;
         let _attr_p = geo
-            .get_attribute(0, AttributeOwner::Point, AttributeName::P)
-            .unwrap()
-            .unwrap();
-        let _attr_p = _attr_p.downcast::<NumericAttr<f32>>().unwrap();
+            .get_attribute(0, AttributeOwner::Point, AttributeName::P)?
+            .ok_or_else(|| hapi_rs::HapiError::Internal("P attribute".into()))?;
+        let _attr_p = _attr_p
+            .downcast::<NumericAttr<f32>>()
+            .ok_or_else(|| hapi_rs::HapiError::Internal("NumericAttr<f32>".into()))?;
         let attr_p = geo
-            .get_position_attribute(&geo.part_info(0)?)
-            .unwrap()
-            .expect("position attribute");
-        let dat = attr_p.get(0).expect("read_attribute");
+            .get_position_attribute(&geo.part_info(0)?)?
+            .ok_or_else(|| hapi_rs::HapiError::Internal("position attribute".into()))?;
+        let dat = attr_p.get(0)?;
         assert_eq!(dat.len(), 9);
         geo.node.delete()
     })
-    .unwrap()
 }
 
 #[test]
-fn numeric_attr_read_into_reuses_buffer() {
+fn numeric_attr_read_into_reuses_buffer() -> Result<()> {
     with_session(|session| {
         session.load_asset_file(HdaFile::Geometry.path())?;
         let node = session.create_node("Object/hapi_geo")?;
         node.cook_blocking()?;
-        let geo = node.geometry()?.expect("must have geometry");
+        let geo = node
+            .geometry()?
+            .ok_or_else(|| hapi_rs::HapiError::Internal("must have geometry".into()))?;
         let part = geo.part_info(0)?;
         let attr = geo
             .get_attribute(0, AttributeOwner::Point, AttributeName::P)?
-            .expect("P attribute");
+            .ok_or_else(|| hapi_rs::HapiError::Internal("P attribute".into()))?;
         let attr = attr
             .downcast::<NumericAttr<f32>>()
-            .expect("NumericAttr<f32>");
+            .ok_or_else(|| hapi_rs::HapiError::Internal("NumericAttr<f32>".into()))?;
 
         let mut buffer = vec![f32::NAN; 1];
         attr.read_into(part.part_id(), &mut buffer)?;
@@ -96,73 +91,73 @@ fn numeric_attr_read_into_reuses_buffer() {
         assert_eq!(buffer, expected);
         node.delete()
     })
-    .unwrap()
 }
 
 #[test]
-fn geometry_create_string_attrib() {
+fn geometry_create_string_attrib() -> Result<()> {
     with_session(|session| {
         let geo = create_triangle(&session)?;
-        let part = geo.part_info(0).unwrap();
+        let part = geo.part_info(0)?;
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::String)
             .with_tuple_size(1)
             .with_count(part.point_count());
 
-        let attr_name = geo.add_string_attribute("name", 0, info).unwrap();
-        attr_name.set(0, &[c"pt0", c"pt1", c"pt2"]).unwrap();
-        geo.commit().unwrap();
-        geo.node.cook_blocking().unwrap();
+        let attr_name = geo.add_string_attribute("name", 0, info)?;
+        attr_name.set(0, &[c"pt0", c"pt1", c"pt2"])?;
+        geo.commit()?;
+        geo.node.cook_blocking()?;
         let str_attr = geo
-            .get_attribute(0, AttributeOwner::Point, AttributeName::Name)
-            .unwrap()
-            .unwrap();
+            .get_attribute(0, AttributeOwner::Point, AttributeName::Name)?
+            .ok_or_else(|| hapi_rs::HapiError::Internal("name attribute".into()))?;
         let Some(str_attr) = str_attr.downcast::<StringAttr>() else {
-            panic!("Must be string array attr");
+            return Err(hapi_rs::HapiError::Internal(
+                "Must be string array attr".into(),
+            ));
         };
-        let str_array = str_attr.get(0).unwrap();
+        let str_array = str_attr.get(0)?;
         let mut iter = str_array.iter_str();
         assert_eq!(iter.next(), Some("pt0"));
         assert_eq!(iter.last(), Some("pt2"));
 
         geo.node.delete()
     })
-    .unwrap()
 }
 
 #[test]
-fn geometry_set_unique_str_attrib_value() {
+fn geometry_set_unique_str_attrib_value() -> Result<()> {
     with_session(|session| {
         let geo = create_triangle(&session)?;
-        let part = geo.part_info(0).unwrap();
+        let part = geo.part_info(0)?;
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::String)
             .with_tuple_size(1)
             .with_count(part.point_count());
 
-        let attr = geo.add_string_attribute("name", 0, info).unwrap();
-        attr.set_unique(part.part_id(), c"unique").unwrap();
-        geo.commit().unwrap();
-        geo.node.cook_blocking().unwrap();
+        let attr = geo.add_string_attribute("name", 0, info)?;
+        attr.set_unique(part.part_id(), c"unique")?;
+        geo.commit()?;
+        geo.node.cook_blocking()?;
 
-        let str_array = attr.get(part.part_id()).unwrap();
+        let str_array = attr.get(part.part_id())?;
         let mut iter = str_array.iter_cstr();
         assert_eq!(iter.next(), Some(c"unique"));
         assert_eq!(iter.last(), Some(c"unique"));
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn string_attr_set_indexed_updates_values() {
+fn string_attr_set_indexed_updates_values() -> Result<()> {
     with_session(|session| {
         session.load_asset_file(HdaFile::Geometry.path())?;
         let asset_node = session.create_node("Object/hapi_geo")?;
         asset_node.cook_blocking()?;
-        let asset_geo = asset_node.geometry()?.expect("must have geometry");
+        let asset_geo = asset_node
+            .geometry()?
+            .ok_or_else(|| hapi_rs::HapiError::Internal("must have geometry".into()))?;
         let point_count = asset_geo.part_info(0)?.point_count();
         asset_node.delete()?;
 
@@ -198,22 +193,23 @@ fn string_attr_set_indexed_updates_values() {
 
         let fetched = input
             .get_attribute(0, AttributeOwner::Point, c"indexed_name")?
-            .expect("indexed_name attribute");
-        let fetched = fetched.downcast::<StringAttr>().unwrap();
+            .ok_or_else(|| hapi_rs::HapiError::Internal("indexed_name attribute".into()))?;
+        let fetched = fetched
+            .downcast::<StringAttr>()
+            .ok_or_else(|| hapi_rs::HapiError::Internal("StringAttr".into()))?;
         for (idx, value) in fetched.get(0)?.iter_str().enumerate() {
             let expected = if idx % 2 == 0 { "even" } else { "odd" };
             assert_eq!(value, expected);
         }
         input.node.delete()
     })
-    .unwrap()
 }
 
 #[test]
-fn geometry_set_unique_int_attrib_value() {
+fn geometry_set_unique_int_attrib_value() -> Result<()> {
     with_session(|session| {
         let geo = create_triangle(&session)?;
-        let part = geo.part_info(0).unwrap();
+        let part = geo.part_info(0)?;
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::Int)
@@ -221,24 +217,23 @@ fn geometry_set_unique_int_attrib_value() {
             .with_count(part.point_count());
 
         let data_size = (info.tuple_size() * info.count()) as usize;
-        let attr = geo.add_numeric_attribute::<i32>("value", 0, info).unwrap();
-        attr.set_unique(part.part_id(), &[8, 1]).unwrap();
-        geo.commit().unwrap();
-        geo.node.cook_blocking().unwrap();
+        let attr = geo.add_numeric_attribute::<i32>("value", 0, info)?;
+        attr.set_unique(part.part_id(), &[8, 1])?;
+        geo.commit()?;
+        geo.node.cook_blocking()?;
 
-        let str_array = attr.get(part.part_id()).unwrap();
+        let str_array = attr.get(part.part_id())?;
         assert_eq!(str_array.len(), data_size);
         assert_eq!(&str_array[0..=1], &[8, 1]);
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn geometry_create_string_array_attrib() {
+fn geometry_create_string_array_attrib() -> Result<()> {
     with_session(|session| {
         let geo = create_triangle(&session)?;
-        let part = geo.part_info(0).unwrap();
+        let part = geo.part_info(0)?;
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::StringArray)
@@ -246,37 +241,33 @@ fn geometry_create_string_array_attrib() {
             .with_total_array_elements(6)
             .with_count(part.point_count());
 
-        let array_attr = geo
-            .add_string_array_attribute("my_array_a", 0, info)
-            .unwrap();
+        let array_attr = geo.add_string_array_attribute("my_array_a", 0, info)?;
         let attr_data = &["one", "two", "three", "four", "five", "six"];
         let attr_data_c = attr_data
             .iter()
-            .map(|v| CString::new(*v).unwrap())
-            .collect::<Vec<_>>();
-        array_attr
-            .set(0, attr_data_c.as_slice(), &[1, 2, 3])
-            .unwrap();
+            .map(|v| CString::new(*v).map_err(hapi_rs::HapiError::from))
+            .collect::<Result<Vec<_>>>()?;
+        array_attr.set(0, attr_data_c.as_slice(), &[1, 2, 3])?;
         // NOTE: ALWAYS remember to commit AND cook after creating and setting attributes.
-        geo.commit().unwrap();
-        geo.node.cook_blocking().unwrap();
-        let multi_array = array_attr.get(0).unwrap();
+        geo.commit()?;
+        geo.node.cook_blocking()?;
+        let multi_array = array_attr.get(0)?;
         let mut array_iter = multi_array.iter();
         assert_eq!(
-            array_iter.next().unwrap().unwrap(),
-            StringArray(b"one\0".to_vec())
+            array_iter.next().transpose()?,
+            Some(StringArray(b"one\0".to_vec()))
         );
         assert_eq!(
-            array_iter.next().unwrap().unwrap(),
-            StringArray(b"two\0three\0".to_vec())
+            array_iter.next().transpose()?,
+            Some(StringArray(b"two\0three\0".to_vec()))
         );
         assert_eq!(
-            array_iter.next().unwrap().unwrap(),
-            StringArray(b"four\0five\0six\0".to_vec())
+            array_iter.next().transpose()?,
+            Some(StringArray(b"four\0five\0six\0".to_vec()))
         );
         assert!(array_iter.next().is_none());
 
-        let (data, sizes) = multi_array.flatten().unwrap();
+        let (data, sizes) = multi_array.flatten()?;
         assert_eq!(sizes.len(), 3);
         assert_eq!(data.len(), 6);
 
@@ -285,116 +276,342 @@ fn geometry_create_string_array_attrib() {
         assert_eq!(&data[sizes[1]..sizes[2]], &attr_data[sizes[1]..sizes[2]]);
         geo.node.delete()
     })
-    .unwrap()
 }
 
 #[test]
-fn geometry_attribute_storage_type() -> hapi_rs::Result<()> {
+fn geometry_attribute_metadata_and_lengths_match_fixture() -> Result<()> {
+    #[derive(Clone, Copy)]
+    struct AttributeSpec {
+        name: &'static CStr,
+        owner: AttributeOwner,
+        info_storage: StorageType,
+        attr_storage: StorageType,
+        type_info: AttributeTypeInfo,
+        tuple_size: i32,
+    }
+
+    let attribute_specs = [
+        AttributeSpec {
+            name: c"Cd",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::Float,
+            attr_storage: StorageType::Float,
+            type_info: AttributeTypeInfo::Color,
+            tuple_size: 3,
+        },
+        AttributeSpec {
+            name: c"P",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::Float,
+            attr_storage: StorageType::Float,
+            type_info: AttributeTypeInfo::Point,
+            tuple_size: 3,
+        },
+        AttributeSpec {
+            name: c"my_dict_array_attr",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::DictionaryArray,
+            attr_storage: StorageType::DictionaryArray,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"my_float_array",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::FloatArray,
+            attr_storage: StorageType::Float,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"my_int_array",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::IntArray,
+            attr_storage: StorageType::Int,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"my_str_array",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::StringArray,
+            attr_storage: StorageType::StringArray,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"pscale",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::Float,
+            attr_storage: StorageType::Float,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"ptname",
+            owner: AttributeOwner::Point,
+            info_storage: StorageType::String,
+            attr_storage: StorageType::String,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"N",
+            owner: AttributeOwner::Vertex,
+            info_storage: StorageType::Float,
+            attr_storage: StorageType::Float,
+            type_info: AttributeTypeInfo::Normal,
+            tuple_size: 3,
+        },
+        AttributeSpec {
+            name: c"primname",
+            owner: AttributeOwner::Prim,
+            info_storage: StorageType::String,
+            attr_storage: StorageType::String,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+        AttributeSpec {
+            name: c"my_dict_attr",
+            owner: AttributeOwner::Detail,
+            info_storage: StorageType::Dictionary,
+            attr_storage: StorageType::Dictionary,
+            type_info: AttributeTypeInfo::None,
+            tuple_size: 1,
+        },
+    ];
+
     with_test_geometry(|geo| {
-        let attrib_list = [
-            ("Cd", AttributeOwner::Point, StorageType::Float),
-            ("pscale", AttributeOwner::Point, StorageType::Float),
-            ("P", AttributeOwner::Point, StorageType::Float),
-            ("my_int_array", AttributeOwner::Point, StorageType::IntArray),
-            (
-                "my_float_array",
-                AttributeOwner::Point,
-                StorageType::FloatArray,
-            ),
-            (
-                "my_str_array",
-                AttributeOwner::Point,
-                StorageType::StringArray,
-            ),
-        ];
-        for (name, owner, expected_storage) in attrib_list {
-            let info = geo.get_attribute_info(0, owner, name)?;
-            let storage = info.storage();
+        let geo_info = geo.geo_info()?;
+        assert_eq!(geo_info.part_count(), 1);
+
+        let part = geo.part_info(0)?;
+
+        for spec in attribute_specs {
+            let attr = geo
+                .get_attribute(part.part_id(), spec.owner, spec.name)?
+                .ok_or_else(|| {
+                    hapi_rs::HapiError::Internal(format!(
+                        "{} {:?} attribute",
+                        spec.name.to_string_lossy(),
+                        spec.owner
+                    ))
+                })?;
+            let expected_count = match spec.owner {
+                AttributeOwner::Point => part.point_count(),
+                AttributeOwner::Vertex => part.vertex_count(),
+                AttributeOwner::Prim => part.face_count(),
+                AttributeOwner::Detail => 1,
+                AttributeOwner::Invalid | AttributeOwner::Max => unreachable!(),
+                _ => unreachable!(),
+            };
+            let expected_len = (expected_count * spec.tuple_size) as usize;
+            let name = spec.name.to_string_lossy();
+
+            assert_eq!(attr.name().as_ref(), name.as_ref());
+            assert_eq!(attr.storage(), spec.attr_storage, "{name} attr storage");
+            assert_eq!(attr.info().owner(), spec.owner, "{name} owner");
             assert_eq!(
-                expected_storage, storage,
-                "Attribute {} unexpected storage {:?} != {:?}",
-                name, storage, expected_storage
+                attr.info().storage(),
+                spec.info_storage,
+                "{name} info storage"
             );
+            assert_eq!(attr.info().type_info(), spec.type_info, "{name} type info");
+            assert_eq!(attr.info().tuple_size(), spec.tuple_size, "{name} tuple");
+            assert_eq!(attr.info().count(), expected_count, "{name} count");
+
+            assert_attribute_node_and_length(&attr, &geo.node, part.part_id(), expected_len)?;
         }
         Ok(())
     })
 }
 
+fn assert_attribute_node_and_length(
+    attr: &Attribute,
+    node: &hapi_rs::node::HoudiniNode,
+    part_id: i32,
+    expected_len: usize,
+) -> Result<()> {
+    match attr.info().storage() {
+        StorageType::Int => {
+            let attr = attr
+                .downcast::<NumericAttr<i32>>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("NumericAttr<i32>".into()))?;
+            assert_eq!(attr.node(), node);
+            assert_eq!(attr.get(part_id)?.len(), expected_len);
+        }
+        StorageType::Float => {
+            let attr = attr
+                .downcast::<NumericAttr<f32>>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("NumericAttr<f32>".into()))?;
+            assert_eq!(attr.node(), node);
+            assert_eq!(attr.get(part_id)?.len(), expected_len);
+        }
+        StorageType::String => {
+            let attr = attr
+                .downcast::<StringAttr>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("StringAttr".into()))?;
+            assert_eq!(attr.node(), node);
+            assert_eq!(attr.get(part_id)?.iter_str().count(), expected_len);
+        }
+        StorageType::IntArray => {
+            let attr = attr
+                .downcast::<NumericArrayAttr<i32>>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("NumericArrayAttr<i32>".into()))?;
+            assert_eq!(attr.node(), node);
+            let data = attr.get(part_id)?;
+            assert_eq!(data.iter().count(), expected_len);
+            assert_eq!(data.sizes().len(), expected_len);
+            assert_eq!(data.data().len() as i64, attr.info().total_array_elements());
+        }
+        StorageType::FloatArray => {
+            let attr = attr
+                .downcast::<NumericArrayAttr<f32>>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("NumericArrayAttr<f32>".into()))?;
+            assert_eq!(attr.node(), node);
+            let data = attr.get(part_id)?;
+            assert_eq!(data.iter().count(), expected_len);
+            assert_eq!(data.sizes().len(), expected_len);
+            assert_eq!(data.data().len() as i64, attr.info().total_array_elements());
+        }
+        StorageType::StringArray => {
+            let attr = attr
+                .downcast::<StringArrayAttr>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("StringArrayAttr".into()))?;
+            assert_eq!(attr.node(), node);
+            let data = attr.get(part_id)?;
+            assert_eq!(data.iter().count(), expected_len);
+            let (flat, sizes) = data.flatten()?;
+            assert_eq!(sizes.len(), expected_len);
+            assert_eq!(flat.len() as i64, attr.info().total_array_elements());
+        }
+        StorageType::Dictionary => {
+            let attr = attr
+                .downcast::<DictionaryAttr>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("DictionaryAttr".into()))?;
+            assert_eq!(attr.node(), node);
+            assert_eq!(attr.get(part_id)?.iter_str().count(), expected_len);
+        }
+        StorageType::DictionaryArray => {
+            let attr = attr
+                .downcast::<DictionaryArrayAttr>()
+                .ok_or_else(|| hapi_rs::HapiError::Internal("DictionaryArrayAttr".into()))?;
+            assert_eq!(attr.node(), node);
+            let data = attr.get(part_id)?;
+            assert_eq!(data.iter().count(), expected_len);
+            let (flat, sizes) = data.flatten()?;
+            assert_eq!(sizes.len(), expected_len);
+            assert_eq!(flat.len() as i64, attr.info().total_array_elements());
+        }
+        storage => {
+            return Err(hapi_rs::HapiError::Internal(format!(
+                "unexpected storage {storage:?}"
+            )));
+        }
+    }
+    Ok(())
+}
+
 #[test]
-fn geometry_string_array_attribute() {
+fn geometry_string_array_attribute() -> Result<()> {
     with_test_geometry(|geo| {
         let attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"my_str_array")
-            .expect("my_str_array Point attribute")
-            .unwrap();
-        let attr = attr.downcast::<StringArrayAttr>().unwrap();
-        let m_array = attr.get(0).unwrap();
+            .get_attribute(0, AttributeOwner::Point, c"my_str_array")?
+            .ok_or_else(|| hapi_rs::HapiError::Internal("my_str_array Point attribute".into()))?;
+        let attr = attr
+            .downcast::<StringArrayAttr>()
+            .ok_or_else(|| hapi_rs::HapiError::Internal("StringArrayAttr".into()))?;
+        let m_array = attr.get(0)?;
         assert_eq!(m_array.iter().count(), attr.info().count() as usize);
 
-        let it = m_array.iter().next().unwrap().unwrap();
+        let it = match m_array.iter().next() {
+            Some(result) => result?,
+            None => {
+                return Err(hapi_rs::HapiError::Internal(
+                    "first string array element".into(),
+                ));
+            }
+        };
         let pt_0: Vec<&str> = it.iter_str().collect();
         assert_eq!(pt_0, ["pt_0_0", "pt_0_1", "pt_0_2", "start"]);
 
-        let it = m_array.iter().nth(1).unwrap().unwrap();
+        let it = match m_array.iter().nth(1) {
+            Some(result) => result?,
+            None => {
+                return Err(hapi_rs::HapiError::Internal(
+                    "second string array element".into(),
+                ));
+            }
+        };
         let pt_1: Vec<&str> = it.iter_str().collect();
         assert_eq!(pt_1, ["pt_1_0", "pt_1_1", "pt_1_2"]);
 
-        let it = m_array.iter().last().unwrap().unwrap();
+        let it = match m_array.iter().last() {
+            Some(result) => result?,
+            None => {
+                return Err(hapi_rs::HapiError::Internal(
+                    "last string array element".into(),
+                ));
+            }
+        };
         let pt_n: Vec<&str> = it.iter_str().collect();
         assert_eq!(pt_n, ["pt_7_0", "pt_7_1", "pt_7_2", "end"]);
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn geometry_test_get_dictionary_attributes() {
+fn geometry_test_get_dictionary_attributes() -> Result<()> {
     use hapi_rs::attribute::DictionaryAttr;
     use std::collections::HashMap;
     use tinyjson::JsonValue;
 
     with_test_geometry(|geo| {
         let dict_attr = geo
-            .get_attribute(0, AttributeOwner::Detail, c"my_dict_attr")
-            .unwrap()
-            .expect("my_dict_attr found");
+            .get_attribute(0, AttributeOwner::Detail, c"my_dict_attr")?
+            .ok_or_else(|| hapi_rs::HapiError::Internal("my_dict_attr found".into()))?;
 
         let dict_attr = dict_attr
             .downcast::<DictionaryAttr>()
-            .expect("Attribute downcasted to DictionaryAttr");
-        let values: Vec<_> = dict_attr.get(0).unwrap().into_iter().collect();
+            .ok_or_else(|| hapi_rs::HapiError::Internal("DictionaryAttr".into()))?;
+        let values: Vec<_> = dict_attr.get(0)?.into_iter().collect();
         let json_str = &values[0];
-        let parsed: JsonValue = json_str.parse().expect("Could not parse attrib value json");
-        let map: &HashMap<_, _> = parsed.get().expect("HashMap");
+        let parsed: JsonValue = json_str.parse().map_err(|e| {
+            hapi_rs::HapiError::Internal(format!("Could not parse attrib value json: {e}"))
+        })?;
+        let map: &HashMap<_, _> = parsed
+            .get()
+            .ok_or_else(|| hapi_rs::HapiError::Internal("HashMap".into()))?;
         assert_eq!(map["str_key"], JsonValue::String(String::from("text")));
         assert_eq!(map["int_key"], JsonValue::Number(1.0));
         assert!(matches!(map["list"], JsonValue::Array(_)));
         assert!(matches!(map["dict"], JsonValue::Object(_)));
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn dictionary_array_attr_get_returns_expected_values() {
+fn dictionary_array_attr_get_returns_expected_values() -> Result<()> {
     use std::collections::HashMap;
     use std::str::FromStr;
     use tinyjson::JsonValue;
 
     with_session_asset(HdaFile::Geometry, |lib| {
-        let asset = lib.try_create_first().expect("create_node");
-        let geo = asset.geometry()?.expect("must have geometry");
-        geo.node.cook_blocking().expect("cook_blocking");
+        let asset = lib.try_create_first()?;
+        let geo = asset
+            .geometry()?
+            .ok_or_else(|| hapi_rs::HapiError::Internal("must have geometry".into()))?;
+        geo.node.cook_blocking()?;
 
         let dict_array = geo
             .get_attribute(0, AttributeOwner::Point, c"my_dict_array_attr")?
-            .expect("dictionary array attribute");
+            .ok_or_else(|| hapi_rs::HapiError::Internal("dictionary array attribute".into()))?;
         let dict_array = dict_array
             .downcast::<DictionaryArrayAttr>()
-            .expect("DictionaryArrayAttr");
+            .ok_or_else(|| hapi_rs::HapiError::Internal("DictionaryArrayAttr".into()))?;
         let arrays = dict_array.get(0)?;
         assert_eq!(arrays.iter().count(), dict_array.info().count() as usize);
-        let (flat, sizes) = arrays.flatten().unwrap();
+        let (flat, sizes) = arrays.flatten()?;
         assert_eq!(sizes.len(), dict_array.info().count() as usize);
         assert_eq!(flat.len(), sizes.iter().sum::<usize>());
         assert_eq!(sizes.first().copied().unwrap_or_default(), 0);
@@ -403,9 +620,12 @@ fn dictionary_array_attr_get_returns_expected_values() {
         for (index, size) in sizes.iter().enumerate() {
             if index == 1 && *size > 0 {
                 let slice = &flat[start..start + *size];
-                let parsed =
-                    JsonValue::from_str(&slice[0]).expect("Json value from dictionary array");
-                let map: &HashMap<_, _> = parsed.get().expect("HashMap");
+                let parsed = JsonValue::from_str(&slice[0]).map_err(|e| {
+                    hapi_rs::HapiError::Internal(format!("Json value from dictionary array: {e}"))
+                })?;
+                let map: &HashMap<_, _> = parsed
+                    .get()
+                    .ok_or_else(|| hapi_rs::HapiError::Internal("HashMap".into()))?;
                 assert_eq!(map["sample"], JsonValue::Number(0.0));
                 break;
             }
@@ -413,25 +633,22 @@ fn dictionary_array_attr_get_returns_expected_values() {
         }
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn geometry_test_set_dictionary_attributes() {
+fn geometry_test_set_dictionary_attributes() -> Result<()> {
     use std::collections::HashMap;
     use std::str::FromStr;
     use tinyjson::JsonValue;
 
     with_session(|session| {
-        let geo = create_single_point_geo(&session).expect("Sphere geometry");
+        let geo = create_single_point_geo(&session)?;
         let info = AttributeInfo::default()
             .with_count(1)
             .with_tuple_size(1)
             .with_owner(AttributeOwner::Detail)
             .with_storage(StorageType::Dictionary);
-        let attr = geo
-            .add_dictionary_attribute("my_dict_attr", 0, info)
-            .expect("Dictionary attribute");
+        let attr = geo.add_dictionary_attribute("my_dict_attr", 0, info)?;
 
         let data: HashMap<String, JsonValue> = [
             ("number".to_string(), JsonValue::Number(1.0)),
@@ -439,36 +656,35 @@ fn geometry_test_set_dictionary_attributes() {
         ]
         .into();
 
-        let data_str = tinyjson::stringify(&JsonValue::from(data.clone())).expect("Json value");
+        let data_str = tinyjson::stringify(&JsonValue::from(data.clone()))
+            .map_err(|e| hapi_rs::HapiError::Internal(format!("Json value: {e}")))?;
 
-        attr.set(0, &[&CString::new(data_str).unwrap()]).unwrap();
-        geo.commit().unwrap();
-        geo.node.cook_blocking().unwrap();
-        let value: Vec<_> = attr.get(0).unwrap().into_iter().collect();
-        let new_data =
-            JsonValue::from_str(&value[0]).expect("Json value from string attriubute value");
+        attr.set(0, &[&CString::new(data_str)?])?;
+        geo.commit()?;
+        geo.node.cook_blocking()?;
+        let value: Vec<_> = attr.get(0)?.into_iter().collect();
+        let new_data = JsonValue::from_str(&value[0]).map_err(|e| {
+            hapi_rs::HapiError::Internal(format!("Json value from string attriubute value: {e}"))
+        })?;
 
         assert_eq!(JsonValue::from(data), new_data);
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn geometry_get_set_dictionary_array_attribute() {
+fn geometry_get_set_dictionary_array_attribute() -> Result<()> {
     use std::collections::HashMap;
     use tinyjson::JsonValue;
 
     with_session(|session| {
-        let geo = create_single_point_geo(&session).expect("Sphere geometry");
+        let geo = create_single_point_geo(&session)?;
         let info = AttributeInfo::default()
             .with_count(1)
             .with_tuple_size(1)
             .with_owner(AttributeOwner::Detail)
             .with_storage(StorageType::DictionaryArray);
-        let attr = geo
-            .add_dictionary_array_attribute("my_dict_attr", 0, info)
-            .expect("Dictionary array attribute");
+        let attr = geo.add_dictionary_array_attribute("my_dict_attr", 0, info)?;
 
         let dict_1: HashMap<String, JsonValue> = [
             ("number".to_string(), JsonValue::Number(1.0)),
@@ -482,84 +698,85 @@ fn geometry_get_set_dictionary_array_attribute() {
         .into();
 
         let data = vec![
-            CString::new(tinyjson::stringify(&JsonValue::from(dict_1)).expect("Json value"))
-                .unwrap(),
-            CString::new(tinyjson::stringify(&JsonValue::from(dict_2)).expect("Json value"))
-                .unwrap(),
+            CString::new(
+                tinyjson::stringify(&JsonValue::from(dict_1))
+                    .map_err(|e| hapi_rs::HapiError::Internal(format!("Json value: {e}")))?,
+            )?,
+            CString::new(
+                tinyjson::stringify(&JsonValue::from(dict_2))
+                    .map_err(|e| hapi_rs::HapiError::Internal(format!("Json value: {e}")))?,
+            )?,
         ];
-        attr.set(0, &data, &[2])
-            .expect("Dictionary array attribute set");
+        attr.set(0, &data, &[2])?;
         geo.commit()
     })
-    .unwrap()
 }
 
 #[test]
-fn attribute_send_to_thread() {
+fn attribute_send_to_thread() -> Result<()> {
     with_test_geometry(|geo| {
         let str_attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"pscale")
-            .unwrap()
-            .unwrap();
+            .get_attribute(0, AttributeOwner::Point, c"pscale")?
+            .ok_or_else(|| hapi_rs::HapiError::Internal("pscale attribute".into()))?;
         std::thread::spawn(move || {
             if let Some(attr) = str_attr.downcast::<NumericAttr<f32>>() {
                 let _ = attr.get(0);
             }
         })
         .join()
-        .unwrap();
+        .map_err(|_| hapi_rs::HapiError::Internal("thread panicked".into()))?;
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn geometry_read_array_attributes() {
+fn geometry_read_array_attributes() -> Result<()> {
     with_test_geometry(|geo| {
         let attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"my_int_array")
-            .expect("attribute")
-            .unwrap();
-        let attr = attr.downcast::<NumericArrayAttr<i32>>().unwrap();
-        let i_array = attr.get(0).unwrap();
+            .get_attribute(0, AttributeOwner::Point, c"my_int_array")?
+            .ok_or_else(|| hapi_rs::HapiError::Internal("my_int_array attribute".into()))?;
+        let attr = attr
+            .downcast::<NumericArrayAttr<i32>>()
+            .ok_or_else(|| hapi_rs::HapiError::Internal("NumericArrayAttr<i32>".into()))?;
+        let i_array = attr.get(0)?;
         assert_eq!(i_array.iter().count(), attr.info().count() as usize);
-        assert_eq!(i_array.iter().next().unwrap(), &[0, 0, 0, -1]);
-        assert_eq!(i_array.iter().last().unwrap(), &[7, 14, 21, -1]);
+        assert_eq!(i_array.iter().next(), Some(&[0, 0, 0, -1][..]));
+        assert_eq!(i_array.iter().last(), Some(&[7, 14, 21, -1][..]));
 
         let attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"my_float_array")
-            .expect("attribute")
-            .unwrap();
-        let i_array = attr.downcast::<NumericArrayAttr<f32>>().unwrap();
-        let data = i_array.get(0).unwrap();
+            .get_attribute(0, AttributeOwner::Point, c"my_float_array")?
+            .ok_or_else(|| hapi_rs::HapiError::Internal("my_float_array attribute".into()))?;
+        let i_array = attr
+            .downcast::<NumericArrayAttr<f32>>()
+            .ok_or_else(|| hapi_rs::HapiError::Internal("NumericArrayAttr<f32>".into()))?;
+        let data = i_array.get(0)?;
 
         assert_eq!(data.iter().count(), attr.info().count() as usize);
-        assert_eq!(data.iter().next().unwrap(), &[0.0, 0.0, 0.0]);
-        assert_eq!(data.iter().last().unwrap(), &[7.0, 14.0, 21.0]);
+        assert_eq!(data.iter().next(), Some(&[0.0, 0.0, 0.0][..]));
+        assert_eq!(data.iter().last(), Some(&[7.0, 14.0, 21.0][..]));
         Ok(())
     })
-    .unwrap()
 }
 
 #[test]
-fn geometry_create_and_set_array_attributes() {
+fn geometry_create_and_set_array_attributes() -> Result<()> {
     with_session(|session| {
-        let input = session.create_input_node("test", None).unwrap();
+        let input = session.create_input_node("test", None)?;
         let part = PartInfo::default()
             .with_part_type(PartType::Mesh)
             .with_face_count(0)
             .with_vertex_count(0)
             .with_point_count(2);
-        input.set_part_info(&part).unwrap();
+        input.set_part_info(&part)?;
 
         let p_info = AttributeInfo::default()
             .with_count(2)
             .with_tuple_size(3)
             .with_storage(StorageType::Float)
             .with_owner(AttributeOwner::Point);
-        let p_attrib = input.add_numeric_attribute::<f32>("P", 0, p_info).unwrap();
+        let p_attrib = input.add_numeric_attribute::<f32>("P", 0, p_info)?;
 
-        p_attrib.set(0, &[-1.0, 0.0, 0.0, 1.0, 0.0, 0.0]).unwrap();
+        p_attrib.set(0, &[-1.0, 0.0, 0.0, 1.0, 0.0, 0.0])?;
 
         let data_arr = [1, 2, 3, 4, 5];
         let attr_info = AttributeInfo::default()
@@ -568,17 +785,12 @@ fn geometry_create_and_set_array_attributes() {
             .with_total_array_elements(data_arr.len() as i64) // == to # values in DataArray
             .with_count(2) // point count
             .with_tuple_size(1);
-        let array_attr = input
-            .add_numeric_array_attribute::<i32>("int_array", 0, attr_info)
-            .expect("attribute");
-        array_attr
-            .set(0, &DataArray::new(&data_arr, &[2, 3]))
-            .unwrap();
-        input.commit().expect("new geometry");
-        input.node.cook_blocking().unwrap();
-        let value = array_attr.get(0).expect("array attribute");
+        let array_attr = input.add_numeric_array_attribute::<i32>("int_array", 0, attr_info)?;
+        array_attr.set(0, &DataArray::new(&data_arr, &[2, 3]))?;
+        input.commit()?;
+        input.node.cook_blocking()?;
+        let value = array_attr.get(0)?;
         assert_eq!(value.data(), &data_arr);
         Ok(())
     })
-    .unwrap()
 }

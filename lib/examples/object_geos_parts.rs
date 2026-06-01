@@ -13,7 +13,11 @@ fn main() -> Result<()> {
 
     let profile = session.start_performance_monitor_profile("hapi-rs")?;
 
-    let lib = session.load_asset_file("../otls/sesi/SideFX_spaceship.hda")?;
+    let lib = session.load_asset_file(
+        std::path::absolute("otls/sesi/SideFX_spaceship.hda")
+            .unwrap()
+            .as_path(),
+    )?;
     let node = lib.try_create_first()?;
     node.cook_blocking()?;
     let _asset_info = node.asset_info()?;

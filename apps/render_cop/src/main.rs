@@ -36,19 +36,21 @@ enum Message {
 static TITLE: &str = "Render Houdini COP with Rust/Iced";
 
 fn create_nodes() -> Result<HashMap<Noise, HoudiniNode>> {
-    let cwd = std::env::current_dir()?;
-    let cwd = cwd.resolve();
+    const HDA: &str = "apps/render_cop/cop_render.hda";
+    let hda = std::path::absolute(HDA).unwrap();
     let opt = SessionOptions::default().threaded(false);
     let session = new_in_process_session(Some(opt)).unwrap();
-    let lib = session.load_asset_file(cwd.join("apps/render_cop/cop_render.hda"))?;
+    let lib = session.load_asset_file(hda)?;
     let mut map = HashMap::new();
     map.insert(
         Noise::Voronoi,
-        lib.create_asset_for_node("hapi::Cop2/voronoi", None)?,
+        lib.create_asset_for_node("hapi::Cop2/voronoi", None)
+            .context("Creating Voronoi node")?,
     );
     map.insert(
         Noise::Alligator,
-        lib.create_asset_for_node("hapi::Cop2/alligator", None)?,
+        lib.create_asset_for_node("hapi::Cop2/alligator", None)
+            .context("Creating Alligator node")?,
     );
     Ok(map)
 }
@@ -156,6 +158,7 @@ impl Display for Noise {
 }
 
 fn main() -> iced::Result {
+    env_logger::init();
     App::run(Settings {
         window: iced::window::Settings {
             size: (700, 700),

@@ -55,3 +55,24 @@ Mixing and matching different versions of Houdini and this crate is not gurantee
 
 [HAPI C Documentation](https://www.sidefx.com/docs/hengine/)
 
+# Development
+
+Run Rust test coverage with [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov):
+
+```sh
+cargo install cargo-llvm-cov
+cargo xtask coverage
+```
+
+For an HTML report:
+
+```sh
+cargo xtask coverage --html
+```
+
+To cover only tests matching a name pattern:
+
+```sh
+cargo xtask coverage --test-pattern node_
+```
+

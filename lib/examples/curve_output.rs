@@ -10,7 +10,11 @@ use hapi_rs::session::{SessionOptions, new_thrift_session};
 fn main() -> Result<()> {
     let opt = SessionOptions::default().threaded(true);
     let session = new_thrift_session(opt, ServerOptions::shared_memory_with_defaults())?;
-    let lib = session.load_asset_file("../otls/sesi/nurbs_curve.hda")?;
+    let lib = session.load_asset_file(
+        std::path::absolute("otls/sesi/nurbs_curve.hda")
+            .unwrap()
+            .as_path(),
+    )?;
     let node = lib.try_create_first()?;
     node.cook_blocking()?;
 

@@ -4,19 +4,18 @@ resolver = "2"
 # All workspace members
 members = [
     "lib",
+    "xtask",
     "apps/viewport",
     "apps/bevy",
     "apps/render_cop",
     "benchmarks/server",
-    "bindgen/hapi-bindgen",
-    "bindgen/coverage",
 ]
 
 # Only build 'lib' by default when running cargo build/test/etc at workspace root
 default-members = ["lib"]
 
 [workspace.package]
-version = "21.0.0"
+version = "21.0.2"
 authors = ["Aleksei Rusev <hou.alexx@gmail.com>"]
 edition = "2024"
 license = "MIT"

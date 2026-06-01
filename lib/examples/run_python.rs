@@ -15,7 +15,11 @@ fn main() -> Result<()> {
         SessionOptions::default(),
         ServerOptions::shared_memory_with_defaults(),
     )?;
-    let lib = ses.load_asset_file("../otls/hapi_script.hda")?;
+    let lib = ses.load_asset_file(
+        std::path::absolute("otls/hapi_script.hda")
+            .unwrap()
+            .as_path(),
+    )?;
     let node = lib.try_create_first()?;
     if let Parameter::String(parm) = node.parameter("code")? {
         parm.set(0, SCRIPT)?;

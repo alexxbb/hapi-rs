@@ -5,7 +5,7 @@
 //!
 //! Nodes can be created with [`Session::create_node`]
 //!
-//! HoudiniNode is ['Clone'], [`Sync`] and [`Send`]
+//! `HoudiniNode` is [`Clone`], [`Sync`] and [`Send`]
 use std::borrow::Cow;
 use std::path::Path;
 use std::str::FromStr;
@@ -65,12 +65,12 @@ impl From<NodeFlagsBits> for crate::ffi::raw::HAPI_NodeFlagsBits {
     }
 }
 
-/// Trait to convert a NodeType to a NodeTypeBits
+/// Trait to convert a `NodeType` to a `NodeTypeBits`
 pub trait ToNodeTypeBits {
     fn to_bits(self) -> NodeTypeBits;
 }
 
-/// Trait to convert a NodeFlags to a NodeFlagsBits
+/// Trait to convert a `NodeFlags` to a `NodeFlagsBits`
 pub trait ToNodeFlagsBits {
     fn to_bits(self) -> NodeFlagsBits;
 }
@@ -178,7 +178,7 @@ impl FromStr for ManagerType {
 
 impl From<ManagerType> for NodeType {
     fn from(value: ManagerType) -> Self {
-        use ManagerType::*;
+        use ManagerType::{Chop, Cop, Obj, Rop, Top};
         match value {
             Obj => NodeType::Obj,
             Chop => NodeType::Chop,
@@ -296,7 +296,7 @@ impl NodeHandle {
 
     /// Returns node's internal path.
     pub fn path(&self, session: &Session) -> Result<String> {
-        debug_assert!(self.is_valid(session)?, "Invalid {:?}", self);
+        debug_assert!(self.is_valid(session)?, "Invalid {self:?}");
         crate::ffi::get_node_path(session, *self, None)
     }
 
@@ -306,7 +306,7 @@ impl NodeHandle {
         session: &Session,
         to: impl Into<Option<NodeHandle>>,
     ) -> Result<String> {
-        debug_assert!(self.is_valid(session)?, "Invalid {:?}", self);
+        debug_assert!(self.is_valid(session)?, "Invalid {self:?}");
         crate::ffi::get_node_path(session, *self, to.into())
     }
 
@@ -316,7 +316,7 @@ impl NodeHandle {
         crate::ffi::is_node_valid(session, &info.0)
     }
 
-    /// Upgrade the handle to HoudiniNode, which has more capabilities.
+    /// Upgrade the handle to `HoudiniNode`, which has more capabilities.
     pub fn to_node(&self, session: &Session) -> Result<HoudiniNode> {
         HoudiniNode::new(session.clone(), *self, None)
     }
@@ -366,10 +366,9 @@ impl std::fmt::Debug for HoudiniNode {
                 "path",
                 &self
                     .path()
-                    .map(Cow::Owned)
-                    .unwrap_or_else(|_| Cow::Borrowed("Node path not available")),
+                    .map_or_else(|_| Cow::Borrowed("Node path not available"), Cow::Owned),
             )
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -415,6 +414,7 @@ impl HoudiniNode {
     }
 
     /// Convert this node instance into [`TopNode`]
+    #[must_use]
     pub fn to_top_node(self) -> Option<TopNode> {
         match self.info.node_type() {
             NodeType::Top => Some(TopNode { node: self }),
@@ -496,7 +496,7 @@ impl HoudiniNode {
             .map(|info| ObjectInfo(info, (&self.session).into()))
     }
 
-    /// Get a new NodeInfo even for this node.
+    /// Get a new `NodeInfo` even for this node.
     pub fn get_info(&self) -> Result<NodeInfo> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         self.handle.info(&self.session)
@@ -580,18 +580,21 @@ impl HoudiniNode {
     }
 
     /// Given if Self is an asset or a subnet SOP node, get its output node at index.
-    pub fn get_sop_output_node(&self, index: i32) -> Result<NodeHandle> {
+    // NOTE: Not clear what this is API is for and I could't figure how to use it.
+    #[allow(unused)]
+    pub(crate) fn get_sop_output_node(&self, index: i32) -> Result<NodeHandle> {
         debug_assert!(self.is_valid()?);
         crate::ffi::get_sop_output_node(&self.session, self.handle, index)
     }
 
     /// Return the node's parent.
+    #[must_use]
     pub fn parent_node(&self) -> Option<NodeHandle> {
         let handle = self.info.parent_id();
         (handle.0 > -1).then_some(handle)
     }
 
-    /// Find a parameter on the node by name. Err() means parameter not found.
+    /// Find a parameter on the node by name. `Err()` means parameter not found.
     pub fn parameter(&self, name: &str) -> Result<Parameter> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         let parm_info = ParmInfo::from_parm_name(name, self)?;
@@ -628,8 +631,8 @@ impl HoudiniNode {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         self.handle.asset_info(&self.session)
     }
-    /// Recursively check all nodes for a specific error.
-    pub fn check_for_specific_error(&self, error_bits: i32) -> Result<ErrorCode> {
+    /// Recursively check all nodes for a specific error. Return the error bits found.
+    pub fn check_for_specific_error(&self, error_bits: i32) -> Result<i32> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
         crate::ffi::check_for_specific_errors(self, error_bits)
     }
@@ -688,7 +691,7 @@ impl HoudiniNode {
         file: impl AsRef<OsStr>,
     ) -> Result<HoudiniNode> {
         debug_assert!(session.is_valid());
-        debug!("Loading node from file {:?}", file.as_ref());
+        debug!("Loading node from file {}", file.as_ref().display());
         let filename = CString::new(file.as_ref().to_string_lossy().to_string())?;
         let label = CString::new(label)?;
         let id = crate::ffi::load_node_from_file(parent.into(), session, &label, &filename, cook)?;
@@ -792,8 +795,11 @@ impl HoudiniNode {
         keys: &[KeyFrame],
     ) -> Result<()> {
         debug_assert!(self.is_valid()?, "Invalid node: {}", self.path()?);
-        let keys =
-            unsafe { std::mem::transmute::<&[KeyFrame], &[crate::ffi::raw::HAPI_Keyframe]>(keys) };
+        // SAFETY: Both structures have the same memory layout.
+        let keys = unsafe {
+            &*(std::ptr::from_ref::<[crate::ffi::structs::KeyFrame]>(keys)
+                as *const [crate::ffi::raw::HAPI_Keyframe])
+        };
         crate::ffi::set_transform_anim_curve(&self.session, self.handle, component, keys)
     }
 

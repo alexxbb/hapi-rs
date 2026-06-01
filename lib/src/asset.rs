@@ -40,13 +40,20 @@ impl<'a> IntoIterator for &'a AssetParameters {
         }
     }
 }
+impl<'a> AssetParameters {
+    #[must_use]
+    pub fn iter(&'a self) -> AssetParmIter<'a> {
+        <&Self as IntoIterator>::into_iter(self)
+    }
+}
 
 impl AssetParameters {
     /// Find asset parameter by name
+    #[must_use]
     pub fn find_parameter(&self, name: &str) -> Option<AssetParm<'_>> {
         self.infos
             .iter()
-            .find(|p| p.name().unwrap() == name)
+            .find(|p| p.name().is_ok_and(|n| n == name))
             .map(|info| AssetParm {
                 library_id: self.library.lib_id,
                 asset_name: &self.asset_name,
@@ -105,9 +112,13 @@ pub enum ParmValue<'a> {
 
 impl<'a> AssetParm<'a> {
     /// Get parameter default value
+    #[must_use]
     pub fn default_value(&self) -> ParmValue<'a> {
+        use ParmType::{
+            Button, Color, Float, Int, Node, PathFile, PathFileDir, PathFileGeo, PathFileImage,
+            String, Toggle,
+        };
         let size = self.info.size() as usize;
-        use ParmType::*;
         match self.info.parm_type() {
             Int | Button => {
                 let start = self.info.int_values_index() as usize;
@@ -131,6 +142,7 @@ impl<'a> AssetParm<'a> {
 
     /// Returns menu parameter items.
     /// Note, dynamic(script) menus should be queried directly from a node.
+    #[must_use]
     pub fn menu_items(&self) -> Option<&[ParmChoiceInfo]> {
         if let ChoiceListType::None = self.choice_list_type() {
             return None;
@@ -174,7 +186,7 @@ impl AssetLibrary {
     /// Load an asset from file
     pub fn from_file(session: Session, file: impl AsRef<std::path::Path>) -> Result<AssetLibrary> {
         let file = file.as_ref().to_path_buf();
-        debug!("Loading library file: {:?}", file);
+        debug!("Loading library file: {}", file.display());
         debug_assert!(session.is_valid());
         let cs = CString::new(file.as_os_str().to_string_lossy().to_string())?;
         let lib_id = crate::ffi::load_library_from_file(&cs, &session, true)?;
@@ -189,7 +201,7 @@ impl AssetLibrary {
     pub fn from_memory(session: Session, data: &[u8]) -> Result<AssetLibrary> {
         debug!("Loading library from memory");
         debug_assert!(session.is_valid());
-        let data: &[i8] = unsafe { std::mem::transmute(data) };
+        let data: &[i8] = unsafe { &*(std::ptr::from_ref::<[u8]>(data) as *const [i8]) };
         let lib_id = crate::ffi::load_library_from_memory(&session, data, true)?;
         Ok(AssetLibrary {
             lib_id,
@@ -211,8 +223,7 @@ impl AssetLibrary {
             "Retrieving asset names from: {:?}",
             self.file
                 .as_deref()
-                .map(|p| p.to_string_lossy())
-                .unwrap_or("<memory bytes>".into())
+                .map_or("<memory bytes>".into(), |p| p.to_string_lossy())
         );
         let num_assets = self.get_asset_count()?;
         crate::ffi::get_asset_names(self.lib_id, num_assets, &self.session)
@@ -231,7 +242,7 @@ impl AssetLibrary {
     pub fn create_asset_for_node<T: AsRef<str>>(
         &self,
         name: T,
-        label: Option<T>,
+        label: Option<&T>,
     ) -> Result<HoudiniNode> {
         // Most common HDAs are Object/asset and Sop/asset which HAPI can create directly in /obj,
         // but for some assets type like Cop, Top a manager node must be created first
@@ -263,8 +274,12 @@ impl AssetLibrary {
         // If subnet is Some, we get the manager node for this context and use it as parent.
         let parent = match subnet {
             Some(subnet) => {
-                // manager is always Some if subnet is Some
-                let parent = self.session.get_manager_node(manager.unwrap())?;
+                let manager = manager.ok_or_else(|| {
+                    HapiError::Internal(format!(
+                        "Missing manager node type for context \"{context}\""
+                    ))
+                })?;
+                let parent = self.session.get_manager_node(manager)?;
                 Some(
                     self.session
                         .create_node_with(subnet, parent.handle, None, false)?
@@ -279,8 +294,12 @@ impl AssetLibrary {
         } else {
             name.as_ref()
         };
-        self.session
-            .create_node_with(full_name, parent, label.as_ref().map(|v| v.as_ref()), false)
+        self.session.create_node_with(
+            full_name,
+            parent,
+            label.as_ref().map(std::convert::AsRef::as_ref),
+            false,
+        )
     }
 
     /// Try to create the first found asset in the library.
@@ -308,17 +327,22 @@ impl AssetLibrary {
         let _lock = self.session.lock();
         debug!("Reading asset parameter list of {}", asset.as_ref());
         let asset_name = CString::new(asset.as_ref())?;
-        let count = crate::ffi::get_asset_def_parm_count(self.lib_id, &asset_name, &self.session)?;
+        let parm_count =
+            crate::ffi::get_asset_def_parm_count(self.lib_id, &asset_name, &self.session)?;
         let infos = crate::ffi::get_asset_def_parm_info(
             self.lib_id,
             &asset_name,
-            count.parm_count,
+            parm_count.total,
             &self.session,
         )?
         .into_iter()
         .map(|info| ParmInfo::new(info, self.session.clone(), None));
-        let values =
-            crate::ffi::get_asset_def_parm_values(self.lib_id, &asset_name, &self.session, &count)?;
+        let values = crate::ffi::get_asset_def_parm_values(
+            self.lib_id,
+            &asset_name,
+            &self.session,
+            &parm_count,
+        )?;
         let menus = values
             .3
             .into_iter()

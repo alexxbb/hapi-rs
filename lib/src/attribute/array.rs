@@ -34,10 +34,12 @@ where
     }
 
     /// Get reference to the data buffer.
+    #[must_use]
     pub fn data(&self) -> &[T] {
         self.data.as_ref()
     }
     /// Get reference to the sizes array.
+    #[must_use]
     pub fn sizes(&self) -> &[i32] {
         self.sizes.as_ref()
     }
@@ -50,6 +52,7 @@ where
     }
 
     /// Create an iterator over the data .
+    #[must_use]
     pub fn iter(&'a self) -> ArrayIter<'a, T> {
         ArrayIter {
             sizes: self.sizes.iter(),
@@ -64,6 +67,30 @@ where
             data: self.data.to_mut().as_mut(),
             cursor: 0,
         }
+    }
+}
+
+impl<'a, T> IntoIterator for &'a DataArray<'a, T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    type Item = &'a [T];
+    type IntoIter = ArrayIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut DataArray<'a, T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    type Item = &'a mut [T];
+    type IntoIter = ArrayIterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
     }
 }
 
@@ -127,13 +154,16 @@ impl<'a, T> Iterator for ArrayIterMut<'a, T> {
                 self.cursor = end;
                 // SAFETY: Compiler can't know that we're never return overlapping references
                 // so we "erase" the lifetime by casting to pointer and back.
-                Some(unsafe { &mut *(self.data.get_unchecked_mut(start..end) as *mut [T]) })
+                Some(unsafe {
+                    &mut *std::ptr::from_mut::<[T]>(self.data.get_unchecked_mut(start..end))
+                })
             }
         }
     }
 }
 
 impl StringMultiArray {
+    #[must_use]
     pub fn iter(&self) -> MultiArrayIter<'_> {
         MultiArrayIter {
             handles: self.handles.iter(),
@@ -147,9 +177,18 @@ impl StringMultiArray {
         let mut flat_array = Vec::with_capacity(self.sizes.iter().sum::<i32>() as usize);
         let mut iter = self.iter();
         while let Some(Ok(string_array)) = iter.next() {
-            flat_array.extend(string_array.into_iter());
+            flat_array.extend(string_array);
         }
         Ok((flat_array, self.sizes.iter().map(|v| *v as usize).collect()))
+    }
+}
+
+impl<'a> IntoIterator for &'a StringMultiArray {
+    type Item = Result<StringArray>;
+    type IntoIter = MultiArrayIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 
@@ -175,12 +214,49 @@ mod tests {
     use super::*;
 
     #[test]
+    fn data_array_accessors() {
+        let data = [1, 2, 3, 4, 5];
+        let sizes = [2, 3];
+        let ar = DataArray::new(&data, &sizes);
+
+        assert_eq!(ar.data(), &data);
+        assert_eq!(ar.sizes(), &sizes);
+    }
+
+    #[test]
+    fn data_array_mut_accessors_are_copy_on_write() {
+        let data = [1, 2, 3, 4, 5];
+        let sizes = [2, 3];
+        let mut ar = DataArray::new(&data, &sizes);
+
+        ar.data_mut()[1] = 20;
+        ar.sizes_mut()[0] = 1;
+        ar.sizes_mut()[1] = 4;
+
+        assert_eq!(ar.data(), &[1, 20, 3, 4, 5]);
+        assert_eq!(ar.sizes(), &[1, 4]);
+        assert_eq!(data, [1, 2, 3, 4, 5]);
+        assert_eq!(sizes, [2, 3]);
+    }
+
+    #[test]
     fn data_array_iter() {
         let ar = DataArray::new_owned(vec![1, 2, 3, 4, 5, 6], vec![2, 1, 3]);
         let mut iter = ar.iter();
         assert_eq!(iter.next(), Some([1, 2].as_slice()));
         assert_eq!(iter.next(), Some([3].as_slice()));
         assert_eq!(iter.next(), Some([4, 5, 6].as_slice()));
+    }
+
+    #[test]
+    fn data_array_into_iter() {
+        let ar = DataArray::new(&[1, 2, 3, 4, 5, 6], &[2, 1, 3]);
+        let mut iter = (&ar).into_iter();
+
+        assert_eq!(iter.next(), Some([1, 2].as_slice()));
+        assert_eq!(iter.next(), Some([3].as_slice()));
+        assert_eq!(iter.next(), Some([4, 5, 6].as_slice()));
+        assert_eq!(iter.next(), None);
     }
 
     #[test]
@@ -193,5 +269,16 @@ mod tests {
         assert_eq!(iter.next(), Some([2, 4].as_mut_slice()));
         assert_eq!(iter.next(), Some([6].as_mut_slice()));
         assert_eq!(iter.next(), Some([8, 10, 12].as_mut_slice()));
+    }
+
+    #[test]
+    fn data_array_into_iter_mut() {
+        let mut ar = DataArray::new(&[1, 2, 3, 4, 5, 6], &[2, 1, 3]);
+        let mut iter = (&mut ar).into_iter();
+
+        assert_eq!(iter.next(), Some([1, 2].as_mut_slice()));
+        assert_eq!(iter.next(), Some([3].as_mut_slice()));
+        assert_eq!(iter.next(), Some([4, 5, 6].as_mut_slice()));
+        assert_eq!(iter.next(), None);
     }
 }

@@ -1,4 +1,22 @@
-use super::raw::*;
+#![allow(clippy::similar_names)]
+use super::raw::{
+    AttributeOwner, AttributeTypeInfo, ChoiceListType, CurveType, GeoType, HAPI_AssetInfo,
+    HAPI_AttributeInfo, HAPI_AttributeInfo_Create, HAPI_BoxInfo, HAPI_CompositorOptions,
+    HAPI_CompositorOptions_Create, HAPI_CookOptions, HAPI_CookOptions_Create, HAPI_CurveInfo,
+    HAPI_CurveInfo_Create, HAPI_GeoInfo, HAPI_ImageFileFormat, HAPI_ImageInfo,
+    HAPI_ImageInfo_Create, HAPI_InputCurveInfo, HAPI_InputCurveInfo_Create, HAPI_NodeInfo,
+    HAPI_ObjectInfo, HAPI_PDG_EventInfo, HAPI_PDG_WorkItemInfo, HAPI_PDG_WorkItemOutputFile,
+    HAPI_ParmChoiceInfo, HAPI_ParmInfo, HAPI_PartInfo, HAPI_PartInfo_Create, HAPI_SessionInfo,
+    HAPI_SessionInfo_Create, HAPI_SessionSyncInfo, HAPI_SessionSyncInfo_Create, HAPI_SphereInfo,
+    HAPI_ThriftServerOptions, HAPI_ThriftServerOptions_Create, HAPI_TimelineOptions,
+    HAPI_TimelineOptions_Create, HAPI_Transform, HAPI_Transform_Create, HAPI_TransformEuler,
+    HAPI_TransformEuler_Create, HAPI_Viewport, HAPI_Viewport_Create, HAPI_VolumeInfo,
+    HAPI_VolumeTileInfo, HAPI_VolumeVisualInfo, ImageDataFormat, ImagePacking, InputCurveMethod,
+    InputCurveParameterization, NodeFlags, NodeType, PackedPrimInstancingMode, ParmType, PartType,
+    PdgEventType, PdgWorkItemState, Permissions, PrmScriptType, RSTOrder, RampType,
+    StatusVerbosity, StorageType, TcpPortType, ThriftSharedMemoryBufferType, VolumeType,
+    VolumeVisualType, XYZOrder,
+};
 use crate::{
     errors::Result,
     node::{HoudiniNode, NodeHandle},
@@ -91,17 +109,19 @@ macro_rules! get {
 macro_rules! wrap {
     (_with_ $method:ident->$field:ident->bool) => {
         paste!{
-            pub fn [<with_ $method>](mut self, val: bool) -> Self {self.0.$field = val as i8; self}
+            #[must_use]
+            pub fn [<with_ $method>](mut self, val: bool) -> Self {self.0.$field = i8::from(val); self}
         }
     };
     (_with_ $method:ident->$field:ident->$tp:ty) => {
         paste!{
+            #[must_use]
             pub fn [<with_ $method>](mut self, val: $tp) -> Self {self.0.$field = val; self}
         }
     };
     (_set_ $method:ident->$field:ident->bool) => {
         paste!{
-            pub fn [<set_ $method>](&mut self, val: bool)  {self.0.$field = val as i8}
+            pub fn [<set_ $method>](&mut self, val: bool)  {self.0.$field = i8::from(val)}
         }
     };
     (_set_ $method:ident->$field:ident->$tp:ty) => {
@@ -160,14 +180,14 @@ macro_rules! wrap {
 
             #[inline]
             pub fn ptr(&self) -> *const $ffi_tp {
-                &self.0 as *const _
+                &raw const self.0
             }
         }
     };
 }
 
 /// Configurations for sessions.
-/// Note: For async attribute access, make sure to set connection_count to at least 1.
+/// Note: For async attribute access, make sure to set `connection_count` to at least 1.
 #[derive(Clone, Debug)]
 pub struct SessionInfo(pub(crate) HAPI_SessionInfo);
 
@@ -614,8 +634,7 @@ wrap!(
 #[derive(Debug, Clone)]
 pub struct BoxInfo(pub(crate) HAPI_BoxInfo);
 
-// TODO: Why not impl Default?
-fn _create_box_info() -> HAPI_BoxInfo {
+fn create_box_info() -> HAPI_BoxInfo {
     HAPI_BoxInfo {
         center: Default::default(),
         size: Default::default(),
@@ -624,7 +643,7 @@ fn _create_box_info() -> HAPI_BoxInfo {
 }
 
 wrap!(
-    Default BoxInfo [_create_box_info => HAPI_BoxInfo];
+    Default BoxInfo [create_box_info => HAPI_BoxInfo];
     [get|set|with] center->center->[[f32;3]];
     [get|set|with] rotation->rotation->[[f32;3]];
     [get|set|with] size->size->[[f32;3]];
@@ -633,8 +652,7 @@ wrap!(
 #[derive(Debug, Clone)]
 pub struct SphereInfo(pub(crate) HAPI_SphereInfo);
 
-// TODO: Why not impl Default?
-fn _create_sphere_info() -> HAPI_SphereInfo {
+fn create_sphere_info() -> HAPI_SphereInfo {
     HAPI_SphereInfo {
         center: Default::default(),
         radius: 0.0,
@@ -642,7 +660,7 @@ fn _create_sphere_info() -> HAPI_SphereInfo {
 }
 
 wrap!(
-    Default SphereInfo [_create_sphere_info => HAPI_SphereInfo];
+    Default SphereInfo [create_sphere_info => HAPI_SphereInfo];
     [get|set|with] center->center->[[f32;3]];
     [get|set|with] radius->radius->[f32];
 );
@@ -709,10 +727,10 @@ impl VolumeInfo {
     fn transform(&self) -> Transform {
         Transform(self.0.transform)
     }
-    fn set_transform(&mut self, transform: Transform) {
-        self.0.transform = transform.0
+    fn set_transform(&mut self, transform: &Transform) {
+        self.0.transform = transform.0;
     }
-    fn with_transform(mut self, transform: Transform) -> Self {
+    fn with_transform(mut self, transform: &Transform) -> Self {
         self.0.transform = transform.0;
         self
     }

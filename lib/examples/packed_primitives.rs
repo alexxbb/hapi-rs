@@ -13,7 +13,11 @@ fn main() -> Result<()> {
         ServerOptions::shared_memory_with_defaults(),
     )?;
 
-    let lib = session.load_asset_file("../otls/sesi/PackedPrimitive.hda")?;
+    let lib = session.load_asset_file(
+        std::path::absolute("otls/sesi/PackedPrimitive.hda")
+            .unwrap()
+            .as_path(),
+    )?;
     let asset = lib.try_create_first()?;
     let mut co = CookOptions::default();
     for mode in [IM::Disabled, IM::Hierarchy, IM::Flat] {

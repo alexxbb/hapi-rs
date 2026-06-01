@@ -2,7 +2,10 @@
 //!
 //!
 
-use crate::attribute::*;
+use crate::attribute::{
+    AnyAttribWrapper, AsAttribute, AttribValueType, Attribute, DictionaryArrayAttr, DictionaryAttr,
+    NumericArrayAttr, NumericAttr, StringArrayAttr, StringAttr,
+};
 use crate::errors::Result;
 pub use crate::ffi::{
     AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, InputCurveInfo, PartInfo, SphereInfo,
@@ -11,6 +14,7 @@ pub use crate::ffi::{
 use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
 use crate::stringhandle::StringArray;
+use crate::utils::uzize_to_i32;
 use crate::volume::{Tile, VolumeBounds, VolumeStorage};
 use std::ffi::{CStr, CString};
 
@@ -22,7 +26,7 @@ pub struct Geometry {
 }
 
 /// In-memory geometry format
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum GeoFormat {
     Geo,
     Bgeo,
@@ -39,9 +43,9 @@ pub enum Materials {
 }
 
 impl GeoFormat {
-    const fn as_cstr(&self) -> &'static CStr {
+    const fn as_cstr(self) -> &'static CStr {
         unsafe {
-            CStr::from_bytes_with_nul_unchecked(match *self {
+            CStr::from_bytes_with_nul_unchecked(match self {
                 GeoFormat::Geo => b".geo\0",
                 GeoFormat::Bgeo => b".bgeo\0",
                 GeoFormat::Obj => b".obj\0",
@@ -123,7 +127,7 @@ impl Geometry {
         crate::ffi::set_volume_info(&self.node, part_id, &info.0)
     }
 
-    #[inline(always)]
+    #[inline]
     #[allow(unused_must_use)]
     fn assert_node_cooked(&self) -> Result<()> {
         debug_assert!(
@@ -184,7 +188,7 @@ impl Geometry {
             part_id,
             positions,
             0,
-            positions.len() as i32,
+            uzize_to_i32(positions.len()),
         )
     }
 
@@ -341,7 +345,9 @@ impl Geometry {
         part: &PartInfo,
         owner: AttributeOwner,
     ) -> Result<i32> {
-        crate::ffi::get_element_count_by_attribute_owner(part, owner)
+        Ok(crate::ffi::get_element_count_by_attribute_owner(
+            part, owner,
+        ))
     }
 
     /// Get number of attributes by type.
@@ -350,7 +356,7 @@ impl Geometry {
         part: &PartInfo,
         owner: AttributeOwner,
     ) -> Result<i32> {
-        crate::ffi::get_attribute_count_by_owner(part, owner)
+        Ok(crate::ffi::get_attribute_count_by_owner(part, owner))
     }
 
     pub fn get_attribute_names(
@@ -361,12 +367,15 @@ impl Geometry {
         self.assert_node_cooked()?;
         let counts = part.attribute_counts();
         let count = match owner {
-            AttributeOwner::Invalid => panic!("Invalid AttributeOwner"),
+            AttributeOwner::Invalid | AttributeOwner::Max => {
+                return Err(crate::HapiError::Internal(format!(
+                    "Invalid AttributeOwner: {owner:?}"
+                )));
+            }
             AttributeOwner::Vertex => counts[0],
             AttributeOwner::Point => counts[1],
             AttributeOwner::Prim => counts[2],
             AttributeOwner::Detail => counts[3],
-            AttributeOwner::Max => panic!("Invalid AttributeOwner"),
         };
         crate::ffi::get_attribute_names(&self.node, part.part_id(), count, owner)
     }
@@ -405,7 +414,9 @@ impl Geometry {
         let node = self.node.clone();
         let attr_obj: Box<dyn AnyAttribWrapper> = match storage {
             s @ (StorageType::Invalid | StorageType::Max) => {
-                panic!("Invalid attribute storage {name:?}: {s:?}")
+                return Err(crate::HapiError::Internal(format!(
+                    "Invalid attribute storage {name:?}: {s:?}"
+                )));
             }
             StorageType::Int => NumericAttr::<i32>::new(name, info, node).boxed(),
             StorageType::Int64 => NumericAttr::<i64>::new(name, info, node).boxed(),
@@ -439,8 +450,7 @@ impl Geometry {
         debug_assert_eq!(info.storage(), T::storage());
         debug_assert!(
             info.tuple_size() > 0,
-            "attribute \"{}\" tuple_size must be > 0",
-            name
+            "attribute \"{name}\" tuple_size must be > 0"
         );
         log::debug!("Adding numeric geometry attriubute: {name}");
         let name = CString::new(name)?;
@@ -481,8 +491,7 @@ impl Geometry {
         debug_assert_eq!(info.storage(), StorageType::String);
         debug_assert!(
             info.tuple_size() > 0,
-            "attribute \"{}\" tuple_size must be > 0",
-            name
+            "attribute \"{name}\" tuple_size must be > 0"
         );
         log::debug!("Adding string geometry attriubute: {name}");
         let name = CString::new(name)?;
@@ -501,8 +510,7 @@ impl Geometry {
         debug_assert_eq!(info.storage(), StorageType::StringArray);
         debug_assert!(
             info.tuple_size() > 0,
-            "attribute \"{}\" tuple_size must be > 0",
-            name
+            "attribute \"{name}\" tuple_size must be > 0"
         );
         log::debug!("Adding string array geometry attriubute: {name}");
         let name = CString::new(name)?;
@@ -521,8 +529,7 @@ impl Geometry {
         debug_assert_eq!(info.storage(), StorageType::Dictionary);
         debug_assert!(
             info.tuple_size() > 0,
-            "attribute \"{}\" tuple_size must be > 0",
-            name
+            "attribute \"{name}\" tuple_size must be > 0"
         );
         log::debug!("Adding dictionary geometry attriubute: {name}");
         let name = CString::new(name)?;
@@ -541,8 +548,7 @@ impl Geometry {
         debug_assert_eq!(info.storage(), StorageType::DictionaryArray);
         debug_assert!(
             info.tuple_size() > 0,
-            "attribute \"{}\" tuple_size must be > 0",
-            name
+            "attribute \"{name}\" tuple_size must be > 0"
         );
         log::debug!("Adding dictionary array geometry attriubute: {name}");
         let name = CString::new(name)?;
@@ -863,7 +869,7 @@ impl Geometry {
     }
 }
 
-/// Holds HoudiniNode handles to a heightfield SOP
+/// Holds `HoudiniNode` handles to a heightfield SOP
 /// Used with [`Geometry::create_heightfield_input`]
 pub struct HeightfieldNodes {
     pub heightfield: HoudiniNode,
@@ -873,6 +879,7 @@ pub struct HeightfieldNodes {
 }
 
 impl PartInfo {
+    #[must_use]
     pub fn element_count_by_group(&self, group_type: GroupType) -> i32 {
         crate::ffi::get_element_count_by_group(self, group_type)
     }
@@ -880,7 +887,10 @@ impl PartInfo {
 
 /// Geometry extension trait with some useful utilities
 pub mod extra {
-    use super::*;
+    use super::{
+        AttributeInfo, AttributeName, AttributeOwner, CString, Geometry, NumericAttr, PartInfo,
+        Result, StorageType, uzize_to_i32,
+    };
     pub trait GeometryExtension {
         fn create_position_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>>;
         fn create_point_color_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>>;
@@ -939,15 +949,15 @@ pub mod extra {
         part: &PartInfo,
         name: AttributeName,
     ) -> Result<NumericAttr<f32>> {
-        log::debug!("Creating point attriute {:?}", name);
+        log::debug!("Creating point attriute {name:?}");
         let name: CString = name.into();
         let attr_info = AttributeInfo::default()
             .with_count(part.point_count())
-            .with_tuple_size(N as i32)
+            .with_tuple_size(uzize_to_i32(N))
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::Float);
         crate::ffi::add_attribute(&geo.node, part.part_id(), &name, &attr_info.0)
-            .map(|_| NumericAttr::new(name, attr_info, geo.node.clone()))
+            .map(|()| NumericAttr::new(name, attr_info, geo.node.clone()))
     }
 
     #[inline]

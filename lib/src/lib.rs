@@ -1,4 +1,5 @@
 #![doc(html_logo_url = "https://media.sidefx.com/uploads/products/engine/engine_orange.svg")]
+#![allow(clippy::cast_sign_loss, clippy::missing_errors_doc)]
 //! # Rust bindings to Houdini Engine C API.
 //!
 //! Official HAPI [documentation](https://www.sidefx.com/docs/hengine/) is bundled under
@@ -93,7 +94,7 @@
 //! }
 //! ```
 //!
-//! ## HoudiniNode and node APIs
+//! ## `HoudiniNode` and node APIs
 //! HAPI node ids become [`node::NodeHandle`], a lightweight wrapper that you often receive when traversing
 //! networks. Call [`node::NodeHandle::to_node`] to promote the handle into a [`node::HoudiniNode`], which
 //! stores the handle, [`node::NodeInfo`], and the owning [`session::Session`]. `HoudiniNode` is also
@@ -263,7 +264,7 @@
 //! ```
 //!
 //! ## Error handling and diagnostics
-//! Every public API returns [`Result`], an alias for `std::result::Result<T, [`HapiError`]>`.
+//! Every public API returns [`Result`], an alias for `std::result::Result<T, [``HapiError``]>`.
 //! `HapiError::Hapi` stores the [`errors::HapiResultCode`] plus an optional server message fetched through
 //! [`session::Session::get_status_string`]. Additional context strings accumulate automatically when you call
 //! `.context(...)` / `.with_context(...)` using the helper methods defined in the `errors` module, making it

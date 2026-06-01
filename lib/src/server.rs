@@ -89,27 +89,28 @@ impl Default for ThriftSharedMemoryTransportBuilder {
 }
 
 impl ThriftSharedMemoryTransportBuilder {
+    #[must_use]
     pub fn with_memory_name(mut self, name: impl Into<String>) -> Self {
         self.memory_name = name.into();
         self
     }
+    #[must_use]
     pub fn with_buffer_type(mut self, buffer_type: ThriftSharedMemoryBufferType) -> Self {
         self.buffer_type = buffer_type;
         self
     }
+    #[must_use]
     pub fn with_buffer_size(mut self, buffer_size: NonZeroU64) -> Self {
-        self.buffer_size = match buffer_size.get().try_into() {
-            Ok(size) => size,
-            Err(_) => {
-                // When u64 can't fit into i64, use default of 1024 MB
-                warn!(
-                    "ThriftSharedMemoryTransport buffer size is too large, using default of 1024"
-                );
-                1024
-            }
+        self.buffer_size = if let Ok(size) = buffer_size.get().try_into() {
+            size
+        } else {
+            // When u64 can't fit into i64, use default of 1024 MB
+            warn!("ThriftSharedMemoryTransport buffer size is too large, using default of 1024");
+            1024
         };
         self
     }
+    #[must_use]
     pub fn build(self) -> ThriftSharedMemoryTransport {
         ThriftSharedMemoryTransport {
             memory_name: self.memory_name,
@@ -153,6 +154,7 @@ impl Default for ServerOptions {
 
 impl ServerOptions {
     /// Create options for a shared-memory transport with a random name.
+    #[must_use]
     pub fn shared_memory_with_defaults() -> Self {
         Self::default().with_thrift_transport(ThriftTransport::SharedMemory(
             ThriftSharedMemoryTransportBuilder::default().build(),
@@ -160,6 +162,7 @@ impl ServerOptions {
     }
 
     /// Create options for a named pipe transport.
+    #[must_use]
     pub fn pipe_with_defaults() -> Self {
         Self::default().with_thrift_transport(ThriftTransport::Pipe(ThriftPipeTransport {
             pipe_path: PathBuf::from(format!("hapi-pipe-{}", utils::random_string(16))),
@@ -167,25 +170,29 @@ impl ServerOptions {
     }
 
     /// Create options for a socket transport.
+    #[must_use]
     pub fn socket_with_defaults(address: SocketAddrV4) -> Self {
         Self::default()
             .with_thrift_transport(ThriftTransport::Socket(ThriftSocketTransport { address }))
     }
 
+    #[must_use]
     pub fn with_thrift_transport(mut self, transport: ThriftTransport) -> Self {
         self.thrift_transport = transport;
         self
     }
 
     /// Set a connection timeout used when establishing Thrift sessions.
+    #[must_use]
     pub fn with_connection_timeout(mut self, timeout: Option<Duration>) -> Self {
         self.connection_retry_interval = timeout;
         self
     }
 
     /// Set the license preference for the server.
-    /// For more information, see https://www.sidefx.com/docs/houdini//licensing/system.html
+    /// For more information, see <https://www.sidefx.com/docs/houdini//licensing/system.html>
     /// Default is No preference, the server decides which license to check out.
+    #[must_use]
     pub fn with_license_preference(mut self, license_preference: LicensePreference) -> Self {
         self.license_preference.replace(license_preference);
 
@@ -199,6 +206,10 @@ impl ServerOptions {
 
     /// Set the log file for the server.
     /// BUG: HARS 21.0.685 has a bug where the log file is always created in the working directory
+    ///
+    /// # Panics
+    /// Panics if `file` contains an interior null byte and cannot be converted to a C string.
+    #[must_use]
     pub fn with_log_file(mut self, file: impl AsRef<Path>) -> Self {
         self.log_file = Some(utils::path_to_cstring(file).expect("Path to CString failed"));
         self
@@ -207,6 +218,7 @@ impl ServerOptions {
     /// Set **real** environment variables before the server starts.
     /// Unlike [`crate::session::Session::set_server_var`], where the variables are set in the session after the
     /// server starts.
+    #[must_use]
     pub fn with_env_variables<'a, I, K, V>(mut self, variables: I) -> Self
     where
         I: Iterator<Item = &'a (K, V)>,
@@ -222,17 +234,21 @@ impl ServerOptions {
     }
 
     /// Automatically close the server when the last connection drops.
+    #[must_use]
     pub fn with_auto_close(mut self, auto_close: bool) -> Self {
         self.auto_close = auto_close;
         self
     }
 
     /// Set the verbosity level for the server.
+    #[must_use]
     pub fn with_verbosity(mut self, verbosity: StatusVerbosity) -> Self {
         self.verbosity = verbosity;
         self
     }
 
+    #[must_use]
+    #[cfg(feature = "async-cooking")]
     pub fn with_connection_count(mut self, connection_count: i32) -> Self {
         // BUG: HARS 21.0.* has a bug where the connection count is not respected.
         // If connection_count is > 0, there is a bug in HARS which prevents session creation.
@@ -243,6 +259,7 @@ impl ServerOptions {
 
     /// Set the timeout for the server to be ready in ms
     /// This is the timeout for the server to initialize and be ready to accept connections.
+    #[must_use]
     pub fn with_server_ready_timeout(mut self, timeout: u32) -> Self {
         self.server_ready_timeout.replace(timeout);
         self
@@ -270,6 +287,7 @@ impl ServerOptions {
             options.set_shared_memory_buffer_size(transport.buffer_size);
         }
         if let Some(timeout) = self.server_ready_timeout {
+            #[allow(clippy::cast_precision_loss)]
             options.set_timeout_ms(timeout as f32);
         }
 
@@ -331,7 +349,7 @@ pub fn connect_to_memory_server(
         ));
     };
     let mem_name_cstr = CString::new(memory_name.clone())?;
-    debug!("Connecting to shared memory server: {:?}", memory_name);
+    debug!("Connecting to shared memory server: {memory_name:?}");
     let handle = try_connect_with_timeout(
         server_options.connection_retry_interval,
         Duration::from_millis(100),
@@ -349,14 +367,14 @@ fn try_connect_with_timeout<F: Fn() -> Result<crate::ffi::raw::HAPI_Session>>(
     wait_ms: Duration,
     f: F,
 ) -> Result<crate::ffi::raw::HAPI_Session> {
-    debug!("Trying to connect to server with timeout: {:?}", timeout);
+    debug!("Trying to connect to server with timeout: {timeout:?}");
     let mut waited = Duration::from_secs(0);
     let mut last_error = None;
     let handle = loop {
         match f() {
             Ok(handle) => break handle,
             Err(e) => {
-                error!("Error while trying to connect to server: {:?}", e);
+                error!("Error while trying to connect to server: {e:?}");
                 last_error.replace(e);
                 thread::sleep(wait_ms);
                 waited += wait_ms;
@@ -386,7 +404,7 @@ pub fn connect_to_socket_server(
             "ServerOptions is not configured for socket transport".to_owned(),
         ));
     };
-    debug!("Connecting to socket server: {:?}", address);
+    debug!("Connecting to socket server: {address:?}");
     let host = CString::new(address.ip().to_string())
         .map_err(HapiError::from)
         .context("Converting SocketAddr to CString")?;
@@ -395,7 +413,7 @@ pub fn connect_to_socket_server(
         Duration::from_millis(100),
         || {
             ffi::new_thrift_socket_session(
-                address.port() as i32,
+                i32::from(address.port()),
                 &host,
                 &server_options.session_info().0,
             )
@@ -438,7 +456,10 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
             })
         }
         ThriftTransport::Pipe(transport) => {
-            debug!("Starting named pipe server: {:?}", transport.pipe_path);
+            debug!(
+                "Starting named pipe server: {}",
+                transport.pipe_path.display()
+            );
             let pipe_name = utils::path_to_cstring(&transport.pipe_path)?;
             ffi::clear_connection_error()?;
             call_with_temp_environment(env_variables.as_deref(), || {
@@ -447,7 +468,12 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
                     &server_options.thrift_options().0,
                     server_options.log_file.as_deref(),
                 )
-                .with_context(|| format!("Failed to start pipe server: {:?}", transport.pipe_path))
+                .with_context(|| {
+                    format!(
+                        "Failed to start pipe server: {}",
+                        transport.pipe_path.display()
+                    )
+                })
             })
         }
         ThriftTransport::Socket(transport) => {
@@ -458,7 +484,7 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
             ffi::clear_connection_error()?;
             call_with_temp_environment(env_variables.as_deref(), || {
                 ffi::start_thrift_socket_server(
-                    transport.address.port() as i32,
+                    i32::from(transport.address.port()),
                     &server_options.thrift_options().0,
                     server_options.log_file.as_deref(),
                 )
@@ -489,4 +515,119 @@ pub fn start_houdini_server(
             .spawn()
             .map_err(HapiError::from)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{ffi::OsString, net::Ipv4Addr, num::NonZeroU64};
+
+    use crate::ffi::enums::StatusVerbosity;
+
+    #[test]
+    fn license_preference_display_strings() {
+        assert_eq!(
+            LicensePreference::AnyAvailable.to_string(),
+            "--check-licenses=Houdini-Engine,Houdini-Escape,Houdini-Fx"
+        );
+        assert_eq!(
+            LicensePreference::HoudiniEngineOnly.to_string(),
+            "--check-licenses=Houdini-Engine --skip-licenses=Houdini-Escape,Houdini-Fx"
+        );
+        assert_eq!(
+            LicensePreference::HoudiniEngineAndCore.to_string(),
+            "--check-licenses=Houdini-Engine,Houdini-Escape --skip-licenses=Houdini-Fx"
+        );
+    }
+
+    #[test]
+    fn shared_memory_transport_builder_applies_options() {
+        let transport = ThriftSharedMemoryTransportBuilder::default()
+            .with_memory_name("test-memory")
+            .with_buffer_type(ThriftSharedMemoryBufferType::RingBuffer)
+            .with_buffer_size(NonZeroU64::new(512).unwrap())
+            .build();
+
+        assert_eq!(transport.memory_name, "test-memory");
+        assert_eq!(transport.buffer_type, ThriftSharedMemoryBufferType::RingBuffer);
+        assert_eq!(transport.buffer_size, 512);
+    }
+
+    #[test]
+    fn shared_memory_transport_builder_clamps_oversized_buffer() {
+        let transport = ThriftSharedMemoryTransportBuilder::default()
+            .with_buffer_size(NonZeroU64::new(i64::MAX as u64 + 1).unwrap())
+            .build();
+
+        assert_eq!(transport.buffer_size, 1024);
+    }
+
+    #[test]
+    fn server_options_shared_memory_maps_to_session_and_thrift_options() {
+        let transport = ThriftSharedMemoryTransportBuilder::default()
+            .with_buffer_type(ThriftSharedMemoryBufferType::RingBuffer)
+            .with_buffer_size(NonZeroU64::new(256).unwrap())
+            .build();
+        let options = ServerOptions::default()
+            .with_auto_close(false)
+            .with_verbosity(StatusVerbosity::Statusverbosity2)
+            .with_server_ready_timeout(5_000)
+            .with_thrift_transport(ThriftTransport::SharedMemory(transport.clone()));
+
+        let session_info = options.session_info();
+        assert_eq!(
+            session_info.shared_memory_buffer_type(),
+            ThriftSharedMemoryBufferType::RingBuffer
+        );
+        assert_eq!(session_info.shared_memory_buffer_size(), 256);
+
+        let thrift_options = options.thrift_options();
+        assert!(!thrift_options.auto_close());
+        assert_eq!(thrift_options.verbosity(), StatusVerbosity::Statusverbosity2);
+        assert_eq!(
+            thrift_options.shared_memory_buffer_type(),
+            ThriftSharedMemoryBufferType::RingBuffer
+        );
+        assert_eq!(thrift_options.shared_memory_buffer_size(), 256);
+        assert_eq!(thrift_options.timeout_ms(), 5_000.0);
+    }
+
+    #[test]
+    fn server_options_license_preference_sets_plugin_env() {
+        let options =
+            ServerOptions::default().with_license_preference(LicensePreference::HoudiniEngineOnly);
+        let env = options.env_variables.expect("env map");
+        assert_eq!(
+            env.get(&OsString::from("HOUDINI_PLUGIN_LIC_OPT")),
+            Some(&OsString::from(
+                "--check-licenses=Houdini-Engine --skip-licenses=Houdini-Escape,Houdini-Fx"
+            ))
+        );
+    }
+
+    #[test]
+    fn socket_with_defaults_preserves_address() {
+        let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 12_345);
+        let options = ServerOptions::socket_with_defaults(address);
+        let ThriftTransport::Socket(ThriftSocketTransport { address: actual }) =
+            options.thrift_transport
+        else {
+            panic!("expected socket transport");
+        };
+        assert_eq!(actual, address);
+    }
+
+    #[test]
+    fn connect_rejects_mismatched_transport_without_calling_hapi() {
+        let memory_options = ServerOptions::shared_memory_with_defaults();
+        let pipe_options = ServerOptions::pipe_with_defaults();
+        let socket_options =
+            ServerOptions::socket_with_defaults(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 9_999));
+
+        assert!(connect_to_memory_server(pipe_options.clone(), None).is_err());
+        assert!(connect_to_pipe_server(memory_options.clone(), None).is_err());
+        assert!(connect_to_socket_server(memory_options, None).is_err());
+        assert!(connect_to_memory_server(socket_options.clone(), None).is_err());
+        assert!(connect_to_pipe_server(socket_options, None).is_err());
+    }
 }

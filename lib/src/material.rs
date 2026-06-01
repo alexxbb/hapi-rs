@@ -27,6 +27,7 @@ impl Material {
     }
 
     #[inline]
+    #[must_use]
     pub fn has_changed(&self) -> bool {
         self.info.hasChanged > 0
     }
