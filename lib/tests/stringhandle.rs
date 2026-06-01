@@ -24,6 +24,14 @@ fn string_array_api() -> Result<()> {
         );
         let mut owned = array.into_iter();
         assert!(owned.any(|s| s == "TEST=177"));
+        let handle = session.set_custom_string("hapi-rs custom string")?;
+        assert_eq!(session.get_string(handle)?, "hapi-rs custom string");
+        let strings = session.get_string_batch(&[handle])?;
+        assert_eq!(
+            strings.into_iter().collect::<Vec<_>>(),
+            vec!["hapi-rs custom string".to_string()]
+        );
+        session.remove_custom_string(handle)?;
         Ok(())
     })
 }
@@ -46,10 +54,7 @@ fn get_string_batch() -> Result<()> {
 fn set_custom_string() -> Result<()> {
     with_session(|session| {
         let handle = session.set_custom_string("HAPI_RS_CUSTOM_STRING")?;
-        assert_eq!(
-            session.get_string(handle)?,
-            "HAPI_RS_CUSTOM_STRING"
-        );
+        assert_eq!(session.get_string(handle)?, "HAPI_RS_CUSTOM_STRING");
         session.remove_custom_string(handle)?;
         assert!(session.get_string(handle).is_err());
         Ok(())

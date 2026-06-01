@@ -258,7 +258,8 @@ impl Session {
         T::get_value(self, key)
     }
 
-    /// Retrieve all server variables
+    /// Retrieve all server variables as contiguous string array.
+    /// Iterating over the array will yield strings like "TEST=177".
     pub fn get_server_variables(&self) -> Result<StringArray> {
         debug_assert!(self.is_valid());
         debug!("Querying all server variables");
@@ -858,6 +859,7 @@ impl Session {
         crate::ffi::stop_performance_monitor_profile(self, profile_id, &output_file)
     }
 
+    #[cfg(feature = "async-cooking")]
     pub fn get_job_status(&self, job_id: i32) -> Result<JobStatus> {
         crate::ffi::get_job_status(self, job_id)
     }

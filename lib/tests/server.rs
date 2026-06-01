@@ -114,7 +114,7 @@ fn socket_server_starts_and_connects() -> Result<()> {
 #[test]
 fn server_env_variables_visible_in_session() -> Result<()> {
     let server_options = server_options_with_temp_log(
-        ServerOptions::shared_memory_with_defaults()
+        ServerOptions::pipe_with_defaults()
             .with_env_variables([("HAPI_RS_TEST", "hapi_rs_is_awesome")].iter()),
     );
     let session = new_thrift_session(SessionOptions::default(), server_options)?;
