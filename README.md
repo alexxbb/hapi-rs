@@ -61,18 +61,18 @@ Run Rust test coverage with [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-
 
 ```sh
 cargo install cargo-llvm-cov
-cargo xtask test-coverage
+cargo xtask coverage
 ```
 
 For an HTML report:
 
 ```sh
-cargo xtask test-coverage --html
+cargo xtask coverage --html
 ```
 
 To cover only tests matching a name pattern:
 
 ```sh
-cargo xtask test-coverage --test-pattern node_
+cargo xtask coverage --test-pattern node_
 ```
 

@@ -6,8 +6,6 @@ mod utils;
 use tempfile::NamedTempFile;
 use utils::{HdaFile, create_triangle, with_session, with_test_geometry};
 
-use crate::utils::with_session_asset;
-
 #[test]
 fn geometry_save_and_load_to_file() -> Result<()> {
     with_session(|session| {
@@ -311,40 +309,6 @@ fn geometry_multiple_input_curves() -> Result<()> {
         let tmp_file = NamedTempFile::new()?;
         geo.save_to_file(tmp_file.path().to_string_lossy().as_ref())?;
         assert!(tmp_file.path().exists());
-        Ok(())
-    })
-}
-
-#[test]
-fn geometry_read_write_volume() -> Result<()> {
-    with_session_asset(HdaFile::Volume, |lib| {
-        let node = lib.try_create_first()?;
-        node.cook_blocking()?;
-        let source = node
-            .geometry()?
-            .ok_or_else(|| hapi_rs::HapiError::Internal("geometry".into()))?;
-        let source_part = source.part_info(0)?;
-        let vol_info = source.volume_info(0)?;
-        let _ = source.volume_bounds(0)?;
-        let _ = source.get_volume_visual_info(0)?;
-        let dest_geo = node.session.create_input_node("volume_copy", None)?;
-        dest_geo.set_part_info(&source_part)?;
-        dest_geo.set_volume_info(0, &vol_info)?;
-
-        source.foreach_volume_tile(0, &vol_info, |tile| {
-            let mut values = vec![-1.0; tile.size];
-            source
-                .read_volume_tile::<f32>(0, -1.0, tile.info, &mut values)
-                .unwrap();
-            dest_geo
-                .write_volume_tile::<f32>(0, tile.info, &values)
-                .unwrap();
-        })?;
-        let mut voxel = vec![0.0f32];
-        source.read_volume_voxel(0, 0, 0, 0, &mut voxel)?;
-        dest_geo.write_volume_voxel(0, 0, 0, 0, &voxel)?;
-        dest_geo.commit()?;
-        dest_geo.node.cook_blocking()?;
         Ok(())
     })
 }

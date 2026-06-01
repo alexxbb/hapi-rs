@@ -9,22 +9,22 @@ const PACKAGE: &str = "hapi-rs";
 /// Runs Rust test coverage for the hapi-rs library crate using cargo-llvm-cov.
 ///
 /// With no extra flags, `cargo llvm-cov` runs tests and prints a coverage summary to
-/// the terminal. Pass any `cargo llvm-cov` flags after `test-coverage` (or after `--`).
+/// the terminal. Pass any `cargo llvm-cov` flags after `coverage` (or after `--`).
 #[derive(Debug, Parser)]
 #[command(
-    name = "test-coverage",
+    name = "coverage",
     about = "Run tests and report Rust coverage with cargo-llvm-cov",
     long_about = "Runs `cargo llvm-cov` for the hapi-rs package.\n\n\
         By default (no extra flags), tests run and a human-readable coverage summary is \
         printed to the terminal. Pass any `cargo llvm-cov` option to change the report \
         format or forward arguments to the test binary.",
     after_help = "Examples:
-  cargo xtask test-coverage
-  cargo xtask test-coverage --html
-  cargo xtask test-coverage --json --summary-only
-  cargo xtask test-coverage --open
-  cargo xtask test-coverage test node_
-  cargo xtask test-coverage -- --test-threads 1"
+  cargo xtask coverage
+  cargo xtask coverage --html
+  cargo xtask coverage --json --summary-only
+  cargo xtask coverage --open
+  cargo xtask coverage test node_
+  cargo xtask coverage -- --test-threads 1"
 )]
 struct Cli {
     /// Arguments forwarded to `cargo llvm-cov` (report format, filters, test args after `--`, etc.).
@@ -37,7 +37,7 @@ struct Cli {
 }
 
 pub fn run(workspace_root: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
-    let mut argv = vec!["test-coverage".to_string()];
+    let mut argv = vec!["coverage".to_string()];
     argv.extend(args.iter().cloned());
 
     let cli = match Cli::try_parse_from(argv) {

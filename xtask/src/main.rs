@@ -17,8 +17,8 @@ fn main() {
     let workspace_root = workspace_root();
     let exit_code = match command.as_str() {
         "bindgen" => run_command(hapi_bindgen::run(&workspace_root, &extra_args)),
-        "ffi-coverage" => run_command(ffi_coverage::run(&workspace_root, &extra_args)),
-        "test-coverage" => run_command(test_coverage::run(&workspace_root, &extra_args)),
+        "bindings-coverage" => run_command(ffi_coverage::run(&workspace_root, &extra_args)),
+        "coverage" => run_command(test_coverage::run(&workspace_root, &extra_args)),
         "-h" | "--help" | "help" => {
             print_usage_and_exit(0);
         }
@@ -60,17 +60,17 @@ fn print_usage_and_exit(code: i32) -> ! {
 
 Commands:
   bindgen        Generate lib/src/ffi/bindings.rs
-  ffi-coverage   Report wrapped vs raw HAPI coverage
-  test-coverage  Run tests and report Rust coverage (cargo llvm-cov)
+  bindings-coverage  Report wrapped vs raw HAPI coverage
+  coverage           Run tests and report Rust coverage (cargo llvm-cov)
 
 Examples:
   cargo xtask bindgen
   cargo xtask bindgen -- --outdir /tmp
-  cargo xtask ffi-coverage
-  cargo xtask test-coverage
-  cargo xtask test-coverage --html
-  cargo xtask test-coverage --help
-  cargo xtask test-coverage -- --json --summary-only"
+  cargo xtask bindings-coverage
+  cargo xtask coverage
+  cargo xtask coverage --html
+  cargo xtask coverage --help
+  cargo xtask coverage -- --json --summary-only"
     );
     process::exit(code);
 }
