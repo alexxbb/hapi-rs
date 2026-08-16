@@ -1,9 +1,12 @@
 use hapi_rs::Result;
+use hapi_rs::cop::{CopImageDescription, ImagePacking};
+use hapi_rs::geometry::CameraInfo;
 use hapi_rs::raw::CacheProperty;
 use hapi_rs::server::ServerOptions;
 use hapi_rs::session::{
-    CookOptions, CookResult, ManagerType, SessionOptions, SessionSyncInfo, TimelineOptions,
-    Viewport, new_in_process_session, new_thrift_session,
+    CameraProjectionType, CookOptions, CookResult, ManagerType, RSTOrder, SessionOptions,
+    SessionSyncInfo, TimelineOptions, Transform, Viewport, XYZOrder, new_in_process_session,
+    new_thrift_session,
 };
 use pretty_assertions::assert_eq;
 
@@ -207,6 +210,100 @@ fn session_node_builder_and_lookup_helpers() -> Result<()> {
         );
 
         session.delete_node(node)?;
+        Ok(())
+    })
+}
+
+#[test]
+fn camera_info_builder_roundtrip() -> Result<()> {
+    let info = CameraInfo::default()
+        .with_focal(35.5)
+        .with_aperture(41.4214)
+        .with_pixel_aspect(1.25)
+        .with_focus_distance(7.0)
+        .with_f_stop(2.8)
+        .with_imaging_distance(1.5)
+        .with_res_x(1920)
+        .with_res_y(1080)
+        .with_crop_x([0.1, 0.9])
+        .with_crop_y([0.2, 0.8])
+        .with_win_x([-1.0, 1.0])
+        .with_win_y([-1.0, 1.0])
+        .with_clip_near(0.1)
+        .with_clip_far(1000.0)
+        .with_shutter_open(0.0)
+        .with_shutter_close(0.5)
+        .with_ortho_zoom(2.5)
+        .with_guide_scale(0.75)
+        .with_projection(CameraProjectionType::Ortho);
+    assert_eq!(info.focal(), 35.5);
+    assert_eq!(info.aperture(), 41.4214);
+    assert_eq!(info.pixel_aspect(), 1.25);
+    assert_eq!(info.focus_distance(), 7.0);
+    assert_eq!(info.f_stop(), 2.8);
+    assert_eq!(info.imaging_distance(), 1.5);
+    assert_eq!(info.res_x(), 1920);
+    assert_eq!(info.res_y(), 1080);
+    assert_eq!(info.crop_x(), [0.1, 0.9]);
+    assert_eq!(info.crop_y(), [0.2, 0.8]);
+    assert_eq!(info.win_x(), [-1.0, 1.0]);
+    assert_eq!(info.win_y(), [-1.0, 1.0]);
+    assert_eq!(info.clip_near(), 0.1);
+    assert_eq!(info.clip_far(), 1000.0);
+    assert_eq!(info.shutter_open(), 0.0);
+    assert_eq!(info.shutter_close(), 0.5);
+    assert_eq!(info.ortho_zoom(), 2.5);
+    assert_eq!(info.guide_scale(), 0.75);
+    assert_eq!(info.projection(), CameraProjectionType::Ortho);
+    Ok(())
+}
+
+#[test]
+fn session_input_camera_node_lifecycle() -> Result<()> {
+    with_session(|session| {
+        let node = session.create_input_camera_node("input_cam", "input cam label", None)?;
+        assert!(node.is_valid(&session)?);
+
+        let info = CameraInfo::default()
+            .with_focal(50.0)
+            .with_aperture(41.4214)
+            .with_res_x(1280)
+            .with_res_y(720)
+            .with_clip_near(0.5)
+            .with_clip_far(500.0)
+            .with_projection(CameraProjectionType::Perspective);
+        session.set_input_camera_info(node, &info)?;
+
+        let transform = Transform::default()
+            .with_position([1.0, 2.0, 3.0])
+            .with_rotation([0.0, 0.0, 0.0, 1.0])
+            .with_scale([1.0, 1.0, 1.0])
+            .with_shear([0.0, 0.0, 0.0]);
+        session.set_input_camera_transform(node, RSTOrder::Default, XYZOrder::Default, &transform)?;
+
+        node.to_node(&session)?.cook_blocking()?;
+        Ok(())
+    })
+}
+
+#[test]
+fn session_create_cop_image_returns_node_handle() -> Result<()> {
+    with_session(|session| {
+        let width = 2u32;
+        let height = 2u32;
+        let pixels = vec![1.0f32; (width * height * 4) as usize];
+        let node = session.create_cop_image(
+            CopImageDescription {
+                width,
+                height,
+                flip_x: false,
+                flip_y: false,
+                packing: ImagePacking::Rgba,
+                image_data: &pixels,
+            },
+            None,
+        )?;
+        assert!(node.is_valid(&session)?);
         Ok(())
     })
 }

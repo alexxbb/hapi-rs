@@ -576,3 +576,19 @@ fn geometry_extension_helpers_create_attributes() -> Result<()> {
         geo.node.delete()
     })
 }
+
+#[test]
+fn geometry_camera_part_type_and_accessors() -> Result<()> {
+    // Smoke check that the new `PartType::Camera` variant and `Geometry::camera_*`
+    // accessors compile and return an error when there is no camera part.
+    with_session(|session| {
+        let geo = utils::create_single_point_geo(&session)?;
+        let part = geo.part_info(0)?;
+        assert_ne!(part.part_type(), PartType::Camera);
+        // Calling camera_info on a non-camera part should return an FFI error rather than
+        // silently succeeding.
+        assert!(geo.camera_info(0).is_err());
+        assert!(geo.camera_transform(0).is_err());
+        Ok(())
+    })
+}
