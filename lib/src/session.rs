@@ -40,7 +40,7 @@ pub type SessionState = State;
 pub type LicenseType = raw::License;
 
 use crate::cop::CopImageDescription;
-use crate::ffi::ImageInfo;
+use crate::ffi::{CameraInfo, ImageInfo};
 use crate::stringhandle::StringHandle;
 use crate::{ffi::raw, utils};
 
@@ -714,13 +714,40 @@ impl Session {
         crate::material::extract_image_to_file(self, cop_node, image_planes, out_image)
     }
 
-    /// Loads some raw image data into a COP node.
-    /// TODO: Figure out which node the data is actually ends up in as the API doesn't say.
+    /// Create a new input camera node with the given name/label.
+    pub fn create_input_camera_node(
+        &self,
+        name: &str,
+        label: &str,
+        parent_node: Option<NodeHandle>,
+    ) -> Result<NodeHandle> {
+        let name = CString::new(name)?;
+        let label = CString::new(label)?;
+        crate::ffi::create_input_camera_node(self, parent_node, &name, &label)
+    }
+
+    /// Set the camera parameters on an input camera node.
+    pub fn set_input_camera_info(&self, node: NodeHandle, info: &CameraInfo) -> Result<()> {
+        crate::ffi::set_input_camera_info(node, self, &info.0)
+    }
+
+    /// Set the transform on an input camera node.
+    pub fn set_input_camera_transform(
+        &self,
+        node: NodeHandle,
+        rst_order: RSTOrder,
+        rot_order: XYZOrder,
+        transform: &Transform,
+    ) -> Result<()> {
+        crate::ffi::set_input_camera_transform(node, self, rst_order, rot_order, &transform.0)
+    }
+
+    /// Loads some raw image data into a COP node, returning the handle of the created node.
     pub fn create_cop_image(
         &self,
         description: CopImageDescription,
         parent_node: Option<NodeHandle>,
-    ) -> Result<()> {
+    ) -> Result<NodeHandle> {
         crate::ffi::create_cop_image(
             self,
             parent_node,

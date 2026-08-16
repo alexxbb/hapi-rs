@@ -2233,6 +2233,76 @@ pub fn get_sphere_info(
     Ok(info)
 }
 
+pub fn get_camera_info(
+    node: NodeHandle,
+    session: &Session,
+    part_id: i32,
+) -> Result<raw::HAPI_CameraInfo> {
+    unsafe {
+        let mut info = raw::HAPI_CameraInfo_Create();
+        raw::HAPI_GetCameraInfo(session.ptr(), node.0, part_id, &raw mut info)
+            .check_err(session, || "Calling HAPI_GetCameraInfo")?;
+        Ok(info)
+    }
+}
+
+pub fn get_camera_transform(
+    node: NodeHandle,
+    session: &Session,
+    part_id: i32,
+) -> Result<raw::HAPI_Transform> {
+    unsafe {
+        let mut transform = raw::HAPI_Transform_Create();
+        raw::HAPI_GetCameraTransform(session.ptr(), node.0, part_id, &raw mut transform)
+            .check_err(session, || "Calling HAPI_GetCameraTransform")?;
+        Ok(transform)
+    }
+}
+
+pub fn create_input_camera_node(
+    session: &Session,
+    parent: Option<NodeHandle>,
+    name: &CStr,
+    label: &CStr,
+) -> Result<NodeHandle> {
+    unsafe {
+        let mut new_node_id: raw::HAPI_NodeId = -1;
+        raw::HAPI_CreateInputCameraNode(
+            session.ptr(),
+            parent.map_or(-1, |h| h.0),
+            &raw mut new_node_id,
+            name.as_ptr(),
+            label.as_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_CreateInputCameraNode")?;
+        Ok(NodeHandle(new_node_id))
+    }
+}
+
+pub fn set_input_camera_info(
+    node: NodeHandle,
+    session: &Session,
+    info: &raw::HAPI_CameraInfo,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetInputCameraInfo(session.ptr(), node.0, info)
+            .check_err(session, || "Calling HAPI_SetInputCameraInfo")
+    }
+}
+
+pub fn set_input_camera_transform(
+    node: NodeHandle,
+    session: &Session,
+    rst_order: raw::RSTOrder,
+    rot_order: raw::XYZOrder,
+    transform: &raw::HAPI_Transform,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetInputCameraTransform(session.ptr(), node.0, rst_order, rot_order, transform)
+            .check_err(session, || "Calling HAPI_SetInputCameraTransform")
+    }
+}
+
 pub fn get_attribute_names(
     node: &HoudiniNode,
     part_id: i32,
@@ -3152,8 +3222,9 @@ pub fn create_cop_image(
     flip_x: bool,
     flip_y: bool,
     image_data: &[f32],
-) -> Result<()> {
+) -> Result<NodeHandle> {
     unsafe {
+        let mut new_node_id: raw::HAPI_NodeId = -1;
         raw::HAPI_CreateCOPImage(
             session.ptr(),
             parent_node.map_or(-1, |h| h.0),
@@ -3165,8 +3236,10 @@ pub fn create_cop_image(
             image_data.as_ptr(),
             0,
             i32::try_from(image_data.len()).unwrap(),
+            &raw mut new_node_id,
         )
-        .check_err(session, || "Calling HAPI_CreateCOPImage")
+        .check_err(session, || "Calling HAPI_CreateCOPImage")?;
+        Ok(NodeHandle(new_node_id))
     }
 }
 
@@ -3393,16 +3466,16 @@ pub fn get_workitem_info(
     session: &Session,
     graph_context_id: i32,
     workitem_id: i32,
-) -> Result<raw::HAPI_PDG_WorkitemInfo> {
+) -> Result<raw::HAPI_PDG_WorkItemInfo> {
     unsafe {
         let mut info = uninit!();
-        raw::HAPI_GetWorkitemInfo(
+        raw::HAPI_GetWorkItemInfo(
             session.ptr(),
             graph_context_id,
             workitem_id,
             info.as_mut_ptr(),
         )
-        .check_err(session, || "Calling HAPI_GetWorkitemInfo")?;
+        .check_err(session, || "Calling HAPI_GetWorkItemInfo")?;
         Ok(info.assume_init())
     }
 }
@@ -3412,7 +3485,7 @@ pub fn get_workitem_result(
     pdg_node: NodeHandle,
     workitem_id: i32,
     count: i32,
-) -> Result<Vec<raw::HAPI_PDG_WorkitemResultInfo>> {
+) -> Result<Vec<raw::HAPI_PDG_WorkItemOutputFile>> {
     let mut infos =
         Vec::<MaybeUninit<raw::HAPI_PDG_WorkItemOutputFile>>::with_capacity(count as usize);
     unsafe {
@@ -3435,14 +3508,14 @@ pub fn get_pdg_workitems(session: &Session, pdg_node: NodeHandle) -> Result<Vec<
     unsafe {
         let _lock = session.lock();
         let mut num = -1;
-        raw::HAPI_GetNumWorkitems(session.ptr(), pdg_node.0, &raw mut num)
-            .check_err(session, || "Calling HAPI_GetNumWorkitems")?;
+        raw::HAPI_GetNumWorkItems(session.ptr(), pdg_node.0, &raw mut num)
+            .check_err(session, || "Calling HAPI_GetNumWorkItems")?;
         if num <= 0 {
             return Ok(vec![]);
         }
         let mut array = vec![-1; num as usize];
-        raw::HAPI_GetWorkitems(session.ptr(), pdg_node.0, array.as_mut_ptr(), num)
-            .check_err(session, || "Calling HAPI_GetWorkitems")?;
+        raw::HAPI_GetWorkItems(session.ptr(), pdg_node.0, array.as_mut_ptr(), num)
+            .check_err(session, || "Calling HAPI_GetWorkItems")?;
         Ok(array)
     }
 }
@@ -3474,37 +3547,7 @@ pub fn commit_pdg_workitems(session: &Session, node: NodeHandle) -> Result<()> {
     }
 }
 
-pub fn get_workitem_data_length(
-    session: &Session,
-    node: NodeHandle,
-    workitem_id: i32,
-    data_name: &CStr,
-) -> Result<i32> {
-    unsafe {
-        let mut length = uninit!();
-        raw::HAPI_GetWorkitemDataLength(
-            session.ptr(),
-            node.0,
-            workitem_id,
-            data_name.as_ptr(),
-            length.as_mut_ptr(),
-        )
-        .check_err(session, || "Calling HAPI_GetWorkitemDataLength")?;
-        Ok(length.assume_init())
-    }
-}
-
-#[duplicate_item(
-[
-_rust_fn [get_workitem_attribute_size]
-_ffi_fn [HAPI_GetWorkItemAttributeSize]
-]
-[
-_rust_fn [get_workitem_data_size]
-_ffi_fn [HAPI_GetWorkitemDataLength]
-]
-)]
-pub fn _rust_fn(
+pub fn get_workitem_attribute_size(
     session: &Session,
     node: NodeHandle,
     workitem_id: i32,
@@ -3512,7 +3555,7 @@ pub fn _rust_fn(
 ) -> Result<i32> {
     unsafe {
         let mut size = uninit!();
-        raw::_ffi_fn(
+        raw::HAPI_GetWorkItemAttributeSize(
             session.ptr(),
             node.0,
             workitem_id,
@@ -3527,18 +3570,8 @@ pub fn _rust_fn(
 #[duplicate_item(
 [
 _type [i32]
-_rust_fn [set_workitem_int_data]
-_ffi_fn [HAPI_SetWorkitemIntData]
-]
-[
-_type [i32]
 _rust_fn [set_workitem_int_attribute]
 _ffi_fn [HAPI_SetWorkItemIntAttribute]
-]
-[
-_type [f32]
-_rust_fn [set_workitem_float_data]
-_ffi_fn [HAPI_SetWorkitemFloatData]
 ]
 [
 _type [f32]
@@ -3569,18 +3602,8 @@ pub fn _rust_fn(
 #[duplicate_item(
 [
 _type [i32]
-_rust_fn [get_workitem_int_data]
-_ffi_fn [HAPI_GetWorkitemIntData]
-]
-[
-_type [i32]
 _rust_fn [get_workitem_int_attribute]
 _ffi_fn [HAPI_GetWorkItemIntAttribute]
-]
-[
-_type [f32]
-_rust_fn [get_workitem_float_data]
-_ffi_fn [HAPI_GetWorkitemFloatData]
 ]
 [
 _type [f32]
@@ -3608,17 +3631,7 @@ pub fn _rust_fn(
     }
 }
 
-#[duplicate_item(
-[
-_rust_fn [set_workitem_string_attribute]
-_ffi_fn [HAPI_SetWorkItemStringAttribute]
-]
-[
-_rust_fn [set_workitem_string_data]
-_ffi_fn [HAPI_SetWorkitemStringData]
-]
-)]
-pub fn _rust_fn(
+pub fn set_workitem_string_attribute(
     session: &Session,
     node: NodeHandle,
     workitem_id: i32,
@@ -3627,7 +3640,7 @@ pub fn _rust_fn(
     data: &CStr,
 ) -> Result<()> {
     unsafe {
-        raw::_ffi_fn(
+        raw::HAPI_SetWorkItemStringAttribute(
             session.ptr(),
             node.0,
             workitem_id,
@@ -3635,32 +3648,20 @@ pub fn _rust_fn(
             data_index,
             data.as_ptr(),
         )
-        .check_err(session, || stringify!(Calling _ffi_fn))
+        .check_err(session, || "Calling HAPI_SetWorkItemStringAttribute")
     }
 }
 
-#[duplicate_item(
-[
-_rust_fn [get_workitem_string_attribute]
-_ffi_fn [HAPI_GetWorkItemStringAttribute]
-_size_fn [get_workitem_attribute_size]
-]
-[
-_rust_fn [get_workitem_string_data]
-_ffi_fn [HAPI_GetWorkitemStringData]
-_size_fn [get_workitem_data_size]
-]
-)]
-pub fn _rust_fn(
+pub fn get_workitem_string_attribute(
     session: &Session,
     node: NodeHandle,
     workitem_id: i32,
     data_name: &CStr,
 ) -> Result<()> {
     unsafe {
-        let length = _size_fn(session, node, workitem_id, data_name)?;
+        let length = get_workitem_attribute_size(session, node, workitem_id, data_name)?;
         let mut handles = vec![0; length as usize];
-        raw::_ffi_fn(
+        raw::HAPI_GetWorkItemStringAttribute(
             session.ptr(),
             node.0,
             workitem_id,
@@ -3668,7 +3669,7 @@ pub fn _rust_fn(
             handles.as_mut_ptr(),
             length,
         )
-        .check_err(session, || stringify!(Calling _ffi_fn))
+        .check_err(session, || "Calling HAPI_GetWorkItemStringAttribute")
     }
 }
 

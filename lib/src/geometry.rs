@@ -8,8 +8,8 @@ use crate::attribute::{
 };
 use crate::errors::Result;
 pub use crate::ffi::{
-    AttributeInfo, BoxInfo, CookOptions, CurveInfo, GeoInfo, InputCurveInfo, PartInfo, SphereInfo,
-    Transform, VolumeInfo, VolumeTileInfo, VolumeVisualInfo, enums::*,
+    AttributeInfo, BoxInfo, CameraInfo, CookOptions, CurveInfo, GeoInfo, InputCurveInfo, PartInfo,
+    SphereInfo, Transform, VolumeInfo, VolumeTileInfo, VolumeVisualInfo, enums::*,
 };
 use crate::material::Material;
 use crate::node::{HoudiniNode, NodeHandle};
@@ -165,6 +165,17 @@ impl Geometry {
     pub fn sphere_info(&self, part_id: i32) -> Result<SphereInfo> {
         self.assert_node_cooked()?;
         crate::ffi::get_sphere_info(self.node.handle, &self.node.session, part_id).map(SphereInfo)
+    }
+
+    pub fn camera_info(&self, part_id: i32) -> Result<CameraInfo> {
+        self.assert_node_cooked()?;
+        crate::ffi::get_camera_info(self.node.handle, &self.node.session, part_id).map(CameraInfo)
+    }
+
+    pub fn camera_transform(&self, part_id: i32) -> Result<Transform> {
+        self.assert_node_cooked()?;
+        crate::ffi::get_camera_transform(self.node.handle, &self.node.session, part_id)
+            .map(Transform)
     }
 
     pub fn set_curve_info(&self, part_id: i32, info: &CurveInfo) -> Result<()> {

@@ -1,21 +1,21 @@
 #![allow(clippy::similar_names)]
 use super::raw::{
-    AttributeOwner, AttributeTypeInfo, ChoiceListType, CurveType, GeoType, HAPI_AssetInfo,
-    HAPI_AttributeInfo, HAPI_AttributeInfo_Create, HAPI_BoxInfo, HAPI_CompositorOptions,
-    HAPI_CompositorOptions_Create, HAPI_CookOptions, HAPI_CookOptions_Create, HAPI_CurveInfo,
-    HAPI_CurveInfo_Create, HAPI_GeoInfo, HAPI_ImageFileFormat, HAPI_ImageInfo,
-    HAPI_ImageInfo_Create, HAPI_InputCurveInfo, HAPI_InputCurveInfo_Create, HAPI_NodeInfo,
-    HAPI_ObjectInfo, HAPI_PDG_EventInfo, HAPI_PDG_WorkItemInfo, HAPI_PDG_WorkItemOutputFile,
-    HAPI_ParmChoiceInfo, HAPI_ParmInfo, HAPI_PartInfo, HAPI_PartInfo_Create, HAPI_SessionInfo,
-    HAPI_SessionInfo_Create, HAPI_SessionSyncInfo, HAPI_SessionSyncInfo_Create, HAPI_SphereInfo,
-    HAPI_ThriftServerOptions, HAPI_ThriftServerOptions_Create, HAPI_TimelineOptions,
-    HAPI_TimelineOptions_Create, HAPI_Transform, HAPI_Transform_Create, HAPI_TransformEuler,
-    HAPI_TransformEuler_Create, HAPI_Viewport, HAPI_Viewport_Create, HAPI_VolumeInfo,
-    HAPI_VolumeTileInfo, HAPI_VolumeVisualInfo, ImageDataFormat, ImagePacking, InputCurveMethod,
-    InputCurveParameterization, NodeFlags, NodeType, PackedPrimInstancingMode, ParmType, PartType,
-    PdgEventType, PdgWorkItemState, Permissions, PrmScriptType, RSTOrder, RampType,
-    StatusVerbosity, StorageType, TcpPortType, ThriftSharedMemoryBufferType, VolumeType,
-    VolumeVisualType, XYZOrder,
+    AttributeOwner, AttributeTypeInfo, CameraProjectionType, ChoiceListType, CurveType, GeoType,
+    HAPI_AssetInfo, HAPI_AttributeInfo, HAPI_AttributeInfo_Create, HAPI_BoxInfo, HAPI_CameraInfo,
+    HAPI_CameraInfo_Create, HAPI_CompositorOptions, HAPI_CompositorOptions_Create, HAPI_CookOptions,
+    HAPI_CookOptions_Create, HAPI_CurveInfo, HAPI_CurveInfo_Create, HAPI_GeoInfo,
+    HAPI_ImageFileFormat, HAPI_ImageInfo, HAPI_ImageInfo_Create, HAPI_InputCurveInfo,
+    HAPI_InputCurveInfo_Create, HAPI_NodeInfo, HAPI_ObjectInfo, HAPI_PDG_EventInfo,
+    HAPI_PDG_WorkItemInfo, HAPI_PDG_WorkItemOutputFile, HAPI_ParmChoiceInfo, HAPI_ParmInfo,
+    HAPI_PartInfo, HAPI_PartInfo_Create, HAPI_SessionInfo, HAPI_SessionInfo_Create,
+    HAPI_SessionSyncInfo, HAPI_SessionSyncInfo_Create, HAPI_SphereInfo, HAPI_ThriftServerOptions,
+    HAPI_ThriftServerOptions_Create, HAPI_TimelineOptions, HAPI_TimelineOptions_Create,
+    HAPI_Transform, HAPI_Transform_Create, HAPI_TransformEuler, HAPI_TransformEuler_Create,
+    HAPI_Viewport, HAPI_Viewport_Create, HAPI_VolumeInfo, HAPI_VolumeTileInfo, HAPI_VolumeVisualInfo,
+    ImageDataFormat, ImagePacking, InputCurveMethod, InputCurveParameterization, NodeFlags,
+    NodeType, PackedPrimInstancingMode, ParmType, PartType, PdgEventType, PdgWorkItemState,
+    Permissions, PrmScriptType, RSTOrder, RampType, StatusVerbosity, StorageType, TcpPortType,
+    ThriftSharedMemoryBufferType, VolumeType, VolumeVisualType, XYZOrder,
 };
 use crate::{
     errors::Result,
@@ -663,6 +663,32 @@ wrap!(
     Default SphereInfo [create_sphere_info => HAPI_SphereInfo];
     [get|set|with] center->center->[[f32;3]];
     [get|set|with] radius->radius->[f32];
+);
+
+#[derive(Debug, Clone)]
+pub struct CameraInfo(pub(crate) HAPI_CameraInfo);
+
+wrap!(
+    Default CameraInfo [HAPI_CameraInfo_Create => HAPI_CameraInfo];
+    [get|set|with] focal->focal->[f64];
+    [get|set|with] aperture->aperture->[f64];
+    [get|set|with] pixel_aspect->pixelAspect->[f64];
+    [get|set|with] focus_distance->focusDistance->[f64];
+    [get|set|with] f_stop->fStop->[f64];
+    [get|set|with] imaging_distance->imagingDistance->[f64];
+    [get|set|with] res_x->resX->[i64];
+    [get|set|with] res_y->resY->[i64];
+    [get|set|with] crop_x->cropX->[[f64;2]];
+    [get|set|with] crop_y->cropY->[[f64;2]];
+    [get|set|with] win_x->winX->[[f64;2]];
+    [get|set|with] win_y->winY->[[f64;2]];
+    [get|set|with] clip_near->clipNear->[f64];
+    [get|set|with] clip_far->clipFar->[f64];
+    [get|set|with] shutter_open->shutterOpen->[f64];
+    [get|set|with] shutter_close->shutterClose->[f64];
+    [get|set|with] ortho_zoom->orthoZoom->[f64];
+    [get|set|with] guide_scale->guideScale->[f64];
+    [get|set|with] projection->projection->[CameraProjectionType];
 );
 
 #[repr(C)]
