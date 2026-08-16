@@ -343,37 +343,38 @@ fn geometry_attribute_wrappers_for_storage_variants() -> Result<()> {
                 .with_total_array_elements(1)
         };
 
-        geo.add_numeric_attribute::<i64>("i64_attr", 0, scalar_info(StorageType::Int64))?;
-        geo.add_numeric_attribute::<f64>("f64_attr", 0, scalar_info(StorageType::Float64))?;
-        geo.add_numeric_attribute::<u8>("u8_attr", 0, scalar_info(StorageType::Uint8))?;
-        geo.add_numeric_attribute::<i8>("i8_attr", 0, scalar_info(StorageType::Int8))?;
-        geo.add_numeric_attribute::<i16>("i16_attr", 0, scalar_info(StorageType::Int16))?;
-        geo.add_numeric_array_attribute::<i64>(
-            "i64_array",
-            0,
-            array_info(StorageType::Int64Array),
-        )?;
+        geo.add_numeric_attribute::<i64>("i64_attr", 0, scalar_info(StorageType::Int64))?
+            .set(0, &[1])?;
+        geo.add_numeric_attribute::<f64>("f64_attr", 0, scalar_info(StorageType::Float64))?
+            .set(0, &[1.0])?;
+        geo.add_numeric_attribute::<u8>("u8_attr", 0, scalar_info(StorageType::Uint8))?
+            .set(0, &[1])?;
+        geo.add_numeric_attribute::<i8>("i8_attr", 0, scalar_info(StorageType::Int8))?
+            .set(0, &[1])?;
+        geo.add_numeric_attribute::<i16>("i16_attr", 0, scalar_info(StorageType::Int16))?
+            .set(0, &[1])?;
+        geo.add_numeric_array_attribute::<i64>("i64_array", 0, array_info(StorageType::Int64Array))?
+            .set(0, &DataArray::new(&[1i64], &[1]))?;
         geo.add_numeric_array_attribute::<f64>(
             "f64_array",
             0,
             array_info(StorageType::Float64Array),
-        )?;
-        geo.add_numeric_array_attribute::<u8>("u8_array", 0, array_info(StorageType::Uint8Array))?;
-        geo.add_numeric_array_attribute::<i8>("i8_array", 0, array_info(StorageType::Int8Array))?;
-        geo.add_numeric_array_attribute::<i16>(
-            "i16_array",
-            0,
-            array_info(StorageType::Int16Array),
-        )?;
-        let dict_attr =
-            geo.add_dictionary_attribute("dict_attr", 0, scalar_info(StorageType::Dictionary))?;
-        dict_attr.set(0, &[c"FOO=123"])?;
-        let dict_array_attr = geo.add_dictionary_array_attribute(
+        )?
+        .set(0, &DataArray::new(&[1.0f64], &[1]))?;
+        geo.add_numeric_array_attribute::<u8>("u8_array", 0, array_info(StorageType::Uint8Array))?
+            .set(0, &DataArray::new(&[1u8], &[1]))?;
+        geo.add_numeric_array_attribute::<i8>("i8_array", 0, array_info(StorageType::Int8Array))?
+            .set(0, &DataArray::new(&[1i8], &[1]))?;
+        geo.add_numeric_array_attribute::<i16>("i16_array", 0, array_info(StorageType::Int16Array))?
+            .set(0, &DataArray::new(&[1i16], &[1]))?;
+        geo.add_dictionary_attribute("dict_attr", 0, scalar_info(StorageType::Dictionary))?
+            .set(0, &[c"FOO=123"])?;
+        geo.add_dictionary_array_attribute(
             "dict_array",
             0,
             array_info(StorageType::DictionaryArray),
-        )?;
-        dict_array_attr.set(0, &[c"FOO=123"], &[1])?;
+        )?
+        .set(0, &[c"FOO=123"], &[1])?;
         geo.commit()?;
         geo.node.cook_blocking()?;
 
