@@ -26,7 +26,7 @@ pub use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::{
-        CompositorOptions, CookOptions, ImageFileFormat, SessionInfo, SessionSyncInfo,
+        CompositorOptions, CookOptions, ImageFileFormat, ImageInfo, SessionInfo, SessionSyncInfo,
         ThriftServerOptions, TimelineOptions, Viewport, enums::*,
     },
     node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType, Transform},
@@ -40,7 +40,7 @@ pub type SessionState = State;
 pub type LicenseType = raw::License;
 
 use crate::cop::CopImageDescription;
-use crate::ffi::{CameraInfo, ImageInfo};
+use crate::ffi::CameraInfo;
 use crate::stringhandle::StringHandle;
 use crate::{ffi::raw, utils};
 

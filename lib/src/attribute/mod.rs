@@ -24,7 +24,7 @@ mod array;
 mod async_;
 mod bindings;
 
-use crate::errors::{ErrorContext, Result};
+use crate::errors::Result;
 pub use crate::ffi::AttributeInfo;
 pub use crate::ffi::enums::StorageType;
 use crate::node::HoudiniNode;
