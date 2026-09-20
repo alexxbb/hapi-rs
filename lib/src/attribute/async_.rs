@@ -1,7 +1,6 @@
 use super::*;
 use crate::errors::ErrorContext;
 use crate::session::{JobStatus, Session};
-use crate::stringhandle::StringHandle;
 use std::any::Any;
 
 type Finish<R> = Box<dyn FnOnce(Box<dyn Any + Send>) -> Result<R> + Send>;
@@ -95,9 +94,9 @@ impl<R> Drop for AsyncJob<R> {
 
 /// Feature-gated asynchronous whole-attribute reads and writes.
 ///
-/// This extension trait is implemented for numeric, string, and dictionary
-/// handles of both shapes. Enable the `async-cooking` feature and import the
-/// trait to make its methods available.
+/// This extension trait is implemented for numeric handles of both shapes.
+/// String-handle reads remain synchronous so their HAPI handles can be
+/// resolved immediately and safely.
 pub trait AsyncAttributeAccess {
     /// Value returned after a read job completes.
     type Output;
@@ -108,6 +107,17 @@ pub trait AsyncAttributeAccess {
     /// Starts a write of the complete attribute.
     ///
     /// Input lengths are validated before HAPI is called.
+    fn set_async(&self, values: &Self::Input) -> Result<AsyncJob<()>>;
+}
+
+/// Feature-gated asynchronous whole-attribute writes for strings and dictionaries.
+///
+/// The job owns every `CString` and pointer array used by HAPI until it is
+/// completed or its backing allocation is deliberately leaked on early drop.
+pub trait AsyncStringAttributeWrite {
+    /// Borrowed value accepted when starting a write job.
+    type Input: ?Sized;
+    /// Starts a write of the complete attribute.
     fn set_async(&self, values: &Self::Input) -> Result<AsyncJob<()>>;
 }
 
@@ -297,7 +307,6 @@ struct FixedStrings {
     info: AttributeInfo,
     values: Vec<CString>,
     ptrs: Vec<*const i8>,
-    handles: Vec<StringHandle>,
 }
 unsafe impl Send for FixedStrings {}
 struct JaggedStrings {
@@ -305,39 +314,14 @@ struct JaggedStrings {
     info: AttributeInfo,
     values: Vec<CString>,
     ptrs: Vec<*const i8>,
-    handles: Vec<StringHandle>,
     sizes: Vec<i32>,
 }
 unsafe impl Send for JaggedStrings {}
 
 macro_rules! async_string_access {
-    ($type:ident, $storage:expr, $dict:expr) => {
-        impl AsyncAttributeAccess for $type<Fixed> {
-            type Output = StringArray;
+    ($type:ident, $dict:expr) => {
+        impl AsyncStringAttributeWrite for $type<Fixed> {
             type Input = [CString];
-            fn get_async(&self) -> Result<AsyncJob<Self::Output>> {
-                let info = self.handle.info.clone();
-                let handles = vec![StringHandle(0); Handle::expected_fixed_len(&info)?];
-                let mut backing = Box::new(FixedStrings {
-                    handle: self.handle.clone(),
-                    info,
-                    values: vec![],
-                    ptrs: vec![],
-                    handles,
-                });
-                let job = crate::ffi::get_string_attribute_data_async(
-                    &backing.handle.node,
-                    backing.handle.part_id,
-                    &backing.handle.name,
-                    &mut backing.info.0,
-                    &mut backing.handles,
-                    $dict,
-                )?;
-                let session = backing.handle.node.session.clone();
-                Ok(AsyncJob::new(job, session.clone(), *backing, move |b| {
-                    crate::stringhandle::get_string_array(&b.handles, &session)
-                }))
-            }
             fn set_async(&self, values: &[CString]) -> Result<AsyncJob<()>> {
                 let info = self.handle.info.clone();
                 if values.len() != Handle::expected_fixed_len(&info)? {
@@ -348,7 +332,6 @@ macro_rules! async_string_access {
                     info,
                     values: values.to_vec(),
                     ptrs: vec![],
-                    handles: vec![],
                 });
                 backing.ptrs = backing.values.iter().map(|v| v.as_ptr()).collect();
                 let job = crate::ffi::set_string_attribute_data_async(
@@ -369,50 +352,13 @@ macro_rules! async_string_access {
         }
     };
 }
-async_string_access!(StringAttribute, StorageType::String, false);
-async_string_access!(DictionaryAttribute, StorageType::Dictionary, true);
+async_string_access!(StringAttribute, false);
+async_string_access!(DictionaryAttribute, true);
 
 macro_rules! async_jagged_string_access {
-    ($type:ident, $storage:expr, $dict:expr) => {
-        impl AsyncAttributeAccess for $type<Jagged> {
-            type Output = StringJaggedArrayData;
+    ($type:ident, $dict:expr) => {
+        impl AsyncStringAttributeWrite for $type<Jagged> {
             type Input = (Vec<CString>, Vec<i32>);
-            fn get_async(&self) -> Result<AsyncJob<Self::Output>> {
-                let info = self.handle.info.clone();
-                let handles = vec![
-                    StringHandle(0);
-                    usize::try_from(info.total_array_elements()).map_err(|_| {
-                        HapiError::Internal("negative jagged count".into())
-                    })?
-                ];
-                let sizes = vec![
-                    0;
-                    usize::try_from(info.count()).map_err(|_| HapiError::Internal(
-                        "negative attribute count".into()
-                    ))?
-                ];
-                let mut backing = Box::new(JaggedStrings {
-                    handle: self.handle.clone(),
-                    info,
-                    values: vec![],
-                    ptrs: vec![],
-                    handles,
-                    sizes,
-                });
-                let job = crate::ffi::get_string_jagged_attribute_data_async(
-                    &backing.handle.node,
-                    backing.handle.part_id,
-                    &backing.handle.name,
-                    &mut backing.info.0,
-                    &mut backing.handles,
-                    &mut backing.sizes,
-                    $dict,
-                )?;
-                let session = backing.handle.node.session.clone();
-                Ok(AsyncJob::new(job, session.clone(), *backing, move |b| {
-                    StringJaggedArrayData::from_hapi(b.handles, b.sizes, session)
-                }))
-            }
             fn set_async(&self, input: &(Vec<CString>, Vec<i32>)) -> Result<AsyncJob<()>> {
                 JaggedArrayData::new(vec![(); input.0.len()], input.1.clone())?;
                 let info = self.handle.info.clone();
@@ -426,7 +372,6 @@ macro_rules! async_jagged_string_access {
                     info,
                     values: input.0.clone(),
                     ptrs: vec![],
-                    handles: vec![],
                     sizes: input.1.clone(),
                 });
                 backing.ptrs = backing.values.iter().map(|v| v.as_ptr()).collect();
@@ -449,8 +394,8 @@ macro_rules! async_jagged_string_access {
         }
     };
 }
-async_jagged_string_access!(StringAttribute, StorageType::StringArray, false);
-async_jagged_string_access!(DictionaryAttribute, StorageType::DictionaryArray, true);
+async_jagged_string_access!(StringAttribute, false);
+async_jagged_string_access!(DictionaryAttribute, true);
 
 impl AsyncFixedAttributeAccess<CStr> for StringAttribute<Fixed> {
     fn set_unique_async(&self, value: &CStr) -> Result<AsyncJob<()>> {
@@ -460,7 +405,6 @@ impl AsyncFixedAttributeAccess<CStr> for StringAttribute<Fixed> {
             info,
             values: vec![value.to_owned()],
             ptrs: vec![],
-            handles: vec![],
         });
         backing.ptrs.push(backing.values[0].as_ptr());
         let job = crate::ffi::set_string_unique_attribute_data_async(
@@ -489,12 +433,12 @@ impl AsyncStringAttributeAccess for StringAttribute<Fixed> {
         if indices.len() != Handle::expected_fixed_len(&info)? {
             return Err(HapiError::Internal("string index count mismatch".into()));
         }
+        validate_string_indices(values.len(), indices)?;
         let mut backing = Box::new(JaggedStrings {
             handle: self.handle.clone(),
             info,
             values: values.iter().map(|v| v.as_ref().to_owned()).collect(),
             ptrs: vec![],
-            handles: vec![],
             sizes: indices.to_vec(),
         });
         backing.ptrs = backing.values.iter().map(|v| v.as_ptr()).collect();

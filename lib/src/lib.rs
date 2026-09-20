@@ -178,8 +178,9 @@
 //! [`geometry::AttributeInfo`] does not need to be selected by the caller.
 //!
 //! Every handle stores its node, part, owner, and name. Select the part during lookup or creation; subsequent
-//! `get` and `set` calls use that identity and transfer the complete attribute. Fixed writes require exactly
-//! `count * tuple_size` values. Jagged writes use [`attribute::JaggedArrayData`], which rejects negative sizes,
+//! `get` and `set` calls use that identity and transfer the complete attribute. Fixed handles also provide
+//! element-based range reads and writes. Fixed writes require exactly `count * tuple_size` values. Jagged writes
+//! use [`attribute::JaggedArrayData`], which rejects negative sizes,
 //! overflow, or a size total that differs from the flattened data length. Operations use cached metadata and do
 //! not make a hidden `GetAttributeInfo` call. Call `refresh()` or reacquire a handle after a cook that may have
 //! changed its count, tuple size, array element total, storage, or part layout.
@@ -233,10 +234,12 @@
 //! }
 //! ```
 //!
-//! With the `async-cooking` feature, import `AsyncAttributeAccess`, `AsyncFixedAttributeAccess`, or
-//! `AsyncStringAttributeAccess` to start asynchronous operations. The returned `AsyncJob` owns every allocation
-//! visible to HAPI; consume it with `wait`. Dropping an active job warns and intentionally leaks only its FFI
-//! backing allocation to avoid use-after-free.
+//! With the `async-cooking` feature, import `AsyncAttributeAccess` for numeric reads and writes, or the write-only
+//! string extension traits for string and dictionary writes. String reads remain synchronous so HAPI handles can
+//! be resolved immediately. The returned `AsyncJob` owns every allocation visible to HAPI; consume it with
+//! `wait`. Dropping an active job warns and intentionally leaks only its FFI backing allocation to avoid
+//! use-after-free. The raw HAPI attribute async API is experimental and is not used by SideFX's Unity or Unreal
+//! integrations.
 //!
 //! ## Parameters and UI metadata
 //! [`parameter::Parameter`] is an enum that covers all `HAPI_ParmType` values, while

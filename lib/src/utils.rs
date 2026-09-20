@@ -54,16 +54,6 @@ pub(crate) fn i32_to_usize(value: i32) -> usize {
     usize::try_from(value).expect("i32->usize underflow")
 }
 
-#[inline]
-pub(crate) fn i64_to_usize(value: i64) -> usize {
-    usize::try_from(value).expect("i64->usize underflow")
-}
-
-#[inline]
-pub(crate) fn i64_to_i32_clamped(value: i64) -> i32 {
-    i32::try_from(value.clamp(i64::from(i32::MIN), i64::from(i32::MAX))).unwrap()
-}
-
 #[cfg(test)]
 mod tests {
     use super::join_paths;

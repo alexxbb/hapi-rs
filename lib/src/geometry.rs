@@ -2,7 +2,7 @@
 //!
 //! Attribute lookup and creation methods take a HAPI part id once and return a
 //! typed handle bound to that part, owner, and name. The handle's data methods
-//! operate on the complete attribute and do not take another part id. Because
+//! operate on that identity and do not take another part id. Because
 //! HAPI part ids may be reordered by cooking, reacquire attribute handles after
 //! a cook that can change the geometry's part layout.
 
@@ -484,11 +484,43 @@ impl Geometry {
         Ok(Some(attr))
     }
 
+    /// Finds an attribute by name without assuming its owner.
+    ///
+    /// Returns an error instead of choosing arbitrarily when the name exists
+    /// on more than one concrete owner.
+    pub fn find_attribute<T>(&self, part_id: i32, name: T) -> Result<Option<AnyAttribute>>
+    where
+        T: TryInto<AttributeName>,
+        T::Error: Into<crate::HapiError>,
+    {
+        let name: CString = name.try_into().map_err(Into::into)?.into();
+        let mut found: Option<AnyAttribute> = None;
+        for owner in [
+            AttributeOwner::Vertex,
+            AttributeOwner::Point,
+            AttributeOwner::Prim,
+            AttributeOwner::Detail,
+        ] {
+            let Some(attribute) = self.get_attribute(part_id, owner, name.as_c_str())? else {
+                continue;
+            };
+            if let Some(existing) = &found {
+                return Err(crate::HapiError::Internal(format!(
+                    "attribute {name:?} is ambiguous on part {part_id}: it exists for owners {:?} and {:?}",
+                    existing.owner(),
+                    owner
+                )));
+            }
+            found = Some(attribute);
+        }
+        Ok(found)
+    }
+
     /// Gets a numeric attribute when its primitive type and shape match `T` and `S`.
     ///
     /// Returns `Ok(None)` when the attribute does not exist and an error when
     /// it exists with different storage. The returned handle is bound to
-    /// `part_id`; its reads and writes transfer the complete attribute.
+    /// `part_id`; whole-attribute and fixed-range operations use cached metadata.
     pub fn get_numeric_attribute<T: NumericPrimitive, S: AttributeShape>(
         &self,
         part_id: i32,
@@ -865,7 +897,12 @@ impl Geometry {
         crate::ffi::load_geo_from_file(&self.node, &path)
     }
 
-    /// Commit geometry edits to the node.
+    /// Commits accumulated geometry edits to the node.
+    ///
+    /// Topology and attribute setters never commit implicitly. Batch related
+    /// edits and call this once before cooking or consuming an input node.
+    /// Reacquire or refresh attribute handles after a later cook that may
+    /// change their cached metadata or part layout.
     pub fn commit(&self) -> Result<()> {
         debug_assert!(self.node.is_valid()?);
         log::debug!("Commiting geometry changes");

@@ -1,5 +1,4 @@
 use crate::errors::{HapiError, Result};
-use crate::stringhandle::{StringArray, StringHandle};
 
 /// Owned flattened values and per-element sizes for a HAPI array attribute.
 ///
@@ -76,27 +75,29 @@ impl<'a, T> Iterator for JaggedArrayIter<'a, T> {
 
 /// Owned jagged string or dictionary attribute data.
 ///
-/// Each entry is resolved lazily from HAPI string handles and exposed as a
-/// [`StringArray`].
-#[derive(Debug, Clone)]
+/// HAPI string handles are resolved before this value is returned, so reading
+/// or iterating it never performs another HAPI call.
+#[derive(Debug, Clone, PartialEq)]
 pub struct StringJaggedArrayData {
-    pub(crate) handles: Vec<StringHandle>,
-    pub(crate) sizes: Vec<i32>,
-    pub(crate) session: debug_ignore::DebugIgnore<crate::session::Session>,
+    data: Vec<String>,
+    sizes: Vec<i32>,
 }
 
 impl StringJaggedArrayData {
-    pub(crate) fn from_hapi(
-        handles: Vec<StringHandle>,
-        sizes: Vec<i32>,
-        session: crate::session::Session,
-    ) -> Result<Self> {
-        validate_sizes(&sizes, handles.len())?;
-        Ok(Self {
-            handles,
-            sizes,
-            session: debug_ignore::DebugIgnore(session),
-        })
+    /// Creates validated, owned jagged string data.
+    pub fn new(data: Vec<String>, sizes: Vec<i32>) -> Result<Self> {
+        validate_sizes(&sizes, data.len())?;
+        Ok(Self { data, sizes })
+    }
+
+    pub(crate) fn from_hapi(data: Vec<String>, sizes: Vec<i32>) -> Result<Self> {
+        Self::new(data, sizes)
+    }
+
+    /// Returns the flattened string values.
+    #[must_use]
+    pub fn data(&self) -> &[String] {
+        &self.data
     }
 
     /// Returns the number of strings belonging to each geometry element.
@@ -106,31 +107,24 @@ impl StringJaggedArrayData {
     }
 
     /// Iterates over each geometry element's strings.
-    ///
-    /// An item can fail while its HAPI string handles are being resolved.
     #[must_use]
     pub fn iter(&self) -> StringJaggedArrayIter<'_> {
         StringJaggedArrayIter {
-            handles: &self.handles,
+            data: &self.data,
             sizes: self.sizes.iter(),
-            session: &self.session,
             cursor: 0,
         }
     }
 
-    /// Resolves all strings and returns flattened values with their sizes.
-    pub fn flatten(self) -> Result<(Vec<String>, Vec<usize>)> {
-        let mut flat = Vec::with_capacity(self.handles.len());
-        for item in &self {
-            flat.extend(item?);
-        }
-        let sizes = self.sizes.iter().map(|&v| v as usize).collect();
-        Ok((flat, sizes))
+    /// Consumes the value and returns its flattened strings and sizes.
+    #[must_use]
+    pub fn into_parts(self) -> (Vec<String>, Vec<i32>) {
+        (self.data, self.sizes)
     }
 }
 
 impl<'a> IntoIterator for &'a StringJaggedArrayData {
-    type Item = Result<StringArray>;
+    type Item = &'a [String];
     type IntoIter = StringJaggedArrayIter<'a>;
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -139,20 +133,19 @@ impl<'a> IntoIterator for &'a StringJaggedArrayData {
 
 /// Bounds-checked iterator over [`StringJaggedArrayData`].
 pub struct StringJaggedArrayIter<'a> {
-    handles: &'a [StringHandle],
+    data: &'a [String],
     sizes: std::slice::Iter<'a, i32>,
-    session: &'a crate::session::Session,
     cursor: usize,
 }
 
-impl Iterator for StringJaggedArrayIter<'_> {
-    type Item = Result<StringArray>;
+impl<'a> Iterator for StringJaggedArrayIter<'a> {
+    type Item = &'a [String];
     fn next(&mut self) -> Option<Self::Item> {
         let size = usize::try_from(*self.sizes.next()?).ok()?;
         let end = self.cursor.checked_add(size)?;
-        let handles = self.handles.get(self.cursor..end)?;
+        let values = self.data.get(self.cursor..end)?;
         self.cursor = end;
-        Some(crate::stringhandle::get_string_array(handles, self.session))
+        Some(values)
     }
 }
 
@@ -187,6 +180,20 @@ mod tests {
         assert_eq!(
             value.iter().collect::<Vec<_>>(),
             vec![&[1, 2][..], &[3][..]]
+        );
+    }
+
+    #[test]
+    fn owned_string_jagged_validation_and_iteration() {
+        let value = StringJaggedArrayData::new(
+            vec!["one".into(), "two".into(), "three".into()],
+            vec![2, 1],
+        )
+        .unwrap();
+        assert_eq!(value.data(), ["one", "two", "three"]);
+        assert_eq!(
+            value.iter().collect::<Vec<_>>(),
+            vec![&value.data()[..2], &value.data()[2..]]
         );
     }
 }

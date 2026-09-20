@@ -16,9 +16,8 @@
 //! - [`StringAttribute`] and [`DictionaryAttribute`] follow the same
 //!   [`Fixed`]/[`Jagged`] distinction.
 //!
-//! The safe accessors currently transfer the complete attribute. HAPI's
-//! lower-level `start` and `length` range arguments are not exposed by these
-//! methods.
+//! Fixed attributes also expose checked range operations. Range indices refer
+//! to owned geometry elements, not flattened tuple values.
 
 mod array;
 #[cfg(feature = "async-cooking")]
@@ -30,6 +29,7 @@ pub use array::{JaggedArrayData, JaggedArrayIter, StringJaggedArrayData, StringJ
 #[cfg(feature = "async-cooking")]
 pub use async_::{
     AsyncAttributeAccess, AsyncFixedAttributeAccess, AsyncJob, AsyncStringAttributeAccess,
+    AsyncStringAttributeWrite,
 };
 
 use crate::errors::{HapiError, Result};
@@ -41,6 +41,7 @@ use crate::stringhandle::StringArray;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
+use std::ops::Range;
 
 #[derive(Debug, Clone, Copy)]
 /// Marker for an ordinary HAPI attribute with a fixed tuple size.
@@ -122,6 +123,49 @@ impl Handle {
         usize::try_from(len)
             .map_err(|_| HapiError::Internal("attribute buffer length is negative".into()))
     }
+
+    fn checked_fixed_range(&self, range: Range<usize>) -> Result<(i32, i32, usize)> {
+        if range.start > range.end {
+            return Err(HapiError::Internal(format!(
+                "attribute {:?} range start {} exceeds end {}",
+                self.name, range.start, range.end
+            )));
+        }
+        let count = usize::try_from(self.info.count())
+            .map_err(|_| HapiError::Internal("negative attribute count".into()))?;
+        if range.end > count {
+            return Err(HapiError::Internal(format!(
+                "attribute {:?} range end {} exceeds count {count}",
+                self.name, range.end
+            )));
+        }
+        let tuple_size = usize::try_from(self.info.tuple_size())
+            .map_err(|_| HapiError::Internal("negative attribute tuple size".into()))?;
+        let value_len = (range.end - range.start)
+            .checked_mul(tuple_size)
+            .ok_or_else(|| HapiError::Internal("attribute range length overflow".into()))?;
+        let start = i32::try_from(range.start)
+            .map_err(|_| HapiError::Internal("attribute range start exceeds i32".into()))?;
+        let count = i32::try_from(range.end - range.start)
+            .map_err(|_| HapiError::Internal("attribute range length exceeds i32".into()))?;
+        Ok((start, count, value_len))
+    }
+}
+
+fn validate_string_indices(value_count: usize, indices: &[i32]) -> Result<()> {
+    for (position, &index) in indices.iter().enumerate() {
+        let index = usize::try_from(index).map_err(|_| {
+            HapiError::Internal(format!(
+                "indexed string index at position {position} is negative: {index}"
+            ))
+        })?;
+        if index >= value_count {
+            return Err(HapiError::Internal(format!(
+                "indexed string index at position {position} is {index}, but the value table has {value_count} entries"
+            )));
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -201,6 +245,8 @@ impl<T: NumericPrimitive> Attribute<T, Fixed> {
             &self.handle.name,
             &info.0,
             &mut data,
+            0,
+            info.count(),
         )?;
         Ok(data)
     }
@@ -217,6 +263,45 @@ impl<T: NumericPrimitive> Attribute<T, Fixed> {
             &self.handle.name,
             &info.0,
             data,
+            0,
+            info.count(),
+        )
+    }
+
+    /// Reads a range of owned elements as flattened tuples.
+    pub fn get_range(&self, range: Range<usize>) -> Result<Vec<T>> {
+        let (start, count, value_len) = self.handle.checked_fixed_range(range)?;
+        let mut data = vec![T::default(); value_len];
+        if count == 0 {
+            return Ok(data);
+        }
+        T::get_fixed(
+            &self.handle.node,
+            self.handle.part_id,
+            &self.handle.name,
+            &self.handle.info.0,
+            &mut data,
+            start,
+            count,
+        )?;
+        Ok(data)
+    }
+
+    /// Reads a range of owned elements into a reusable flattened vector.
+    pub fn read_range_into(&self, range: Range<usize>, data: &mut Vec<T>) -> Result<()> {
+        let (start, count, value_len) = self.handle.checked_fixed_range(range)?;
+        data.resize(value_len, T::default());
+        if count == 0 {
+            return Ok(());
+        }
+        T::get_fixed(
+            &self.handle.node,
+            self.handle.part_id,
+            &self.handle.name,
+            &self.handle.info.0,
+            data,
+            start,
+            count,
         )
     }
 
@@ -241,6 +326,30 @@ impl<T: NumericPrimitive> Attribute<T, Fixed> {
             data,
             0,
             info.count(),
+        )
+    }
+
+    /// Replaces a range of owned elements from flattened tuples.
+    pub fn set_range(&self, range: Range<usize>, data: &[T]) -> Result<()> {
+        let (start, count, expected) = self.handle.checked_fixed_range(range)?;
+        if data.len() != expected {
+            return Err(HapiError::Internal(format!(
+                "attribute {:?} range needs {expected} values, got {}",
+                self.handle.name,
+                data.len()
+            )));
+        }
+        if count == 0 {
+            return Ok(());
+        }
+        T::set_fixed(
+            &self.handle.node,
+            self.handle.part_id,
+            &self.handle.name,
+            &self.handle.info.0,
+            data,
+            start,
+            count,
         )
     }
 
@@ -428,6 +537,24 @@ macro_rules! fixed_string_impl {
                     &self.handle.name,
                     &info.0,
                     $dictionary,
+                    0,
+                    info.count(),
+                )
+            }
+            /// Reads a range of owned elements as flattened string tuples.
+            pub fn get_range(&self, range: Range<usize>) -> Result<StringArray> {
+                let (start, count, _) = self.handle.checked_fixed_range(range)?;
+                if count == 0 {
+                    return Ok(StringArray::empty());
+                }
+                crate::ffi::get_string_attribute_data(
+                    &self.handle.node,
+                    self.handle.part_id,
+                    &self.handle.name,
+                    &self.handle.info.0,
+                    $dictionary,
+                    start,
+                    count,
                 )
             }
             /// Replaces the complete fixed-tuple attribute.
@@ -451,6 +578,37 @@ macro_rules! fixed_string_impl {
                     &info.0,
                     &ptrs,
                     $dictionary,
+                    0,
+                    info.count(),
+                )
+            }
+            /// Replaces a range of owned elements from flattened string tuples.
+            pub fn set_range(
+                &self,
+                range: Range<usize>,
+                values: &[impl AsRef<CStr>],
+            ) -> Result<()> {
+                let (start, count, expected) = self.handle.checked_fixed_range(range)?;
+                if values.len() != expected {
+                    return Err(HapiError::Internal(format!(
+                        "attribute {:?} range needs {expected} strings, got {}",
+                        self.handle.name,
+                        values.len()
+                    )));
+                }
+                if count == 0 {
+                    return Ok(());
+                }
+                let ptrs: Vec<_> = values.iter().map(|v| v.as_ref().as_ptr()).collect();
+                crate::ffi::set_string_attribute_data(
+                    &self.handle.node,
+                    self.handle.part_id,
+                    &self.handle.name,
+                    &self.handle.info.0,
+                    &ptrs,
+                    $dictionary,
+                    start,
+                    count,
                 )
             }
         }
@@ -485,6 +643,7 @@ impl StringAttribute<Fixed> {
                 indices.len()
             )));
         }
+        validate_string_indices(values.len(), indices)?;
         let ptrs: Vec<_> = values.iter().map(|v| v.as_ref().as_ptr()).collect();
         crate::ffi::set_indexed_string_attribute_data(
             &self.handle.node,
@@ -503,14 +662,14 @@ macro_rules! jagged_string_impl {
             /// Reads the complete string or dictionary array attribute.
             pub fn get(&self) -> Result<StringJaggedArrayData> {
                 let info = &self.handle.info;
-                let (handles, sizes) = crate::ffi::get_string_jagged_attribute_data(
+                let (values, sizes) = crate::ffi::get_string_jagged_attribute_data(
                     &self.handle.node,
                     self.handle.part_id,
                     &self.handle.name,
                     &info.0,
                     $dictionary,
                 )?;
-                StringJaggedArrayData::from_hapi(handles, sizes, self.handle.node.session.clone())
+                StringJaggedArrayData::from_hapi(values, sizes)
             }
             /// Replaces the complete string or dictionary array attribute.
             ///

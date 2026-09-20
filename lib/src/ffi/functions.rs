@@ -2410,6 +2410,8 @@ pub unsafe trait NumericPrimitive:
         name: &CStr,
         info: &raw::HAPI_AttributeInfo,
         data: &mut [Self],
+        start: i32,
+        count: i32,
     ) -> Result<()>;
     fn set_fixed(
         node: &HoudiniNode,
@@ -2494,8 +2496,9 @@ macro_rules! numeric_primitives {
         unsafe impl NumericPrimitive for $ty {
             const FIXED_STORAGE: raw::StorageType = raw::StorageType::$fixed;
             const JAGGED_STORAGE: raw::StorageType = raw::StorageType::$jagged;
-            fn get_fixed(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &mut [Self]) -> Result<()> {
-                unsafe { raw::$get(node.session.ptr(), node.handle.0, part, name.as_ptr(), std::ptr::from_ref(info).cast_mut(), -1, data.as_mut_ptr(), 0, info.count)
+            fn get_fixed(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &mut [Self], start: i32, count: i32) -> Result<()> {
+                let mut local_info = *info;
+                unsafe { raw::$get(node.session.ptr(), node.handle.0, part, name.as_ptr(), &raw mut local_info, -1, data.as_mut_ptr(), start, count)
                     .check_err(&node.session, || concat!("Calling ", stringify!($get))) }
             }
             fn set_fixed(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &[Self], start: i32, count: i32) -> Result<()> {
@@ -2507,11 +2510,18 @@ macro_rules! numeric_primitives {
                     .check_err(&node.session, || concat!("Calling ", stringify!($unique))) }
             }
             fn get_jagged(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &mut [Self], sizes: &mut [i32]) -> Result<()> {
-                unsafe { raw::$get_array(node.session.ptr(), node.handle.0, part, name.as_ptr(), std::ptr::from_ref(info).cast_mut(), data.as_mut_ptr(), crate::utils::i64_to_i32_clamped(info.totalArrayElements), sizes.as_mut_ptr(), 0, info.count)
+                let data_len = i32::try_from(info.totalArrayElements)
+                    .map_err(|_| HapiError::Internal("jagged attribute element count exceeds i32".into()))?;
+                let mut local_info = *info;
+                unsafe { raw::$get_array(node.session.ptr(), node.handle.0, part, name.as_ptr(), &raw mut local_info, data.as_mut_ptr(), data_len, sizes.as_mut_ptr(), 0, info.count)
                     .check_err(&node.session, || concat!("Calling ", stringify!($get_array))) }
             }
             fn set_jagged(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &[Self], sizes: &[i32]) -> Result<()> {
-                unsafe { raw::$set_array(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_ptr(), crate::utils::uzize_to_i32(data.len()), sizes.as_ptr(), 0, crate::utils::uzize_to_i32(sizes.len()))
+                let data_len = i32::try_from(data.len())
+                    .map_err(|_| HapiError::Internal("jagged attribute data length exceeds i32".into()))?;
+                let sizes_len = i32::try_from(sizes.len())
+                    .map_err(|_| HapiError::Internal("jagged attribute size count exceeds i32".into()))?;
+                unsafe { raw::$set_array(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_ptr(), data_len, sizes.as_ptr(), 0, sizes_len)
                     .check_err(&node.session, || concat!("Calling ", stringify!($set_array))) }
             }
             #[cfg(feature = "async-cooking")]
@@ -2537,15 +2547,23 @@ macro_rules! numeric_primitives {
             }
             #[cfg(feature = "async-cooking")]
             fn get_jagged_async(node: &HoudiniNode, part: i32, name: &CStr, info: &mut raw::HAPI_AttributeInfo, data: &mut [Self], sizes: &mut [i32]) -> Result<i32> {
+                let data_len = i32::try_from(data.len())
+                    .map_err(|_| HapiError::Internal("jagged attribute data length exceeds i32".into()))?;
+                let sizes_len = i32::try_from(sizes.len())
+                    .map_err(|_| HapiError::Internal("jagged attribute size count exceeds i32".into()))?;
                 let mut job = -1;
-                unsafe { raw::$get_array_async(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_mut_ptr(), crate::utils::uzize_to_i32(data.len()), sizes.as_mut_ptr(), 0, crate::utils::uzize_to_i32(sizes.len()), &raw mut job)
+                unsafe { raw::$get_array_async(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_mut_ptr(), data_len, sizes.as_mut_ptr(), 0, sizes_len, &raw mut job)
                     .check_err(&node.session, || concat!("Calling ", stringify!($get_array_async)))?; }
                 Ok(job)
             }
             #[cfg(feature = "async-cooking")]
             fn set_jagged_async(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &[Self], sizes: &[i32]) -> Result<i32> {
+                let data_len = i32::try_from(data.len())
+                    .map_err(|_| HapiError::Internal("jagged attribute data length exceeds i32".into()))?;
+                let sizes_len = i32::try_from(sizes.len())
+                    .map_err(|_| HapiError::Internal("jagged attribute size count exceeds i32".into()))?;
                 let mut job = -1;
-                unsafe { raw::$set_array_async(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_ptr(), crate::utils::uzize_to_i32(data.len()), sizes.as_ptr(), 0, crate::utils::uzize_to_i32(sizes.len()), &raw mut job)
+                unsafe { raw::$set_array_async(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_ptr(), data_len, sizes.as_ptr(), 0, sizes_len, &raw mut job)
                     .check_err(&node.session, || concat!("Calling ", stringify!($set_array_async)))?; }
                 Ok(job)
             }
@@ -2667,14 +2685,20 @@ pub(crate) fn get_string_attribute_data(
     name: &CStr,
     info: &raw::HAPI_AttributeInfo,
     dictionary: bool,
+    start: i32,
+    count: i32,
 ) -> Result<StringArray> {
     let len = usize::try_from(
-        info.count
+        count
             .checked_mul(info.tupleSize)
             .ok_or_else(|| HapiError::Internal("attribute element count overflow".into()))?,
     )
     .map_err(|_| HapiError::Internal("negative attribute element count".into()))?;
     let mut handles = vec![StringHandle(0); len];
+    // Resolve the handles before another operation on this session can
+    // invalidate HAPI's shared string-batch state.
+    let _lock = node.session.lock();
+    let mut local_info = *info;
     let result = unsafe {
         if dictionary {
             raw::HAPI_GetAttributeDictionaryData(
@@ -2682,10 +2706,10 @@ pub(crate) fn get_string_attribute_data(
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                std::ptr::from_ref(info).cast_mut(),
+                &raw mut local_info,
                 handles.as_mut_ptr().cast(),
-                0,
-                info.count,
+                start,
+                count,
             )
         } else {
             raw::HAPI_GetAttributeStringData(
@@ -2693,10 +2717,10 @@ pub(crate) fn get_string_attribute_data(
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                std::ptr::from_ref(info).cast_mut(),
+                &raw mut local_info,
                 handles.as_mut_ptr().cast(),
-                0,
-                info.count,
+                start,
+                count,
             )
         }
     };
@@ -2711,6 +2735,8 @@ pub(crate) fn set_string_attribute_data(
     info: &raw::HAPI_AttributeInfo,
     values: &[*const i8],
     dictionary: bool,
+    start: i32,
+    count: i32,
 ) -> Result<()> {
     let result = unsafe {
         if dictionary {
@@ -2721,8 +2747,8 @@ pub(crate) fn set_string_attribute_data(
                 name.as_ptr(),
                 info,
                 values.as_ptr().cast_mut(),
-                0,
-                info.count,
+                start,
+                count,
             )
         } else {
             raw::HAPI_SetAttributeStringData(
@@ -2732,8 +2758,8 @@ pub(crate) fn set_string_attribute_data(
                 name.as_ptr(),
                 info,
                 values.as_ptr().cast_mut(),
-                0,
-                info.count,
+                start,
+                count,
             )
         }
     };
@@ -2746,9 +2772,17 @@ pub(crate) fn get_string_jagged_attribute_data(
     name: &CStr,
     info: &raw::HAPI_AttributeInfo,
     dictionary: bool,
-) -> Result<(Vec<StringHandle>, Vec<i32>)> {
-    let mut handles = vec![StringHandle(0); crate::utils::i64_to_usize(info.totalArrayElements)];
-    let mut sizes = vec![0; crate::utils::i32_to_usize(info.count)];
+) -> Result<(Vec<String>, Vec<i32>)> {
+    let total = usize::try_from(info.totalArrayElements)
+        .map_err(|_| HapiError::Internal("negative jagged string element count".into()))?;
+    let count = usize::try_from(info.count)
+        .map_err(|_| HapiError::Internal("negative jagged string attribute count".into()))?;
+    let data_length = i32::try_from(total)
+        .map_err(|_| HapiError::Internal("jagged string element count exceeds i32".into()))?;
+    let mut handles = vec![StringHandle(0); total];
+    let mut sizes = vec![0; count];
+    let _lock = node.session.lock();
+    let mut local_info = *info;
     let result = unsafe {
         if dictionary {
             raw::HAPI_GetAttributeDictionaryArrayData(
@@ -2756,9 +2790,9 @@ pub(crate) fn get_string_jagged_attribute_data(
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                std::ptr::from_ref(info).cast_mut(),
+                &raw mut local_info,
                 handles.as_mut_ptr().cast(),
-                crate::utils::i64_to_i32_clamped(info.totalArrayElements),
+                data_length,
                 sizes.as_mut_ptr(),
                 0,
                 info.count,
@@ -2769,9 +2803,9 @@ pub(crate) fn get_string_jagged_attribute_data(
                 node.handle.0,
                 part,
                 name.as_ptr(),
-                std::ptr::from_ref(info).cast_mut(),
+                &raw mut local_info,
                 handles.as_mut_ptr().cast(),
-                crate::utils::i64_to_i32_clamped(info.totalArrayElements),
+                data_length,
                 sizes.as_mut_ptr(),
                 0,
                 info.count,
@@ -2779,7 +2813,8 @@ pub(crate) fn get_string_jagged_attribute_data(
         }
     };
     result.check_err(&node.session, || "Getting jagged string attribute data")?;
-    Ok((handles, sizes))
+    let strings = crate::stringhandle::get_string_array(&handles, &node.session)?;
+    Ok((strings.into(), sizes))
 }
 
 pub(crate) fn set_string_jagged_attribute_data(
@@ -2791,6 +2826,10 @@ pub(crate) fn set_string_jagged_attribute_data(
     sizes: &[i32],
     dictionary: bool,
 ) -> Result<()> {
+    let values_len = i32::try_from(values.len())
+        .map_err(|_| HapiError::Internal("jagged string data length exceeds i32".into()))?;
+    let sizes_len = i32::try_from(sizes.len())
+        .map_err(|_| HapiError::Internal("jagged string size count exceeds i32".into()))?;
     let result = unsafe {
         if dictionary {
             raw::HAPI_SetAttributeDictionaryArrayData(
@@ -2800,10 +2839,10 @@ pub(crate) fn set_string_jagged_attribute_data(
                 name.as_ptr(),
                 std::ptr::from_ref(info).cast_mut(),
                 values.as_ptr().cast_mut(),
-                crate::utils::uzize_to_i32(values.len()),
+                values_len,
                 sizes.as_ptr(),
                 0,
-                crate::utils::uzize_to_i32(sizes.len()),
+                sizes_len,
             )
         } else {
             raw::HAPI_SetAttributeStringArrayData(
@@ -2813,10 +2852,10 @@ pub(crate) fn set_string_jagged_attribute_data(
                 name.as_ptr(),
                 std::ptr::from_ref(info).cast_mut(),
                 values.as_ptr().cast_mut(),
-                crate::utils::uzize_to_i32(values.len()),
+                values_len,
                 sizes.as_ptr(),
                 0,
-                crate::utils::uzize_to_i32(sizes.len()),
+                sizes_len,
             )
         }
     };
@@ -2857,6 +2896,10 @@ pub(crate) fn set_indexed_string_attribute_data(
     values: &[*const i8],
     indices: &[i32],
 ) -> Result<()> {
+    let values_len = i32::try_from(values.len())
+        .map_err(|_| HapiError::Internal("indexed string table length exceeds i32".into()))?;
+    let indices_len = i32::try_from(indices.len())
+        .map_err(|_| HapiError::Internal("indexed string index count exceeds i32".into()))?;
     unsafe {
         raw::HAPI_SetAttributeIndexedStringData(
             node.session.ptr(),
@@ -2865,60 +2908,16 @@ pub(crate) fn set_indexed_string_attribute_data(
             name.as_ptr(),
             info,
             values.as_ptr().cast_mut(),
-            crate::utils::uzize_to_i32(values.len()),
+            values_len,
             indices.as_ptr(),
             0,
-            crate::utils::uzize_to_i32(indices.len()),
+            indices_len,
         )
         .check_err(
             &node.session,
             || "Calling HAPI_SetAttributeIndexedStringData",
         )
     }
-}
-
-#[cfg(feature = "async-cooking")]
-pub(crate) fn get_string_attribute_data_async(
-    node: &HoudiniNode,
-    part: i32,
-    name: &CStr,
-    info: &mut raw::HAPI_AttributeInfo,
-    handles: &mut [StringHandle],
-    dictionary: bool,
-) -> Result<i32> {
-    let mut job = -1;
-    let result = unsafe {
-        if dictionary {
-            raw::HAPI_GetAttributeDictionaryDataAsync(
-                node.session.ptr(),
-                node.handle.0,
-                part,
-                name.as_ptr(),
-                info,
-                handles.as_mut_ptr().cast(),
-                0,
-                info.count,
-                &raw mut job,
-            )
-        } else {
-            raw::HAPI_GetAttributeStringDataAsync(
-                node.session.ptr(),
-                node.handle.0,
-                part,
-                name.as_ptr(),
-                info,
-                handles.as_mut_ptr().cast(),
-                0,
-                info.count,
-                &raw mut job,
-            )
-        }
-    };
-    result.check_err(
-        &node.session,
-        || "Getting string attribute data asynchronously",
-    )?;
-    Ok(job)
 }
 
 #[cfg(feature = "async-cooking")]
@@ -2966,55 +2965,6 @@ pub(crate) fn set_string_attribute_data_async(
 }
 
 #[cfg(feature = "async-cooking")]
-pub(crate) fn get_string_jagged_attribute_data_async(
-    node: &HoudiniNode,
-    part: i32,
-    name: &CStr,
-    info: &mut raw::HAPI_AttributeInfo,
-    handles: &mut [StringHandle],
-    sizes: &mut [i32],
-    dictionary: bool,
-) -> Result<i32> {
-    let mut job = -1;
-    let result = unsafe {
-        if dictionary {
-            raw::HAPI_GetAttributeDictionaryArrayDataAsync(
-                node.session.ptr(),
-                node.handle.0,
-                part,
-                name.as_ptr(),
-                info,
-                handles.as_mut_ptr().cast(),
-                crate::utils::uzize_to_i32(handles.len()),
-                sizes.as_mut_ptr(),
-                0,
-                crate::utils::uzize_to_i32(sizes.len()),
-                &raw mut job,
-            )
-        } else {
-            raw::HAPI_GetAttributeStringArrayDataAsync(
-                node.session.ptr(),
-                node.handle.0,
-                part,
-                name.as_ptr(),
-                info,
-                handles.as_mut_ptr().cast(),
-                crate::utils::uzize_to_i32(handles.len()),
-                sizes.as_mut_ptr(),
-                0,
-                crate::utils::uzize_to_i32(sizes.len()),
-                &raw mut job,
-            )
-        }
-    };
-    result.check_err(
-        &node.session,
-        || "Getting jagged string attribute data asynchronously",
-    )?;
-    Ok(job)
-}
-
-#[cfg(feature = "async-cooking")]
 pub(crate) fn set_string_jagged_attribute_data_async(
     node: &HoudiniNode,
     part: i32,
@@ -3024,6 +2974,10 @@ pub(crate) fn set_string_jagged_attribute_data_async(
     sizes: &[i32],
     dictionary: bool,
 ) -> Result<i32> {
+    let values_len = i32::try_from(values.len())
+        .map_err(|_| HapiError::Internal("jagged string data length exceeds i32".into()))?;
+    let sizes_len = i32::try_from(sizes.len())
+        .map_err(|_| HapiError::Internal("jagged string size count exceeds i32".into()))?;
     let mut job = -1;
     let result = unsafe {
         if dictionary {
@@ -3034,10 +2988,10 @@ pub(crate) fn set_string_jagged_attribute_data_async(
                 name.as_ptr(),
                 info,
                 values.as_ptr().cast_mut(),
-                crate::utils::uzize_to_i32(values.len()),
+                values_len,
                 sizes.as_ptr(),
                 0,
-                crate::utils::uzize_to_i32(sizes.len()),
+                sizes_len,
                 &raw mut job,
             )
         } else {
@@ -3048,10 +3002,10 @@ pub(crate) fn set_string_jagged_attribute_data_async(
                 name.as_ptr(),
                 info,
                 values.as_ptr().cast_mut(),
-                crate::utils::uzize_to_i32(values.len()),
+                values_len,
                 sizes.as_ptr(),
                 0,
-                crate::utils::uzize_to_i32(sizes.len()),
+                sizes_len,
                 &raw mut job,
             )
         }
@@ -3102,6 +3056,10 @@ pub(crate) fn set_indexed_string_attribute_data_async(
     values: &[*const i8],
     indices: &[i32],
 ) -> Result<i32> {
+    let values_len = i32::try_from(values.len())
+        .map_err(|_| HapiError::Internal("indexed string table length exceeds i32".into()))?;
+    let indices_len = i32::try_from(indices.len())
+        .map_err(|_| HapiError::Internal("indexed string index count exceeds i32".into()))?;
     let mut job = -1;
     unsafe {
         raw::HAPI_SetAttributeIndexedStringDataAsync(
@@ -3111,10 +3069,10 @@ pub(crate) fn set_indexed_string_attribute_data_async(
             name.as_ptr(),
             info,
             values.as_ptr().cast_mut(),
-            crate::utils::uzize_to_i32(values.len()),
+            values_len,
             indices.as_ptr(),
             0,
-            crate::utils::uzize_to_i32(indices.len()),
+            indices_len,
             &raw mut job,
         )
         .check_err(

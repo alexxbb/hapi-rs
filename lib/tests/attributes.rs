@@ -21,8 +21,12 @@ fn missing_and_typed_lookup() -> Result<()> {
         let mut position = geo
             .get_numeric_attribute::<f32, Fixed>(0, AttributeOwner::Point, c"P")?
             .unwrap();
+        let type_info = position.info().type_info();
+        let original_owner = position.info().original_owner();
         position.refresh()?;
         assert_eq!(position.info().storage(), StorageType::Float);
+        assert_eq!(position.info().type_info(), type_info);
+        assert_eq!(position.info().original_owner(), original_owner);
         assert!(
             geo.get_numeric_attribute::<f32, Fixed>(0, AttributeOwner::Point, c"missing")?
                 .is_none()
@@ -128,17 +132,53 @@ fn string_and_dictionary_jagged_reads() -> Result<()> {
             .get_string_attribute::<Jagged>(0, AttributeOwner::Point, c"my_str_array")?
             .unwrap();
         let strings = strings.get()?;
-        let first = strings.iter().next().unwrap()?;
+        let first = strings.iter().next().unwrap();
         assert_eq!(
-            first.iter_str().collect::<Vec<_>>(),
+            first.iter().map(String::as_str).collect::<Vec<_>>(),
             ["pt_0_0", "pt_0_1", "pt_0_2", "start"]
         );
+
+        // The result owns its strings and remains valid after more HAPI string
+        // operations on the same session.
+        let _ = geo.get_attribute_names(AttributeOwner::Point, &geo.part_info(0)?)?;
+        assert_eq!(strings.iter().next().unwrap()[0], "pt_0_0");
 
         let dictionaries = geo
             .get_dictionary_attribute::<Jagged>(0, AttributeOwner::Point, c"my_dict_array_attr")?
             .unwrap();
-        let (flat, sizes) = dictionaries.get()?.flatten()?;
-        assert_eq!(flat.len(), sizes.iter().sum::<usize>());
+        let dictionaries = dictionaries.get()?;
+        assert_eq!(
+            dictionaries.data().len(),
+            dictionaries
+                .sizes()
+                .iter()
+                .map(|&v| usize::try_from(v).unwrap())
+                .sum::<usize>()
+        );
+        Ok(())
+    })
+}
+
+#[test]
+fn fixed_numeric_ranges_are_element_based_and_checked() -> Result<()> {
+    with_session(|session| {
+        let geo = create_triangle(&session)?;
+        let position = geo
+            .get_numeric_attribute::<f32, Fixed>(0, AttributeOwner::Point, AttributeName::P)?
+            .unwrap();
+        assert_eq!(position.get_range(1..3)?.len(), 6);
+        assert!(position.get_range(3..3)?.is_empty());
+        let reversed = std::ops::Range { start: 2, end: 1 };
+        assert!(position.get_range(reversed).is_err());
+        assert!(position.get_range(0..4).is_err());
+        assert!(position.set_range(1..3, &[0.0; 5]).is_err());
+        position.set_range(1..3, &[0.0; 6])?;
+        geo.commit()?;
+        geo.node.cook_blocking()?;
+        let position = geo
+            .get_numeric_attribute::<f32, Fixed>(0, AttributeOwner::Point, AttributeName::P)?
+            .unwrap();
+        assert_eq!(position.get_range(1..3)?, vec![0.0; 6]);
         Ok(())
     })
 }
@@ -176,14 +216,29 @@ fn fixed_string_unique_indexed_and_dictionary() -> Result<()> {
             .with_part_type(PartType::Mesh)
             .with_point_count(2);
         input.set_part_info(&part)?;
+        let p_info = AttributeInfo::default()
+            .with_owner(AttributeOwner::Point)
+            .with_storage(StorageType::Float)
+            .with_tuple_size(3)
+            .with_count(2);
+        input
+            .add_numeric_attribute::<f32, Fixed>("P", 0, p_info)?
+            .set(&[0.0; 6])?;
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::String)
             .with_tuple_size(1)
             .with_count(2);
         let strings: StringAttribute<Fixed> = input.add_string_attribute("name", 0, info)?;
-        strings.set_unique(c"same")?;
-        strings.set_indexed(&[c"left", c"right"], &[0, 1])?;
+        strings.set_unique(c"héllo")?;
+        let tuple_info = AttributeInfo::default()
+            .with_owner(AttributeOwner::Point)
+            .with_storage(StorageType::String)
+            .with_tuple_size(2)
+            .with_count(2);
+        input
+            .add_string_attribute("tuple_name", 0, tuple_info)?
+            .set_unique(c"pair")?;
 
         let info = AttributeInfo::default()
             .with_owner(AttributeOwner::Detail)
@@ -193,6 +248,118 @@ fn fixed_string_unique_indexed_and_dictionary() -> Result<()> {
         let dictionary: DictionaryAttribute<Fixed> =
             input.add_dictionary_attribute("data", 0, info)?;
         dictionary.set(&[c"{\"value\":1}"])?;
+
+        input.commit()?;
+        input.node.cook_blocking()?;
+        let strings = input
+            .get_string_attribute::<Fixed>(0, AttributeOwner::Point, c"name")?
+            .unwrap();
+        assert_eq!(
+            strings.get()?.iter_str().collect::<Vec<_>>(),
+            ["héllo", "héllo"]
+        );
+        let tuple_strings = input
+            .get_string_attribute::<Fixed>(0, AttributeOwner::Point, c"tuple_name")?
+            .unwrap();
+        assert_eq!(
+            tuple_strings.get()?.iter_str().collect::<Vec<_>>(),
+            ["pair", "pair", "pair", "pair"]
+        );
+        strings.set_range(1..2, &[c"héllo"])?;
+        assert!(strings.set_range(0..2, &[c"short"]).is_err());
+        assert!(strings.set_indexed(&[c"only"], &[0, 1]).is_err());
+        strings.set_indexed(&[c"left", c"right"], &[0, 1])?;
+
+        input.commit()?;
+        input.node.cook_blocking()?;
+        let strings = input
+            .get_string_attribute::<Fixed>(0, AttributeOwner::Point, c"name")?
+            .unwrap();
+        assert_eq!(
+            strings.get()?.iter_str().collect::<Vec<_>>(),
+            ["left", "right"]
+        );
+        // A non-ASCII range value exercises tuple-count rather than byte-count
+        // semantics independently of the indexed overwrite above.
+        strings.set_range(1..2, &[c"héllo"])?;
+        input.commit()?;
+        input.node.cook_blocking()?;
+        let strings = input
+            .get_string_attribute::<Fixed>(0, AttributeOwner::Point, c"name")?
+            .unwrap();
+        assert_eq!(
+            strings.get_range(1..2)?.iter_str().collect::<Vec<_>>(),
+            ["héllo"]
+        );
+
+        let dictionary = input
+            .get_dictionary_attribute::<Fixed>(0, AttributeOwner::Detail, c"data")?
+            .unwrap();
+        let value = dictionary.get_range(0..1)?;
+        let compact: String = value
+            .iter_str()
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .collect();
+        assert_eq!(compact, "{\"value\":1}");
+        dictionary.set_range(0..1, &[c"{\"value\":2}"])?;
+        input.commit()?;
+        input.node.cook_blocking()?;
+        let dictionary = input
+            .get_dictionary_attribute::<Fixed>(0, AttributeOwner::Detail, c"data")?
+            .unwrap();
+        let value = dictionary.get_range(0..1)?;
+        let compact: String = value
+            .iter_str()
+            .next()
+            .unwrap()
+            .split_whitespace()
+            .collect();
+        assert_eq!(compact, "{\"value\":2}");
+        Ok(())
+    })
+}
+
+#[test]
+fn owner_agnostic_lookup_detects_ambiguity() -> Result<()> {
+    with_session(|session| {
+        let geo = session.create_input_node("ambiguous_attributes", None)?;
+        let part = PartInfo::default()
+            .with_part_type(PartType::Mesh)
+            .with_point_count(1);
+        geo.set_part_info(&part)?;
+        let point_info = AttributeInfo::default()
+            .with_count(1)
+            .with_tuple_size(3)
+            .with_owner(AttributeOwner::Point);
+        geo.add_numeric_attribute::<f32, Fixed>("P", 0, point_info)?
+            .set(&[0.0, 0.0, 0.0])?;
+        let shared_point_info = AttributeInfo::default()
+            .with_count(1)
+            .with_tuple_size(1)
+            .with_owner(AttributeOwner::Point);
+        geo.add_numeric_attribute::<f32, Fixed>("shared", 0, shared_point_info)?
+            .set(&[0.0])?;
+        let detail_info = AttributeInfo::default()
+            .with_count(1)
+            .with_tuple_size(1)
+            .with_owner(AttributeOwner::Detail);
+        geo.add_numeric_attribute::<f32, Fixed>("shared", 0, detail_info)?
+            .set(&[1.0])?;
+        geo.commit()?;
+        geo.node.cook_blocking()?;
+
+        assert!(
+            geo.get_attribute(0, AttributeOwner::Point, c"shared")?
+                .is_some()
+        );
+        assert!(
+            geo.get_attribute(0, AttributeOwner::Detail, c"shared")?
+                .is_some()
+        );
+        assert!(geo.find_attribute(0, c"shared").is_err());
+        assert!(geo.find_attribute(0, c"missing")?.is_none());
         Ok(())
     })
 }
