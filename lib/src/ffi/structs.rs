@@ -2,8 +2,8 @@
 use super::raw::{
     AttributeOwner, AttributeTypeInfo, CameraProjectionType, ChoiceListType, CurveType, GeoType,
     HAPI_AssetInfo, HAPI_AttributeInfo, HAPI_AttributeInfo_Create, HAPI_BoxInfo, HAPI_CameraInfo,
-    HAPI_CameraInfo_Create, HAPI_CompositorOptions, HAPI_CompositorOptions_Create, HAPI_CookOptions,
-    HAPI_CookOptions_Create, HAPI_CurveInfo, HAPI_CurveInfo_Create, HAPI_GeoInfo,
+    HAPI_CameraInfo_Create, HAPI_CompositorOptions, HAPI_CompositorOptions_Create,
+    HAPI_CookOptions, HAPI_CookOptions_Create, HAPI_CurveInfo, HAPI_CurveInfo_Create, HAPI_GeoInfo,
     HAPI_ImageFileFormat, HAPI_ImageInfo, HAPI_ImageInfo_Create, HAPI_InputCurveInfo,
     HAPI_InputCurveInfo_Create, HAPI_NodeInfo, HAPI_ObjectInfo, HAPI_PDG_EventInfo,
     HAPI_PDG_WorkItemInfo, HAPI_PDG_WorkItemOutputFile, HAPI_ParmChoiceInfo, HAPI_ParmInfo,
@@ -11,11 +11,12 @@ use super::raw::{
     HAPI_SessionSyncInfo, HAPI_SessionSyncInfo_Create, HAPI_SphereInfo, HAPI_ThriftServerOptions,
     HAPI_ThriftServerOptions_Create, HAPI_TimelineOptions, HAPI_TimelineOptions_Create,
     HAPI_Transform, HAPI_Transform_Create, HAPI_TransformEuler, HAPI_TransformEuler_Create,
-    HAPI_Viewport, HAPI_Viewport_Create, HAPI_VolumeInfo, HAPI_VolumeTileInfo, HAPI_VolumeVisualInfo,
-    ImageDataFormat, ImagePacking, InputCurveMethod, InputCurveParameterization, NodeFlags,
-    NodeType, PackedPrimInstancingMode, ParmType, PartType, PdgEventType, PdgWorkItemState,
-    Permissions, PrmScriptType, RSTOrder, RampType, StatusVerbosity, StorageType, TcpPortType,
-    ThriftSharedMemoryBufferType, VolumeType, VolumeVisualType, XYZOrder,
+    HAPI_Viewport, HAPI_Viewport_Create, HAPI_VolumeInfo, HAPI_VolumeTileInfo,
+    HAPI_VolumeVisualInfo, ImageDataFormat, ImagePacking, InputCurveMethod,
+    InputCurveParameterization, NodeFlags, NodeType, PackedPrimInstancingMode, ParmType, PartType,
+    PdgEventType, PdgWorkItemState, Permissions, PrmScriptType, RSTOrder, RampType,
+    StatusVerbosity, StorageType, TcpPortType, ThriftSharedMemoryBufferType, VolumeType,
+    VolumeVisualType, XYZOrder,
 };
 use crate::{
     errors::Result,

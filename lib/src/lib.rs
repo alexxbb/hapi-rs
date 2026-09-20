@@ -165,23 +165,19 @@
 //!    .with_face_count(6);
 //! ```
 //!
-//! ## Attribute access and type-safe downcasting
-//! Attributes come back as a dynamic [`attribute::Attribute`] wrapper. You can inspect its storage using
-//! [`attribute::Attribute::storage`] and downcast it into concrete types such as [`attribute::NumericAttr`],
-//! [`attribute::StringAttr`], or [`attribute::DictionaryAttr`]. This mirrors the HAPI concept of inspecting
-//! [`geometry::AttributeInfo`] first and then choosing the right getter; the downcast enforces the check at
-//! compile time.
+//! ## Typed attribute access
+//! Attributes come back as an exhaustive [`attribute::AnyAttribute`] enum, or can be requested directly as
+//! typed fixed or jagged handles. Every handle stores its part and owner identity, so reads and writes do not
+//! take a separate part ID.
 //!
 //! [`geometry::Geometry::get_attribute`] will fetch any attribute by owner/name, while convenience helpers such
 //! as [`geometry::Geometry::get_position_attribute`] cover common cases. To create new attributes you build an
 //! [`geometry::AttributeInfo`] (it implements [`Default`] + builder setters), then call one of the
-//! `add_*_attribute` methods. Array and dictionary attributes lean on [`attribute::DataArray`] and the
-//! async helpers in [`attribute::async_]` for large transfers. Examples like `lib/examples/curve_output.rs` and
-//! `lib/examples/groups.rs` showcase real-world usages.
+//! `add_*_attribute` methods. Jagged numeric data uses [`attribute::JaggedArrayData`].
 //!
 //! ```rust
 //! use hapi_rs::{
-//!     attribute::NumericAttr,
+//!     attribute::Fixed,
 //!     geometry::{AttributeInfo, AttributeOwner, PartType, StorageType},
 //!     session::simple_session,
 //! };
@@ -199,13 +195,10 @@
 //!         .into_iter()
 //!         .find(|info| info.part_type() == PartType::Mesh)
 //!         .expect("mesh part");
-//!     let attr = geometry
-//!         .get_attribute(part.part_id(), AttributeOwner::Point, "P")?
+//!     let positions = geometry
+//!         .get_numeric_attribute::<f32, Fixed>(part.part_id(), AttributeOwner::Point, "P")?
 //!         .expect("P attribute");
-//!     let positions = attr
-//!         .downcast::<NumericAttr<f32>>()
-//!         .expect("numeric P data");
-//!     let values = positions.get(part.part_id())?;
+//!     let values = positions.get()?;
 //!     assert!(!values.is_empty());
 //!
 //!     let mut info = AttributeInfo::default();
@@ -213,9 +206,9 @@
 //!     info.set_storage(StorageType::Float);
 //!     info.set_tuple_size(1);
 //!     info.set_count(part.point_count());
-//!     let weights = geometry.add_numeric_attribute::<f32>("rs_weight", part.part_id(), info)?;
+//!     let weights = geometry.add_numeric_attribute::<f32, Fixed>("rs_weight", part.part_id(), info)?;
 //!     let fill = vec![1.0f32; part.point_count() as usize];
-//!     weights.set(part.part_id(), &fill)?;
+//!     weights.set(&fill)?;
 //!     Ok(())
 //! }
 //! ```

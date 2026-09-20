@@ -1,284 +1,172 @@
-use crate::errors::Result;
+use crate::errors::{HapiError, Result};
 use crate::stringhandle::{StringArray, StringHandle};
-use std::borrow::Cow;
 
-/// Groups _data_ and _sizes_ arrays for working with geometry attributes.
-/// See [`crate::attribute::NumericArrayAttr::get`].
-pub struct DataArray<'a, T>
-where
-    [T]: ToOwned<Owned = Vec<T>>,
-{
-    data: Cow<'a, [T]>,
-    sizes: Cow<'a, [i32]>,
+/// Owned values and per-element sizes returned by HAPI array attributes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct JaggedArrayData<T> {
+    data: Vec<T>,
+    sizes: Vec<i32>,
 }
-impl<'a, T> DataArray<'a, T>
-where
-    [T]: ToOwned<Owned = Vec<T>>,
-{
-    /// Create a new data array
-    pub fn new(data: &'a [T], sizes: &'a [i32]) -> DataArray<'a, T> {
-        debug_assert_eq!(sizes.iter().sum::<i32>() as usize, data.len());
-        DataArray {
-            data: Cow::Borrowed(data),
-            sizes: Cow::Borrowed(sizes),
-        }
+
+impl<T> JaggedArrayData<T> {
+    pub fn new(data: Vec<T>, sizes: Vec<i32>) -> Result<Self> {
+        validate_sizes(&sizes, data.len())?;
+        Ok(Self { data, sizes })
     }
 
-    // Owned variant returned by APIs
-    pub(crate) fn new_owned(data: Vec<T>, sizes: Vec<i32>) -> DataArray<'static, T> {
-        debug_assert_eq!(sizes.iter().sum::<i32>() as usize, data.len());
-        DataArray {
-            data: Cow::Owned(data),
-            sizes: Cow::Owned(sizes),
-        }
+    pub(crate) fn from_hapi(data: Vec<T>, sizes: Vec<i32>) -> Result<Self> {
+        Self::new(data, sizes)
     }
 
-    /// Get reference to the data buffer.
     #[must_use]
     pub fn data(&self) -> &[T] {
-        self.data.as_ref()
+        &self.data
     }
-    /// Get reference to the sizes array.
+
     #[must_use]
     pub fn sizes(&self) -> &[i32] {
-        self.sizes.as_ref()
+        &self.sizes
     }
 
-    pub fn data_mut(&mut self) -> &mut [T] {
-        self.data.to_mut().as_mut()
-    }
-    pub fn sizes_mut(&mut self) -> &mut [i32] {
-        self.sizes.to_mut().as_mut()
-    }
-
-    /// Create an iterator over the data .
     #[must_use]
-    pub fn iter(&'a self) -> ArrayIter<'a, T> {
-        ArrayIter {
+    pub fn iter(&self) -> JaggedArrayIter<'_, T> {
+        JaggedArrayIter {
+            data: &self.data,
             sizes: self.sizes.iter(),
-            data: self.data.as_ref(),
-            cursor: 0,
-        }
-    }
-    /// Create an mutable iterator over the data .
-    pub fn iter_mut(&'a mut self) -> ArrayIterMut<'a, T> {
-        ArrayIterMut {
-            sizes: self.sizes.to_mut().iter_mut(),
-            data: self.data.to_mut().as_mut(),
             cursor: 0,
         }
     }
 }
 
-impl<'a, T> IntoIterator for &'a DataArray<'a, T>
-where
-    [T]: ToOwned<Owned = Vec<T>>,
-{
+impl<'a, T> IntoIterator for &'a JaggedArrayData<T> {
     type Item = &'a [T];
-    type IntoIter = ArrayIter<'a, T>;
-
+    type IntoIter = JaggedArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
 
-impl<'a, T> IntoIterator for &'a mut DataArray<'a, T>
-where
-    [T]: ToOwned<Owned = Vec<T>>,
-{
-    type Item = &'a mut [T];
-    type IntoIter = ArrayIterMut<'a, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter_mut()
-    }
-}
-
-/// Represents multi-array string data. Used as storage for string and dictionary array attributes.
-/// Each element of this array is itself a [`StringArray`]
-#[derive(Debug, Clone)]
-pub struct StringMultiArray {
-    pub(crate) handles: Vec<StringHandle>,
-    pub(crate) sizes: Vec<i32>,
-    pub(crate) session: debug_ignore::DebugIgnore<crate::session::Session>,
-}
-
-/// Returned by [`DataArray::iter`]
-pub struct ArrayIter<'a, T> {
+pub struct JaggedArrayIter<'a, T> {
     data: &'a [T],
     sizes: std::slice::Iter<'a, i32>,
     cursor: usize,
 }
 
-/// Returned by [`DataArray::iter_mut`]
-pub struct ArrayIterMut<'a, T> {
-    data: &'a mut [T],
-    sizes: std::slice::IterMut<'a, i32>,
-    cursor: usize,
-}
-
-pub struct MultiArrayIter<'a> {
-    handles: std::slice::Iter<'a, StringHandle>,
-    sizes: std::slice::Iter<'a, i32>,
-    session: &'a crate::session::Session,
-    cursor: usize,
-}
-
-impl<'a, T> Iterator for ArrayIter<'a, T> {
+impl<'a, T> Iterator for JaggedArrayIter<'a, T> {
     type Item = &'a [T];
-
     fn next(&mut self) -> Option<Self::Item> {
-        match self.sizes.next() {
-            None => None,
-            Some(size) => {
-                let start = self.cursor;
-                let end = self.cursor + (*size as usize);
-                self.cursor = end;
-                // SAFETY: The data and the sizes arrays are both provided by HAPI
-                // are expected to match. Also bounds are checked in debug build.
-                Some(unsafe { self.data.get_unchecked(start..end) })
-            }
-        }
+        let size = usize::try_from(*self.sizes.next()?).ok()?;
+        let end = self.cursor.checked_add(size)?;
+        let result = self.data.get(self.cursor..end)?;
+        self.cursor = end;
+        Some(result)
     }
 }
 
-impl<'a, T> Iterator for ArrayIterMut<'a, T> {
-    type Item = &'a mut [T];
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.sizes.next() {
-            None => None,
-            Some(size) => {
-                let start = self.cursor;
-                let end = self.cursor + (*size as usize);
-                self.cursor = end;
-                // SAFETY: Compiler can't know that we're never return overlapping references
-                // so we "erase" the lifetime by casting to pointer and back.
-                Some(unsafe {
-                    &mut *std::ptr::from_mut::<[T]>(self.data.get_unchecked_mut(start..end))
-                })
-            }
-        }
-    }
+/// Jagged string or dictionary data. Each item is exposed as a `StringArray`.
+#[derive(Debug, Clone)]
+pub struct StringJaggedArrayData {
+    pub(crate) handles: Vec<StringHandle>,
+    pub(crate) sizes: Vec<i32>,
+    pub(crate) session: debug_ignore::DebugIgnore<crate::session::Session>,
 }
 
-impl StringMultiArray {
+impl StringJaggedArrayData {
+    pub(crate) fn from_hapi(
+        handles: Vec<StringHandle>,
+        sizes: Vec<i32>,
+        session: crate::session::Session,
+    ) -> Result<Self> {
+        validate_sizes(&sizes, handles.len())?;
+        Ok(Self {
+            handles,
+            sizes,
+            session: debug_ignore::DebugIgnore(session),
+        })
+    }
+
     #[must_use]
-    pub fn iter(&self) -> MultiArrayIter<'_> {
-        MultiArrayIter {
-            handles: self.handles.iter(),
+    pub fn sizes(&self) -> &[i32] {
+        &self.sizes
+    }
+
+    #[must_use]
+    pub fn iter(&self) -> StringJaggedArrayIter<'_> {
+        StringJaggedArrayIter {
+            handles: &self.handles,
             sizes: self.sizes.iter(),
             session: &self.session,
             cursor: 0,
         }
     }
-    /// Convenient method to flatten the data and the sizes multidimensional arrays into individual vectors
+
     pub fn flatten(self) -> Result<(Vec<String>, Vec<usize>)> {
-        let mut flat_array = Vec::with_capacity(self.sizes.iter().sum::<i32>() as usize);
-        let mut iter = self.iter();
-        while let Some(Ok(string_array)) = iter.next() {
-            flat_array.extend(string_array);
+        let mut flat = Vec::with_capacity(self.handles.len());
+        for item in &self {
+            flat.extend(item?);
         }
-        Ok((flat_array, self.sizes.iter().map(|v| *v as usize).collect()))
+        let sizes = self.sizes.iter().map(|&v| v as usize).collect();
+        Ok((flat, sizes))
     }
 }
 
-impl<'a> IntoIterator for &'a StringMultiArray {
+impl<'a> IntoIterator for &'a StringJaggedArrayData {
     type Item = Result<StringArray>;
-    type IntoIter = MultiArrayIter<'a>;
-
+    type IntoIter = StringJaggedArrayIter<'a>;
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
 
-impl Iterator for MultiArrayIter<'_> {
-    type Item = Result<StringArray>;
+pub struct StringJaggedArrayIter<'a> {
+    handles: &'a [StringHandle],
+    sizes: std::slice::Iter<'a, i32>,
+    session: &'a crate::session::Session,
+    cursor: usize,
+}
 
+impl Iterator for StringJaggedArrayIter<'_> {
+    type Item = Result<StringArray>;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.sizes.next() {
-            None => None,
-            Some(size) => {
-                let start = self.cursor;
-                let end = self.cursor + (*size as usize);
-                self.cursor = end;
-                let handles = &self.handles.as_slice()[start..end];
-                Some(crate::stringhandle::get_string_array(handles, self.session))
-            }
-        }
+        let size = usize::try_from(*self.sizes.next()?).ok()?;
+        let end = self.cursor.checked_add(size)?;
+        let handles = self.handles.get(self.cursor..end)?;
+        self.cursor = end;
+        Some(crate::stringhandle::get_string_array(handles, self.session))
     }
+}
+
+fn validate_sizes(sizes: &[i32], data_len: usize) -> Result<()> {
+    let mut total = 0usize;
+    for (index, &size) in sizes.iter().enumerate() {
+        let size = usize::try_from(size).map_err(|_| {
+            HapiError::Internal(format!(
+                "jagged array size at index {index} is negative: {size}"
+            ))
+        })?;
+        total = total.checked_add(size).ok_or_else(|| {
+            HapiError::Internal("jagged array size total overflowed usize".into())
+        })?;
+    }
+    if total != data_len {
+        return Err(HapiError::Internal(format!(
+            "jagged array size total ({total}) does not match data length ({data_len})"
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
-    fn data_array_accessors() {
-        let data = [1, 2, 3, 4, 5];
-        let sizes = [2, 3];
-        let ar = DataArray::new(&data, &sizes);
-
-        assert_eq!(ar.data(), &data);
-        assert_eq!(ar.sizes(), &sizes);
-    }
-
-    #[test]
-    fn data_array_mut_accessors_are_copy_on_write() {
-        let data = [1, 2, 3, 4, 5];
-        let sizes = [2, 3];
-        let mut ar = DataArray::new(&data, &sizes);
-
-        ar.data_mut()[1] = 20;
-        ar.sizes_mut()[0] = 1;
-        ar.sizes_mut()[1] = 4;
-
-        assert_eq!(ar.data(), &[1, 20, 3, 4, 5]);
-        assert_eq!(ar.sizes(), &[1, 4]);
-        assert_eq!(data, [1, 2, 3, 4, 5]);
-        assert_eq!(sizes, [2, 3]);
-    }
-
-    #[test]
-    fn data_array_iter() {
-        let ar = DataArray::new_owned(vec![1, 2, 3, 4, 5, 6], vec![2, 1, 3]);
-        let mut iter = ar.iter();
-        assert_eq!(iter.next(), Some([1, 2].as_slice()));
-        assert_eq!(iter.next(), Some([3].as_slice()));
-        assert_eq!(iter.next(), Some([4, 5, 6].as_slice()));
-    }
-
-    #[test]
-    fn data_array_into_iter() {
-        let ar = DataArray::new(&[1, 2, 3, 4, 5, 6], &[2, 1, 3]);
-        let mut iter = (&ar).into_iter();
-
-        assert_eq!(iter.next(), Some([1, 2].as_slice()));
-        assert_eq!(iter.next(), Some([3].as_slice()));
-        assert_eq!(iter.next(), Some([4, 5, 6].as_slice()));
-        assert_eq!(iter.next(), None);
-    }
-
-    #[test]
-    fn data_array_mutate() {
-        let mut ar = DataArray::new(&[1, 2, 3, 4, 5, 6], &[2, 1, 3]);
-        let mut iter = ar.iter_mut().map(|array| {
-            array.iter_mut().for_each(|v| *v *= 2);
-            array
-        });
-        assert_eq!(iter.next(), Some([2, 4].as_mut_slice()));
-        assert_eq!(iter.next(), Some([6].as_mut_slice()));
-        assert_eq!(iter.next(), Some([8, 10, 12].as_mut_slice()));
-    }
-
-    #[test]
-    fn data_array_into_iter_mut() {
-        let mut ar = DataArray::new(&[1, 2, 3, 4, 5, 6], &[2, 1, 3]);
-        let mut iter = (&mut ar).into_iter();
-
-        assert_eq!(iter.next(), Some([1, 2].as_mut_slice()));
-        assert_eq!(iter.next(), Some([3].as_mut_slice()));
-        assert_eq!(iter.next(), Some([4, 5, 6].as_mut_slice()));
-        assert_eq!(iter.next(), None);
+    fn jagged_validation_and_iteration() {
+        assert!(JaggedArrayData::new(vec![1], vec![-1]).is_err());
+        assert!(JaggedArrayData::new(vec![1], vec![2]).is_err());
+        let value = JaggedArrayData::new(vec![1, 2, 3], vec![2, 1]).unwrap();
+        assert_eq!(
+            value.iter().collect::<Vec<_>>(),
+            vec![&[1, 2][..], &[3][..]]
+        );
     }
 }

@@ -16,10 +16,10 @@ fn main() -> Result<()> {
         .with_tuple_size(3)
         .with_owner(AttributeOwner::Point)
         .with_storage(StorageType::Float);
-    let p_attr = geo.add_numeric_attribute::<f32>("P", 0, p_info)?;
-    p_attr.set(0, &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0])?;
+    let p_attr = geo.add_numeric_attribute::<f32, Fixed>("P", 0, p_info)?;
+    p_attr.set(&[0.0, 0.0, 0.0, 1.0, 0.0, 0.0])?;
 
-    let a_attr = geo.add_numeric_attribute::<f32>(
+    let a_attr = geo.add_numeric_attribute::<f32, Fixed>(
         "a",
         0,
         AttributeInfo::default()
@@ -28,7 +28,7 @@ fn main() -> Result<()> {
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::Float),
     )?;
-    a_attr.set(0, &[1.0, 1.0])?;
+    a_attr.set(&[1.0, 1.0])?;
     geo.commit()?;
     geo.node.cook_blocking()?;
     geo.save_to_file("/tmp/foo2.bgeo")?;

@@ -10,6 +10,7 @@ pub mod structs;
 pub mod raw {
     pub use super::bindings::*;
 }
+pub use functions::NumericPrimitive;
 pub(crate) use functions::*;
 pub use structs::*;
 

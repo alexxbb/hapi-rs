@@ -37,12 +37,10 @@ fn main() -> Result<()> {
         .with_tuple_size(3)
         .with_storage(StorageType::Float)
         .with_owner(AttributeOwner::Point);
-    let p_attrib = geom.add_numeric_attribute::<f32>("P", 0, p_info)?;
+    let p_attrib = geom.add_numeric_attribute::<f32, Fixed>("P", 0, p_info)?;
 
     #[rustfmt::skip]
-        p_attrib.set(
-        0,
-        &[
+        p_attrib.set(&[
             -4.0, 0.0, 4.0,
             -4.0, 0.0, -4.0,
             4.0, 0.0, -4.0,

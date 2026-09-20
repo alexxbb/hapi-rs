@@ -4,7 +4,7 @@
 #![allow(unused)]
 
 use hapi_rs::asset::AssetLibrary;
-use hapi_rs::attribute::{AsAttribute, NumericAttr, StorageType, StringAttr};
+use hapi_rs::attribute::{Fixed, StorageType};
 use hapi_rs::enums::AttributeOwner;
 use hapi_rs::geometry::extra::GeometryExtension;
 use hapi_rs::geometry::AttributeInfo;
@@ -40,42 +40,38 @@ fn copy_geo(source: &Geometry, input_geo: &Geometry) -> Result<()> {
     input_geo.set_part_info(&part)?;
     // dbg!(&part);
     let position_attr = source.get_position_attribute(&part)?;
-    let positions_data = position_attr.unwrap().get(0)?;
+    let positions_data = position_attr.unwrap().get()?;
     let vertex_list = source.vertex_list(&part)?;
     let face_counts = source.get_face_counts(&part)?;
     input_geo.set_vertex_list(0, &vertex_list)?;
     input_geo.set_face_counts(0, &face_counts)?;
 
     let payload_attr = source
-        .get_attribute(part.part_id(), AttributeOwner::Point, "payload")?
+        .get_string_attribute::<Fixed>(part.part_id(), AttributeOwner::Point, "payload")?
         .expect("Geometry to have payload string attribute");
-
-    let payload_attr = payload_attr
-        .downcast::<StringAttr>()
-        .expect("payload is string type");
-    let payload_data = payload_attr.get(part.part_id())?;
+    let payload_data = payload_attr.get()?;
 
     let payload_c_strings: Vec<&CStr> = payload_data.iter_cstr().collect();
 
     let sdf_attr = source
-        .get_attribute(part.part_id(), AttributeOwner::Point, "sdf")?
+        .get_numeric_attribute::<f32, Fixed>(part.part_id(), AttributeOwner::Point, "sdf")?
         .expect("sdf attribute");
-    let sdf_attr = sdf_attr
-        .downcast::<NumericAttr<f32>>()
-        .expect("sdf is float type");
-    let sdf_data = sdf_attr.get(part.part_id())?;
+    let sdf_data = sdf_attr.get()?;
 
     input_geo
         .create_position_attribute(&part)?
-        .set(part.part_id(), &positions_data)?;
+        .set(&positions_data)?;
     let dest_payload_attr =
         input_geo.add_string_attribute("payload", part.part_id(), payload_attr.info().clone())?;
-    dest_payload_attr.set(part.part_id(), &payload_c_strings)?;
-    let dest_sdf_attr =
-        input_geo.add_numeric_attribute::<f32>("sdf", part.part_id(), sdf_attr.info().clone())?;
-    dest_sdf_attr.set(part.part_id(), &sdf_data)?;
+    dest_payload_attr.set(&payload_c_strings)?;
+    let dest_sdf_attr = input_geo.add_numeric_attribute::<f32, Fixed>(
+        "sdf",
+        part.part_id(),
+        sdf_attr.info().clone(),
+    )?;
+    dest_sdf_attr.set(&sdf_data)?;
 
-    let test_attr = input_geo.add_numeric_attribute::<f32>(
+    let test_attr = input_geo.add_numeric_attribute::<f32, Fixed>(
         "test",
         part.part_id(),
         AttributeInfo::default()
@@ -84,7 +80,7 @@ fn copy_geo(source: &Geometry, input_geo: &Geometry) -> Result<()> {
             .with_storage(StorageType::Float)
             .with_tuple_size(1),
     )?;
-    test_attr.set(part.part_id(), &[0.1, 0.2, 0.3])?;
+    test_attr.set(&[0.1, 0.2, 0.3])?;
     input_geo.commit()?;
     // input_geo.node.cook_blocking()?;
     // input_geo.save_to_file("/tmp/foo.bgeo")?;

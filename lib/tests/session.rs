@@ -279,7 +279,12 @@ fn session_input_camera_node_lifecycle() -> Result<()> {
             .with_rotation([0.0, 0.0, 0.0, 1.0])
             .with_scale([1.0, 1.0, 1.0])
             .with_shear([0.0, 0.0, 0.0]);
-        session.set_input_camera_transform(node, RSTOrder::Default, XYZOrder::Default, &transform)?;
+        session.set_input_camera_transform(
+            node,
+            RSTOrder::Default,
+            XYZOrder::Default,
+            &transform,
+        )?;
 
         node.to_node(&session)?.cook_blocking()?;
         Ok(())

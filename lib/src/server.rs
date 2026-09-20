@@ -549,7 +549,10 @@ mod tests {
             .build();
 
         assert_eq!(transport.memory_name, "test-memory");
-        assert_eq!(transport.buffer_type, ThriftSharedMemoryBufferType::RingBuffer);
+        assert_eq!(
+            transport.buffer_type,
+            ThriftSharedMemoryBufferType::RingBuffer
+        );
         assert_eq!(transport.buffer_size, 512);
     }
 
@@ -583,7 +586,10 @@ mod tests {
 
         let thrift_options = options.thrift_options();
         assert!(!thrift_options.auto_close());
-        assert_eq!(thrift_options.verbosity(), StatusVerbosity::Statusverbosity2);
+        assert_eq!(
+            thrift_options.verbosity(),
+            StatusVerbosity::Statusverbosity2
+        );
         assert_eq!(
             thrift_options.shared_memory_buffer_type(),
             ThriftSharedMemoryBufferType::RingBuffer

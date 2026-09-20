@@ -3,8 +3,8 @@
 //!
 
 use crate::attribute::{
-    AnyAttribWrapper, AsAttribute, AttribValueType, Attribute, DictionaryArrayAttr, DictionaryAttr,
-    NumericArrayAttr, NumericAttr, StringArrayAttr, StringAttr,
+    AnyAttribute, Attribute, AttributeShape, DictionaryAttribute, Fixed, Jagged, NumericPrimitive,
+    StringAttribute,
 };
 use crate::errors::Result;
 pub use crate::ffi::{
@@ -409,7 +409,7 @@ impl Geometry {
         part_id: i32,
         owner: AttributeOwner,
         name: T,
-    ) -> Result<Option<Attribute>>
+    ) -> Result<Option<AnyAttribute>>
     where
         T: TryInto<AttributeName>,
         T::Error: Into<crate::HapiError>,
@@ -423,72 +423,163 @@ impl Geometry {
             return Ok(None);
         }
         let node = self.node.clone();
-        let attr_obj: Box<dyn AnyAttribWrapper> = match storage {
+        let attr = match storage {
             s @ (StorageType::Invalid | StorageType::Max) => {
                 return Err(crate::HapiError::Internal(format!(
                     "Invalid attribute storage {name:?}: {s:?}"
                 )));
             }
-            StorageType::Int => NumericAttr::<i32>::new(name, info, node).boxed(),
-            StorageType::Int64 => NumericAttr::<i64>::new(name, info, node).boxed(),
-            StorageType::Float => NumericAttr::<f32>::new(name, info, node).boxed(),
-            StorageType::Float64 => NumericAttr::<f64>::new(name, info, node).boxed(),
-            StorageType::String => StringAttr::new(name, info, node).boxed(),
-            StorageType::Uint8 => NumericAttr::<u8>::new(name, info, node).boxed(),
-            StorageType::Int8 => NumericAttr::<i8>::new(name, info, node).boxed(),
-            StorageType::Int16 => NumericAttr::<i16>::new(name, info, node).boxed(),
-            StorageType::IntArray => NumericArrayAttr::<i32>::new(name, info, node).boxed(),
-            StorageType::Int64Array => NumericArrayAttr::<i64>::new(name, info, node).boxed(),
-            StorageType::FloatArray => NumericArrayAttr::<f32>::new(name, info, node).boxed(),
-            StorageType::Float64Array => NumericArrayAttr::<f64>::new(name, info, node).boxed(),
-            StorageType::StringArray => StringArrayAttr::new(name, info, node).boxed(),
-            StorageType::Uint8Array => NumericArrayAttr::<u8>::new(name, info, node).boxed(),
-            StorageType::Int8Array => NumericArrayAttr::<i8>::new(name, info, node).boxed(),
-            StorageType::Int16Array => NumericArrayAttr::<i16>::new(name, info, node).boxed(),
-            StorageType::Dictionary => DictionaryAttr::new(name, info, node).boxed(),
-            StorageType::DictionaryArray => DictionaryArrayAttr::new(name, info, node).boxed(),
+            StorageType::Int => AnyAttribute::Int(Attribute::new(name, info, node, part_id)),
+            StorageType::Int64 => AnyAttribute::Int64(Attribute::new(name, info, node, part_id)),
+            StorageType::Float => AnyAttribute::Float(Attribute::new(name, info, node, part_id)),
+            StorageType::Float64 => {
+                AnyAttribute::Float64(Attribute::new(name, info, node, part_id))
+            }
+            StorageType::String => {
+                AnyAttribute::String(StringAttribute::new(name, info, node, part_id))
+            }
+            StorageType::Uint8 => AnyAttribute::Uint8(Attribute::new(name, info, node, part_id)),
+            StorageType::Int8 => AnyAttribute::Int8(Attribute::new(name, info, node, part_id)),
+            StorageType::Int16 => AnyAttribute::Int16(Attribute::new(name, info, node, part_id)),
+            StorageType::IntArray => {
+                AnyAttribute::IntArray(Attribute::new(name, info, node, part_id))
+            }
+            StorageType::Int64Array => {
+                AnyAttribute::Int64Array(Attribute::new(name, info, node, part_id))
+            }
+            StorageType::FloatArray => {
+                AnyAttribute::FloatArray(Attribute::new(name, info, node, part_id))
+            }
+            StorageType::Float64Array => {
+                AnyAttribute::Float64Array(Attribute::new(name, info, node, part_id))
+            }
+            StorageType::StringArray => {
+                AnyAttribute::StringArray(StringAttribute::new(name, info, node, part_id))
+            }
+            StorageType::Uint8Array => {
+                AnyAttribute::Uint8Array(Attribute::new(name, info, node, part_id))
+            }
+            StorageType::Int8Array => {
+                AnyAttribute::Int8Array(Attribute::new(name, info, node, part_id))
+            }
+            StorageType::Int16Array => {
+                AnyAttribute::Int16Array(Attribute::new(name, info, node, part_id))
+            }
+            StorageType::Dictionary => {
+                AnyAttribute::Dictionary(DictionaryAttribute::new(name, info, node, part_id))
+            }
+            StorageType::DictionaryArray => {
+                AnyAttribute::DictionaryArray(DictionaryAttribute::new(name, info, node, part_id))
+            }
         };
-        Ok(Some(Attribute::new(attr_obj)))
+        Ok(Some(attr))
     }
 
-    /// Add a new numeric attribute to geometry.
-    pub fn add_numeric_attribute<T: AttribValueType>(
+    /// Get a numeric attribute only if its primitive type and shape match.
+    pub fn get_numeric_attribute<T: NumericPrimitive, S: AttributeShape>(
+        &self,
+        part_id: i32,
+        owner: AttributeOwner,
+        name: impl TryInto<AttributeName, Error = impl Into<crate::HapiError>>,
+    ) -> Result<Option<Attribute<T, S>>> {
+        let name: CString = name.try_into().map_err(Into::into)?.into();
+        let info = AttributeInfo::new(&self.node, part_id, owner, &name)?;
+        if !info.exists() {
+            return Ok(None);
+        }
+        let expected = S::storage::<T>();
+        if info.storage() != expected {
+            return Err(crate::HapiError::Internal(format!(
+                "attribute {name:?} has storage {:?}, expected {expected:?}",
+                info.storage()
+            )));
+        }
+        Ok(Some(Attribute::new(name, info, self.node.clone(), part_id)))
+    }
+
+    pub fn get_string_attribute<S: AttributeShape>(
+        &self,
+        part_id: i32,
+        owner: AttributeOwner,
+        name: impl TryInto<AttributeName, Error = impl Into<crate::HapiError>>,
+    ) -> Result<Option<StringAttribute<S>>> {
+        let name: CString = name.try_into().map_err(Into::into)?.into();
+        let info = AttributeInfo::new(&self.node, part_id, owner, &name)?;
+        if !info.exists() {
+            return Ok(None);
+        }
+        let expected = if std::any::TypeId::of::<S>() == std::any::TypeId::of::<Fixed>() {
+            StorageType::String
+        } else {
+            StorageType::StringArray
+        };
+        if info.storage() != expected {
+            return Err(crate::HapiError::Internal(format!(
+                "attribute {name:?} has storage {:?}, expected {expected:?}",
+                info.storage()
+            )));
+        }
+        Ok(Some(StringAttribute::new(
+            name,
+            info,
+            self.node.clone(),
+            part_id,
+        )))
+    }
+
+    pub fn get_dictionary_attribute<S: AttributeShape>(
+        &self,
+        part_id: i32,
+        owner: AttributeOwner,
+        name: impl TryInto<AttributeName, Error = impl Into<crate::HapiError>>,
+    ) -> Result<Option<DictionaryAttribute<S>>> {
+        let name: CString = name.try_into().map_err(Into::into)?.into();
+        let info = AttributeInfo::new(&self.node, part_id, owner, &name)?;
+        if !info.exists() {
+            return Ok(None);
+        }
+        let expected = if std::any::TypeId::of::<S>() == std::any::TypeId::of::<Fixed>() {
+            StorageType::Dictionary
+        } else {
+            StorageType::DictionaryArray
+        };
+        if info.storage() != expected {
+            return Err(crate::HapiError::Internal(format!(
+                "attribute {name:?} has storage {:?}, expected {expected:?}",
+                info.storage()
+            )));
+        }
+        Ok(Some(DictionaryAttribute::new(
+            name,
+            info,
+            self.node.clone(),
+            part_id,
+        )))
+    }
+
+    /// Add a new numeric attribute to geometry. Storage is derived from `T` and `S`.
+    pub fn add_numeric_attribute<T: NumericPrimitive, S: AttributeShape>(
         &self,
         name: &str,
         part_id: i32,
         info: AttributeInfo,
-    ) -> Result<NumericAttr<T>> {
-        debug_assert_eq!(info.storage(), T::storage());
-        debug_assert!(
-            info.tuple_size() > 0,
-            "attribute \"{name}\" tuple_size must be > 0"
-        );
+    ) -> Result<Attribute<T, S>> {
+        if info.tuple_size() <= 0 {
+            return Err(crate::HapiError::Internal(format!(
+                "attribute {name:?} tuple_size must be > 0"
+            )));
+        }
+        let mut info = info;
+        info.set_storage(S::storage::<T>());
         log::debug!("Adding numeric geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
-        Ok(NumericAttr::<T>::new(name, info, self.node.clone()))
-    }
-
-    /// Add a new numeric array attribute to geometry.
-    pub fn add_numeric_array_attribute<T>(
-        &self,
-        name: &str,
-        part_id: i32,
-        info: AttributeInfo,
-    ) -> Result<NumericArrayAttr<T>>
-    where
-        T: AttribValueType,
-        [T]: ToOwned<Owned = Vec<T>>,
-    {
-        debug_assert_eq!(info.storage(), T::storage_array());
-        debug_assert!(
-            info.tuple_size() > 0,
-            "AttributeInfo::tuple_size must be 1 for array attributes"
-        );
-        log::debug!("Adding numeric array geometry attriubute: {name}");
-        let name = CString::new(name)?;
-        crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
-        Ok(NumericArrayAttr::<T>::new(name, info, self.node.clone()))
+        Ok(Attribute::<T, S>::new_created(
+            name,
+            info,
+            self.node.clone(),
+            part_id,
+        ))
     }
 
     /// Add a new string attribute to geometry
@@ -497,17 +588,21 @@ impl Geometry {
         name: &str,
         part_id: i32,
         info: AttributeInfo,
-    ) -> Result<StringAttr> {
-        debug_assert!(self.node.is_valid()?);
-        debug_assert_eq!(info.storage(), StorageType::String);
-        debug_assert!(
-            info.tuple_size() > 0,
-            "attribute \"{name}\" tuple_size must be > 0"
-        );
+    ) -> Result<StringAttribute<Fixed>> {
+        if info.storage() != StorageType::String || info.tuple_size() <= 0 {
+            return Err(crate::HapiError::Internal(format!(
+                "string attribute {name:?} requires String storage and a positive tuple size"
+            )));
+        }
         log::debug!("Adding string geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
-        Ok(StringAttr::new(name, info, self.node.clone()))
+        Ok(StringAttribute::new_created(
+            name,
+            info,
+            self.node.clone(),
+            part_id,
+        ))
     }
 
     /// Add a new string array attribute to geometry.
@@ -516,17 +611,21 @@ impl Geometry {
         name: &str,
         part_id: i32,
         info: AttributeInfo,
-    ) -> Result<StringArrayAttr> {
-        debug_assert!(self.node.is_valid()?);
-        debug_assert_eq!(info.storage(), StorageType::StringArray);
-        debug_assert!(
-            info.tuple_size() > 0,
-            "attribute \"{name}\" tuple_size must be > 0"
-        );
+    ) -> Result<StringAttribute<Jagged>> {
+        if info.storage() != StorageType::StringArray || info.tuple_size() <= 0 {
+            return Err(crate::HapiError::Internal(format!(
+                "jagged string attribute {name:?} requires StringArray storage and a positive tuple size"
+            )));
+        }
         log::debug!("Adding string array geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
-        Ok(StringArrayAttr::new(name, info, self.node.clone()))
+        Ok(StringAttribute::new_created(
+            name,
+            info,
+            self.node.clone(),
+            part_id,
+        ))
     }
 
     /// Add a new dictionary attribute to geometry
@@ -535,17 +634,21 @@ impl Geometry {
         name: &str,
         part_id: i32,
         info: AttributeInfo,
-    ) -> Result<DictionaryAttr> {
-        debug_assert!(self.node.is_valid()?);
-        debug_assert_eq!(info.storage(), StorageType::Dictionary);
-        debug_assert!(
-            info.tuple_size() > 0,
-            "attribute \"{name}\" tuple_size must be > 0"
-        );
+    ) -> Result<DictionaryAttribute<Fixed>> {
+        if info.storage() != StorageType::Dictionary || info.tuple_size() <= 0 {
+            return Err(crate::HapiError::Internal(format!(
+                "dictionary attribute {name:?} requires Dictionary storage and a positive tuple size"
+            )));
+        }
         log::debug!("Adding dictionary geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
-        Ok(DictionaryAttr::new(name, info, self.node.clone()))
+        Ok(DictionaryAttribute::new_created(
+            name,
+            info,
+            self.node.clone(),
+            part_id,
+        ))
     }
 
     /// Add a new dictionary attribute to geometry
@@ -554,17 +657,21 @@ impl Geometry {
         name: &str,
         part_id: i32,
         info: AttributeInfo,
-    ) -> Result<DictionaryArrayAttr> {
-        debug_assert!(self.node.is_valid()?);
-        debug_assert_eq!(info.storage(), StorageType::DictionaryArray);
-        debug_assert!(
-            info.tuple_size() > 0,
-            "attribute \"{name}\" tuple_size must be > 0"
-        );
+    ) -> Result<DictionaryAttribute<Jagged>> {
+        if info.storage() != StorageType::DictionaryArray || info.tuple_size() <= 0 {
+            return Err(crate::HapiError::Internal(format!(
+                "jagged dictionary attribute {name:?} requires DictionaryArray storage and a positive tuple size"
+            )));
+        }
         log::debug!("Adding dictionary array geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
-        Ok(DictionaryArrayAttr::new(name, info, self.node.clone()))
+        Ok(DictionaryAttribute::new_created(
+            name,
+            info,
+            self.node.clone(),
+            part_id,
+        ))
     }
 
     /// Create a new geometry group.
@@ -899,31 +1006,31 @@ impl PartInfo {
 /// Geometry extension trait with some useful utilities
 pub mod extra {
     use super::{
-        AttributeInfo, AttributeName, AttributeOwner, CString, Geometry, NumericAttr, PartInfo,
-        Result, StorageType, uzize_to_i32,
+        Attribute, AttributeInfo, AttributeName, AttributeOwner, CString, Fixed, Geometry,
+        PartInfo, Result, StorageType, uzize_to_i32,
     };
     pub trait GeometryExtension {
-        fn create_position_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>>;
-        fn create_point_color_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>>;
+        fn create_position_attribute(&self, part: &PartInfo) -> Result<Attribute<f32, Fixed>>;
+        fn create_point_color_attribute(&self, part: &PartInfo) -> Result<Attribute<f32, Fixed>>;
         fn get_color_attribute(
             &self,
             part: &PartInfo,
             owner: AttributeOwner,
-        ) -> Result<Option<NumericAttr<f32>>>;
+        ) -> Result<Option<Attribute<f32, Fixed>>>;
         fn get_normal_attribute(
             &self,
             part: &PartInfo,
             owner: AttributeOwner,
-        ) -> Result<Option<NumericAttr<f32>>>;
-        fn get_position_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>>;
+        ) -> Result<Option<Attribute<f32, Fixed>>>;
+        fn get_position_attribute(&self, part: &PartInfo) -> Result<Option<Attribute<f32, Fixed>>>;
     }
 
     impl GeometryExtension for Geometry {
-        fn create_position_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>> {
+        fn create_position_attribute(&self, part: &PartInfo) -> Result<Attribute<f32, Fixed>> {
             create_point_tuple_attribute::<3>(self, part, AttributeName::P)
         }
 
-        fn create_point_color_attribute(&self, part: &PartInfo) -> Result<NumericAttr<f32>> {
+        fn create_point_color_attribute(&self, part: &PartInfo) -> Result<Attribute<f32, Fixed>> {
             create_point_tuple_attribute::<3>(self, part, AttributeName::Cd)
         }
 
@@ -931,7 +1038,7 @@ pub mod extra {
             &self,
             part: &PartInfo,
             owner: AttributeOwner,
-        ) -> Result<Option<NumericAttr<f32>>> {
+        ) -> Result<Option<Attribute<f32, Fixed>>> {
             debug_assert!(matches!(
                 owner,
                 AttributeOwner::Point | AttributeOwner::Vertex
@@ -942,14 +1049,14 @@ pub mod extra {
             &self,
             part: &PartInfo,
             owner: AttributeOwner,
-        ) -> Result<Option<NumericAttr<f32>>> {
+        ) -> Result<Option<Attribute<f32, Fixed>>> {
             debug_assert!(matches!(
                 owner,
                 AttributeOwner::Point | AttributeOwner::Vertex
             ));
             get_tuple3_attribute(self, part, AttributeName::N, owner)
         }
-        fn get_position_attribute(&self, part: &PartInfo) -> Result<Option<NumericAttr<f32>>> {
+        fn get_position_attribute(&self, part: &PartInfo) -> Result<Option<Attribute<f32, Fixed>>> {
             get_tuple3_attribute(self, part, AttributeName::P, AttributeOwner::Point)
         }
     }
@@ -959,7 +1066,7 @@ pub mod extra {
         geo: &Geometry,
         part: &PartInfo,
         name: AttributeName,
-    ) -> Result<NumericAttr<f32>> {
+    ) -> Result<Attribute<f32, Fixed>> {
         log::debug!("Creating point attriute {name:?}");
         let name: CString = name.into();
         let attr_info = AttributeInfo::default()
@@ -968,7 +1075,7 @@ pub mod extra {
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::Float);
         crate::ffi::add_attribute(&geo.node, part.part_id(), &name, &attr_info.0)
-            .map(|()| NumericAttr::new(name, attr_info, geo.node.clone()))
+            .map(|()| Attribute::new_created(name, attr_info, geo.node.clone(), part.part_id()))
     }
 
     #[inline]
@@ -977,11 +1084,11 @@ pub mod extra {
         part: &PartInfo,
         name: AttributeName,
         owner: AttributeOwner,
-    ) -> Result<Option<NumericAttr<f32>>> {
+    ) -> Result<Option<Attribute<f32, Fixed>>> {
         let name: CString = name.into();
         AttributeInfo::new(&geo.node, part.part_id(), owner, &name).map(|info| {
             info.exists()
-                .then(|| NumericAttr::new(name, info, geo.node.clone()))
+                .then(|| Attribute::new(name, info, geo.node.clone(), part.part_id()))
         })
     }
 }

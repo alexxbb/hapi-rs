@@ -22,7 +22,6 @@ include = ["/src", "build.rs", "LICENSE"]
 log = "0.4.28"
 pastey = "0.1.1"
 parking_lot = "0.12.5"
-duplicate = { version = "2.0.0", features = [], default-features = false }
 debug-ignore = "1.0.5"
 tempfile = "3.23.0"
 thiserror = "2.0"

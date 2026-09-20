@@ -82,9 +82,6 @@ mod tests {
 
     #[test]
     fn join_paths_multiple() {
-        assert_eq!(
-            join_paths(["/a", "/b", "/c"]),
-            format!("/a{SEP}/b{SEP}/c")
-        );
+        assert_eq!(join_paths(["/a", "/b", "/c"]), format!("/a{SEP}/b{SEP}/c"));
     }
 }
