@@ -2381,15 +2381,24 @@ pub fn delete_attribute(
     }
 }
 
-/// Primitive types accepted by HAPI's numeric attribute entry points.
-///
-/// # Safety
-/// Implementations must use the HAPI entry points whose C element type has the
-/// same layout as `Self`.
 mod numeric_private {
     pub trait Sealed {}
 }
 
+/// Sealed mapping between Rust numeric primitives and HAPI attribute storage.
+///
+/// This trait is implemented for `u8`, `i8`, `i16`, `i32`, `i64`, `f32`, and
+/// `f64`. It selects the corresponding fixed and array storage types and routes
+/// typed attribute operations to HAPI entry points with the matching C element
+/// layout. Users normally encounter it as the numeric bound on
+/// [`crate::attribute::Attribute`] and the typed geometry lookup and creation
+/// methods; downstream implementations are intentionally prevented.
+///
+/// # Safety
+///
+/// Every implementation must use HAPI entry points whose C element type has
+/// the same size, alignment, and representation as `Self`, and must associate
+/// `Self` with the matching fixed and array storage variants.
 pub unsafe trait NumericPrimitive:
     numeric_private::Sealed + Copy + Default + Send + 'static
 {

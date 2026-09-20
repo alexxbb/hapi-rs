@@ -1,7 +1,10 @@
 use crate::errors::{HapiError, Result};
 use crate::stringhandle::{StringArray, StringHandle};
 
-/// Owned values and per-element sizes returned by HAPI array attributes.
+/// Owned flattened values and per-element sizes for a HAPI array attribute.
+///
+/// The `sizes` array contains one entry for every geometry element owned by the
+/// attribute. Each size describes the corresponding slice in `data`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct JaggedArrayData<T> {
     data: Vec<T>,
@@ -9,6 +12,10 @@ pub struct JaggedArrayData<T> {
 }
 
 impl<T> JaggedArrayData<T> {
+    /// Creates validated jagged attribute data.
+    ///
+    /// Returns an error when a size is negative, the total overflows `usize`,
+    /// or the sum of all sizes differs from `data.len()`.
     pub fn new(data: Vec<T>, sizes: Vec<i32>) -> Result<Self> {
         validate_sizes(&sizes, data.len())?;
         Ok(Self { data, sizes })
@@ -18,16 +25,19 @@ impl<T> JaggedArrayData<T> {
         Self::new(data, sizes)
     }
 
+    /// Returns the flattened attribute values.
     #[must_use]
     pub fn data(&self) -> &[T] {
         &self.data
     }
 
+    /// Returns the number of values belonging to each geometry element.
     #[must_use]
     pub fn sizes(&self) -> &[i32] {
         &self.sizes
     }
 
+    /// Iterates over the bounds-checked slice for each geometry element.
     #[must_use]
     pub fn iter(&self) -> JaggedArrayIter<'_, T> {
         JaggedArrayIter {
@@ -46,6 +56,7 @@ impl<'a, T> IntoIterator for &'a JaggedArrayData<T> {
     }
 }
 
+/// Bounds-checked iterator over the entries of [`JaggedArrayData`].
 pub struct JaggedArrayIter<'a, T> {
     data: &'a [T],
     sizes: std::slice::Iter<'a, i32>,
@@ -63,7 +74,10 @@ impl<'a, T> Iterator for JaggedArrayIter<'a, T> {
     }
 }
 
-/// Jagged string or dictionary data. Each item is exposed as a `StringArray`.
+/// Owned jagged string or dictionary attribute data.
+///
+/// Each entry is resolved lazily from HAPI string handles and exposed as a
+/// [`StringArray`].
 #[derive(Debug, Clone)]
 pub struct StringJaggedArrayData {
     pub(crate) handles: Vec<StringHandle>,
@@ -85,11 +99,15 @@ impl StringJaggedArrayData {
         })
     }
 
+    /// Returns the number of strings belonging to each geometry element.
     #[must_use]
     pub fn sizes(&self) -> &[i32] {
         &self.sizes
     }
 
+    /// Iterates over each geometry element's strings.
+    ///
+    /// An item can fail while its HAPI string handles are being resolved.
     #[must_use]
     pub fn iter(&self) -> StringJaggedArrayIter<'_> {
         StringJaggedArrayIter {
@@ -100,6 +118,7 @@ impl StringJaggedArrayData {
         }
     }
 
+    /// Resolves all strings and returns flattened values with their sizes.
     pub fn flatten(self) -> Result<(Vec<String>, Vec<usize>)> {
         let mut flat = Vec::with_capacity(self.handles.len());
         for item in &self {
@@ -118,6 +137,7 @@ impl<'a> IntoIterator for &'a StringJaggedArrayData {
     }
 }
 
+/// Bounds-checked iterator over [`StringJaggedArrayData`].
 pub struct StringJaggedArrayIter<'a> {
     handles: &'a [StringHandle],
     sizes: std::slice::Iter<'a, i32>,

@@ -1,6 +1,10 @@
-//! Access to geometry data, attributes, reading and writing geometry to and from disk
+//! Access to geometry data, attributes, and geometry file I/O.
 //!
-//!
+//! Attribute lookup and creation methods take a HAPI part id once and return a
+//! typed handle bound to that part, owner, and name. The handle's data methods
+//! operate on the complete attribute and do not take another part id. Because
+//! HAPI part ids may be reordered by cooking, reacquire attribute handles after
+//! a cook that can change the geometry's part layout.
 
 use crate::attribute::{
     AnyAttribute, Attribute, AttributeShape, DictionaryAttribute, Fixed, Jagged, NumericPrimitive,
@@ -403,7 +407,12 @@ impl Geometry {
         AttributeInfo::new(&self.node, part_id, owner, &name)
     }
 
-    /// Get geometry attribute by name and owner.
+    /// Gets an attribute by part, owner, and name without assuming its storage.
+    ///
+    /// Returns `Ok(None)` when the attribute does not exist. Otherwise the
+    /// returned [`AnyAttribute`] variant contains a typed handle bound to the
+    /// requested part. Invalid or unsupported HAPI storage is reported as an
+    /// error.
     pub fn get_attribute<T>(
         &self,
         part_id: i32,
@@ -475,7 +484,11 @@ impl Geometry {
         Ok(Some(attr))
     }
 
-    /// Get a numeric attribute only if its primitive type and shape match.
+    /// Gets a numeric attribute when its primitive type and shape match `T` and `S`.
+    ///
+    /// Returns `Ok(None)` when the attribute does not exist and an error when
+    /// it exists with different storage. The returned handle is bound to
+    /// `part_id`; its reads and writes transfer the complete attribute.
     pub fn get_numeric_attribute<T: NumericPrimitive, S: AttributeShape>(
         &self,
         part_id: i32,
@@ -497,6 +510,10 @@ impl Geometry {
         Ok(Some(Attribute::new(name, info, self.node.clone(), part_id)))
     }
 
+    /// Gets a string attribute with the requested fixed or jagged shape.
+    ///
+    /// Returns `Ok(None)` when the attribute does not exist and an error when
+    /// its storage does not match `S`.
     pub fn get_string_attribute<S: AttributeShape>(
         &self,
         part_id: i32,
@@ -527,6 +544,10 @@ impl Geometry {
         )))
     }
 
+    /// Gets a dictionary attribute with the requested fixed or jagged shape.
+    ///
+    /// Returns `Ok(None)` when the attribute does not exist and an error when
+    /// its storage does not match `S`.
     pub fn get_dictionary_attribute<S: AttributeShape>(
         &self,
         part_id: i32,
@@ -557,7 +578,10 @@ impl Geometry {
         )))
     }
 
-    /// Add a new numeric attribute to geometry. Storage is derived from `T` and `S`.
+    /// Adds a numeric attribute whose storage is derived from `T` and `S`.
+    ///
+    /// The `storage` field supplied in `info` is ignored and replaced. The
+    /// tuple size must be positive. The returned handle is bound to `part_id`.
     pub fn add_numeric_attribute<T: NumericPrimitive, S: AttributeShape>(
         &self,
         name: &str,
@@ -582,7 +606,9 @@ impl Geometry {
         ))
     }
 
-    /// Add a new string attribute to geometry
+    /// Adds a fixed-tuple string attribute.
+    ///
+    /// `info` must specify [`StorageType::String`] and a positive tuple size.
     pub fn add_string_attribute(
         &self,
         name: &str,
@@ -605,7 +631,9 @@ impl Geometry {
         ))
     }
 
-    /// Add a new string array attribute to geometry.
+    /// Adds a jagged string array attribute.
+    ///
+    /// `info` must specify [`StorageType::StringArray`] and a positive tuple size.
     pub fn add_string_array_attribute(
         &self,
         name: &str,
@@ -628,7 +656,9 @@ impl Geometry {
         ))
     }
 
-    /// Add a new dictionary attribute to geometry
+    /// Adds a fixed-tuple JSON dictionary attribute.
+    ///
+    /// `info` must specify [`StorageType::Dictionary`] and a positive tuple size.
     pub fn add_dictionary_attribute(
         &self,
         name: &str,
@@ -651,7 +681,9 @@ impl Geometry {
         ))
     }
 
-    /// Add a new dictionary attribute to geometry
+    /// Adds a jagged JSON dictionary array attribute.
+    ///
+    /// `info` must specify [`StorageType::DictionaryArray`] and a positive tuple size.
     pub fn add_dictionary_array_attribute(
         &self,
         name: &str,

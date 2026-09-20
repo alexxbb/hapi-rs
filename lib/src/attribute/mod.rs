@@ -1,4 +1,24 @@
-//! Typed geometry attribute handles.
+//! Typed handles for geometry attributes.
+//!
+//! Attribute handles are bound to a node, part, owner, and name when they are
+//! created or looked up. Consequently, [`Attribute::get`] and
+//! [`Attribute::set`] do not accept a part id: use a separate lookup to obtain
+//! a handle for another part. HAPI part ids are indices that can change after a
+//! cook, so reacquire handles after a cook that may change the part layout.
+//!
+//! The shape marker distinguishes ordinary fixed-tuple attributes from HAPI
+//! array attributes:
+//!
+//! - [`Attribute<T, Fixed>`](Attribute) reads and writes a flat `Vec<T>` whose
+//!   length is `count * tuple_size`.
+//! - [`Attribute<T, Jagged>`](Attribute) uses [`JaggedArrayData<T>`], containing
+//!   flattened values plus one array size for every owned element.
+//! - [`StringAttribute`] and [`DictionaryAttribute`] follow the same
+//!   [`Fixed`]/[`Jagged`] distinction.
+//!
+//! The safe accessors currently transfer the complete attribute. HAPI's
+//! lower-level `start` and `length` range arguments are not exposed by these
+//! methods.
 
 mod array;
 #[cfg(feature = "async-cooking")]
@@ -23,8 +43,10 @@ use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
 
 #[derive(Debug, Clone, Copy)]
+/// Marker for an ordinary HAPI attribute with a fixed tuple size.
 pub struct Fixed;
 #[derive(Debug, Clone, Copy)]
+/// Marker for a HAPI array attribute whose entries may have different lengths.
 pub struct Jagged;
 
 mod private {
@@ -33,6 +55,10 @@ mod private {
 impl private::Sealed for Fixed {}
 impl private::Sealed for Jagged {}
 
+/// Sealed mapping from an attribute shape and numeric Rust type to HAPI storage.
+///
+/// Implemented by [`Fixed`] and [`Jagged`]. It is primarily used as a generic
+/// bound on typed lookup and creation methods.
 pub trait AttributeShape: private::Sealed + Send + 'static {
     fn storage<T: NumericPrimitive>() -> StorageType;
 }
@@ -109,6 +135,11 @@ impl Handle {
 }
 
 #[derive(Debug, Clone)]
+/// A typed numeric geometry attribute handle.
+///
+/// `T` determines the numeric primitive storage and `S` determines whether the
+/// attribute is fixed-tuple or jagged. The handle retains its node, part,
+/// owner, and name identity and refreshes its metadata before data operations.
 pub struct Attribute<T: NumericPrimitive, S: AttributeShape> {
     handle: Handle,
     marker: PhantomData<(T, S)>,
@@ -132,26 +163,35 @@ impl<T: NumericPrimitive, S: AttributeShape> Attribute<T, S> {
             marker: PhantomData,
         }
     }
+    /// Returns the metadata captured when this handle was created.
+    ///
+    /// Data operations refresh and validate metadata internally, but do not
+    /// replace this snapshot.
     #[must_use]
     pub fn info(&self) -> &AttributeInfo {
         &self.handle.info
     }
+    /// Returns the attribute name.
     #[must_use]
     pub fn name(&self) -> &CStr {
         &self.handle.name
     }
+    /// Returns the HAPI part to which this handle is bound.
     #[must_use]
     pub fn part_id(&self) -> i32 {
         self.handle.part_id
     }
+    /// Returns the element owner of this attribute.
     #[must_use]
     pub fn owner(&self) -> AttributeOwner {
         self.handle.owner
     }
+    /// Returns the HAPI storage implied by `T` and `S`.
     #[must_use]
     pub fn storage(&self) -> StorageType {
         S::storage::<T>()
     }
+    /// Deletes this attribute from its bound node and part.
     pub fn delete(self) -> Result<()> {
         crate::ffi::delete_attribute(
             &self.handle.node,
@@ -163,6 +203,9 @@ impl<T: NumericPrimitive, S: AttributeShape> Attribute<T, S> {
 }
 
 impl<T: NumericPrimitive> Attribute<T, Fixed> {
+    /// Reads the complete fixed-tuple attribute as a flat vector.
+    ///
+    /// The result length is `count * tuple_size` using refreshed metadata.
     pub fn get(&self) -> Result<Vec<T>> {
         let info = self.handle.refresh(T::FIXED_STORAGE)?;
         let mut data = vec![T::default(); Handle::expected_fixed_len(&info)?];
@@ -176,6 +219,9 @@ impl<T: NumericPrimitive> Attribute<T, Fixed> {
         Ok(data)
     }
 
+    /// Reads the complete attribute into a reusable vector.
+    ///
+    /// `data` is resized to `count * tuple_size` before the HAPI call.
     pub fn read_into(&self, data: &mut Vec<T>) -> Result<()> {
         let info = self.handle.refresh(T::FIXED_STORAGE)?;
         data.resize(Handle::expected_fixed_len(&info)?, T::default());
@@ -188,6 +234,9 @@ impl<T: NumericPrimitive> Attribute<T, Fixed> {
         )
     }
 
+    /// Replaces the complete fixed-tuple attribute.
+    ///
+    /// Returns an error unless `data.len() == count * tuple_size`.
     pub fn set(&self, data: &[T]) -> Result<()> {
         let info = self.handle.refresh(T::FIXED_STORAGE)?;
         let expected = Handle::expected_fixed_len(&info)?;
@@ -209,6 +258,9 @@ impl<T: NumericPrimitive> Attribute<T, Fixed> {
         )
     }
 
+    /// Assigns the same tuple value to every element of the attribute.
+    ///
+    /// `value` must contain exactly `tuple_size` numeric values.
     pub fn set_unique(&self, value: &[T]) -> Result<()> {
         let info = self.handle.refresh(T::FIXED_STORAGE)?;
         let expected = usize::try_from(info.tuple_size())
@@ -230,6 +282,7 @@ impl<T: NumericPrimitive> Attribute<T, Fixed> {
 }
 
 impl<T: NumericPrimitive> Attribute<T, Jagged> {
+    /// Reads the complete HAPI array attribute.
     pub fn get(&self) -> Result<JaggedArrayData<T>> {
         let info = self.handle.refresh(T::JAGGED_STORAGE)?;
         let total = usize::try_from(info.total_array_elements())
@@ -249,6 +302,11 @@ impl<T: NumericPrimitive> Attribute<T, Jagged> {
         JaggedArrayData::from_hapi(data, sizes)
     }
 
+    /// Replaces the complete HAPI array attribute.
+    ///
+    /// The number of sizes must equal the refreshed attribute count. The
+    /// [`JaggedArrayData`] constructor additionally guarantees that sizes are
+    /// nonnegative and sum to the flattened data length.
     pub fn set(&self, values: &JaggedArrayData<T>) -> Result<()> {
         let info = self.handle.refresh(T::JAGGED_STORAGE)?;
         let expected = usize::try_from(info.count())
@@ -272,11 +330,19 @@ impl<T: NumericPrimitive> Attribute<T, Jagged> {
 }
 
 #[derive(Debug, Clone)]
+/// A typed string attribute handle.
+///
+/// Use [`Fixed`] for ordinary string tuples and [`Jagged`] for HAPI string
+/// array attributes.
 pub struct StringAttribute<S: AttributeShape> {
     handle: Handle,
     marker: PhantomData<S>,
 }
 #[derive(Debug, Clone)]
+/// A typed JSON dictionary attribute handle.
+///
+/// Use [`Fixed`] for ordinary dictionary tuples and [`Jagged`] for HAPI
+/// dictionary array attributes.
 pub struct DictionaryAttribute<S: AttributeShape> {
     handle: Handle,
     marker: PhantomData<S>,
@@ -307,26 +373,32 @@ macro_rules! common_handle {
                     marker: PhantomData,
                 }
             }
+            /// Returns the metadata captured when this handle was created.
             #[must_use]
             pub fn info(&self) -> &AttributeInfo {
                 &self.handle.info
             }
+            /// Returns the attribute name.
             #[must_use]
             pub fn name(&self) -> &CStr {
                 &self.handle.name
             }
+            /// Returns the HAPI part to which this handle is bound.
             #[must_use]
             pub fn part_id(&self) -> i32 {
                 self.handle.part_id
             }
+            /// Returns the element owner of this attribute.
             #[must_use]
             pub fn owner(&self) -> AttributeOwner {
                 self.handle.owner
             }
+            /// Returns the HAPI storage type.
             #[must_use]
             pub fn storage(&self) -> StorageType {
                 self.handle.info.storage()
             }
+            /// Deletes this attribute from its bound node and part.
             pub fn delete(self) -> Result<()> {
                 crate::ffi::delete_attribute(
                     &self.handle.node,
@@ -344,6 +416,7 @@ common_handle!(DictionaryAttribute);
 macro_rules! fixed_string_impl {
     ($type:ident, $storage:expr, $dictionary:expr) => {
         impl $type<Fixed> {
+            /// Reads the complete fixed-tuple attribute.
             pub fn get(&self) -> Result<StringArray> {
                 let info = self.handle.refresh($storage)?;
                 crate::ffi::get_string_attribute_data(
@@ -354,6 +427,9 @@ macro_rules! fixed_string_impl {
                     $dictionary,
                 )
             }
+            /// Replaces the complete fixed-tuple attribute.
+            ///
+            /// The value count must equal `count * tuple_size`.
             pub fn set(&self, values: &[impl AsRef<CStr>]) -> Result<()> {
                 let info = self.handle.refresh($storage)?;
                 let expected = Handle::expected_fixed_len(&info)?;
@@ -381,6 +457,7 @@ fixed_string_impl!(StringAttribute, StorageType::String, false);
 fixed_string_impl!(DictionaryAttribute, StorageType::Dictionary, true);
 
 impl StringAttribute<Fixed> {
+    /// Assigns one string value to every element of the attribute.
     pub fn set_unique(&self, value: &CStr) -> Result<()> {
         let info = self.handle.refresh(StorageType::String)?;
         crate::ffi::set_string_unique_attribute_data(
@@ -391,6 +468,10 @@ impl StringAttribute<Fixed> {
             value,
         )
     }
+    /// Sets the complete attribute using a table of unique strings and indices.
+    ///
+    /// `indices` must contain `count * tuple_size` entries. Each index is
+    /// interpreted by HAPI as an entry in `values`.
     pub fn set_indexed(&self, values: &[impl AsRef<CStr>], indices: &[i32]) -> Result<()> {
         let info = self.handle.refresh(StorageType::String)?;
         let expected = Handle::expected_fixed_len(&info)?;
@@ -416,6 +497,7 @@ impl StringAttribute<Fixed> {
 macro_rules! jagged_string_impl {
     ($type:ident, $storage:expr, $dictionary:expr) => {
         impl $type<Jagged> {
+            /// Reads the complete string or dictionary array attribute.
             pub fn get(&self) -> Result<StringJaggedArrayData> {
                 let info = self.handle.refresh($storage)?;
                 let (handles, sizes) = crate::ffi::get_string_jagged_attribute_data(
@@ -427,6 +509,10 @@ macro_rules! jagged_string_impl {
                 )?;
                 StringJaggedArrayData::from_hapi(handles, sizes, self.handle.node.session.clone())
             }
+            /// Replaces the complete string or dictionary array attribute.
+            ///
+            /// Sizes must be nonnegative, sum to `values.len()`, and contain
+            /// one entry for every owned geometry element.
             pub fn set(&self, values: &[impl AsRef<CStr>], sizes: &[i32]) -> Result<()> {
                 let info = self.handle.refresh($storage)?;
                 let validated =
@@ -458,24 +544,47 @@ jagged_string_impl!(StringAttribute, StorageType::StringArray, false);
 jagged_string_impl!(DictionaryAttribute, StorageType::DictionaryArray, true);
 
 #[derive(Debug, Clone)]
+/// Exhaustive runtime representation of every supported HAPI attribute storage.
+///
+/// Returned by [`crate::geometry::Geometry::get_attribute`] when the caller
+/// does not know the storage in advance. Match a variant to obtain its typed
+/// handle, or use the common identity and deletion methods directly.
 pub enum AnyAttribute {
+    /// A fixed `i32` attribute.
     Int(Attribute<i32, Fixed>),
+    /// A fixed `i64` attribute.
     Int64(Attribute<i64, Fixed>),
+    /// A fixed `f32` attribute.
     Float(Attribute<f32, Fixed>),
+    /// A fixed `f64` attribute.
     Float64(Attribute<f64, Fixed>),
+    /// A fixed string attribute.
     String(StringAttribute<Fixed>),
+    /// A fixed `u8` attribute.
     Uint8(Attribute<u8, Fixed>),
+    /// A fixed `i8` attribute.
     Int8(Attribute<i8, Fixed>),
+    /// A fixed `i16` attribute.
     Int16(Attribute<i16, Fixed>),
+    /// A jagged `i32` array attribute.
     IntArray(Attribute<i32, Jagged>),
+    /// A jagged `i64` array attribute.
     Int64Array(Attribute<i64, Jagged>),
+    /// A jagged `f32` array attribute.
     FloatArray(Attribute<f32, Jagged>),
+    /// A jagged `f64` array attribute.
     Float64Array(Attribute<f64, Jagged>),
+    /// A jagged string array attribute.
     StringArray(StringAttribute<Jagged>),
+    /// A jagged `u8` array attribute.
     Uint8Array(Attribute<u8, Jagged>),
+    /// A jagged `i8` array attribute.
     Int8Array(Attribute<i8, Jagged>),
+    /// A jagged `i16` array attribute.
     Int16Array(Attribute<i16, Jagged>),
+    /// A fixed JSON dictionary attribute.
     Dictionary(DictionaryAttribute<Fixed>),
+    /// A jagged JSON dictionary array attribute.
     DictionaryArray(DictionaryAttribute<Jagged>),
 }
 
@@ -502,26 +611,32 @@ impl AnyAttribute {
             Self::DictionaryArray(v) => &v.handle,
         }
     }
+    /// Returns the attribute name, replacing invalid UTF-8 if necessary.
     #[must_use]
     pub fn name(&self) -> Cow<'_, str> {
         self.handle().name.to_string_lossy()
     }
+    /// Returns the metadata captured when this handle was created.
     #[must_use]
     pub fn info(&self) -> &AttributeInfo {
         &self.handle().info
     }
+    /// Returns the HAPI storage represented by the enum variant.
     #[must_use]
     pub fn storage(&self) -> StorageType {
         self.handle().info.storage()
     }
+    /// Returns the HAPI part to which this handle is bound.
     #[must_use]
     pub fn part_id(&self) -> i32 {
         self.handle().part_id
     }
+    /// Returns the element owner of this attribute.
     #[must_use]
     pub fn owner(&self) -> AttributeOwner {
         self.handle().owner
     }
+    /// Deletes this attribute from its bound node and part.
     pub fn delete(self) -> Result<()> {
         let h = self.handle();
         crate::ffi::delete_attribute(&h.node, h.part_id, &h.name, &h.info.0)

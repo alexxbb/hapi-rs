@@ -7,6 +7,12 @@ use std::any::Any;
 type Finish<R> = Box<dyn FnOnce(Box<dyn Any + Send>) -> Result<R> + Send>;
 
 /// An in-flight HAPI attribute operation that owns all FFI backing storage.
+///
+/// Call [`wait`](Self::wait) to consume the job and obtain its result. If a job
+/// is dropped after HAPI has become idle, its storage is released normally. If
+/// it is still running (or its status cannot be read), only the backing
+/// allocation is intentionally leaked to prevent HAPI from dereferencing freed
+/// memory.
 #[must_use = "dropping a running HAPI job may leak its FFI backing allocation"]
 pub struct AsyncJob<R> {
     job_id: i32,
@@ -43,11 +49,13 @@ impl<R> AsyncJob<R> {
         }
     }
 
+    /// Returns the HAPI job id.
     #[must_use]
     pub fn job_id(&self) -> i32 {
         self.job_id
     }
 
+    /// Returns whether HAPI reports that the job is idle and ready to finish.
     pub fn is_ready(&self) -> Result<bool> {
         self.session
             .get_job_status(self.job_id)
@@ -55,6 +63,7 @@ impl<R> AsyncJob<R> {
             .map(|status| status == JobStatus::Idle)
     }
 
+    /// Waits for completion, consumes the backing storage, and returns the result.
     pub fn wait(mut self) -> Result<R> {
         while !self.is_ready()? {
             std::thread::yield_now();
@@ -84,18 +93,35 @@ impl<R> Drop for AsyncJob<R> {
     }
 }
 
+/// Feature-gated asynchronous whole-attribute reads and writes.
+///
+/// This extension trait is implemented for numeric, string, and dictionary
+/// handles of both shapes. Enable the `async-cooking` feature and import the
+/// trait to make its methods available.
 pub trait AsyncAttributeAccess {
+    /// Value returned after a read job completes.
     type Output;
+    /// Borrowed value accepted when starting a write job.
     type Input: ?Sized;
+    /// Starts a read of the complete attribute.
     fn get_async(&self) -> Result<AsyncJob<Self::Output>>;
+    /// Starts a write of the complete attribute.
+    ///
+    /// Input lengths are validated before HAPI is called.
     fn set_async(&self, values: &Self::Input) -> Result<AsyncJob<()>>;
 }
 
+/// Feature-gated asynchronous unique-value writes for fixed attributes.
 pub trait AsyncFixedAttributeAccess<V: ?Sized> {
+    /// Starts a job assigning the same tuple value to every element.
     fn set_unique_async(&self, value: &V) -> Result<AsyncJob<()>>;
 }
 
+/// Feature-gated asynchronous indexed writes for fixed string attributes.
 pub trait AsyncStringAttributeAccess {
+    /// Starts a job using `indices` to select from the unique `values` table.
+    ///
+    /// `indices` must contain `count * tuple_size` entries.
     fn set_indexed_async<V: AsRef<CStr>>(
         &self,
         values: &[V],

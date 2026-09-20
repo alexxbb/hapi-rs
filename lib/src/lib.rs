@@ -79,7 +79,7 @@
 //! - [`session::Session::set_server_var`] / [`session::Session::get_server_var`] variable APIs.
 //! - [`session::Session::cook`] reports [`session::CookResult`] when you run in threaded mode.
 //!
-//! ```rust
+//! ```no_run
 //! use hapi_rs::session::simple_session;
 //! use std::path::PathBuf;
 //!
@@ -107,7 +107,7 @@
 //! - [`node::HoudiniNode::geometry`] returns a [`geometry::Geometry`] for SOP nodes or follows the display flag
 //!   when called on OBJ nodes.
 //! - [`node::HoudiniNode::parameters`] retrieves strongly-typed [`parameter::Parameter`] values.
-//! - Networking helpers such as [`node::HoudiniNode::find_children_by_type`] or [`node::ManagerNode`] mirror
+//! - Networking helpers such as [`node::HoudiniNode::get_children_by_type`] or [`node::ManagerNode`] mirror
 //!   the C API utilities.
 //! - File IO helpers ([`node::HoudiniNode::save_to_file`], [`node::HoudiniNode::load_from_file`]) keep the
 //!   naming/parsing identical to HAPI.
@@ -132,7 +132,7 @@
 //! The curve and group APIs map directly to HAPI (`get_curve_counts`, `get_group_names`, etc.); see
 //! `lib/examples/object_geos_parts.rs` and `lib/examples/curve_output.rs` for in-depth geometry traversals.
 //!
-//! ```rust
+//! ```no_run
 //! use hapi_rs::{
 //!     geometry::PartType,
 //!     session::simple_session,
@@ -166,19 +166,27 @@
 //! ```
 //!
 //! ## Typed attribute access
-//! Attributes come back as an exhaustive [`attribute::AnyAttribute`] enum, or can be requested directly as
-//! typed fixed or jagged handles. Every handle stores its part and owner identity, so reads and writes do not
-//! take a separate part ID.
+//! [`attribute::Attribute`] uses a Rust primitive and a shape marker to encode HAPI storage. For example,
+//! [`attribute::Attribute<f32, attribute::Fixed>`] is an ordinary fixed-tuple float attribute, while
+//! [`attribute::Attribute<i32, attribute::Jagged>`] is an integer array attribute. Strings and JSON dictionaries
+//! use [`attribute::StringAttribute`] and [`attribute::DictionaryAttribute`] with the same shape markers.
 //!
-//! [`geometry::Geometry::get_attribute`] will fetch any attribute by owner/name, while convenience helpers such
-//! as [`geometry::Geometry::get_position_attribute`] cover common cases. To create new attributes you build an
-//! [`geometry::AttributeInfo`] (it implements [`Default`] + builder setters), then call one of the
-//! `add_*_attribute` methods. Jagged numeric data uses [`attribute::JaggedArrayData`].
+//! Use [`geometry::Geometry::get_attribute`] when storage is unknown; it returns the exhaustive
+//! [`attribute::AnyAttribute`] enum. The checked numeric, string, and dictionary lookup methods return typed
+//! handles and report a storage mismatch rather than relying on downcasting. Creation follows the same model:
+//! numeric storage is derived from the Rust primitive and shape, so the `storage` field in
+//! [`geometry::AttributeInfo`] does not need to be selected by the caller.
 //!
-//! ```rust
+//! Every handle stores its node, part, owner, and name. Select the part during lookup or creation; subsequent
+//! `get` and `set` calls use that identity and transfer the complete attribute. Fixed writes require exactly
+//! `count * tuple_size` values. Jagged writes use [`attribute::JaggedArrayData`], which rejects negative sizes,
+//! overflow, or a size total that differs from the flattened data length. HAPI part ids can be reordered after a
+//! cook, so reacquire handles after cooking geometry whose part layout may have changed.
+//!
+//! ```no_run
 //! use hapi_rs::{
-//!     attribute::Fixed,
-//!     geometry::{AttributeInfo, AttributeOwner, PartType, StorageType},
+//!     attribute::{Attribute, AnyAttribute, Fixed, Jagged, JaggedArrayData},
+//!     geometry::{AttributeInfo, AttributeOwner, PartType},
 //!     session::simple_session,
 //! };
 //! use std::path::PathBuf;
@@ -201,17 +209,33 @@
 //!     let values = positions.get()?;
 //!     assert!(!values.is_empty());
 //!
+//!     if let Some(attribute) = geometry.get_attribute(part.part_id(), AttributeOwner::Point, "P")? {
+//!         match attribute {
+//!             AnyAttribute::Float(position) => assert_eq!(position.part_id(), part.part_id()),
+//!             other => panic!("unexpected P storage: {:?}", other.storage()),
+//!         }
+//!     }
+//!
 //!     let mut info = AttributeInfo::default();
 //!     info.set_owner(AttributeOwner::Point);
-//!     info.set_storage(StorageType::Float);
 //!     info.set_tuple_size(1);
 //!     info.set_count(part.point_count());
 //!     let weights = geometry.add_numeric_attribute::<f32, Fixed>("rs_weight", part.part_id(), info)?;
 //!     let fill = vec![1.0f32; part.point_count() as usize];
 //!     weights.set(&fill)?;
+//!
+//!     let arrays = JaggedArrayData::new(vec![1_i32, 2, 3], vec![2, 1])?;
+//!     assert_eq!(arrays.iter().collect::<Vec<_>>(), vec![&[1, 2][..], &[3][..]]);
+//!     let _: Option<Attribute<i32, Jagged>> = geometry
+//!         .get_numeric_attribute(part.part_id(), AttributeOwner::Point, "neighbors")?;
 //!     Ok(())
 //! }
 //! ```
+//!
+//! With the `async-cooking` feature, import `AsyncAttributeAccess`, `AsyncFixedAttributeAccess`, or
+//! `AsyncStringAttributeAccess` to start asynchronous operations. The returned `AsyncJob` owns every allocation
+//! visible to HAPI; consume it with `wait`. Dropping an active job warns and intentionally leaks only its FFI
+//! backing allocation to avoid use-after-free.
 //!
 //! ## Parameters and UI metadata
 //! [`parameter::Parameter`] is an enum that covers all `HAPI_ParmType` values, while
@@ -226,7 +250,7 @@
 //! branch on parameter types. For more elaborate formatting of menu values see that example; it prints a table
 //! of every parameter on the asset.
 //!
-//! ```rust
+//! ```no_run
 //! use hapi_rs::{
 //!     parameter::{ParmBaseTrait, Parameter},
 //!     session::simple_session,

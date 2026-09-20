@@ -1,4 +1,22 @@
 # hapi-rs changelog
+
+## [22.0.0]
+
+- Regenerate bindings for Houdini 22.0.
+- Replace dynamically downcast geometry attributes with the exhaustive `AnyAttribute` enum and checked typed
+  numeric, string, and dictionary lookups.
+- Introduce `Attribute<T, Fixed>` for ordinary fixed-tuple numeric attributes and `Attribute<T, Jagged>` for
+  HAPI numeric array attributes, with corresponding shaped string and dictionary handles.
+- Rename jagged attribute containers to `JaggedArrayData` and `StringJaggedArrayData`; validate negative sizes,
+  checked totals, and flattened data lengths before calling HAPI.
+- Bind attribute handles to their node, part, owner, and name. Attribute data methods no longer accept a repeated
+  part ID and operate on the complete attribute selected during lookup or creation.
+- Derive numeric HAPI storage from the Rust primitive and `Fixed`/`Jagged` shape during creation, and validate all
+  fixed and jagged write lengths in release builds.
+- Add `async-cooking` extension traits and owning `AsyncJob` handles for asynchronous attribute reads, writes,
+  unique-value writes, and indexed string writes.
+- Remove the old trait-object/downcasting API, `AttribValueType`, `DataArray`, and compatibility aliases.
+
 ## [21.0.2]
 - Regenerate with Houdini 21.0.700
 - Use xtask for internal tools
