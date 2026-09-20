@@ -211,7 +211,8 @@ fn loaded_asset_libraries() -> Result<()> {
         session.load_asset_file(HdaFile::Parameters.path())?;
         let libs = session.get_loaded_asset_libraries()?;
         assert!(
-            libs.iter().any(|lib| lib.get_asset_count().is_ok_and(|n| n > 0))
+            libs.iter()
+                .any(|lib| lib.get_asset_count().is_ok_and(|n| n > 0))
         );
         let node = session.create_node("Object/hapi_parms")?;
         assert!(!node.asset_info()?.name()?.is_empty());

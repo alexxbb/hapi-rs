@@ -21,7 +21,7 @@ fn main() -> Result<()> {
         .with_tuple_size(3)
         .with_storage(StorageType::Float)
         .with_owner(AttributeOwner::Point);
-    let p_attrib = geom.add_numeric_attribute("P", 0, p_info)?;
+    let p_attrib = geom.add_numeric_attribute::<f32, Fixed>("P", 0, p_info)?;
 
     #[rustfmt::skip]
         let positions: [f32; 24] = [
@@ -35,7 +35,7 @@ fn main() -> Result<()> {
         1.0, 1.0, 1.0
     ];
 
-    p_attrib.set(0, &positions)?;
+    p_attrib.set(&positions)?;
 
     #[rustfmt::skip]
         let vertices: [i32; 24] = [

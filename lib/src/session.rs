@@ -17,16 +17,23 @@
 //! Helper constructors terminate the server by default. This is useful for quick one-off jobs.
 //!
 use log::{debug, error};
-use parking_lot::ReentrantMutex;
+use parking_lot::{Mutex, ReentrantMutex};
 use std::fmt::Debug;
 use std::path::PathBuf;
-use std::{ffi::CString, path::Path, sync::Arc};
+use std::{
+    ffi::CString,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 pub use crate::{
     asset::AssetLibrary,
     errors::*,
     ffi::{
-        CompositorOptions, CookOptions, ImageFileFormat, SessionInfo, SessionSyncInfo,
+        CompositorOptions, CookOptions, ImageFileFormat, ImageInfo, SessionInfo, SessionSyncInfo,
         ThriftServerOptions, TimelineOptions, Viewport, enums::*,
     },
     node::{HoudiniNode, ManagerNode, ManagerType, NodeHandle, NodeType, Transform},
@@ -35,14 +42,120 @@ pub use crate::{
     stringhandle::StringArray,
 };
 
-// A result of HAPI_GetStatus with HAPI_STATUS_COOK_STATE
+/// State returned by `HAPI_GetStatus` for `HAPI_STATUS_COOK_STATE`.
 pub type SessionState = State;
+/// Houdini license type currently checked out by the session.
 pub type LicenseType = raw::License;
 
 use crate::cop::CopImageDescription;
-use crate::ffi::ImageInfo;
+use crate::ffi::CameraInfo;
 use crate::stringhandle::StringHandle;
 use crate::{ffi::raw, utils};
+
+static IN_PROCESS_RUNTIME_SHUT_DOWN: AtomicBool = AtomicBool::new(false);
+
+#[derive(Debug)]
+pub(crate) enum ServerConnection {
+    Borrowed {
+        reported_pid: Option<u32>,
+    },
+    OwnedHars {
+        pid: u32,
+        auto_close: bool,
+        pipe_path: Option<PathBuf>,
+    },
+    InProcess,
+}
+
+impl ServerConnection {
+    fn pid(&self) -> Option<u32> {
+        match self {
+            Self::Borrowed { reported_pid } => *reported_pid,
+            Self::OwnedHars { pid, .. } => Some(*pid),
+            Self::InProcess => None,
+        }
+    }
+
+    fn finish(&self, construction_failed: bool) -> Result<()> {
+        match self {
+            Self::OwnedHars {
+                pid,
+                auto_close,
+                pipe_path,
+            } => crate::server::finish_owned_server(
+                *pid,
+                *auto_close,
+                construction_failed,
+                pipe_path.as_deref(),
+            ),
+            Self::Borrowed { .. } | Self::InProcess => Ok(()),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct LifecycleState {
+    closed: bool,
+    server: ServerConnection,
+}
+
+trait LifecycleBackend {
+    fn is_valid(&mut self, handle: &raw::HAPI_Session) -> bool;
+    fn is_initialized(&mut self, handle: &raw::HAPI_Session) -> bool;
+    fn cleanup(&mut self, handle: &raw::HAPI_Session) -> Result<()>;
+    fn shutdown(&mut self, handle: &raw::HAPI_Session) -> Result<()>;
+    fn close(&mut self, handle: &raw::HAPI_Session) -> Result<()>;
+    fn finish_server(&mut self, server: &ServerConnection, construction_failed: bool)
+    -> Result<()>;
+    fn mark_in_process_shutdown(&mut self);
+}
+
+struct HapiLifecycleBackend;
+
+impl LifecycleBackend for HapiLifecycleBackend {
+    fn is_valid(&mut self, handle: &raw::HAPI_Session) -> bool {
+        crate::ffi::is_raw_session_valid(handle)
+    }
+
+    fn is_initialized(&mut self, handle: &raw::HAPI_Session) -> bool {
+        crate::ffi::is_raw_session_initialized(handle)
+    }
+
+    fn cleanup(&mut self, handle: &raw::HAPI_Session) -> Result<()> {
+        crate::ffi::cleanup_raw_session(handle)
+    }
+
+    fn shutdown(&mut self, handle: &raw::HAPI_Session) -> Result<()> {
+        crate::ffi::shutdown_raw_session(handle)
+    }
+
+    fn close(&mut self, handle: &raw::HAPI_Session) -> Result<()> {
+        crate::ffi::close_raw_session(handle)
+    }
+
+    fn finish_server(
+        &mut self,
+        server: &ServerConnection,
+        construction_failed: bool,
+    ) -> Result<()> {
+        server.finish(construction_failed)
+    }
+
+    fn mark_in_process_shutdown(&mut self) {
+        IN_PROCESS_RUNTIME_SHUT_DOWN.store(true, Ordering::Release);
+    }
+}
+
+fn lifecycle_errors(errors: Vec<String>, operation: &str) -> Result<()> {
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(HapiError::Internal(format!(
+            "{operation} encountered errors: {}",
+            errors.join("; ")
+        )))
+    }
+}
 
 /// Builder struct for [`Session::node_builder`] API
 pub struct NodeBuilder<'s> {
@@ -151,6 +264,7 @@ impl EnvVariable for i32 {
 /// Result of async cook operation [`Session::cook`]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum CookResult {
+    /// Cooking completed without cook or fatal errors.
     Succeeded,
     /// Some nodes cooked with errors
     CookErrors(String),
@@ -174,14 +288,23 @@ impl CookResult {
 pub(crate) struct SessionInner {
     pub(crate) handle: raw::HAPI_Session,
     pub(crate) options: SessionOptions,
-    // Server options are only available for Thrift servers.
-    pub(crate) server_options: Option<ServerOptions>,
     pub(crate) lock: ReentrantMutex<()>,
-    pub(crate) server_pid: Option<u32>,
+    lifecycle: Mutex<LifecycleState>,
 }
 
-/// Session represents a unique connection to the Engine instance and all API calls require a valid session.
-/// It implements [`Clone`] and is [`Send`] and [`Sync`]
+/// An initialized connection to a Houdini Engine runtime.
+///
+/// Clones share one underlying HAPI session. The connection remains open until
+/// [`Self::close`] is called or the last clone and all objects retaining a clone
+/// are dropped. Final teardown is performed exactly once.
+///
+/// `Session` is [`Send`] and [`Sync`]. HARC serializes individual calls made to
+/// one Thrift session; callers must still coordinate multi-call operations for
+/// which ordering matters.
+///
+/// Dropping or closing a session always calls `HAPI_CloseSession`. The optional,
+/// potentially expensive `HAPI_Cleanup` step is controlled by
+/// [`SessionOptions::cleanup`] and is disabled by default.
 #[derive(Debug, Clone)]
 pub struct Session {
     pub(crate) inner: Arc<SessionInner>,
@@ -194,28 +317,113 @@ impl PartialEq for Session {
     }
 }
 
+/// A live HAPI connection that has not yet been initialized.
+///
+/// Values are returned by the `connect_to_*` helpers in [`crate::server`]. Call
+/// [`Self::initialize`] to run `HAPI_Initialize` and obtain a [`Session`]. If
+/// this value is dropped or initialization fails, its native connection is
+/// closed automatically.
 #[derive(Debug)]
 pub struct UninitializedSession {
-    pub(crate) session_handle: raw::HAPI_Session,
+    pub(crate) session_handle: Option<raw::HAPI_Session>,
     pub(crate) server_options: Option<ServerOptions>,
-    pub(crate) server_pid: Option<u32>,
+    pub(crate) server: ServerConnection,
 }
 
 impl UninitializedSession {
-    pub fn initialize(self, session_options: SessionOptions) -> Result<Session> {
+    /// Initialize the Houdini Engine runtime for this connection.
+    ///
+    /// On success, ownership of the native handle transfers to the returned
+    /// [`Session`]. On failure, the connection is closed during rollback.
+    pub fn initialize(mut self, session_options: SessionOptions) -> Result<Session> {
         debug!("Initializing session");
-        crate::ffi::initialize_session(self.session_handle, &session_options)
-            .map(|()| Session {
-                inner: Arc::new(SessionInner {
-                    handle: self.session_handle,
-                    options: session_options,
-                    lock: ReentrantMutex::new(()),
-                    server_options: self.server_options,
-                    server_pid: self.server_pid,
+        let handle = self
+            .session_handle
+            .expect("uninitialized session handle was already consumed");
+        crate::ffi::initialize_session(handle, &session_options)
+            .with_context(|| "Calling initialize_session")?;
+
+        self.session_handle.take();
+        let server = std::mem::replace(
+            &mut self.server,
+            ServerConnection::Borrowed { reported_pid: None },
+        );
+        Ok(Session {
+            inner: Arc::new(SessionInner {
+                handle,
+                options: session_options,
+                lock: ReentrantMutex::new(()),
+                lifecycle: Mutex::new(LifecycleState {
+                    closed: false,
+                    server,
                 }),
-            })
-            .with_context(|| "Calling initialize_session")
+            }),
+        })
     }
+
+    pub(crate) fn mark_owned_server(&mut self, pid: u32) {
+        let (auto_close, pipe_path) =
+            self.server_options
+                .as_ref()
+                .map_or((true, None), |options| {
+                    let pipe_path = match &options.thrift_transport {
+                        crate::server::ThriftTransport::Pipe(transport) => {
+                            Some(transport.pipe_path.clone())
+                        }
+                        crate::server::ThriftTransport::SharedMemory(_)
+                        | crate::server::ThriftTransport::Socket(_) => None,
+                    };
+                    (options.auto_close, pipe_path)
+                });
+        self.server = ServerConnection::OwnedHars {
+            pid,
+            auto_close,
+            pipe_path,
+        };
+    }
+}
+
+impl Drop for UninitializedSession {
+    fn drop(&mut self) {
+        let handle = self.session_handle.take();
+        if let Err(error) =
+            rollback_uninitialized_with(handle.as_ref(), &self.server, &mut HapiLifecycleBackend)
+        {
+            error!("Uninitialized session rollback failed: {error}");
+        }
+    }
+}
+
+fn rollback_uninitialized_with<B: LifecycleBackend>(
+    handle: Option<&raw::HAPI_Session>,
+    server: &ServerConnection,
+    backend: &mut B,
+) -> Result<()> {
+    let mut errors = Vec::new();
+    if let Some(handle) = handle
+        && backend.is_valid(handle)
+    {
+        if backend.is_initialized(handle)
+            && let Err(error) = backend.cleanup(handle)
+        {
+            errors.push(error.to_string());
+        }
+        if matches!(server, ServerConnection::InProcess)
+            && let Err(error) = backend.shutdown(handle)
+        {
+            errors.push(error.to_string());
+        }
+        if let Err(error) = backend.close(handle) {
+            errors.push(error.to_string());
+        }
+    }
+    if matches!(server, ServerConnection::InProcess) {
+        backend.mark_in_process_shutdown();
+    }
+    if let Err(error) = backend.finish_server(server, true) {
+        errors.push(error.to_string());
+    }
+    lifecycle_errors(errors, "Uninitialized session rollback")
 }
 
 impl Session {
@@ -225,10 +433,11 @@ impl Session {
         self.inner.handle.type_
     }
 
-    /// Return enum with extra connection data such as pipe file or socket.
+    /// Return the server PID when it was supplied by the caller or the server
+    /// was started by this crate. In-process sessions return `None`.
     #[must_use]
     pub fn server_pid(&self) -> Option<u32> {
-        self.inner.server_pid
+        self.inner.lifecycle.lock().server.pid()
     }
 
     #[inline]
@@ -293,11 +502,17 @@ impl Session {
         crate::ffi::remove_custom_string(self, handle)
     }
 
-    /// Consumes and cleanups up the session. Session becomes invalid after this call
+    /// Close the shared underlying session.
+    ///
+    /// This operation is idempotent. All clones become closed after this call.
+    pub fn close(&self) -> Result<()> {
+        self.inner.finalize()
+    }
+
+    /// Close the shared underlying session.
+    #[deprecated(note = "use Session::close; HAPI cleanup alone does not close a session")]
     pub fn cleanup(self) -> Result<()> {
-        debug!("Cleaning up session");
-        debug_assert!(self.is_valid());
-        crate::ffi::cleanup_session(&self)
+        self.close()
     }
 
     /// Create an input geometry node which can accept modifications
@@ -550,7 +765,7 @@ impl Session {
     #[inline]
     #[must_use]
     pub fn is_valid(&self) -> bool {
-        crate::ffi::is_session_valid(self)
+        !self.inner.lifecycle.lock().closed && crate::ffi::is_session_valid(self)
     }
 
     /// Get the status message given a type and verbosity
@@ -714,13 +929,40 @@ impl Session {
         crate::material::extract_image_to_file(self, cop_node, image_planes, out_image)
     }
 
-    /// Loads some raw image data into a COP node.
-    /// TODO: Figure out which node the data is actually ends up in as the API doesn't say.
+    /// Create a new input camera node with the given name/label.
+    pub fn create_input_camera_node(
+        &self,
+        name: &str,
+        label: &str,
+        parent_node: Option<NodeHandle>,
+    ) -> Result<NodeHandle> {
+        let name = CString::new(name)?;
+        let label = CString::new(label)?;
+        crate::ffi::create_input_camera_node(self, parent_node, &name, &label)
+    }
+
+    /// Set the camera parameters on an input camera node.
+    pub fn set_input_camera_info(&self, node: NodeHandle, info: &CameraInfo) -> Result<()> {
+        crate::ffi::set_input_camera_info(node, self, &info.0)
+    }
+
+    /// Set the transform on an input camera node.
+    pub fn set_input_camera_transform(
+        &self,
+        node: NodeHandle,
+        rst_order: RSTOrder,
+        rot_order: XYZOrder,
+        transform: &Transform,
+    ) -> Result<()> {
+        crate::ffi::set_input_camera_transform(node, self, rst_order, rot_order, &transform.0)
+    }
+
+    /// Loads some raw image data into a COP node, returning the handle of the created node.
     pub fn create_cop_image(
         &self,
         description: CopImageDescription,
         parent_node: Option<NodeHandle>,
-    ) -> Result<()> {
+    ) -> Result<NodeHandle> {
         crate::ffi::create_cop_image(
             self,
             parent_node,
@@ -865,50 +1107,97 @@ impl Session {
     }
 }
 
-impl Drop for Session {
-    fn drop(&mut self) {
-        if Arc::strong_count(&self.inner) == 1 {
-            debug!("Dropping session pid: {:?}", self.server_pid());
-            if self.is_valid() {
-                if self.inner.options.cleanup
-                    && let Err(e) = crate::ffi::cleanup_session(self)
-                {
-                    error!("Session cleanup failed in Drop: {e}");
-                }
-                if let Err(e) = crate::ffi::shutdown_session(self) {
-                    error!("Could not shutdown session in Drop: {e}");
-                }
-                if let Err(e) = crate::ffi::close_session(self) {
-                    error!("Closing session failed in Drop: {e}");
-                }
-            } else {
-                // The server should automatically delete the pipe file when closed successfully,
-                // but we could try a cleanup just in case.
-                debug!("Session was invalid in Drop!");
-                if let Some(server_options) = &self.inner.server_options
-                    && let crate::server::ThriftTransport::Pipe(transport) =
-                        &server_options.thrift_transport
-                {
-                    let _ = std::fs::remove_file(&transport.pipe_path);
-                }
+impl SessionInner {
+    fn finalize(&self) -> Result<()> {
+        let mut lifecycle = self.lifecycle.lock();
+        Self::finalize_locked_with(
+            &self.handle,
+            &self.options,
+            &mut lifecycle,
+            &mut HapiLifecycleBackend,
+        )
+    }
+
+    fn finalize_locked_with<B: LifecycleBackend>(
+        handle: &raw::HAPI_Session,
+        options: &SessionOptions,
+        lifecycle: &mut LifecycleState,
+        backend: &mut B,
+    ) -> Result<()> {
+        if lifecycle.closed {
+            return Ok(());
+        }
+        // Mark closed before entering HAPI so recursive error handling cannot start teardown again.
+        lifecycle.closed = true;
+        debug!("Closing session pid: {:?}", lifecycle.server.pid());
+
+        let mut errors = Vec::new();
+        if backend.is_valid(handle) {
+            if options.cleanup
+                && backend.is_initialized(handle)
+                && let Err(error) = backend.cleanup(handle)
+            {
+                errors.push(error.to_string());
             }
+            if matches!(lifecycle.server, ServerConnection::InProcess)
+                && let Err(error) = backend.shutdown(handle)
+            {
+                errors.push(error.to_string());
+            }
+            if let Err(error) = backend.close(handle) {
+                errors.push(error.to_string());
+            }
+        }
+        if matches!(lifecycle.server, ServerConnection::InProcess) {
+            backend.mark_in_process_shutdown();
+        }
+        if let Err(error) = backend.finish_server(&lifecycle.server, false) {
+            errors.push(error.to_string());
+        }
+        lifecycle_errors(errors, "Session close")
+    }
+}
+
+impl Drop for SessionInner {
+    fn drop(&mut self) {
+        let lifecycle = self.lifecycle.get_mut();
+        if let Err(error) = Self::finalize_locked_with(
+            &self.handle,
+            &self.options,
+            lifecycle,
+            &mut HapiLifecycleBackend,
+        ) {
+            error!("Session close failed in Drop: {error}");
         }
     }
 }
 
-/// Session options passed to session create functions like [`crate::server::connect_to_pipe_server`]
+/// Options passed to `HAPI_Initialize` when creating an initialized [`Session`].
+///
+/// These settings configure the Houdini runtime after a transport connection
+/// exists. Server process and transport settings belong in
+/// [`crate::server::ServerOptions`].
 #[derive(Default, Clone, Debug)]
 pub struct SessionOptions {
-    /// Session cook options
+    /// Default cook options used by the session.
     pub cook_opt: CookOptions,
-    /// Create a Threaded server connection
+    /// Whether Houdini cooks on a separate cooking thread.
     pub threaded: bool,
-    /// Cleanup session upon close
+    /// Run `HAPI_Cleanup` before closing the session.
+    ///
+    /// This is disabled by default because cleanup can be expensive and normal
+    /// server termination releases its Houdini-side state. Enable it only when
+    /// that state requires an orderly teardown before the connection closes.
     pub cleanup: bool,
+    /// Platform-separated list of Houdini environment files loaded at initialization.
     pub env_files: Option<CString>,
+    /// Platform-separated HDA/OTL search paths.
     pub otl_path: Option<CString>,
+    /// Platform-separated generic DSO plugin search paths.
     pub dso_path: Option<CString>,
+    /// Platform-separated image DSO plugin search paths.
     pub img_dso_path: Option<CString>,
+    /// Platform-separated audio DSO plugin search paths.
     pub aud_dso_path: Option<CString>,
 }
 
@@ -1007,7 +1296,7 @@ impl SessionOptions {
         self
     }
 
-    /// Set whether to cleanup the session upon close
+    /// Set whether to run the potentially expensive `HAPI_Cleanup` before close.
     #[must_use]
     pub fn cleanup(mut self, cleanup: bool) -> Self {
         self.cleanup = cleanup;
@@ -1020,13 +1309,19 @@ impl SessionOptions {
 /// For production use, use [`new_thrift_session`] instead.
 pub fn new_in_process_session(options: Option<SessionOptions>) -> Result<Session> {
     debug!("Creating new in-process session");
+    if IN_PROCESS_RUNTIME_SHUT_DOWN.load(Ordering::Acquire) {
+        return Err(HapiError::Internal(
+            "The in-process HAPI runtime has already been shut down and cannot be restarted"
+                .to_owned(),
+        ));
+    }
     let session_options = options.unwrap_or_default();
     let session_info = SessionInfo::default();
     let handle = crate::ffi::create_inprocess_session(&session_info.0)?;
     let session = UninitializedSession {
-        session_handle: handle,
+        session_handle: Some(handle),
         server_options: None,
-        server_pid: Some(std::process::id()),
+        server: ServerConnection::InProcess,
     }
     .initialize(session_options)?;
     Ok(session)
@@ -1037,27 +1332,73 @@ pub fn new_thrift_session(
     session_options: SessionOptions,
     server_options: ServerOptions,
 ) -> Result<Session> {
-    match server_options.thrift_transport {
+    let uninitialized = match &server_options.thrift_transport {
         crate::server::ThriftTransport::SharedMemory(_) => {
             let pid = crate::server::start_engine_server(&server_options)?;
-            crate::server::connect_to_memory_server(server_options, Some(pid))
-                .context("Could not connect to shared memory server")?
-                .initialize(session_options)
+            let connection = crate::server::connect_to_memory_server(server_options, Some(pid))
+                .context("Could not connect to shared memory server");
+            match connection {
+                Ok(mut session) => {
+                    session.mark_owned_server(pid);
+                    session
+                }
+                Err(error) => {
+                    let pipe_path = None;
+                    if let Err(cleanup_error) =
+                        crate::server::finish_owned_server(pid, true, true, pipe_path)
+                    {
+                        error!("Could not roll back HARS after connect failure: {cleanup_error}");
+                    }
+                    return Err(error);
+                }
+            }
         }
         crate::server::ThriftTransport::Pipe(_) => {
             let pid = crate::server::start_engine_server(&server_options)?;
-            crate::server::connect_to_pipe_server(server_options, Some(pid))
-                .context("Could not connect to pipe server")?
-                .initialize(session_options)
+            let pipe_path = match &server_options.thrift_transport {
+                crate::server::ThriftTransport::Pipe(transport) => {
+                    Some(transport.pipe_path.clone())
+                }
+                _ => unreachable!(),
+            };
+            let connection = crate::server::connect_to_pipe_server(server_options, Some(pid))
+                .context("Could not connect to pipe server");
+            match connection {
+                Ok(mut session) => {
+                    session.mark_owned_server(pid);
+                    session
+                }
+                Err(error) => {
+                    if let Err(cleanup_error) =
+                        crate::server::finish_owned_server(pid, true, true, pipe_path.as_deref())
+                    {
+                        error!("Could not roll back HARS after connect failure: {cleanup_error}");
+                    }
+                    return Err(error);
+                }
+            }
         }
         crate::server::ThriftTransport::Socket(_) => {
             let pid = crate::server::start_engine_server(&server_options)?;
-            crate::server::connect_to_socket_server(server_options, Some(pid))
-                .context("Could not connect to socket server")?
-                .initialize(session_options)
-                .context("Could not connect to socket server")
+            let connection = crate::server::connect_to_socket_server(server_options, Some(pid))
+                .context("Could not connect to socket server");
+            match connection {
+                Ok(mut session) => {
+                    session.mark_owned_server(pid);
+                    session
+                }
+                Err(error) => {
+                    if let Err(cleanup_error) =
+                        crate::server::finish_owned_server(pid, true, true, None)
+                    {
+                        error!("Could not roll back HARS after connect failure: {cleanup_error}");
+                    }
+                    return Err(error);
+                }
+            }
         }
-    }
+    };
+    uninitialized.initialize(session_options)
 }
 
 /// Shortcut for creating a simple Thrift session with good defaults.
@@ -1066,4 +1407,316 @@ pub fn simple_session() -> Result<Session> {
         SessionOptions::default(),
         ServerOptions::shared_memory_with_defaults(),
     )
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    struct FakeBackend {
+        valid: bool,
+        initialized: bool,
+        failures: HashSet<&'static str>,
+        events: Vec<&'static str>,
+    }
+
+    impl FakeBackend {
+        fn new(valid: bool, initialized: bool, failures: &[&'static str]) -> Self {
+            Self {
+                valid,
+                initialized,
+                failures: failures.iter().copied().collect(),
+                events: Vec::new(),
+            }
+        }
+
+        fn record(&mut self, event: &'static str) -> Result<()> {
+            self.events.push(event);
+            if self.failures.contains(event) {
+                Err(HapiError::Internal(format!("{event} failed")))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    impl LifecycleBackend for FakeBackend {
+        fn is_valid(&mut self, _handle: &raw::HAPI_Session) -> bool {
+            self.events.push("valid");
+            self.valid
+        }
+
+        fn is_initialized(&mut self, _handle: &raw::HAPI_Session) -> bool {
+            self.events.push("initialized");
+            self.initialized
+        }
+
+        fn cleanup(&mut self, _handle: &raw::HAPI_Session) -> Result<()> {
+            self.record("cleanup")
+        }
+
+        fn shutdown(&mut self, _handle: &raw::HAPI_Session) -> Result<()> {
+            self.record("shutdown")
+        }
+
+        fn close(&mut self, _handle: &raw::HAPI_Session) -> Result<()> {
+            self.record("close")
+        }
+
+        fn finish_server(
+            &mut self,
+            _server: &ServerConnection,
+            construction_failed: bool,
+        ) -> Result<()> {
+            self.record(if construction_failed {
+                "finish_rollback"
+            } else {
+                "finish"
+            })
+        }
+
+        fn mark_in_process_shutdown(&mut self) {
+            self.events.push("mark_shutdown");
+        }
+    }
+
+    fn handle() -> raw::HAPI_Session {
+        raw::HAPI_Session {
+            type_: SessionType::Thrift,
+            id: 7,
+        }
+    }
+
+    fn borrowed_state() -> LifecycleState {
+        LifecycleState {
+            closed: false,
+            server: ServerConnection::Borrowed { reported_pid: None },
+        }
+    }
+
+    #[test]
+    fn normal_close_skips_opt_in_cleanup_and_is_idempotent() {
+        let mut backend = FakeBackend::new(true, true, &[]);
+        let mut state = borrowed_state();
+
+        SessionInner::finalize_locked_with(
+            &handle(),
+            &SessionOptions::default(),
+            &mut state,
+            &mut backend,
+        )
+        .unwrap();
+        assert!(state.closed);
+        assert_eq!(backend.events, ["valid", "close", "finish"]);
+
+        SessionInner::finalize_locked_with(
+            &handle(),
+            &SessionOptions::default(),
+            &mut state,
+            &mut backend,
+        )
+        .unwrap();
+        assert_eq!(backend.events, ["valid", "close", "finish"]);
+    }
+
+    #[test]
+    fn cleanup_close_and_process_errors_are_aggregated_without_short_circuiting() {
+        let mut backend = FakeBackend::new(true, true, &["cleanup", "close", "finish"]);
+        let mut state = borrowed_state();
+        let options = SessionOptions::default().cleanup(true);
+
+        let error =
+            SessionInner::finalize_locked_with(&handle(), &options, &mut state, &mut backend)
+                .unwrap_err()
+                .to_string();
+
+        assert_eq!(
+            backend.events,
+            ["valid", "initialized", "cleanup", "close", "finish"]
+        );
+        assert!(error.contains("cleanup failed"));
+        assert!(error.contains("close failed"));
+        assert!(error.contains("finish failed"));
+        assert!(state.closed);
+    }
+
+    #[test]
+    fn invalid_session_skips_hapi_teardown_but_still_finishes_owned_server() {
+        let mut backend = FakeBackend::new(false, false, &[]);
+        let mut state = borrowed_state();
+
+        SessionInner::finalize_locked_with(
+            &handle(),
+            &SessionOptions::default().cleanup(true),
+            &mut state,
+            &mut backend,
+        )
+        .unwrap();
+
+        assert_eq!(backend.events, ["valid", "finish"]);
+    }
+
+    #[test]
+    fn in_process_close_shuts_down_and_marks_global_runtime() {
+        let mut backend = FakeBackend::new(true, true, &[]);
+        let mut state = LifecycleState {
+            closed: false,
+            server: ServerConnection::InProcess,
+        };
+
+        SessionInner::finalize_locked_with(
+            &handle(),
+            &SessionOptions::default(),
+            &mut state,
+            &mut backend,
+        )
+        .unwrap();
+
+        assert_eq!(
+            backend.events,
+            ["valid", "shutdown", "close", "mark_shutdown", "finish"]
+        );
+    }
+
+    #[test]
+    fn in_process_shutdown_failure_does_not_skip_close_or_runtime_reset() {
+        let mut backend = FakeBackend::new(true, true, &["shutdown"]);
+        let mut state = LifecycleState {
+            closed: false,
+            server: ServerConnection::InProcess,
+        };
+
+        let error = SessionInner::finalize_locked_with(
+            &handle(),
+            &SessionOptions::default(),
+            &mut state,
+            &mut backend,
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert_eq!(
+            backend.events,
+            ["valid", "shutdown", "close", "mark_shutdown", "finish"]
+        );
+        assert!(error.contains("shutdown failed"));
+        assert!(state.closed);
+    }
+
+    #[test]
+    fn initialized_connection_rollback_cleans_closes_and_finishes_server() {
+        let mut backend = FakeBackend::new(true, true, &[]);
+
+        rollback_uninitialized_with(
+            Some(&handle()),
+            &ServerConnection::Borrowed { reported_pid: None },
+            &mut backend,
+        )
+        .unwrap();
+
+        assert_eq!(
+            backend.events,
+            [
+                "valid",
+                "initialized",
+                "cleanup",
+                "close",
+                "finish_rollback"
+            ]
+        );
+    }
+
+    #[test]
+    fn rollback_without_a_handle_only_finishes_the_server() {
+        let mut backend = FakeBackend::new(true, true, &[]);
+
+        rollback_uninitialized_with(
+            None,
+            &ServerConnection::Borrowed { reported_pid: None },
+            &mut backend,
+        )
+        .unwrap();
+
+        assert_eq!(backend.events, ["finish_rollback"]);
+    }
+
+    #[test]
+    fn valid_but_uninitialized_rollback_skips_cleanup() {
+        let mut backend = FakeBackend::new(true, false, &[]);
+
+        rollback_uninitialized_with(
+            Some(&handle()),
+            &ServerConnection::Borrowed { reported_pid: None },
+            &mut backend,
+        )
+        .unwrap();
+
+        assert_eq!(
+            backend.events,
+            ["valid", "initialized", "close", "finish_rollback"]
+        );
+    }
+
+    #[test]
+    fn invalid_in_process_rollback_still_resets_global_runtime() {
+        let mut backend = FakeBackend::new(false, false, &[]);
+
+        rollback_uninitialized_with(Some(&handle()), &ServerConnection::InProcess, &mut backend)
+            .unwrap();
+
+        assert_eq!(
+            backend.events,
+            ["valid", "mark_shutdown", "finish_rollback"]
+        );
+    }
+
+    #[test]
+    fn cleanup_is_skipped_when_session_was_not_initialized() {
+        let mut backend = FakeBackend::new(true, false, &[]);
+        let mut state = borrowed_state();
+
+        SessionInner::finalize_locked_with(
+            &handle(),
+            &SessionOptions::default().cleanup(true),
+            &mut state,
+            &mut backend,
+        )
+        .unwrap();
+
+        assert_eq!(backend.events, ["valid", "initialized", "close", "finish"]);
+    }
+
+    #[test]
+    fn rollback_attempts_every_stage_and_aggregates_failures() {
+        let mut backend = FakeBackend::new(
+            true,
+            true,
+            &["cleanup", "shutdown", "close", "finish_rollback"],
+        );
+
+        let error = rollback_uninitialized_with(
+            Some(&handle()),
+            &ServerConnection::InProcess,
+            &mut backend,
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert_eq!(
+            backend.events,
+            [
+                "valid",
+                "initialized",
+                "cleanup",
+                "shutdown",
+                "close",
+                "mark_shutdown",
+                "finish_rollback"
+            ]
+        );
+        for failure in ["cleanup", "shutdown", "close", "finish_rollback"] {
+            assert!(error.contains(&format!("{failure} failed")));
+        }
+    }
 }

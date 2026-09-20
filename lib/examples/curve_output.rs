@@ -75,10 +75,9 @@ fn print_curve_info(geo: &Geometry, obj: &ObjectInfo, part: &PartInfo) -> Result
             continue;
         }
         let attrib = geo
-            .get_attribute(part_id, AttributeOwner::Point, AttributeName::P)?
+            .get_numeric_attribute::<f32, Fixed>(part_id, AttributeOwner::Point, AttributeName::P)?
             .unwrap();
-        let attrib = attrib.downcast::<NumericAttr<f32>>().unwrap();
-        let positions = attrib.get(part_id)?;
+        let positions = attrib.get()?;
         for cv in 0..attrib.info().count() {
             let idx = (cv * attrib.info().tuple_size()) as usize;
             println!("CV {}: {:?}", cv + 1, &positions[idx..idx + 3])

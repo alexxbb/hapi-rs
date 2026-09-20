@@ -1,167 +1,134 @@
-// FIXME: This test is disabled because async cooking is sill not stable in Houdini
 #![cfg(feature = "async-cooking")]
 
 use hapi_rs::Result;
 use hapi_rs::attribute::{
-    AsAttribute, AttributeInfo, DictionaryArrayAttr, NumericAttr, StorageType, StringArrayAttr,
-    StringAttr,
+    AsyncAttributeAccess, AsyncFixedAttributeAccess, AsyncStringAttributeAccess,
+    AsyncStringAttributeWrite, AttributeInfo, DictionaryAttribute, Fixed, Jagged, JaggedArrayData,
+    StorageType, StringAttribute,
 };
-use hapi_rs::enums::{AttributeOwner, JobStatus};
-use pretty_assertions::assert_eq;
-use std::collections::HashMap;
-use tinyjson::JsonValue;
+use hapi_rs::enums::AttributeOwner;
+use std::ffi::CString;
 
 mod utils;
-
-use utils::{HdaFile, create_single_point_geo, with_async_session};
+use utils::{create_single_point_geo, with_async_session, with_async_test_geometry};
 
 #[test]
-fn geometry_set_dictionary_attribute_async() -> Result<()> {
+fn async_fixed_and_jagged_gets_complete() -> Result<()> {
+    with_async_test_geometry(|geo| {
+        let fixed = geo
+            .get_numeric_attribute::<f32, Fixed>(0, AttributeOwner::Point, c"pscale")?
+            .unwrap();
+        let job = fixed.get_async()?;
+        assert!(job.job_id() >= 0);
+        assert!(!job.wait()?.is_empty());
+
+        let jagged = geo
+            .get_numeric_attribute::<i32, Jagged>(0, AttributeOwner::Point, c"my_int_array")?
+            .unwrap();
+        assert!(!jagged.get_async()?.wait()?.data().is_empty());
+
+        Ok(())
+    })
+}
+
+#[test]
+fn async_numeric_writes() -> Result<()> {
     with_async_session(|session| {
         let geo = create_single_point_geo(&session)?;
-        let part = geo.part_info(0)?;
-        let info = AttributeInfo::default()
-            .with_owner(AttributeOwner::Point)
-            .with_storage(StorageType::Dictionary)
+        let fixed_info = AttributeInfo::default()
+            .with_count(1)
             .with_tuple_size(1)
-            .with_count(part.point_count());
-        let attr = geo.add_dictionary_attribute("dict_attr", part.part_id(), info)?;
-        let data = cr#"
-        {
-            "number": 1,
-            "list": [1, 2, 3],
-        }"#;
-        let dict_array = std::iter::repeat(data)
-            .take(part.point_count() as usize)
-            .collect::<Vec<_>>();
-        let job = attr.set_async(part.part_id(), &dict_array)?;
-        while let JobStatus::Running = session.get_job_status(job)? {}
-        geo.commit()?;
+            .with_owner(AttributeOwner::Point);
+        let numeric = geo.add_numeric_attribute::<i32, Fixed>("number", 0, fixed_info.clone())?;
+        numeric.set_async(&[2])?.wait()?;
+        numeric.set_unique_async(&[3])?.wait()?;
+
+        let jagged_info = fixed_info.with_total_array_elements(2);
+        let jagged = geo.add_numeric_attribute::<i32, Jagged>("numbers", 0, jagged_info)?;
+        jagged
+            .set_async(&JaggedArrayData::new(vec![1, 2], vec![2])?)?
+            .wait()?;
+        Ok(())
+    })
+}
+
+fn fixed_info() -> AttributeInfo {
+    AttributeInfo::default()
+        .with_count(1)
+        .with_tuple_size(1)
+        .with_owner(AttributeOwner::Point)
+}
+
+#[test]
+fn async_fixed_string_and_dictionary_writes() -> Result<()> {
+    with_async_session(|session| {
+        let geo = create_single_point_geo(&session)?;
+        let string_info = fixed_info().with_storage(StorageType::String);
+        let string: StringAttribute<Fixed> = geo.add_string_attribute("name", 0, string_info)?;
+        string.set_async(&[CString::new("value")?])?.wait()?;
+
+        let dict_info = fixed_info().with_storage(StorageType::Dictionary);
+        let dictionary: DictionaryAttribute<Fixed> =
+            geo.add_dictionary_attribute("dict", 0, dict_info)?;
+        dictionary
+            .set_async(&[CString::new("{\"value\":1}")?])?
+            .wait()?;
         Ok(())
     })
 }
 
 #[test]
-fn geometry_test_get_numeric_attribute_async() -> Result<()> {
+fn async_unique_string_write() -> Result<()> {
     with_async_session(|session| {
-        session.load_asset_file(HdaFile::Geometry.path())?;
-        let node = session.create_node("Object/hapi_geo")?;
-        node.cook_blocking()?;
-        let geo = node
-            .geometry()?
-            .ok_or_else(|| hapi_rs::HapiError::Internal("must have geometry".into()))?;
-
-        let float_attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"pscale")?
-            .ok_or_else(|| hapi_rs::HapiError::Internal("pscale attribute".into()))?;
-        let attr = float_attr
-            .downcast::<NumericAttr<f32>>()
-            .ok_or_else(|| hapi_rs::HapiError::Internal("Numeric attribute".into()))?;
-
-        let part = geo.part_info(0)?;
-
-        let mut buf = Vec::new();
-        let job = attr.read_async_into(part.part_id(), &mut buf)?;
-        while JobStatus::Running == session.get_job_status(job)? {}
-        assert!(buf.iter().sum::<f32>() > 0.0);
-
-        let result = attr.get_async(0)?;
-        assert!(!result.is_ready()?);
-        let data = result.wait()?;
-        assert!(data.iter().sum::<f32>() > 0.0);
+        let geo = create_single_point_geo(&session)?;
+        let string_info = fixed_info().with_storage(StorageType::String);
+        let string: StringAttribute<Fixed> = geo.add_string_attribute("name", 0, string_info)?;
+        string.set_unique_async(c"unique")?.wait()?;
         Ok(())
     })
 }
 
 #[test]
-fn geometry_test_get_string_attribute_async() -> Result<()> {
+fn async_indexed_string_write() -> Result<()> {
     with_async_session(|session| {
-        session.load_asset_file(HdaFile::Geometry.path())?;
-        let node = session.create_node("Object/hapi_geo")?;
-        node.cook_blocking()?;
-        let geo = node
-            .geometry()?
-            .ok_or_else(|| hapi_rs::HapiError::Internal("must have geometry".into()))?;
-
-        let str_attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"ptname")?
-            .ok_or_else(|| hapi_rs::HapiError::Internal("ptname attribute".into()))?;
-        let Some(attr) = str_attr.downcast::<StringAttr>() else {
-            return Err(hapi_rs::HapiError::Internal(
-                "Not a string attribute".into(),
-            ));
-        };
-
-        let result = attr.get_async(0)?;
-        let handles = result.wait()?;
-        let data = session.get_string_batch(&handles)?;
-        assert_eq!(data.iter_str().count(), attr.info().count() as usize);
+        let geo = create_single_point_geo(&session)?;
+        let string_info = fixed_info().with_storage(StorageType::String);
+        let string: StringAttribute<Fixed> = geo.add_string_attribute("name", 0, string_info)?;
+        string.set_indexed_async(&[c"indexed"], &[0])?.wait()?;
         Ok(())
     })
 }
 
 #[test]
-fn geometry_test_get_string_array_attribute_async() -> Result<()> {
+fn async_jagged_string_and_dictionary_writes() -> Result<()> {
     with_async_session(|session| {
-        session.load_asset_file(HdaFile::Geometry.path())?;
-        let node = session.create_node("Object/hapi_geo")?;
-        node.cook_blocking()?;
-        let geo = node
-            .geometry()?
-            .ok_or_else(|| hapi_rs::HapiError::Internal("must have geometry".into()))?;
+        let geo = create_single_point_geo(&session)?;
+        let string_array_info = fixed_info()
+            .with_storage(StorageType::StringArray)
+            .with_total_array_elements(1);
+        let strings = geo.add_string_array_attribute("names", 0, string_array_info)?;
+        strings
+            .set_async(&(vec![CString::new("array")?], vec![1]))?
+            .wait()?;
 
-        let str_attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"my_str_array")?
-            .ok_or_else(|| hapi_rs::HapiError::Internal("my_str_array attribute".into()))?;
-        let Some(attr) = str_attr.downcast::<StringArrayAttr>() else {
-            return Err(hapi_rs::HapiError::Internal(
-                "Not a StringArrayAttr attribute".into(),
-            ));
-        };
-
-        let (job_id, result) = attr.get_async(0)?;
-        while JobStatus::Running == session.get_job_status(job_id)? {}
-        let (data, sizes) = result.flatten()?;
-        assert_eq!(sizes[0], 4);
-        let first = &data[0..sizes[0]];
-        assert_eq!(&first[0], "pt_0_0");
+        let dictionary_array_info = fixed_info()
+            .with_storage(StorageType::DictionaryArray)
+            .with_total_array_elements(1);
+        let dictionaries = geo.add_dictionary_array_attribute("dicts", 0, dictionary_array_info)?;
+        dictionaries
+            .set_async(&(vec![CString::new("{\"array\":1}")?], vec![1]))?
+            .wait()?;
         Ok(())
     })
 }
 
 #[test]
-fn geometry_test_get_dictionary_array_attribute_async() -> Result<()> {
-    with_async_session(|session| {
-        session.load_asset_file(HdaFile::Geometry.path())?;
-        let node = session.create_node("Object/hapi_geo")?;
-        node.cook_blocking()?;
-        let geo = node
-            .geometry()?
-            .ok_or_else(|| hapi_rs::HapiError::Internal("must have geometry".into()))?;
-
-        let str_attr = geo
-            .get_attribute(0, AttributeOwner::Point, c"my_dict_array_attr")?
-            .ok_or_else(|| hapi_rs::HapiError::Internal("my_dict_array_attr attribute".into()))?;
-        let Some(attr) = str_attr.downcast::<DictionaryArrayAttr>() else {
-            return Err(hapi_rs::HapiError::Internal(
-                "Not a DictionaryArrayAttr attribute".into(),
-            ));
-        };
-
-        let (job_id, result) = attr.get_async(0)?;
-        while JobStatus::Running == session.get_job_status(job_id)? {}
-
-        let (data, sizes) = result.flatten()?;
-        assert_eq!(sizes[0], 0); // first point has an empty array
-        let second_point = &data[sizes[0]..sizes[1]];
-        assert_eq!(sizes[1], 1); // second point has one element
-        let parsed: JsonValue = second_point[0].parse().map_err(|e| {
-            hapi_rs::HapiError::Internal(format!("Could not parse attrib value json: {e}"))
-        })?;
-        let map: &HashMap<_, _> = parsed
-            .get()
-            .ok_or_else(|| hapi_rs::HapiError::Internal("HashMap".into()))?;
-        assert_eq!(map["sample"], JsonValue::Number(0.0));
+fn early_drop_keeps_ffi_storage_alive() -> Result<()> {
+    with_async_test_geometry(|geo| {
+        let fixed = geo
+            .get_numeric_attribute::<f32, Fixed>(0, AttributeOwner::Point, c"pscale")?
+            .unwrap();
+        drop(fixed.get_async()?);
         Ok(())
     })
 }

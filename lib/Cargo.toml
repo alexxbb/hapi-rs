@@ -12,7 +12,7 @@ categories = [
     "api-bindings",
 ]
 readme = "../README.md"
-version = "21.0.2"
+version = "22.0.0"
 authors = ["Aleksei Rusev <hou.alexx@gmail.com>"]
 edition = "2024"
 license = "MIT"
@@ -22,15 +22,24 @@ include = ["/src", "build.rs", "LICENSE"]
 log = "0.4.28"
 pastey = "0.1.1"
 parking_lot = "0.12.5"
-duplicate = { version = "2.0.0", features = [], default-features = false }
 debug-ignore = "1.0.5"
 tempfile = "3.23.0"
 thiserror = "2.0"
 temp-env = "0.3.6"
 bytecount = "0.6.9"
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+] }
+
 [dev-dependencies]
 env_logger = "0.11.8"
+pastey = "0.1.1"
 pretty_assertions = "1.4.1"
 prettytable-rs = "0.10.0"
 fastrand = "2.3.0"

@@ -41,11 +41,13 @@ fn main() -> Result<()> {
             );
             println!("Point Positions: ");
             let attrib = geometry
-                .get_attribute(part_info.part_id(), AttributeOwner::Point, "P")?
+                .get_numeric_attribute::<f32, Fixed>(
+                    part_info.part_id(),
+                    AttributeOwner::Point,
+                    "P",
+                )?
                 .unwrap();
-
-            let attrib = attrib.downcast::<NumericAttr<f32>>().unwrap();
-            let positions = attrib.get(part_info.part_id())?;
+            let positions = attrib.get()?;
             for p in 0..attrib.info().count() {
                 let idx = (p * attrib.info().tuple_size()) as usize;
                 println!("{:?}", &positions[idx..idx + 3])

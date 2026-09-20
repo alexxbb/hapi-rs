@@ -170,7 +170,7 @@ fn geometry_delete_attribute() -> Result<()> {
         let id_attr = geo
             .get_attribute(0, AttributeOwner::Point, c"id")?
             .ok_or_else(|| hapi_rs::HapiError::Internal("id attribute".into()))?;
-        id_attr.delete(0)?;
+        id_attr.delete()?;
         geo.commit()?;
         geo.node.cook_blocking()?;
         assert!(
@@ -314,7 +314,7 @@ fn geometry_create_input_curve() -> Result<()> {
         let p = geo
             .get_position_attribute(&part_info)?
             .ok_or_else(|| hapi_rs::HapiError::Internal("position attribute".into()))?;
-        let coords = p.get(part_info.part_id())?;
+        let coords = p.get()?;
         dbg!(&coords);
         assert_eq!(positions, coords.as_slice());
         Ok(())
@@ -343,37 +343,50 @@ fn geometry_attribute_wrappers_for_storage_variants() -> Result<()> {
                 .with_total_array_elements(1)
         };
 
-        geo.add_numeric_attribute::<i64>("i64_attr", 0, scalar_info(StorageType::Int64))?;
-        geo.add_numeric_attribute::<f64>("f64_attr", 0, scalar_info(StorageType::Float64))?;
-        geo.add_numeric_attribute::<u8>("u8_attr", 0, scalar_info(StorageType::Uint8))?;
-        geo.add_numeric_attribute::<i8>("i8_attr", 0, scalar_info(StorageType::Int8))?;
-        geo.add_numeric_attribute::<i16>("i16_attr", 0, scalar_info(StorageType::Int16))?;
-        geo.add_numeric_array_attribute::<i64>(
+        geo.add_numeric_attribute::<i64, Fixed>("i64_attr", 0, scalar_info(StorageType::Int64))?
+            .set(&[1])?;
+        geo.add_numeric_attribute::<f64, Fixed>("f64_attr", 0, scalar_info(StorageType::Float64))?
+            .set(&[1.0])?;
+        geo.add_numeric_attribute::<u8, Fixed>("u8_attr", 0, scalar_info(StorageType::Uint8))?
+            .set(&[1])?;
+        geo.add_numeric_attribute::<i8, Fixed>("i8_attr", 0, scalar_info(StorageType::Int8))?
+            .set(&[1])?;
+        geo.add_numeric_attribute::<i16, Fixed>("i16_attr", 0, scalar_info(StorageType::Int16))?
+            .set(&[1])?;
+        geo.add_numeric_attribute::<i64, Jagged>(
             "i64_array",
             0,
             array_info(StorageType::Int64Array),
-        )?;
-        geo.add_numeric_array_attribute::<f64>(
+        )?
+        .set(&JaggedArrayData::new(vec![1i64], vec![1])?)?;
+        geo.add_numeric_attribute::<f64, Jagged>(
             "f64_array",
             0,
             array_info(StorageType::Float64Array),
-        )?;
-        geo.add_numeric_array_attribute::<u8>("u8_array", 0, array_info(StorageType::Uint8Array))?;
-        geo.add_numeric_array_attribute::<i8>("i8_array", 0, array_info(StorageType::Int8Array))?;
-        geo.add_numeric_array_attribute::<i16>(
+        )?
+        .set(&JaggedArrayData::new(vec![1.0f64], vec![1])?)?;
+        geo.add_numeric_attribute::<u8, Jagged>(
+            "u8_array",
+            0,
+            array_info(StorageType::Uint8Array),
+        )?
+        .set(&JaggedArrayData::new(vec![1u8], vec![1])?)?;
+        geo.add_numeric_attribute::<i8, Jagged>("i8_array", 0, array_info(StorageType::Int8Array))?
+            .set(&JaggedArrayData::new(vec![1i8], vec![1])?)?;
+        geo.add_numeric_attribute::<i16, Jagged>(
             "i16_array",
             0,
             array_info(StorageType::Int16Array),
-        )?;
-        let dict_attr =
-            geo.add_dictionary_attribute("dict_attr", 0, scalar_info(StorageType::Dictionary))?;
-        dict_attr.set(0, &[c"FOO=123"])?;
-        let dict_array_attr = geo.add_dictionary_array_attribute(
+        )?
+        .set(&JaggedArrayData::new(vec![1i16], vec![1])?)?;
+        geo.add_dictionary_attribute("dict_attr", 0, scalar_info(StorageType::Dictionary))?
+            .set(&[c"FOO=123"])?;
+        geo.add_dictionary_array_attribute(
             "dict_array",
             0,
             array_info(StorageType::DictionaryArray),
-        )?;
-        dict_array_attr.set(0, &[c"FOO=123"], &[1])?;
+        )?
+        .set(&[c"FOO=123"], &[1])?;
         geo.commit()?;
         geo.node.cook_blocking()?;
 
@@ -431,8 +444,8 @@ fn geometry_curve_knots_and_orders() -> Result<()> {
             .with_tuple_size(3)
             .with_storage(StorageType::Float)
             .with_owner(AttributeOwner::Point);
-        geo.add_numeric_attribute::<f32>("P", 0, p_info)?
-            .set(0, &points)?;
+        geo.add_numeric_attribute::<f32, Fixed>("P", 0, p_info)?
+            .set(&points)?;
         geo.commit()?;
         geo.node.cook_blocking()?;
 
@@ -501,8 +514,8 @@ fn geometry_multiple_input_curves() -> Result<()> {
             .with_tuple_size(3)
             .with_storage(StorageType::Float)
             .with_owner(AttributeOwner::Point);
-        let p_attrib = geo.add_numeric_attribute::<f32>("P", 0, p_info)?;
-        p_attrib.set(0, &points)?;
+        let p_attrib = geo.add_numeric_attribute::<f32, Fixed>("P", 0, p_info)?;
+        p_attrib.set(&points)?;
         geo.commit()?;
         geo.node.cook_blocking()?;
         let info = geo.curve_info(0)?;
@@ -537,10 +550,10 @@ fn geometry_extension_helpers_create_attributes() -> Result<()> {
         );
 
         let positions = geo.create_position_attribute(&part)?;
-        positions.set(part.part_id(), &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0])?;
+        positions.set(&[0.0, 0.0, 0.0, 1.0, 0.0, 0.0])?;
 
         let colors = geo.create_point_color_attribute(&part)?;
-        colors.set(part.part_id(), &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0])?;
+        colors.set(&[1.0, 0.0, 0.0, 0.0, 1.0, 0.0])?;
 
         geo.commit()?;
         geo.node.cook_blocking()?;
@@ -550,19 +563,13 @@ fn geometry_extension_helpers_create_attributes() -> Result<()> {
             .get_position_attribute(&part)?
             .ok_or_else(|| hapi_rs::HapiError::Internal("position attr".into()))?;
         assert_eq!(fetched_positions.info().tuple_size(), 3);
-        assert_eq!(
-            fetched_positions.get(part.part_id())?,
-            vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
-        );
+        assert_eq!(fetched_positions.get()?, vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
 
         let fetched_colors = geo
             .get_color_attribute(&part, AttributeOwner::Point)?
             .ok_or_else(|| hapi_rs::HapiError::Internal("color attr".into()))?;
         assert_eq!(fetched_colors.info().tuple_size(), 3);
-        assert_eq!(
-            fetched_colors.get(part.part_id())?,
-            vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-        );
+        assert_eq!(fetched_colors.get()?, vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
 
         assert!(
             geo.get_color_attribute(&part, AttributeOwner::Vertex)?
@@ -573,5 +580,21 @@ fn geometry_extension_helpers_create_attributes() -> Result<()> {
                 .is_none()
         );
         geo.node.delete()
+    })
+}
+
+#[test]
+fn geometry_camera_part_type_and_accessors() -> Result<()> {
+    // Smoke check that the new `PartType::Camera` variant and `Geometry::camera_*`
+    // accessors compile and return an error when there is no camera part.
+    with_session(|session| {
+        let geo = utils::create_single_point_geo(&session)?;
+        let part = geo.part_info(0)?;
+        assert_ne!(part.part_type(), PartType::Camera);
+        // Calling camera_info on a non-camera part should return an FFI error rather than
+        // silently succeeding.
+        assert!(geo.camera_info(0).is_err());
+        assert!(geo.camera_transform(0).is_err());
+        Ok(())
     })
 }

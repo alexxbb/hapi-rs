@@ -3,7 +3,7 @@
 
 use bytemuck::cast_slice;
 use hapi_rs::Result;
-use hapi_rs::attribute::NumericAttr;
+use hapi_rs::attribute::Fixed;
 use hapi_rs::geometry::{AttributeOwner, Geometry, Materials, extra::GeometryExtension};
 use hapi_rs::node::Session;
 use hapi_rs::session::HoudiniNode;
@@ -313,17 +313,12 @@ impl MeshData {
         let positions = geo
             .get_position_attribute(&_part)?
             .expect("Positions attribute");
-        let positions = positions.get(_part_id)?;
+        let positions = positions.get()?;
         let face_counts = geo.get_face_counts(&_part)?;
         let vertex_list = geo.vertex_list(&_part)?;
         let uvs = {
-            match geo.get_attribute(_part_id, AttributeOwner::Vertex, "uv")? {
-                Some(uv_attr) => Some(
-                    uv_attr
-                        .downcast::<NumericAttr<f32>>()
-                        .expect("uv is NumericAttribute")
-                        .get(_part_id)?,
-                ),
+            match geo.get_numeric_attribute::<f32, Fixed>(_part_id, AttributeOwner::Vertex, "uv")? {
+                Some(uv_attr) => Some(uv_attr.get()?),
                 None => None,
             }
         };
@@ -334,8 +329,7 @@ impl MeshData {
                 point_normal = true;
                 vtx_attr = geo.get_normal_attribute(&_part, AttributeOwner::Point)?;
             }
-            let normals =
-                vtx_attr.map(|n_attr| n_attr.get(_part_id).expect("get attribute API succeeded"));
+            let normals = vtx_attr.map(|n_attr| n_attr.get().expect("get attribute API succeeded"));
             (normals, point_normal)
         };
 
@@ -347,7 +341,7 @@ impl MeshData {
                 clr_attr = geo.get_color_attribute(&_part, AttributeOwner::Point)?;
             }
             let colors =
-                clr_attr.map(|cd_attr| cd_attr.get(_part_id).expect("get attribute API succeeded"));
+                clr_attr.map(|cd_attr| cd_attr.get().expect("get attribute API succeeded"));
             (colors, point_color)
         };
 

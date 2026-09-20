@@ -1,6 +1,7 @@
 // Port of groups.cpp
 // Example demonstrates creating nodes, geometry, creating and querying point groups
 use hapi_rs::Result;
+use hapi_rs::attribute::Fixed;
 use hapi_rs::geometry::{
     AttributeInfo, AttributeOwner, GroupType, PartInfo, PartType, StorageType,
 };
@@ -26,7 +27,7 @@ fn create_cube(session: &Session) -> Result<HoudiniNode> {
         .with_storage(StorageType::Float)
         .with_owner(AttributeOwner::Point);
 
-    let p_attr = geometry.add_numeric_attribute("P", 0, attr_info)?;
+    let p_attr = geometry.add_numeric_attribute::<f32, Fixed>("P", 0, attr_info)?;
 
     #[rustfmt::skip]
         let positions = [
@@ -40,7 +41,7 @@ fn create_cube(session: &Session) -> Result<HoudiniNode> {
         1.0, 1.0, 1.0
     ];
 
-    p_attr.set(0, &positions)?;
+    p_attr.set(&positions)?;
 
     #[rustfmt::skip]
         let vertices = [

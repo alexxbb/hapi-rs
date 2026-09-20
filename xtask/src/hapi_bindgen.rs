@@ -99,6 +99,7 @@ static ENUMS: Lazy<HashMap<&str, (&str, i32)>> = Lazy::new(|| {
     map.insert("HAPI_ChoiceListType", ("auto", -1));
     map.insert("HAPI_InputCurveMethod", ("auto", -1));
     map.insert("HAPI_InputCurveParameterization", ("auto", -1));
+    map.insert("HAPI_CameraProjectionType", ("auto", -1));
     map
 });
 

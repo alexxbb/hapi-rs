@@ -305,10 +305,11 @@ impl AssetLibrary {
     /// Try to create the first found asset in the library.
     /// This is a convenience function for:
     /// ```
-    /// use hapi_rs::session::new_in_process_session;
-    /// use hapi_rs::session::SessionOptions;
-    /// let session = new_in_process_session(Some(SessionOptions::default())).unwrap();
-    /// let lib = session.load_asset_file("../otls/hapi_geo.hda").unwrap();
+    /// use hapi_rs::session::simple_session;
+    /// use std::path::PathBuf;
+    /// let session = simple_session().unwrap();
+    /// let hda = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../otls/hapi_geo.hda");
+    /// let lib = session.load_asset_file(&hda).unwrap();
     /// let names = lib.get_asset_names().unwrap();
     /// session.create_node(&names[0]).unwrap();
     /// ```

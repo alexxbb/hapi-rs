@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use log::{debug, error, warn};
@@ -21,10 +21,18 @@ use crate::{
 
 pub use crate::ffi::raw::ThriftSharedMemoryBufferType;
 
+/// Controls which Houdini product licenses HARS may check out.
+///
+/// The preference is passed to the server through `HOUDINI_PLUGIN_LIC_OPT`
+/// before HARS starts. It has no effect when merely attaching to an already
+/// running server.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum LicensePreference {
+    /// Allow Houdini Engine, Houdini Core, or Houdini FX licenses.
     AnyAvailable,
+    /// Restrict checkout to Houdini Engine licenses.
     HoudiniEngineOnly,
+    /// Allow Houdini Engine or Houdini Core, but not Houdini FX.
     HoudiniEngineAndCore,
 }
 
@@ -48,30 +56,52 @@ impl std::fmt::Display for LicensePreference {
     }
 }
 
+/// Configuration for a local Thrift shared-memory transport.
+///
+/// The buffer type and size are supplied to both HARS and the client session;
+/// HAPI requires the two sides to match.
 #[derive(Clone, Debug)]
 pub struct ThriftSharedMemoryTransport {
+    /// Name of the platform shared-memory object used by HARS and HARC.
     pub memory_name: String,
+    /// Fixed-length or ring-buffer transport mode.
     pub buffer_type: ThriftSharedMemoryBufferType,
+    /// Shared-memory buffer size in megabytes.
     pub buffer_size: i64,
 }
 
+/// Configuration for a TCP Thrift transport.
 #[derive(Clone, Debug)]
 pub struct ThriftSocketTransport {
+    /// IPv4 address and port on which HARS listens or to which HARC connects.
     pub address: SocketAddrV4,
 }
 
+/// Configuration for a named-pipe Thrift transport.
+///
+/// On Unix-like systems HAPI implements this transport as a Unix domain
+/// socket; on Windows it is a native named pipe.
 #[derive(Clone, Debug)]
 pub struct ThriftPipeTransport {
+    /// Pipe name or Unix domain socket path shared by HARS and HARC.
     pub pipe_path: PathBuf,
 }
 
+/// Transport used to communicate with a Thrift HARS server.
 #[derive(Clone, Debug)]
 pub enum ThriftTransport {
+    /// Local shared-memory transport.
     SharedMemory(ThriftSharedMemoryTransport),
+    /// Named pipe or Unix domain socket transport.
     Pipe(ThriftPipeTransport),
+    /// TCP socket transport.
     Socket(ThriftSocketTransport),
 }
 
+/// Builder for [`ThriftSharedMemoryTransport`].
+///
+/// Defaults to a random memory name, HAPI's fixed-length buffer mode, and the
+/// official HAPI default size of 100 MB.
 pub struct ThriftSharedMemoryTransportBuilder {
     memory_name: String,
     buffer_type: ThriftSharedMemoryBufferType,
@@ -83,7 +113,8 @@ impl Default for ThriftSharedMemoryTransportBuilder {
         Self {
             memory_name: format!("shared-memory-{}", utils::random_string(16)),
             buffer_type: ThriftSharedMemoryBufferType::Buffer,
-            buffer_size: 1024, // MB
+            // Match HAPI_ThriftServerOptions_Create and HAPI_SessionInfo_Create.
+            buffer_size: 100, // MB
         }
     }
 }
@@ -104,9 +135,9 @@ impl ThriftSharedMemoryTransportBuilder {
         self.buffer_size = if let Ok(size) = buffer_size.get().try_into() {
             size
         } else {
-            // When u64 can't fit into i64, use default of 1024 MB
-            warn!("ThriftSharedMemoryTransport buffer size is too large, using default of 1024");
-            1024
+            // When u64 can't fit into i64, use the HAPI default of 100 MB.
+            warn!("ThriftSharedMemoryTransport buffer size is too large, using default of 100");
+            100
         };
         self
     }
@@ -120,16 +151,35 @@ impl ThriftSharedMemoryTransportBuilder {
     }
 }
 
-// TODO: rename ServerConfiguration
+/// Configuration used to start or connect to a Thrift HARS server.
+///
+/// Server-start settings such as [`Self::auto_close`], [`Self::verbosity`],
+/// [`Self::log_file`], and [`Self::server_ready_timeout`] only affect a server
+/// started with [`start_engine_server`] or [`crate::session::new_thrift_session`].
+/// They cannot reconfigure an existing server used by the `connect_to_*`
+/// helpers.
+///
+/// The default selects shared memory with a random name, enables HARS
+/// auto-close, and retries client connection attempts for ten seconds.
 #[derive(Clone, Debug)]
 pub struct ServerOptions {
+    /// Thrift transport and endpoint configuration.
     pub thrift_transport: ThriftTransport,
+    /// Ask a newly started HARS process to exit after its last client closes.
     pub auto_close: bool,
+    /// Maximum HARS log verbosity.
     pub verbosity: StatusVerbosity,
+    /// Optional file to which a newly started HARS writes its log.
     pub log_file: Option<CString>,
+    /// Process environment entries temporarily applied while starting HARS.
     pub env_variables: Option<HashMap<OsString, OsString>>,
+    /// Optional Houdini license checkout preference.
     pub license_preference: Option<LicensePreference>,
+    /// Number of HARC subconnections requested for the session.
     pub connection_count: i32,
+    /// Optional HARS readiness timeout, in milliseconds.
+    ///
+    /// When absent, the default supplied by HAPI is retained.
     pub server_ready_timeout: Option<u32>,
     pub(crate) connection_retry_interval: Option<Duration>,
 }
@@ -177,12 +227,16 @@ impl ServerOptions {
     }
 
     #[must_use]
+    /// Replace the configured Thrift transport.
     pub fn with_thrift_transport(mut self, transport: ThriftTransport) -> Self {
         self.thrift_transport = transport;
         self
     }
 
-    /// Set a connection timeout used when establishing Thrift sessions.
+    /// Set the total retry timeout used while establishing a Thrift session.
+    ///
+    /// `None` retries indefinitely. This is separate from
+    /// [`Self::with_server_ready_timeout`], which controls server startup.
     #[must_use]
     pub fn with_connection_timeout(mut self, timeout: Option<Duration>) -> Self {
         self.connection_retry_interval = timeout;
@@ -225,11 +279,9 @@ impl ServerOptions {
         K: Into<OsString> + Clone + 'a,
         V: Into<OsString> + Clone + 'a,
     {
-        self.env_variables = Some(
-            variables
-                .map(|(k, v)| (k.clone().into(), v.clone().into()))
-                .collect(),
-        );
+        self.env_variables
+            .get_or_insert_default()
+            .extend(variables.map(|(k, v)| (k.clone().into(), v.clone().into())));
         self
     }
 
@@ -249,6 +301,7 @@ impl ServerOptions {
 
     #[must_use]
     #[cfg(feature = "async-cooking")]
+    /// Set the number of HARC subconnections used by asynchronous HAPI calls.
     pub fn with_connection_count(mut self, connection_count: i32) -> Self {
         // BUG: HARS 21.0.* has a bug where the connection count is not respected.
         // If connection_count is > 0, there is a bug in HARS which prevents session creation.
@@ -316,6 +369,7 @@ pub fn connect_to_pipe_server(
     server_options: ServerOptions,
     pid: Option<u32>,
 ) -> Result<UninitializedSession> {
+    validate_server_options(&server_options)?;
     let ThriftTransport::Pipe(ThriftPipeTransport { pipe_path }) = &server_options.thrift_transport
     else {
         return Err(HapiError::Internal(
@@ -330,9 +384,9 @@ pub fn connect_to_pipe_server(
         || ffi::new_thrift_piped_session(&pipe_name, &server_options.session_info().0),
     )?;
     Ok(UninitializedSession {
-        session_handle: handle,
+        session_handle: Some(handle),
         server_options: Some(server_options),
-        server_pid: pid,
+        server: crate::session::ServerConnection::Borrowed { reported_pid: pid },
     })
 }
 
@@ -341,6 +395,7 @@ pub fn connect_to_memory_server(
     server_options: ServerOptions,
     pid: Option<u32>,
 ) -> Result<UninitializedSession> {
+    validate_server_options(&server_options)?;
     let ThriftTransport::SharedMemory(ThriftSharedMemoryTransport { memory_name, .. }) =
         &server_options.thrift_transport
     else {
@@ -356,9 +411,9 @@ pub fn connect_to_memory_server(
         || ffi::new_thrift_shared_memory_session(&mem_name_cstr, &server_options.session_info().0),
     )?;
     Ok(UninitializedSession {
-        session_handle: handle,
+        session_handle: Some(handle),
         server_options: Some(server_options),
-        server_pid: pid,
+        server: crate::session::ServerConnection::Borrowed { reported_pid: pid },
     })
 }
 
@@ -368,7 +423,7 @@ fn try_connect_with_timeout<F: Fn() -> Result<crate::ffi::raw::HAPI_Session>>(
     f: F,
 ) -> Result<crate::ffi::raw::HAPI_Session> {
     debug!("Trying to connect to server with timeout: {timeout:?}");
-    let mut waited = Duration::from_secs(0);
+    let started = Instant::now();
     let mut last_error = None;
     let handle = loop {
         match f() {
@@ -376,17 +431,22 @@ fn try_connect_with_timeout<F: Fn() -> Result<crate::ffi::raw::HAPI_Session>>(
             Err(e) => {
                 error!("Error while trying to connect to server: {e:?}");
                 last_error.replace(e);
-                thread::sleep(wait_ms);
-                waited += wait_ms;
             }
         }
         if let Some(timeout) = timeout
-            && waited > timeout
+            && started.elapsed() >= timeout
         {
             // last_error is guaranteed to be Some() because we break out of the loop if we get a result.
             return Err(last_error.unwrap()).context(format!(
-                "Could not connect to server within timeout: {timeout:?}"
+                "Could not connect to server within timeout: {:?}",
+                timeout
             ));
+        }
+        let sleep_for = timeout
+            .map(|timeout| wait_ms.min(timeout.saturating_sub(started.elapsed())))
+            .unwrap_or(wait_ms);
+        if !sleep_for.is_zero() {
+            thread::sleep(sleep_for);
         }
     };
     Ok(handle)
@@ -397,6 +457,7 @@ pub fn connect_to_socket_server(
     server_options: ServerOptions,
     pid: Option<u32>,
 ) -> Result<UninitializedSession> {
+    validate_server_options(&server_options)?;
     let ThriftTransport::Socket(ThriftSocketTransport { address }) =
         &server_options.thrift_transport
     else {
@@ -420,13 +481,19 @@ pub fn connect_to_socket_server(
         },
     )?;
     Ok(UninitializedSession {
-        session_handle: handle,
+        session_handle: Some(handle),
         server_options: Some(server_options),
-        server_pid: pid,
+        server: crate::session::ServerConnection::Borrowed { reported_pid: pid },
     })
 }
 
+/// Start HARS and return its process ID.
+///
+/// This is a low-level unmanaged API. The caller is responsible for closing
+/// all client sessions and, on Unix, reaping the returned child process.
+/// [`crate::session::new_thrift_session`] manages those responsibilities.
 pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
+    validate_server_options(server_options)?;
     let env_variables = server_options.env_variables.as_ref().map(|env_variables| {
         env_variables
             .iter()
@@ -493,6 +560,185 @@ pub fn start_engine_server(server_options: &ServerOptions) -> Result<u32> {
     }
 }
 
+fn validate_server_options(server_options: &ServerOptions) -> Result<()> {
+    if server_options.connection_count < 0 {
+        return Err(HapiError::Internal(
+            "ServerOptions.connection_count cannot be negative".to_owned(),
+        ));
+    }
+    match &server_options.thrift_transport {
+        ThriftTransport::SharedMemory(transport) => {
+            if transport.memory_name.is_empty() {
+                return Err(HapiError::Internal(
+                    "Shared-memory transport name cannot be empty".to_owned(),
+                ));
+            }
+            if transport.buffer_size <= 0 {
+                return Err(HapiError::Internal(
+                    "Shared-memory buffer size must be positive".to_owned(),
+                ));
+            }
+        }
+        ThriftTransport::Pipe(transport) if transport.pipe_path.as_os_str().is_empty() => {
+            return Err(HapiError::Internal(
+                "Pipe transport path cannot be empty".to_owned(),
+            ));
+        }
+        ThriftTransport::Socket(transport) if transport.address.port() == 0 => {
+            return Err(HapiError::Internal(
+                "Socket transport port cannot be zero".to_owned(),
+            ));
+        }
+        ThriftTransport::Pipe(_) | ThriftTransport::Socket(_) => {}
+    }
+    Ok(())
+}
+
+/// Finish an owned HARS process. During construction failure the process is
+/// terminated immediately. During normal auto-close shutdown it first gets a
+/// chance to exit after the final client disconnects.
+pub(crate) fn finish_owned_server(
+    pid: u32,
+    auto_close: bool,
+    construction_failed: bool,
+    pipe_path: Option<&Path>,
+) -> Result<()> {
+    if !construction_failed && !auto_close {
+        return Ok(());
+    }
+
+    #[cfg(unix)]
+    reap_unix_child(pid, !construction_failed)?;
+
+    #[cfg(windows)]
+    finish_windows_child(pid, !construction_failed)?;
+
+    #[cfg(not(any(unix, windows)))]
+    let _ = (pid, auto_close, construction_failed);
+
+    if let Some(pipe_path) = pipe_path {
+        let _ = std::fs::remove_file(pipe_path);
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn finish_windows_child(pid: u32, allow_graceful_exit: bool) -> Result<()> {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, ERROR_INVALID_PARAMETER, WAIT_OBJECT_0, WAIT_TIMEOUT},
+        System::Threading::{
+            OpenProcess, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, TerminateProcess,
+            WaitForSingleObject,
+        },
+    };
+
+    let handle = unsafe { OpenProcess(PROCESS_SYNCHRONIZE | PROCESS_TERMINATE, 0, pid) };
+    if handle.is_null() {
+        let error = std::io::Error::last_os_error();
+        return if error.raw_os_error() == Some(ERROR_INVALID_PARAMETER as i32) {
+            // The process has already exited.
+            Ok(())
+        } else {
+            Err(HapiError::Io(error))
+        };
+    }
+    let wait_ms = if allow_graceful_exit { 2_000 } else { 0 };
+    let wait_result = unsafe { WaitForSingleObject(handle, wait_ms) };
+    let result = match wait_result {
+        WAIT_OBJECT_0 => Ok(()),
+        WAIT_TIMEOUT => {
+            if unsafe { TerminateProcess(handle, 1) } == 0 {
+                Err(HapiError::Io(std::io::Error::last_os_error()))
+            } else {
+                let terminated = unsafe { WaitForSingleObject(handle, 1_000) };
+                if terminated == WAIT_OBJECT_0 {
+                    Ok(())
+                } else {
+                    Err(HapiError::Internal(format!(
+                        "Timed out waiting for HARS process {pid} to terminate"
+                    )))
+                }
+            }
+        }
+        _ => Err(HapiError::Io(std::io::Error::last_os_error())),
+    };
+    unsafe {
+        CloseHandle(handle);
+    }
+    result
+}
+
+#[cfg(unix)]
+fn reap_unix_child(pid: u32, allow_graceful_exit: bool) -> Result<()> {
+    let pid = i32::try_from(pid)
+        .map_err(|_| HapiError::Internal("HARS PID does not fit pid_t".to_owned()))?;
+    let graceful_deadline = Instant::now()
+        + if allow_graceful_exit {
+            Duration::from_secs(2)
+        } else {
+            Duration::ZERO
+        };
+
+    loop {
+        let mut status = 0;
+        let result = unsafe { libc::waitpid(pid, &raw mut status, libc::WNOHANG) };
+        if result == pid
+            || (result == -1
+                && std::io::Error::last_os_error().raw_os_error() == Some(libc::ECHILD))
+        {
+            return Ok(());
+        }
+        if result == -1 {
+            return Err(HapiError::Io(std::io::Error::last_os_error()));
+        }
+        if Instant::now() >= graceful_deadline {
+            break;
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+
+    // waitpid returned zero, so this is still our live child and not a reused PID.
+    if unsafe { libc::kill(pid, libc::SIGTERM) } == -1 {
+        let error = std::io::Error::last_os_error();
+        if error.raw_os_error() != Some(libc::ESRCH) {
+            return Err(HapiError::Io(error));
+        }
+    }
+    let term_deadline = Instant::now() + Duration::from_secs(1);
+    loop {
+        let mut status = 0;
+        let result = unsafe { libc::waitpid(pid, &raw mut status, libc::WNOHANG) };
+        if result == pid
+            || (result == -1
+                && std::io::Error::last_os_error().raw_os_error() == Some(libc::ECHILD))
+        {
+            return Ok(());
+        }
+        if result == -1 {
+            return Err(HapiError::Io(std::io::Error::last_os_error()));
+        }
+        if Instant::now() >= term_deadline {
+            break;
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+    if unsafe { libc::kill(pid, libc::SIGKILL) } == -1 {
+        let error = std::io::Error::last_os_error();
+        if error.raw_os_error() != Some(libc::ESRCH) {
+            return Err(HapiError::Io(error));
+        }
+    }
+    let mut status = 0;
+    let result = unsafe { libc::waitpid(pid, &raw mut status, 0) };
+    if result == pid
+        || (result == -1 && std::io::Error::last_os_error().raw_os_error() == Some(libc::ECHILD))
+    {
+        Ok(())
+    } else {
+        Err(HapiError::Io(std::io::Error::last_os_error()))
+    }
+}
+
 /// Start an interactive Houdini session with engine server embedded.
 pub fn start_houdini_server(
     pipe_name: impl AsRef<str>,
@@ -520,6 +766,7 @@ pub fn start_houdini_server(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
     use std::{ffi::OsString, net::Ipv4Addr, num::NonZeroU64};
 
     use crate::ffi::enums::StatusVerbosity;
@@ -549,7 +796,10 @@ mod tests {
             .build();
 
         assert_eq!(transport.memory_name, "test-memory");
-        assert_eq!(transport.buffer_type, ThriftSharedMemoryBufferType::RingBuffer);
+        assert_eq!(
+            transport.buffer_type,
+            ThriftSharedMemoryBufferType::RingBuffer
+        );
         assert_eq!(transport.buffer_size, 512);
     }
 
@@ -559,7 +809,7 @@ mod tests {
             .with_buffer_size(NonZeroU64::new(i64::MAX as u64 + 1).unwrap())
             .build();
 
-        assert_eq!(transport.buffer_size, 1024);
+        assert_eq!(transport.buffer_size, 100);
     }
 
     #[test]
@@ -583,7 +833,10 @@ mod tests {
 
         let thrift_options = options.thrift_options();
         assert!(!thrift_options.auto_close());
-        assert_eq!(thrift_options.verbosity(), StatusVerbosity::Statusverbosity2);
+        assert_eq!(
+            thrift_options.verbosity(),
+            StatusVerbosity::Statusverbosity2
+        );
         assert_eq!(
             thrift_options.shared_memory_buffer_type(),
             ThriftSharedMemoryBufferType::RingBuffer
@@ -603,6 +856,51 @@ mod tests {
                 "--check-licenses=Houdini-Engine --skip-licenses=Houdini-Escape,Houdini-Fx"
             ))
         );
+    }
+
+    #[test]
+    fn environment_variables_merge_with_license_preference() {
+        let options = ServerOptions::default()
+            .with_license_preference(LicensePreference::HoudiniEngineOnly)
+            .with_env_variables([("HAPI_RS_TEST", "present")].iter());
+        let env = options.env_variables.expect("env map");
+        assert_eq!(
+            env.get(&OsString::from("HAPI_RS_TEST")),
+            Some(&OsString::from("present"))
+        );
+        assert!(env.contains_key(&OsString::from("HOUDINI_PLUGIN_LIC_OPT")));
+    }
+
+    #[test]
+    fn invalid_public_server_options_are_rejected() {
+        let mut options = ServerOptions::shared_memory_with_defaults();
+        options.connection_count = -1;
+        assert!(validate_server_options(&options).is_err());
+
+        let mut options = ServerOptions::shared_memory_with_defaults();
+        let ThriftTransport::SharedMemory(transport) = &mut options.thrift_transport else {
+            unreachable!()
+        };
+        transport.buffer_size = 0;
+        assert!(validate_server_options(&options).is_err());
+
+        let mut options = ServerOptions::shared_memory_with_defaults();
+        let ThriftTransport::SharedMemory(transport) = &mut options.thrift_transport else {
+            unreachable!()
+        };
+        transport.memory_name.clear();
+        assert!(validate_server_options(&options).is_err());
+
+        let options = ServerOptions::default().with_thrift_transport(ThriftTransport::Pipe(
+            ThriftPipeTransport {
+                pipe_path: PathBuf::new(),
+            },
+        ));
+        assert!(validate_server_options(&options).is_err());
+
+        let options =
+            ServerOptions::socket_with_defaults(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
+        assert!(validate_server_options(&options).is_err());
     }
 
     #[test]
@@ -629,5 +927,127 @@ mod tests {
         assert!(connect_to_socket_server(memory_options, None).is_err());
         assert!(connect_to_memory_server(socket_options.clone(), None).is_err());
         assert!(connect_to_pipe_server(socket_options, None).is_err());
+    }
+
+    #[test]
+    fn zero_connection_timeout_attempts_once_without_sleeping() {
+        let attempts = Cell::new(0);
+        let started = Instant::now();
+        let error = try_connect_with_timeout(Some(Duration::ZERO), Duration::from_secs(1), || {
+            attempts.set(attempts.get() + 1);
+            Err(HapiError::Internal("not ready".to_owned()))
+        })
+        .unwrap_err();
+
+        assert_eq!(attempts.get(), 1);
+        assert!(started.elapsed() < Duration::from_millis(100));
+        assert!(error.to_string().contains("within timeout"));
+    }
+
+    #[test]
+    fn connection_retry_returns_first_success() {
+        let attempts = Cell::new(0);
+        let handle = try_connect_with_timeout(None, Duration::ZERO, || {
+            attempts.set(attempts.get() + 1);
+            if attempts.get() < 3 {
+                Err(HapiError::Internal("not ready".to_owned()))
+            } else {
+                Ok(crate::ffi::raw::HAPI_Session {
+                    type_: crate::ffi::raw::SessionType::Thrift,
+                    id: 42,
+                })
+            }
+        })
+        .unwrap();
+
+        assert_eq!(attempts.get(), 3);
+        assert_eq!(handle.id, 42);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn owned_child_is_reaped_after_graceful_exit() {
+        let child = Command::new("sh")
+            .args(["-c", "exit 0"])
+            .spawn()
+            .expect("spawn child");
+        let pid = child.id();
+        drop(child);
+
+        reap_unix_child(pid, true).expect("reap child");
+        assert_child_already_reaped(pid);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn owned_child_uses_kill_fallback_when_term_is_ignored() {
+        let child = Command::new("sh")
+            .args(["-c", "trap '' TERM; exec sleep 30"])
+            .spawn()
+            .expect("spawn child");
+        let pid = child.id();
+        drop(child);
+        thread::sleep(Duration::from_millis(100));
+
+        reap_unix_child(pid, false).expect("terminate and reap child");
+        assert_child_already_reaped(pid);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn auto_close_false_leaves_owned_server_running() {
+        let mut child = Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn child");
+        let pid = child.id();
+
+        finish_owned_server(pid, false, false, None).expect("leave child running");
+        assert!(child.try_wait().expect("query child").is_none());
+
+        child.kill().expect("kill test child");
+        child.wait().expect("reap test child");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn construction_failure_terminates_child_and_removes_owned_pipe() {
+        let child = Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn child");
+        let pid = child.id();
+        drop(child);
+        let pipe = tempfile::NamedTempFile::new().expect("temporary pipe placeholder");
+        let pipe_path = pipe.path().to_owned();
+        drop(pipe);
+
+        finish_owned_server(pid, true, true, Some(&pipe_path)).expect("rollback server");
+        assert!(!pipe_path.exists());
+        assert_child_already_reaped(pid);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn already_reaped_child_is_a_successful_noop() {
+        let mut child = Command::new("sh")
+            .args(["-c", "exit 0"])
+            .spawn()
+            .expect("spawn child");
+        let pid = child.id();
+        child.wait().expect("reap child");
+
+        reap_unix_child(pid, true).expect("already-reaped child is okay");
+    }
+
+    #[cfg(unix)]
+    fn assert_child_already_reaped(pid: u32) {
+        let mut status = 0;
+        let result = unsafe { libc::waitpid(pid as i32, &raw mut status, libc::WNOHANG) };
+        assert_eq!(result, -1);
+        assert_eq!(
+            std::io::Error::last_os_error().raw_os_error(),
+            Some(libc::ECHILD)
+        );
     }
 }

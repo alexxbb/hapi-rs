@@ -42,17 +42,15 @@ thread_local! {
 
     #[cfg(feature = "async-cooking")]
     static ASYNC_SESSION: std::sync::LazyLock<Session> = std::sync::LazyLock::new(|| {
-        use hapi_rs::session::SessionInfo;
         let _ = env_logger::try_init();
-        let mut session_info = SessionInfo::default();
         // For async attribute access connection_count must be > 0 according to SESI support, otherwise HARS crashes.
-        println!("FIXME: H21.0 has a bug around connection count. Async tests are disabled for now.");
-        session_info.set_connection_count(2);
         let opt = SessionOptions {
             threaded: true,
             ..Default::default()
         };
-        let server_options = ServerOptions::shared_memory_with_defaults().with_license_preference(LicensePreference::HoudiniEngineAndCore);
+        let server_options = ServerOptions::shared_memory_with_defaults()
+            .with_connection_count(2)
+            .with_license_preference(LicensePreference::HoudiniEngineAndCore);
         new_thrift_session(opt, server_options).expect("Could not create async test session")
     });
 }
@@ -113,11 +111,8 @@ pub fn create_triangle(session: &Session) -> Result<Geometry> {
         .with_tuple_size(3)
         .with_owner(AttributeOwner::Point)
         .with_storage(StorageType::Float);
-    let attr_p = geo.add_numeric_attribute::<f32>("P", part.part_id(), info)?;
-    attr_p.set(
-        part.part_id(),
-        &[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
-    )?;
+    let attr_p = geo.add_numeric_attribute::<f32, Fixed>("P", part.part_id(), info)?;
+    attr_p.set(&[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0])?;
     geo.set_vertex_list(0, [0, 1, 2])?;
     geo.set_face_counts(0, [3])?;
     let info = AttributeInfo::default()
@@ -125,8 +120,8 @@ pub fn create_triangle(session: &Session) -> Result<Geometry> {
         .with_tuple_size(1)
         .with_owner(AttributeOwner::Point)
         .with_storage(StorageType::Int);
-    let id_attr = geo.add_numeric_attribute::<i32>("id", part.part_id(), info)?;
-    id_attr.set(0, &[1, 2, 3])?;
+    let id_attr = geo.add_numeric_attribute::<i32, Fixed>("id", part.part_id(), info)?;
+    id_attr.set(&[1, 2, 3])?;
 
     geo.commit()?;
     geo.node.cook_blocking()?;
@@ -144,8 +139,8 @@ pub fn create_single_point_geo(session: &Session) -> Result<Geometry> {
         .with_tuple_size(3)
         .with_owner(AttributeOwner::Point)
         .with_storage(StorageType::Float);
-    let id_attr = geo.add_numeric_attribute::<f32>("P", part.part_id(), p_info)?;
-    id_attr.set(part.part_id(), &[0.0, 0.0, 0.0])?;
+    let id_attr = geo.add_numeric_attribute::<f32, Fixed>("P", part.part_id(), p_info)?;
+    id_attr.set(&[0.0, 0.0, 0.0])?;
     geo.commit()?;
     geo.node.cook_blocking()?;
     Ok(geo)
@@ -155,18 +150,31 @@ pub fn with_test_geometry<F>(f: F) -> Result<()>
 where
     F: FnOnce(Geometry) -> Result<()>,
 {
-    SESSION.with(|session| {
-        session.load_asset_file(HdaFile::Geometry.path())?;
-        let node = session.create_node("Object/hapi_geo")?;
-        let cook_result = node.cook_blocking()?;
-        if cook_result != CookResult::Succeeded {
-            return Err(HapiError::Internal(format!(
-                "expected cook to succeed, got {cook_result:?}"
-            )));
-        }
-        let geo = node
-            .geometry()?
-            .ok_or_else(|| HapiError::Internal("must have geometry".into()))?;
-        f(geo)
-    })
+    SESSION.with(|session| with_geometry_in_session(session, f))
+}
+
+#[cfg(feature = "async-cooking")]
+pub fn with_async_test_geometry<F>(f: F) -> Result<()>
+where
+    F: FnOnce(Geometry) -> Result<()>,
+{
+    ASYNC_SESSION.with(|session| with_geometry_in_session(session, f))
+}
+
+fn with_geometry_in_session<F>(session: &Session, f: F) -> Result<()>
+where
+    F: FnOnce(Geometry) -> Result<()>,
+{
+    session.load_asset_file(HdaFile::Geometry.path())?;
+    let node = session.create_node("Object/hapi_geo")?;
+    let cook_result = node.cook_blocking()?;
+    if cook_result != CookResult::Succeeded {
+        return Err(HapiError::Internal(format!(
+            "expected cook to succeed, got {cook_result:?}"
+        )));
+    }
+    let geo = node
+        .geometry()?
+        .ok_or_else(|| HapiError::Internal("must have geometry".into()))?;
+    f(geo)
 }

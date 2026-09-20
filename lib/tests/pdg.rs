@@ -18,13 +18,13 @@ fn pdg_create_workitems() -> Result<()> {
 
         generator.node.cook_blocking()?;
         let workitem = generator.create_workitem("test_1", 0, None)?;
-        workitem.set_int_data("my_int_data", &[1, 2, 3])?;
-        workitem.set_float_data("my_float_data", &[1.0, 2.0, 3.0])?;
+        workitem.set_int_attribute("my_int_attr", &[1, 2, 3])?;
+        workitem.set_float_attribute("my_float_attr", &[1.0, 2.0, 3.0])?;
         generator.commit_workitems()?;
         generator.cook_pdg_blocking(false)?;
-        let i_data = workitem.get_int_data("my_int_data")?;
+        let i_data = workitem.get_int_attribute("my_int_attr")?;
         assert_eq!(&i_data, &[1, 2, 3]);
-        let f_data = workitem.get_float_data("my_float_data")?;
+        let f_data = workitem.get_float_attribute("my_float_attr")?;
         assert_eq!(&f_data, &[1.0, 2.0, 3.0]);
         let _ = generator.get_current_state(None)?;
         let items = generator.get_all_workitems()?;

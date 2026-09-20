@@ -2,7 +2,6 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::similar_names)]
 
-use duplicate::duplicate_item;
 use log::debug;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
@@ -984,6 +983,10 @@ pub fn cleanup_session(session: &Session) -> Result<()> {
     unsafe { raw::HAPI_Cleanup(session.ptr()).check_err(session, || "Calling HAPI_Cleanup") }
 }
 
+pub(crate) fn cleanup_raw_session(session: &raw::HAPI_Session) -> Result<()> {
+    unsafe { raw::HAPI_Cleanup(std::ptr::from_ref(session)).add_context("Calling HAPI_Cleanup") }
+}
+
 pub fn shutdown_session(session: &Session) -> Result<()> {
     if session.session_type() == raw::SessionType::Inprocess {
         unsafe { raw::HAPI_Shutdown(session.ptr()).check_err(session, || "Calling HAPI_Shutdown") }
@@ -992,9 +995,37 @@ pub fn shutdown_session(session: &Session) -> Result<()> {
     }
 }
 
+pub(crate) fn shutdown_raw_session(session: &raw::HAPI_Session) -> Result<()> {
+    unsafe { raw::HAPI_Shutdown(std::ptr::from_ref(session)).add_context("Calling HAPI_Shutdown") }
+}
+
 pub fn close_session(session: &Session) -> Result<()> {
     unsafe {
         raw::HAPI_CloseSession(session.ptr()).check_err(session, || "Calling HAPI_CloseSession")
+    }
+}
+
+pub(crate) fn close_raw_session(session: &raw::HAPI_Session) -> Result<()> {
+    unsafe {
+        raw::HAPI_CloseSession(std::ptr::from_ref(session)).add_context("Calling HAPI_CloseSession")
+    }
+}
+
+pub(crate) fn is_raw_session_valid(session: &raw::HAPI_Session) -> bool {
+    unsafe {
+        matches!(
+            raw::HAPI_IsSessionValid(std::ptr::from_ref(session)),
+            raw::HapiResult::Success
+        )
+    }
+}
+
+pub(crate) fn is_raw_session_initialized(session: &raw::HAPI_Session) -> bool {
+    unsafe {
+        matches!(
+            raw::HAPI_IsInitialized(std::ptr::from_ref(session)),
+            raw::HapiResult::Success
+        )
     }
 }
 
@@ -2233,6 +2264,76 @@ pub fn get_sphere_info(
     Ok(info)
 }
 
+pub fn get_camera_info(
+    node: NodeHandle,
+    session: &Session,
+    part_id: i32,
+) -> Result<raw::HAPI_CameraInfo> {
+    unsafe {
+        let mut info = raw::HAPI_CameraInfo_Create();
+        raw::HAPI_GetCameraInfo(session.ptr(), node.0, part_id, &raw mut info)
+            .check_err(session, || "Calling HAPI_GetCameraInfo")?;
+        Ok(info)
+    }
+}
+
+pub fn get_camera_transform(
+    node: NodeHandle,
+    session: &Session,
+    part_id: i32,
+) -> Result<raw::HAPI_Transform> {
+    unsafe {
+        let mut transform = raw::HAPI_Transform_Create();
+        raw::HAPI_GetCameraTransform(session.ptr(), node.0, part_id, &raw mut transform)
+            .check_err(session, || "Calling HAPI_GetCameraTransform")?;
+        Ok(transform)
+    }
+}
+
+pub fn create_input_camera_node(
+    session: &Session,
+    parent: Option<NodeHandle>,
+    name: &CStr,
+    label: &CStr,
+) -> Result<NodeHandle> {
+    unsafe {
+        let mut new_node_id: raw::HAPI_NodeId = -1;
+        raw::HAPI_CreateInputCameraNode(
+            session.ptr(),
+            parent.map_or(-1, |h| h.0),
+            &raw mut new_node_id,
+            name.as_ptr(),
+            label.as_ptr(),
+        )
+        .check_err(session, || "Calling HAPI_CreateInputCameraNode")?;
+        Ok(NodeHandle(new_node_id))
+    }
+}
+
+pub fn set_input_camera_info(
+    node: NodeHandle,
+    session: &Session,
+    info: &raw::HAPI_CameraInfo,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetInputCameraInfo(session.ptr(), node.0, info)
+            .check_err(session, || "Calling HAPI_SetInputCameraInfo")
+    }
+}
+
+pub fn set_input_camera_transform(
+    node: NodeHandle,
+    session: &Session,
+    rst_order: raw::RSTOrder,
+    rot_order: raw::XYZOrder,
+    transform: &raw::HAPI_Transform,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetInputCameraTransform(session.ptr(), node.0, rst_order, rot_order, transform)
+            .check_err(session, || "Calling HAPI_SetInputCameraTransform")
+    }
+}
+
 pub fn get_attribute_names(
     node: &HoudiniNode,
     part_id: i32,
@@ -2310,6 +2411,708 @@ pub fn delete_attribute(
         )
         .check_err(&node.session, || "Calling HAPI_DeleteAttribute")
     }
+}
+
+mod numeric_private {
+    pub trait Sealed {}
+}
+
+/// Sealed mapping between Rust numeric primitives and HAPI attribute storage.
+///
+/// This trait is implemented for `u8`, `i8`, `i16`, `i32`, `i64`, `f32`, and
+/// `f64`. It selects the corresponding fixed and array storage types and routes
+/// typed attribute operations to HAPI entry points with the matching C element
+/// layout. Users normally encounter it as the numeric bound on
+/// [`crate::attribute::Attribute`] and the typed geometry lookup and creation
+/// methods; downstream implementations are intentionally prevented.
+///
+/// # Safety
+///
+/// Every implementation must use HAPI entry points whose C element type has
+/// the same size, alignment, and representation as `Self`, and must associate
+/// `Self` with the matching fixed and array storage variants.
+pub unsafe trait NumericPrimitive:
+    numeric_private::Sealed + Copy + Default + Send + 'static
+{
+    const FIXED_STORAGE: raw::StorageType;
+    const JAGGED_STORAGE: raw::StorageType;
+    fn get_fixed(
+        node: &HoudiniNode,
+        part: i32,
+        name: &CStr,
+        info: &raw::HAPI_AttributeInfo,
+        data: &mut [Self],
+        start: i32,
+        count: i32,
+    ) -> Result<()>;
+    fn set_fixed(
+        node: &HoudiniNode,
+        part: i32,
+        name: &CStr,
+        info: &raw::HAPI_AttributeInfo,
+        data: &[Self],
+        start: i32,
+        count: i32,
+    ) -> Result<()>;
+    fn set_unique(
+        node: &HoudiniNode,
+        part: i32,
+        name: &CStr,
+        info: &raw::HAPI_AttributeInfo,
+        data: &[Self],
+    ) -> Result<()>;
+    fn get_jagged(
+        node: &HoudiniNode,
+        part: i32,
+        name: &CStr,
+        info: &raw::HAPI_AttributeInfo,
+        data: &mut [Self],
+        sizes: &mut [i32],
+    ) -> Result<()>;
+    fn set_jagged(
+        node: &HoudiniNode,
+        part: i32,
+        name: &CStr,
+        info: &raw::HAPI_AttributeInfo,
+        data: &[Self],
+        sizes: &[i32],
+    ) -> Result<()>;
+    #[cfg(feature = "async-cooking")]
+    fn get_fixed_async(
+        node: &HoudiniNode,
+        part: i32,
+        name: &CStr,
+        info: &mut raw::HAPI_AttributeInfo,
+        data: &mut [Self],
+    ) -> Result<i32>;
+    #[cfg(feature = "async-cooking")]
+    fn set_fixed_async(
+        node: &HoudiniNode,
+        part: i32,
+        name: &CStr,
+        info: &raw::HAPI_AttributeInfo,
+        data: &[Self],
+    ) -> Result<i32>;
+    #[cfg(feature = "async-cooking")]
+    fn set_unique_async(
+        node: &HoudiniNode,
+        part: i32,
+        name: &CStr,
+        info: &raw::HAPI_AttributeInfo,
+        data: &[Self],
+    ) -> Result<i32>;
+    #[cfg(feature = "async-cooking")]
+    fn get_jagged_async(
+        node: &HoudiniNode,
+        part: i32,
+        name: &CStr,
+        info: &mut raw::HAPI_AttributeInfo,
+        data: &mut [Self],
+        sizes: &mut [i32],
+    ) -> Result<i32>;
+    #[cfg(feature = "async-cooking")]
+    fn set_jagged_async(
+        node: &HoudiniNode,
+        part: i32,
+        name: &CStr,
+        info: &raw::HAPI_AttributeInfo,
+        data: &[Self],
+        sizes: &[i32],
+    ) -> Result<i32>;
+}
+
+macro_rules! numeric_primitives {
+    ($(($ty:ty, $fixed:ident, $jagged:ident,
+        $get:ident, $set:ident, $unique:ident, $get_array:ident, $set_array:ident,
+        $get_async:ident, $set_async:ident, $unique_async:ident, $get_array_async:ident, $set_array_async:ident)),+ $(,)?) => {$(
+        unsafe impl NumericPrimitive for $ty {
+            const FIXED_STORAGE: raw::StorageType = raw::StorageType::$fixed;
+            const JAGGED_STORAGE: raw::StorageType = raw::StorageType::$jagged;
+            fn get_fixed(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &mut [Self], start: i32, count: i32) -> Result<()> {
+                let mut local_info = *info;
+                unsafe { raw::$get(node.session.ptr(), node.handle.0, part, name.as_ptr(), &raw mut local_info, -1, data.as_mut_ptr(), start, count)
+                    .check_err(&node.session, || concat!("Calling ", stringify!($get))) }
+            }
+            fn set_fixed(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &[Self], start: i32, count: i32) -> Result<()> {
+                unsafe { raw::$set(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_ptr(), start, count)
+                    .check_err(&node.session, || concat!("Calling ", stringify!($set))) }
+            }
+            fn set_unique(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &[Self]) -> Result<()> {
+                unsafe { raw::$unique(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_ptr(), info.tupleSize, 0, info.count)
+                    .check_err(&node.session, || concat!("Calling ", stringify!($unique))) }
+            }
+            fn get_jagged(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &mut [Self], sizes: &mut [i32]) -> Result<()> {
+                let data_len = i32::try_from(info.totalArrayElements)
+                    .map_err(|_| HapiError::Internal("jagged attribute element count exceeds i32".into()))?;
+                let mut local_info = *info;
+                unsafe { raw::$get_array(node.session.ptr(), node.handle.0, part, name.as_ptr(), &raw mut local_info, data.as_mut_ptr(), data_len, sizes.as_mut_ptr(), 0, info.count)
+                    .check_err(&node.session, || concat!("Calling ", stringify!($get_array))) }
+            }
+            fn set_jagged(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &[Self], sizes: &[i32]) -> Result<()> {
+                let data_len = i32::try_from(data.len())
+                    .map_err(|_| HapiError::Internal("jagged attribute data length exceeds i32".into()))?;
+                let sizes_len = i32::try_from(sizes.len())
+                    .map_err(|_| HapiError::Internal("jagged attribute size count exceeds i32".into()))?;
+                unsafe { raw::$set_array(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_ptr(), data_len, sizes.as_ptr(), 0, sizes_len)
+                    .check_err(&node.session, || concat!("Calling ", stringify!($set_array))) }
+            }
+            #[cfg(feature = "async-cooking")]
+            fn get_fixed_async(node: &HoudiniNode, part: i32, name: &CStr, info: &mut raw::HAPI_AttributeInfo, data: &mut [Self]) -> Result<i32> {
+                let mut job = -1;
+                unsafe { raw::$get_async(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, -1, data.as_mut_ptr(), 0, info.count, &raw mut job)
+                    .check_err(&node.session, || concat!("Calling ", stringify!($get_async)))?; }
+                Ok(job)
+            }
+            #[cfg(feature = "async-cooking")]
+            fn set_fixed_async(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &[Self]) -> Result<i32> {
+                let mut job = -1;
+                unsafe { raw::$set_async(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_ptr(), 0, info.count, &raw mut job)
+                    .check_err(&node.session, || concat!("Calling ", stringify!($set_async)))?; }
+                Ok(job)
+            }
+            #[cfg(feature = "async-cooking")]
+            fn set_unique_async(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &[Self]) -> Result<i32> {
+                let mut job = -1;
+                unsafe { raw::$unique_async(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_ptr(), info.tupleSize, 0, info.count, &raw mut job)
+                    .check_err(&node.session, || concat!("Calling ", stringify!($unique_async)))?; }
+                Ok(job)
+            }
+            #[cfg(feature = "async-cooking")]
+            fn get_jagged_async(node: &HoudiniNode, part: i32, name: &CStr, info: &mut raw::HAPI_AttributeInfo, data: &mut [Self], sizes: &mut [i32]) -> Result<i32> {
+                let data_len = i32::try_from(data.len())
+                    .map_err(|_| HapiError::Internal("jagged attribute data length exceeds i32".into()))?;
+                let sizes_len = i32::try_from(sizes.len())
+                    .map_err(|_| HapiError::Internal("jagged attribute size count exceeds i32".into()))?;
+                let mut job = -1;
+                unsafe { raw::$get_array_async(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_mut_ptr(), data_len, sizes.as_mut_ptr(), 0, sizes_len, &raw mut job)
+                    .check_err(&node.session, || concat!("Calling ", stringify!($get_array_async)))?; }
+                Ok(job)
+            }
+            #[cfg(feature = "async-cooking")]
+            fn set_jagged_async(node: &HoudiniNode, part: i32, name: &CStr, info: &raw::HAPI_AttributeInfo, data: &[Self], sizes: &[i32]) -> Result<i32> {
+                let data_len = i32::try_from(data.len())
+                    .map_err(|_| HapiError::Internal("jagged attribute data length exceeds i32".into()))?;
+                let sizes_len = i32::try_from(sizes.len())
+                    .map_err(|_| HapiError::Internal("jagged attribute size count exceeds i32".into()))?;
+                let mut job = -1;
+                unsafe { raw::$set_array_async(node.session.ptr(), node.handle.0, part, name.as_ptr(), info, data.as_ptr(), data_len, sizes.as_ptr(), 0, sizes_len, &raw mut job)
+                    .check_err(&node.session, || concat!("Calling ", stringify!($set_array_async)))?; }
+                Ok(job)
+            }
+        }
+        impl numeric_private::Sealed for $ty {}
+    )+};}
+
+numeric_primitives!(
+    (
+        u8,
+        Uint8,
+        Uint8Array,
+        HAPI_GetAttributeUInt8Data,
+        HAPI_SetAttributeUInt8Data,
+        HAPI_SetAttributeUInt8UniqueData,
+        HAPI_GetAttributeUInt8ArrayData,
+        HAPI_SetAttributeUInt8ArrayData,
+        HAPI_GetAttributeUInt8DataAsync,
+        HAPI_SetAttributeUInt8DataAsync,
+        HAPI_SetAttributeUInt8UniqueDataAsync,
+        HAPI_GetAttributeUInt8ArrayDataAsync,
+        HAPI_SetAttributeUInt8ArrayDataAsync
+    ),
+    (
+        i8,
+        Int8,
+        Int8Array,
+        HAPI_GetAttributeInt8Data,
+        HAPI_SetAttributeInt8Data,
+        HAPI_SetAttributeInt8UniqueData,
+        HAPI_GetAttributeInt8ArrayData,
+        HAPI_SetAttributeInt8ArrayData,
+        HAPI_GetAttributeInt8DataAsync,
+        HAPI_SetAttributeInt8DataAsync,
+        HAPI_SetAttributeInt8UniqueDataAsync,
+        HAPI_GetAttributeInt8ArrayDataAsync,
+        HAPI_SetAttributeInt8ArrayDataAsync
+    ),
+    (
+        i16,
+        Int16,
+        Int16Array,
+        HAPI_GetAttributeInt16Data,
+        HAPI_SetAttributeInt16Data,
+        HAPI_SetAttributeInt16UniqueData,
+        HAPI_GetAttributeInt16ArrayData,
+        HAPI_SetAttributeInt16ArrayData,
+        HAPI_GetAttributeInt16DataAsync,
+        HAPI_SetAttributeInt16DataAsync,
+        HAPI_SetAttributeInt16UniqueDataAsync,
+        HAPI_GetAttributeInt16ArrayDataAsync,
+        HAPI_SetAttributeInt16ArrayDataAsync
+    ),
+    (
+        i32,
+        Int,
+        IntArray,
+        HAPI_GetAttributeIntData,
+        HAPI_SetAttributeIntData,
+        HAPI_SetAttributeIntUniqueData,
+        HAPI_GetAttributeIntArrayData,
+        HAPI_SetAttributeIntArrayData,
+        HAPI_GetAttributeIntDataAsync,
+        HAPI_SetAttributeIntDataAsync,
+        HAPI_SetAttributeIntUniqueDataAsync,
+        HAPI_GetAttributeIntArrayDataAsync,
+        HAPI_SetAttributeIntArrayDataAsync
+    ),
+    (
+        i64,
+        Int64,
+        Int64Array,
+        HAPI_GetAttributeInt64Data,
+        HAPI_SetAttributeInt64Data,
+        HAPI_SetAttributeInt64UniqueData,
+        HAPI_GetAttributeInt64ArrayData,
+        HAPI_SetAttributeInt64ArrayData,
+        HAPI_GetAttributeInt64DataAsync,
+        HAPI_SetAttributeInt64DataAsync,
+        HAPI_SetAttributeInt64UniqueDataAsync,
+        HAPI_GetAttributeInt64ArrayDataAsync,
+        HAPI_SetAttributeInt64ArrayDataAsync
+    ),
+    (
+        f32,
+        Float,
+        FloatArray,
+        HAPI_GetAttributeFloatData,
+        HAPI_SetAttributeFloatData,
+        HAPI_SetAttributeFloatUniqueData,
+        HAPI_GetAttributeFloatArrayData,
+        HAPI_SetAttributeFloatArrayData,
+        HAPI_GetAttributeFloatDataAsync,
+        HAPI_SetAttributeFloatDataAsync,
+        HAPI_SetAttributeFloatUniqueDataAsync,
+        HAPI_GetAttributeFloatArrayDataAsync,
+        HAPI_SetAttributeFloatArrayDataAsync
+    ),
+    (
+        f64,
+        Float64,
+        Float64Array,
+        HAPI_GetAttributeFloat64Data,
+        HAPI_SetAttributeFloat64Data,
+        HAPI_SetAttributeFloat64UniqueData,
+        HAPI_GetAttributeFloat64ArrayData,
+        HAPI_SetAttributeFloat64ArrayData,
+        HAPI_GetAttributeFloat64DataAsync,
+        HAPI_SetAttributeFloat64DataAsync,
+        HAPI_SetAttributeFloat64UniqueDataAsync,
+        HAPI_GetAttributeFloat64ArrayDataAsync,
+        HAPI_SetAttributeFloat64ArrayDataAsync
+    ),
+);
+
+pub(crate) fn get_string_attribute_data(
+    node: &HoudiniNode,
+    part: i32,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    dictionary: bool,
+    start: i32,
+    count: i32,
+) -> Result<StringArray> {
+    let len = usize::try_from(
+        count
+            .checked_mul(info.tupleSize)
+            .ok_or_else(|| HapiError::Internal("attribute element count overflow".into()))?,
+    )
+    .map_err(|_| HapiError::Internal("negative attribute element count".into()))?;
+    let mut handles = vec![StringHandle(0); len];
+    // Resolve the handles before another operation on this session can
+    // invalidate HAPI's shared string-batch state.
+    let _lock = node.session.lock();
+    let mut local_info = *info;
+    let result = unsafe {
+        if dictionary {
+            raw::HAPI_GetAttributeDictionaryData(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                &raw mut local_info,
+                handles.as_mut_ptr().cast(),
+                start,
+                count,
+            )
+        } else {
+            raw::HAPI_GetAttributeStringData(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                &raw mut local_info,
+                handles.as_mut_ptr().cast(),
+                start,
+                count,
+            )
+        }
+    };
+    result.check_err(&node.session, || "Getting string attribute data")?;
+    crate::stringhandle::get_string_array(&handles, &node.session)
+}
+
+pub(crate) fn set_string_attribute_data(
+    node: &HoudiniNode,
+    part: i32,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    values: &[*const i8],
+    dictionary: bool,
+    start: i32,
+    count: i32,
+) -> Result<()> {
+    let result = unsafe {
+        if dictionary {
+            raw::HAPI_SetAttributeDictionaryData(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                info,
+                values.as_ptr().cast_mut(),
+                start,
+                count,
+            )
+        } else {
+            raw::HAPI_SetAttributeStringData(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                info,
+                values.as_ptr().cast_mut(),
+                start,
+                count,
+            )
+        }
+    };
+    result.check_err(&node.session, || "Setting string attribute data")
+}
+
+pub(crate) fn get_string_jagged_attribute_data(
+    node: &HoudiniNode,
+    part: i32,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    dictionary: bool,
+) -> Result<(Vec<String>, Vec<i32>)> {
+    let total = usize::try_from(info.totalArrayElements)
+        .map_err(|_| HapiError::Internal("negative jagged string element count".into()))?;
+    let count = usize::try_from(info.count)
+        .map_err(|_| HapiError::Internal("negative jagged string attribute count".into()))?;
+    let data_length = i32::try_from(total)
+        .map_err(|_| HapiError::Internal("jagged string element count exceeds i32".into()))?;
+    let mut handles = vec![StringHandle(0); total];
+    let mut sizes = vec![0; count];
+    let _lock = node.session.lock();
+    let mut local_info = *info;
+    let result = unsafe {
+        if dictionary {
+            raw::HAPI_GetAttributeDictionaryArrayData(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                &raw mut local_info,
+                handles.as_mut_ptr().cast(),
+                data_length,
+                sizes.as_mut_ptr(),
+                0,
+                info.count,
+            )
+        } else {
+            raw::HAPI_GetAttributeStringArrayData(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                &raw mut local_info,
+                handles.as_mut_ptr().cast(),
+                data_length,
+                sizes.as_mut_ptr(),
+                0,
+                info.count,
+            )
+        }
+    };
+    result.check_err(&node.session, || "Getting jagged string attribute data")?;
+    let strings = crate::stringhandle::get_string_array(&handles, &node.session)?;
+    Ok((strings.into(), sizes))
+}
+
+pub(crate) fn set_string_jagged_attribute_data(
+    node: &HoudiniNode,
+    part: i32,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    values: &[*const i8],
+    sizes: &[i32],
+    dictionary: bool,
+) -> Result<()> {
+    let values_len = i32::try_from(values.len())
+        .map_err(|_| HapiError::Internal("jagged string data length exceeds i32".into()))?;
+    let sizes_len = i32::try_from(sizes.len())
+        .map_err(|_| HapiError::Internal("jagged string size count exceeds i32".into()))?;
+    let result = unsafe {
+        if dictionary {
+            raw::HAPI_SetAttributeDictionaryArrayData(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                std::ptr::from_ref(info).cast_mut(),
+                values.as_ptr().cast_mut(),
+                values_len,
+                sizes.as_ptr(),
+                0,
+                sizes_len,
+            )
+        } else {
+            raw::HAPI_SetAttributeStringArrayData(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                std::ptr::from_ref(info).cast_mut(),
+                values.as_ptr().cast_mut(),
+                values_len,
+                sizes.as_ptr(),
+                0,
+                sizes_len,
+            )
+        }
+    };
+    result.check_err(&node.session, || "Setting jagged string attribute data")
+}
+
+pub(crate) fn set_string_unique_attribute_data(
+    node: &HoudiniNode,
+    part: i32,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    value: &CStr,
+) -> Result<()> {
+    unsafe {
+        raw::HAPI_SetAttributeStringUniqueData(
+            node.session.ptr(),
+            node.handle.0,
+            part,
+            name.as_ptr(),
+            info,
+            value.as_ptr(),
+            info.tupleSize,
+            0,
+            info.count,
+        )
+        .check_err(
+            &node.session,
+            || "Calling HAPI_SetAttributeStringUniqueData",
+        )
+    }
+}
+
+pub(crate) fn set_indexed_string_attribute_data(
+    node: &HoudiniNode,
+    part: i32,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    values: &[*const i8],
+    indices: &[i32],
+) -> Result<()> {
+    let values_len = i32::try_from(values.len())
+        .map_err(|_| HapiError::Internal("indexed string table length exceeds i32".into()))?;
+    let indices_len = i32::try_from(indices.len())
+        .map_err(|_| HapiError::Internal("indexed string index count exceeds i32".into()))?;
+    unsafe {
+        raw::HAPI_SetAttributeIndexedStringData(
+            node.session.ptr(),
+            node.handle.0,
+            part,
+            name.as_ptr(),
+            info,
+            values.as_ptr().cast_mut(),
+            values_len,
+            indices.as_ptr(),
+            0,
+            indices_len,
+        )
+        .check_err(
+            &node.session,
+            || "Calling HAPI_SetAttributeIndexedStringData",
+        )
+    }
+}
+
+#[cfg(feature = "async-cooking")]
+pub(crate) fn set_string_attribute_data_async(
+    node: &HoudiniNode,
+    part: i32,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    values: &[*const i8],
+    dictionary: bool,
+) -> Result<i32> {
+    let mut job = -1;
+    let result = unsafe {
+        if dictionary {
+            raw::HAPI_SetAttributeDictionaryDataAsync(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                info,
+                values.as_ptr().cast_mut(),
+                0,
+                info.count,
+                &raw mut job,
+            )
+        } else {
+            raw::HAPI_SetAttributeStringDataAsync(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                info,
+                values.as_ptr().cast_mut(),
+                0,
+                info.count,
+                &raw mut job,
+            )
+        }
+    };
+    result.check_err(
+        &node.session,
+        || "Setting string attribute data asynchronously",
+    )?;
+    Ok(job)
+}
+
+#[cfg(feature = "async-cooking")]
+pub(crate) fn set_string_jagged_attribute_data_async(
+    node: &HoudiniNode,
+    part: i32,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    values: &[*const i8],
+    sizes: &[i32],
+    dictionary: bool,
+) -> Result<i32> {
+    let values_len = i32::try_from(values.len())
+        .map_err(|_| HapiError::Internal("jagged string data length exceeds i32".into()))?;
+    let sizes_len = i32::try_from(sizes.len())
+        .map_err(|_| HapiError::Internal("jagged string size count exceeds i32".into()))?;
+    let mut job = -1;
+    let result = unsafe {
+        if dictionary {
+            raw::HAPI_SetAttributeDictionaryArrayDataAsync(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                info,
+                values.as_ptr().cast_mut(),
+                values_len,
+                sizes.as_ptr(),
+                0,
+                sizes_len,
+                &raw mut job,
+            )
+        } else {
+            raw::HAPI_SetAttributeStringArrayDataAsync(
+                node.session.ptr(),
+                node.handle.0,
+                part,
+                name.as_ptr(),
+                info,
+                values.as_ptr().cast_mut(),
+                values_len,
+                sizes.as_ptr(),
+                0,
+                sizes_len,
+                &raw mut job,
+            )
+        }
+    };
+    result.check_err(
+        &node.session,
+        || "Setting jagged string attribute data asynchronously",
+    )?;
+    Ok(job)
+}
+
+#[cfg(feature = "async-cooking")]
+pub(crate) fn set_string_unique_attribute_data_async(
+    node: &HoudiniNode,
+    part: i32,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    value: &CStr,
+) -> Result<i32> {
+    let mut job = -1;
+    unsafe {
+        raw::HAPI_SetAttributeStringUniqueDataAsync(
+            node.session.ptr(),
+            node.handle.0,
+            part,
+            name.as_ptr(),
+            info,
+            value.as_ptr(),
+            info.tupleSize,
+            0,
+            info.count,
+            &raw mut job,
+        )
+        .check_err(
+            &node.session,
+            || "Calling HAPI_SetAttributeStringUniqueDataAsync",
+        )?;
+    }
+    Ok(job)
+}
+
+#[cfg(feature = "async-cooking")]
+pub(crate) fn set_indexed_string_attribute_data_async(
+    node: &HoudiniNode,
+    part: i32,
+    name: &CStr,
+    info: &raw::HAPI_AttributeInfo,
+    values: &[*const i8],
+    indices: &[i32],
+) -> Result<i32> {
+    let values_len = i32::try_from(values.len())
+        .map_err(|_| HapiError::Internal("indexed string table length exceeds i32".into()))?;
+    let indices_len = i32::try_from(indices.len())
+        .map_err(|_| HapiError::Internal("indexed string index count exceeds i32".into()))?;
+    let mut job = -1;
+    unsafe {
+        raw::HAPI_SetAttributeIndexedStringDataAsync(
+            node.session.ptr(),
+            node.handle.0,
+            part,
+            name.as_ptr(),
+            info,
+            values.as_ptr().cast_mut(),
+            values_len,
+            indices.as_ptr(),
+            0,
+            indices_len,
+            &raw mut job,
+        )
+        .check_err(
+            &node.session,
+            || "Calling HAPI_SetAttributeIndexedStringDataAsync",
+        )?;
+    }
+    Ok(job)
 }
 
 pub fn get_file_parm(
@@ -3152,8 +3955,9 @@ pub fn create_cop_image(
     flip_x: bool,
     flip_y: bool,
     image_data: &[f32],
-) -> Result<()> {
+) -> Result<NodeHandle> {
     unsafe {
+        let mut new_node_id: raw::HAPI_NodeId = -1;
         raw::HAPI_CreateCOPImage(
             session.ptr(),
             parent_node.map_or(-1, |h| h.0),
@@ -3165,8 +3969,10 @@ pub fn create_cop_image(
             image_data.as_ptr(),
             0,
             i32::try_from(image_data.len()).unwrap(),
+            &raw mut new_node_id,
         )
-        .check_err(session, || "Calling HAPI_CreateCOPImage")
+        .check_err(session, || "Calling HAPI_CreateCOPImage")?;
+        Ok(NodeHandle(new_node_id))
     }
 }
 
@@ -3393,16 +4199,16 @@ pub fn get_workitem_info(
     session: &Session,
     graph_context_id: i32,
     workitem_id: i32,
-) -> Result<raw::HAPI_PDG_WorkitemInfo> {
+) -> Result<raw::HAPI_PDG_WorkItemInfo> {
     unsafe {
         let mut info = uninit!();
-        raw::HAPI_GetWorkitemInfo(
+        raw::HAPI_GetWorkItemInfo(
             session.ptr(),
             graph_context_id,
             workitem_id,
             info.as_mut_ptr(),
         )
-        .check_err(session, || "Calling HAPI_GetWorkitemInfo")?;
+        .check_err(session, || "Calling HAPI_GetWorkItemInfo")?;
         Ok(info.assume_init())
     }
 }
@@ -3412,7 +4218,7 @@ pub fn get_workitem_result(
     pdg_node: NodeHandle,
     workitem_id: i32,
     count: i32,
-) -> Result<Vec<raw::HAPI_PDG_WorkitemResultInfo>> {
+) -> Result<Vec<raw::HAPI_PDG_WorkItemOutputFile>> {
     let mut infos =
         Vec::<MaybeUninit<raw::HAPI_PDG_WorkItemOutputFile>>::with_capacity(count as usize);
     unsafe {
@@ -3435,14 +4241,14 @@ pub fn get_pdg_workitems(session: &Session, pdg_node: NodeHandle) -> Result<Vec<
     unsafe {
         let _lock = session.lock();
         let mut num = -1;
-        raw::HAPI_GetNumWorkitems(session.ptr(), pdg_node.0, &raw mut num)
-            .check_err(session, || "Calling HAPI_GetNumWorkitems")?;
+        raw::HAPI_GetNumWorkItems(session.ptr(), pdg_node.0, &raw mut num)
+            .check_err(session, || "Calling HAPI_GetNumWorkItems")?;
         if num <= 0 {
             return Ok(vec![]);
         }
         let mut array = vec![-1; num as usize];
-        raw::HAPI_GetWorkitems(session.ptr(), pdg_node.0, array.as_mut_ptr(), num)
-            .check_err(session, || "Calling HAPI_GetWorkitems")?;
+        raw::HAPI_GetWorkItems(session.ptr(), pdg_node.0, array.as_mut_ptr(), num)
+            .check_err(session, || "Calling HAPI_GetWorkItems")?;
         Ok(array)
     }
 }
@@ -3474,37 +4280,7 @@ pub fn commit_pdg_workitems(session: &Session, node: NodeHandle) -> Result<()> {
     }
 }
 
-pub fn get_workitem_data_length(
-    session: &Session,
-    node: NodeHandle,
-    workitem_id: i32,
-    data_name: &CStr,
-) -> Result<i32> {
-    unsafe {
-        let mut length = uninit!();
-        raw::HAPI_GetWorkitemDataLength(
-            session.ptr(),
-            node.0,
-            workitem_id,
-            data_name.as_ptr(),
-            length.as_mut_ptr(),
-        )
-        .check_err(session, || "Calling HAPI_GetWorkitemDataLength")?;
-        Ok(length.assume_init())
-    }
-}
-
-#[duplicate_item(
-[
-_rust_fn [get_workitem_attribute_size]
-_ffi_fn [HAPI_GetWorkItemAttributeSize]
-]
-[
-_rust_fn [get_workitem_data_size]
-_ffi_fn [HAPI_GetWorkitemDataLength]
-]
-)]
-pub fn _rust_fn(
+pub fn get_workitem_attribute_size(
     session: &Session,
     node: NodeHandle,
     workitem_id: i32,
@@ -3512,7 +4288,7 @@ pub fn _rust_fn(
 ) -> Result<i32> {
     unsafe {
         let mut size = uninit!();
-        raw::_ffi_fn(
+        raw::HAPI_GetWorkItemAttributeSize(
             session.ptr(),
             node.0,
             workitem_id,
@@ -3524,101 +4300,37 @@ pub fn _rust_fn(
     }
 }
 
-#[duplicate_item(
-[
-_type [i32]
-_rust_fn [set_workitem_int_data]
-_ffi_fn [HAPI_SetWorkitemIntData]
-]
-[
-_type [i32]
-_rust_fn [set_workitem_int_attribute]
-_ffi_fn [HAPI_SetWorkItemIntAttribute]
-]
-[
-_type [f32]
-_rust_fn [set_workitem_float_data]
-_ffi_fn [HAPI_SetWorkitemFloatData]
-]
-[
-_type [f32]
-_rust_fn [set_workitem_float_attribute]
-_ffi_fn [HAPI_SetWorkItemFloatAttribute]
-]
-)]
-pub fn _rust_fn(
-    session: &Session,
-    node: NodeHandle,
-    workitem_id: i32,
-    data_name: &CStr,
-    data: &[_type],
-) -> Result<()> {
-    unsafe {
-        raw::_ffi_fn(
-            session.ptr(),
-            node.0,
-            workitem_id,
-            data_name.as_ptr(),
-            data.as_ptr(),
-            uzize_to_i32(data.len()),
-        )
-        .check_err(session, || stringify!(Calling _ffi_fn))
-    }
+macro_rules! workitem_attribute_functions {
+    ($(($ty:ty, $set:ident, $set_ffi:ident, $get:ident, $get_ffi:ident)),+ $(,)?) => {$(
+        pub fn $set(session: &Session, node: NodeHandle, workitem_id: i32, data_name: &CStr, data: &[$ty]) -> Result<()> {
+            unsafe { raw::$set_ffi(session.ptr(), node.0, workitem_id, data_name.as_ptr(), data.as_ptr(), uzize_to_i32(data.len()))
+                .check_err(session, || concat!("Calling ", stringify!($set_ffi))) }
+        }
+        pub fn $get(session: &Session, node: NodeHandle, workitem_id: i32, data_name: &CStr, data: &mut [$ty]) -> Result<()> {
+            unsafe { raw::$get_ffi(session.ptr(), node.0, workitem_id, data_name.as_ptr(), data.as_mut_ptr(), uzize_to_i32(data.len()))
+                .check_err(session, || concat!("Calling ", stringify!($get_ffi))) }
+        }
+    )+};
 }
 
-#[duplicate_item(
-[
-_type [i32]
-_rust_fn [get_workitem_int_data]
-_ffi_fn [HAPI_GetWorkitemIntData]
-]
-[
-_type [i32]
-_rust_fn [get_workitem_int_attribute]
-_ffi_fn [HAPI_GetWorkItemIntAttribute]
-]
-[
-_type [f32]
-_rust_fn [get_workitem_float_data]
-_ffi_fn [HAPI_GetWorkitemFloatData]
-]
-[
-_type [f32]
-_rust_fn [get_workitem_float_attribute]
-_ffi_fn [HAPI_GetWorkItemFloatAttribute]
-]
-)]
-pub fn _rust_fn(
-    session: &Session,
-    node: NodeHandle,
-    workitem_id: i32,
-    data_name: &CStr,
-    data: &mut [_type],
-) -> Result<()> {
-    unsafe {
-        raw::_ffi_fn(
-            session.ptr(),
-            node.0,
-            workitem_id,
-            data_name.as_ptr(),
-            data.as_mut_ptr(),
-            uzize_to_i32(data.len()),
-        )
-        .check_err(session, || stringify!(Calling _ffi_fn))
-    }
-}
+workitem_attribute_functions!(
+    (
+        i32,
+        set_workitem_int_attribute,
+        HAPI_SetWorkItemIntAttribute,
+        get_workitem_int_attribute,
+        HAPI_GetWorkItemIntAttribute
+    ),
+    (
+        f32,
+        set_workitem_float_attribute,
+        HAPI_SetWorkItemFloatAttribute,
+        get_workitem_float_attribute,
+        HAPI_GetWorkItemFloatAttribute
+    ),
+);
 
-#[duplicate_item(
-[
-_rust_fn [set_workitem_string_attribute]
-_ffi_fn [HAPI_SetWorkItemStringAttribute]
-]
-[
-_rust_fn [set_workitem_string_data]
-_ffi_fn [HAPI_SetWorkitemStringData]
-]
-)]
-pub fn _rust_fn(
+pub fn set_workitem_string_attribute(
     session: &Session,
     node: NodeHandle,
     workitem_id: i32,
@@ -3627,7 +4339,7 @@ pub fn _rust_fn(
     data: &CStr,
 ) -> Result<()> {
     unsafe {
-        raw::_ffi_fn(
+        raw::HAPI_SetWorkItemStringAttribute(
             session.ptr(),
             node.0,
             workitem_id,
@@ -3635,32 +4347,20 @@ pub fn _rust_fn(
             data_index,
             data.as_ptr(),
         )
-        .check_err(session, || stringify!(Calling _ffi_fn))
+        .check_err(session, || "Calling HAPI_SetWorkItemStringAttribute")
     }
 }
 
-#[duplicate_item(
-[
-_rust_fn [get_workitem_string_attribute]
-_ffi_fn [HAPI_GetWorkItemStringAttribute]
-_size_fn [get_workitem_attribute_size]
-]
-[
-_rust_fn [get_workitem_string_data]
-_ffi_fn [HAPI_GetWorkitemStringData]
-_size_fn [get_workitem_data_size]
-]
-)]
-pub fn _rust_fn(
+pub fn get_workitem_string_attribute(
     session: &Session,
     node: NodeHandle,
     workitem_id: i32,
     data_name: &CStr,
 ) -> Result<()> {
     unsafe {
-        let length = _size_fn(session, node, workitem_id, data_name)?;
+        let length = get_workitem_attribute_size(session, node, workitem_id, data_name)?;
         let mut handles = vec![0; length as usize];
-        raw::_ffi_fn(
+        raw::HAPI_GetWorkItemStringAttribute(
             session.ptr(),
             node.0,
             workitem_id,
@@ -3668,7 +4368,7 @@ pub fn _rust_fn(
             handles.as_mut_ptr(),
             length,
         )
-        .check_err(session, || stringify!(Calling _ffi_fn))
+        .check_err(session, || "Calling HAPI_GetWorkItemStringAttribute")
     }
 }
 

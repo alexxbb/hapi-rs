@@ -1,5 +1,5 @@
-use clap::error::ErrorKind;
 use clap::Parser;
+use clap::error::ErrorKind;
 use std::error::Error;
 use std::path::Path;
 use std::process::{Command, Stdio};

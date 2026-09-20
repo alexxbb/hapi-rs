@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash -ic 'init-houdini-22 && cargo test --test session -p hapi-rs --no-run 2>&1 | tail -30')",
+      "Bash(bash -ic 'init-houdini-22 && cargo test --test session -p hapi-rs camera_info_builder_roundtrip -- --nocapture 2>&1 | tail -20')",
+      "Bash(bash -ic 'init-houdini-22 && cargo test --test session -p hapi-rs session_input_camera_node_lifecycle -- --nocapture 2>&1 | tail -20')",
+      "Bash(bash -ic 'init-houdini-22 && cargo test --test session -p hapi-rs session_create_cop_image_returns_node_handle -- --nocapture 2>&1 | tail -30')",
+      "Bash(bash -ic 'init-houdini-22 && cargo test --test geometry -p hapi-rs geometry_input_camera_roundtrip -- --nocapture 2>&1 | tail -40')",
+      "Bash(bash -ic 'init-houdini-22 && cargo test --test geometry -p hapi-rs geometry_input_camera_roundtrip -- --nocapture 2>&1 | tail -30')",
+      "Bash(bash -ic 'init-houdini-22 && cargo test --test geometry -p hapi-rs geometry_camera_part_type_and_accessors -- --nocapture 2>&1 | tail -30')",
+      "Bash(bash -ic 'init-houdini-22 && cargo test -p hapi-rs --test session --test geometry camera_info_builder_roundtrip session_input_camera_node_lifecycle session_create_cop_image_returns_node_handle geometry_camera_part_type_and_accessors 2>&1 | tail -30')",
+      "Bash(bash -ic 'init-houdini-22 && cargo test --test session -p hapi-rs -- camera_info_builder_roundtrip session_input_camera_node_lifecycle session_create_cop_image_returns_node_handle 2>&1 | tail -15 && cargo test --test geometry -p hapi-rs -- geometry_camera_part_type_and_accessors 2>&1 | tail -10')",
+      "Bash(bash -ic 'init-houdini-22 && cargo check --tests -p hapi-rs 2>&1 | tail -15')"
+    ]
+  }
+}

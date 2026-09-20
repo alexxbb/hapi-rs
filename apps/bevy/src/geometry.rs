@@ -2,7 +2,7 @@ use bevy::asset::RenderAssetUsages;
 use bevy::prelude::Mesh;
 use bevy::render::mesh::PrimitiveTopology;
 use hapi_rs::Result;
-use hapi_rs::attribute::NumericAttr;
+use hapi_rs::attribute::Fixed;
 use hapi_rs::geometry::{AttributeName, AttributeOwner, Geometry, extra::GeometryExtension};
 
 pub enum NormalAttribute {
@@ -34,7 +34,7 @@ fn get_houdini_geometry_color(geometry: &Geometry) -> Result<Option<ColorAttribu
     }
     match cd_attr {
         Some(cd_attr) => {
-            let values = cd_attr.get(0)?;
+            let values = cd_attr.get()?;
             Ok(Some(match is_point_attr {
                 true => ColorAttribute::Point(values),
                 false => ColorAttribute::Vertex(values),
@@ -54,7 +54,7 @@ fn get_houdini_geometry_normals(geometry: &Geometry) -> Result<Option<NormalAttr
     }
     match n_attr {
         Some(n_attr) => {
-            let values = n_attr.get(0)?;
+            let values = n_attr.get()?;
             Ok(Some(match is_point_attr {
                 true => NormalAttribute::Point(values),
                 false => NormalAttribute::Vertex(values),
@@ -125,7 +125,7 @@ fn get_houdini_geometry_data_arrays(
             geometry
                 .get_position_attribute(&part)?
                 .expect("Position attribute must exist")
-                .get(part.part_id())?,
+                .get()?,
         )
     }
     if build_normals {
@@ -137,17 +137,13 @@ fn get_houdini_geometry_data_arrays(
     }
 
     if build_uv {
-        uvs = match geometry.get_attribute(
+        uvs = match geometry.get_numeric_attribute::<f32, Fixed>(
             part.part_id(),
             AttributeOwner::Vertex,
             AttributeName::Uv,
         )? {
             None => None,
-            Some(attr) => Some(
-                attr.downcast::<NumericAttr<f32>>()
-                    .expect("UV is NumericAttribute")
-                    .get(part.part_id())?,
-            ),
+            Some(attr) => Some(attr.get()?),
         };
     }
 

@@ -16,7 +16,7 @@ pub enum HapiError {
         contexts: Vec<String>,
     },
 
-    /// This is used by [`ErrorContext::context`] / [`ErrorContext::with_context`]
+    /// Adds context collected by the crate's internal `context` and `with_context` helpers.
     Context {
         contexts: Vec<String>,
         #[source]
