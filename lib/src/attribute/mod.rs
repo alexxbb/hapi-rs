@@ -80,17 +80,10 @@ struct Handle {
     node: HoudiniNode,
     part_id: i32,
     owner: AttributeOwner,
-    newly_created: bool,
 }
 
 impl Handle {
-    fn new(
-        name: CString,
-        info: AttributeInfo,
-        node: HoudiniNode,
-        part_id: i32,
-        newly_created: bool,
-    ) -> Self {
+    fn new(name: CString, info: AttributeInfo, node: HoudiniNode, part_id: i32) -> Self {
         let owner = info.owner();
         Self {
             info,
@@ -98,16 +91,12 @@ impl Handle {
             node,
             part_id,
             owner,
-            newly_created,
         }
     }
 
-    fn refresh(&self, expected: StorageType) -> Result<AttributeInfo> {
+    fn refresh(&mut self, expected: StorageType) -> Result<()> {
         let info = AttributeInfo::new(&self.node, self.part_id, self.owner, &self.name)?;
         if !info.exists() {
-            if self.newly_created {
-                return Ok(self.info.clone());
-            }
             return Err(HapiError::Internal(format!(
                 "attribute {:?} no longer exists on part {} for owner {:?}",
                 self.name, self.part_id, self.owner
@@ -121,7 +110,8 @@ impl Handle {
                 info.storage()
             )));
         }
-        Ok(info)
+        self.info = info;
+        Ok(())
     }
 
     fn expected_fixed_len(info: &AttributeInfo) -> Result<usize> {
@@ -139,7 +129,8 @@ impl Handle {
 ///
 /// `T` determines the numeric primitive storage and `S` determines whether the
 /// attribute is fixed-tuple or jagged. The handle retains its node, part,
-/// owner, and name identity and refreshes its metadata before data operations.
+/// owner, and name identity. Data operations use cached metadata so they do not
+/// add a hidden HAPI query to hot paths.
 pub struct Attribute<T: NumericPrimitive, S: AttributeShape> {
     handle: Handle,
     marker: PhantomData<(T, S)>,
@@ -148,25 +139,11 @@ pub struct Attribute<T: NumericPrimitive, S: AttributeShape> {
 impl<T: NumericPrimitive, S: AttributeShape> Attribute<T, S> {
     pub(crate) fn new(name: CString, info: AttributeInfo, node: HoudiniNode, part_id: i32) -> Self {
         Self {
-            handle: Handle::new(name, info, node, part_id, false),
+            handle: Handle::new(name, info, node, part_id),
             marker: PhantomData,
         }
     }
-    pub(crate) fn new_created(
-        name: CString,
-        info: AttributeInfo,
-        node: HoudiniNode,
-        part_id: i32,
-    ) -> Self {
-        Self {
-            handle: Handle::new(name, info, node, part_id, true),
-            marker: PhantomData,
-        }
-    }
-    /// Returns the metadata captured when this handle was created.
-    ///
-    /// Data operations refresh and validate metadata internally, but do not
-    /// replace this snapshot.
+    /// Returns the currently cached metadata.
     #[must_use]
     pub fn info(&self) -> &AttributeInfo {
         &self.handle.info
@@ -191,6 +168,15 @@ impl<T: NumericPrimitive, S: AttributeShape> Attribute<T, S> {
     pub fn storage(&self) -> StorageType {
         S::storage::<T>()
     }
+    /// Refreshes cached metadata from HAPI.
+    ///
+    /// Call this after cooking or otherwise changing geometry when the
+    /// attribute's count, tuple size, or array element total may have changed.
+    /// The cache is updated only if the attribute still exists and retains the
+    /// numeric storage implied by `T` and `S`.
+    pub fn refresh(&mut self) -> Result<()> {
+        self.handle.refresh(S::storage::<T>())
+    }
     /// Deletes this attribute from its bound node and part.
     pub fn delete(self) -> Result<()> {
         crate::ffi::delete_attribute(
@@ -205,10 +191,10 @@ impl<T: NumericPrimitive, S: AttributeShape> Attribute<T, S> {
 impl<T: NumericPrimitive> Attribute<T, Fixed> {
     /// Reads the complete fixed-tuple attribute as a flat vector.
     ///
-    /// The result length is `count * tuple_size` using refreshed metadata.
+    /// The result length is `count * tuple_size` using cached metadata.
     pub fn get(&self) -> Result<Vec<T>> {
-        let info = self.handle.refresh(T::FIXED_STORAGE)?;
-        let mut data = vec![T::default(); Handle::expected_fixed_len(&info)?];
+        let info = &self.handle.info;
+        let mut data = vec![T::default(); Handle::expected_fixed_len(info)?];
         T::get_fixed(
             &self.handle.node,
             self.handle.part_id,
@@ -223,8 +209,8 @@ impl<T: NumericPrimitive> Attribute<T, Fixed> {
     ///
     /// `data` is resized to `count * tuple_size` before the HAPI call.
     pub fn read_into(&self, data: &mut Vec<T>) -> Result<()> {
-        let info = self.handle.refresh(T::FIXED_STORAGE)?;
-        data.resize(Handle::expected_fixed_len(&info)?, T::default());
+        let info = &self.handle.info;
+        data.resize(Handle::expected_fixed_len(info)?, T::default());
         T::get_fixed(
             &self.handle.node,
             self.handle.part_id,
@@ -238,8 +224,8 @@ impl<T: NumericPrimitive> Attribute<T, Fixed> {
     ///
     /// Returns an error unless `data.len() == count * tuple_size`.
     pub fn set(&self, data: &[T]) -> Result<()> {
-        let info = self.handle.refresh(T::FIXED_STORAGE)?;
-        let expected = Handle::expected_fixed_len(&info)?;
+        let info = &self.handle.info;
+        let expected = Handle::expected_fixed_len(info)?;
         if data.len() != expected {
             return Err(HapiError::Internal(format!(
                 "attribute {:?} needs {expected} values, got {}",
@@ -262,7 +248,7 @@ impl<T: NumericPrimitive> Attribute<T, Fixed> {
     ///
     /// `value` must contain exactly `tuple_size` numeric values.
     pub fn set_unique(&self, value: &[T]) -> Result<()> {
-        let info = self.handle.refresh(T::FIXED_STORAGE)?;
+        let info = &self.handle.info;
         let expected = usize::try_from(info.tuple_size())
             .map_err(|_| HapiError::Internal("negative tuple size".into()))?;
         if value.len() != expected {
@@ -284,7 +270,7 @@ impl<T: NumericPrimitive> Attribute<T, Fixed> {
 impl<T: NumericPrimitive> Attribute<T, Jagged> {
     /// Reads the complete HAPI array attribute.
     pub fn get(&self) -> Result<JaggedArrayData<T>> {
-        let info = self.handle.refresh(T::JAGGED_STORAGE)?;
+        let info = &self.handle.info;
         let total = usize::try_from(info.total_array_elements())
             .map_err(|_| HapiError::Internal("negative jagged element count".into()))?;
         let count = usize::try_from(info.count())
@@ -304,11 +290,11 @@ impl<T: NumericPrimitive> Attribute<T, Jagged> {
 
     /// Replaces the complete HAPI array attribute.
     ///
-    /// The number of sizes must equal the refreshed attribute count. The
+    /// The number of sizes must equal the cached attribute count. The
     /// [`JaggedArrayData`] constructor additionally guarantees that sizes are
     /// nonnegative and sum to the flattened data length.
     pub fn set(&self, values: &JaggedArrayData<T>) -> Result<()> {
-        let info = self.handle.refresh(T::JAGGED_STORAGE)?;
+        let info = &self.handle.info;
         let expected = usize::try_from(info.count())
             .map_err(|_| HapiError::Internal("negative attribute count".into()))?;
         if values.sizes().len() != expected {
@@ -358,22 +344,11 @@ macro_rules! common_handle {
                 part_id: i32,
             ) -> Self {
                 Self {
-                    handle: Handle::new(name, info, node, part_id, false),
+                    handle: Handle::new(name, info, node, part_id),
                     marker: PhantomData,
                 }
             }
-            pub(crate) fn new_created(
-                name: CString,
-                info: AttributeInfo,
-                node: HoudiniNode,
-                part_id: i32,
-            ) -> Self {
-                Self {
-                    handle: Handle::new(name, info, node, part_id, true),
-                    marker: PhantomData,
-                }
-            }
-            /// Returns the metadata captured when this handle was created.
+            /// Returns the currently cached metadata.
             #[must_use]
             pub fn info(&self) -> &AttributeInfo {
                 &self.handle.info
@@ -413,12 +388,40 @@ macro_rules! common_handle {
 common_handle!(StringAttribute);
 common_handle!(DictionaryAttribute);
 
+impl StringAttribute<Fixed> {
+    /// Refreshes cached metadata, requiring fixed string storage.
+    pub fn refresh(&mut self) -> Result<()> {
+        self.handle.refresh(StorageType::String)
+    }
+}
+
+impl StringAttribute<Jagged> {
+    /// Refreshes cached metadata, requiring jagged string storage.
+    pub fn refresh(&mut self) -> Result<()> {
+        self.handle.refresh(StorageType::StringArray)
+    }
+}
+
+impl DictionaryAttribute<Fixed> {
+    /// Refreshes cached metadata, requiring fixed dictionary storage.
+    pub fn refresh(&mut self) -> Result<()> {
+        self.handle.refresh(StorageType::Dictionary)
+    }
+}
+
+impl DictionaryAttribute<Jagged> {
+    /// Refreshes cached metadata, requiring jagged dictionary storage.
+    pub fn refresh(&mut self) -> Result<()> {
+        self.handle.refresh(StorageType::DictionaryArray)
+    }
+}
+
 macro_rules! fixed_string_impl {
     ($type:ident, $storage:expr, $dictionary:expr) => {
         impl $type<Fixed> {
             /// Reads the complete fixed-tuple attribute.
             pub fn get(&self) -> Result<StringArray> {
-                let info = self.handle.refresh($storage)?;
+                let info = &self.handle.info;
                 crate::ffi::get_string_attribute_data(
                     &self.handle.node,
                     self.handle.part_id,
@@ -431,8 +434,8 @@ macro_rules! fixed_string_impl {
             ///
             /// The value count must equal `count * tuple_size`.
             pub fn set(&self, values: &[impl AsRef<CStr>]) -> Result<()> {
-                let info = self.handle.refresh($storage)?;
-                let expected = Handle::expected_fixed_len(&info)?;
+                let info = &self.handle.info;
+                let expected = Handle::expected_fixed_len(info)?;
                 if values.len() != expected {
                     return Err(HapiError::Internal(format!(
                         "attribute {:?} needs {expected} strings, got {}",
@@ -459,7 +462,7 @@ fixed_string_impl!(DictionaryAttribute, StorageType::Dictionary, true);
 impl StringAttribute<Fixed> {
     /// Assigns one string value to every element of the attribute.
     pub fn set_unique(&self, value: &CStr) -> Result<()> {
-        let info = self.handle.refresh(StorageType::String)?;
+        let info = &self.handle.info;
         crate::ffi::set_string_unique_attribute_data(
             &self.handle.node,
             self.handle.part_id,
@@ -473,8 +476,8 @@ impl StringAttribute<Fixed> {
     /// `indices` must contain `count * tuple_size` entries. Each index is
     /// interpreted by HAPI as an entry in `values`.
     pub fn set_indexed(&self, values: &[impl AsRef<CStr>], indices: &[i32]) -> Result<()> {
-        let info = self.handle.refresh(StorageType::String)?;
-        let expected = Handle::expected_fixed_len(&info)?;
+        let info = &self.handle.info;
+        let expected = Handle::expected_fixed_len(info)?;
         if indices.len() != expected {
             return Err(HapiError::Internal(format!(
                 "attribute {:?} needs {expected} indices, got {}",
@@ -499,7 +502,7 @@ macro_rules! jagged_string_impl {
         impl $type<Jagged> {
             /// Reads the complete string or dictionary array attribute.
             pub fn get(&self) -> Result<StringJaggedArrayData> {
-                let info = self.handle.refresh($storage)?;
+                let info = &self.handle.info;
                 let (handles, sizes) = crate::ffi::get_string_jagged_attribute_data(
                     &self.handle.node,
                     self.handle.part_id,
@@ -514,7 +517,7 @@ macro_rules! jagged_string_impl {
             /// Sizes must be nonnegative, sum to `values.len()`, and contain
             /// one entry for every owned geometry element.
             pub fn set(&self, values: &[impl AsRef<CStr>], sizes: &[i32]) -> Result<()> {
-                let info = self.handle.refresh($storage)?;
+                let info = &self.handle.info;
                 let validated =
                     JaggedArrayData::new(values.iter().map(|_| ()).collect(), sizes.to_vec())?;
                 let expected = usize::try_from(info.count())
@@ -616,7 +619,7 @@ impl AnyAttribute {
     pub fn name(&self) -> Cow<'_, str> {
         self.handle().name.to_string_lossy()
     }
-    /// Returns the metadata captured when this handle was created.
+    /// Returns the currently cached metadata.
     #[must_use]
     pub fn info(&self) -> &AttributeInfo {
         &self.handle().info
@@ -635,6 +638,32 @@ impl AnyAttribute {
     #[must_use]
     pub fn owner(&self) -> AttributeOwner {
         self.handle().owner
+    }
+    /// Refreshes the variant's cached metadata from HAPI.
+    ///
+    /// The enum variant and cache remain unchanged if the attribute is missing
+    /// or its storage no longer matches the typed handle.
+    pub fn refresh(&mut self) -> Result<()> {
+        match self {
+            Self::Int(v) => v.refresh(),
+            Self::Int64(v) => v.refresh(),
+            Self::Float(v) => v.refresh(),
+            Self::Float64(v) => v.refresh(),
+            Self::String(v) => v.refresh(),
+            Self::Uint8(v) => v.refresh(),
+            Self::Int8(v) => v.refresh(),
+            Self::Int16(v) => v.refresh(),
+            Self::IntArray(v) => v.refresh(),
+            Self::Int64Array(v) => v.refresh(),
+            Self::FloatArray(v) => v.refresh(),
+            Self::Float64Array(v) => v.refresh(),
+            Self::StringArray(v) => v.refresh(),
+            Self::Uint8Array(v) => v.refresh(),
+            Self::Int8Array(v) => v.refresh(),
+            Self::Int16Array(v) => v.refresh(),
+            Self::Dictionary(v) => v.refresh(),
+            Self::DictionaryArray(v) => v.refresh(),
+        }
     }
     /// Deletes this attribute from its bound node and part.
     pub fn delete(self) -> Result<()> {

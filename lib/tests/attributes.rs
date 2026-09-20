@@ -18,10 +18,11 @@ fn missing_and_typed_lookup() -> Result<()> {
             geo.get_attribute(0, AttributeOwner::Point, c"missing")?
                 .is_none()
         );
-        assert!(
-            geo.get_numeric_attribute::<f32, Fixed>(0, AttributeOwner::Point, c"P")?
-                .is_some()
-        );
+        let mut position = geo
+            .get_numeric_attribute::<f32, Fixed>(0, AttributeOwner::Point, c"P")?
+            .unwrap();
+        position.refresh()?;
+        assert_eq!(position.info().storage(), StorageType::Float);
         assert!(
             geo.get_numeric_attribute::<f32, Fixed>(0, AttributeOwner::Point, c"missing")?
                 .is_none()
@@ -212,7 +213,11 @@ fn deletion_and_send_preserve_identity() -> Result<()> {
             .with_tuple_size(1)
             .with_owner(AttributeOwner::Detail);
         let temp = geo.add_numeric_attribute::<i32, Fixed>("temporary", 0, info)?;
+        let mut stale = temp.clone();
+        let cached_storage = stale.info().storage();
         temp.delete()?;
+        assert!(stale.refresh().is_err());
+        assert_eq!(stale.info().storage(), cached_storage);
         assert!(
             geo.get_attribute(0, AttributeOwner::Detail, c"temporary")?
                 .is_none()

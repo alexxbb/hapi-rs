@@ -180,8 +180,9 @@
 //! Every handle stores its node, part, owner, and name. Select the part during lookup or creation; subsequent
 //! `get` and `set` calls use that identity and transfer the complete attribute. Fixed writes require exactly
 //! `count * tuple_size` values. Jagged writes use [`attribute::JaggedArrayData`], which rejects negative sizes,
-//! overflow, or a size total that differs from the flattened data length. HAPI part ids can be reordered after a
-//! cook, so reacquire handles after cooking geometry whose part layout may have changed.
+//! overflow, or a size total that differs from the flattened data length. Operations use cached metadata and do
+//! not make a hidden `GetAttributeInfo` call. Call `refresh()` or reacquire a handle after a cook that may have
+//! changed its count, tuple size, array element total, storage, or part layout.
 //!
 //! ```no_run
 //! use hapi_rs::{

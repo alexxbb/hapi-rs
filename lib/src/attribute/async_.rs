@@ -146,7 +146,7 @@ impl<T: NumericPrimitive> AsyncAttributeAccess for Attribute<T, Fixed> {
     type Input = [T];
 
     fn get_async(&self) -> Result<AsyncJob<Vec<T>>> {
-        let info = self.handle.refresh(T::FIXED_STORAGE)?;
+        let info = self.handle.info.clone();
         let data = vec![T::default(); Handle::expected_fixed_len(&info)?];
         let mut backing = Box::new(FixedNumeric {
             handle: self.handle.clone(),
@@ -169,7 +169,7 @@ impl<T: NumericPrimitive> AsyncAttributeAccess for Attribute<T, Fixed> {
     }
 
     fn set_async(&self, values: &[T]) -> Result<AsyncJob<()>> {
-        let info = self.handle.refresh(T::FIXED_STORAGE)?;
+        let info = self.handle.info.clone();
         let expected = Handle::expected_fixed_len(&info)?;
         if values.len() != expected {
             return Err(HapiError::Internal(format!(
@@ -201,7 +201,7 @@ impl<T: NumericPrimitive> AsyncAttributeAccess for Attribute<T, Fixed> {
 
 impl<T: NumericPrimitive> AsyncFixedAttributeAccess<[T]> for Attribute<T, Fixed> {
     fn set_unique_async(&self, value: &[T]) -> Result<AsyncJob<()>> {
-        let info = self.handle.refresh(T::FIXED_STORAGE)?;
+        let info = self.handle.info.clone();
         if value.len() != usize::try_from(info.tuple_size()).unwrap_or(usize::MAX) {
             return Err(HapiError::Internal("unique tuple length mismatch".into()));
         }
@@ -231,7 +231,7 @@ impl<T: NumericPrimitive> AsyncAttributeAccess for Attribute<T, Jagged> {
     type Input = JaggedArrayData<T>;
 
     fn get_async(&self) -> Result<AsyncJob<Self::Output>> {
-        let info = self.handle.refresh(T::JAGGED_STORAGE)?;
+        let info = self.handle.info.clone();
         let data = vec![
             T::default();
             usize::try_from(info.total_array_elements())
@@ -265,7 +265,7 @@ impl<T: NumericPrimitive> AsyncAttributeAccess for Attribute<T, Jagged> {
     }
 
     fn set_async(&self, values: &JaggedArrayData<T>) -> Result<AsyncJob<()>> {
-        let info = self.handle.refresh(T::JAGGED_STORAGE)?;
+        let info = self.handle.info.clone();
         if values.sizes().len() != usize::try_from(info.count()).unwrap_or(usize::MAX) {
             return Err(HapiError::Internal("jagged size count mismatch".into()));
         }
@@ -316,7 +316,7 @@ macro_rules! async_string_access {
             type Output = StringArray;
             type Input = [CString];
             fn get_async(&self) -> Result<AsyncJob<Self::Output>> {
-                let info = self.handle.refresh($storage)?;
+                let info = self.handle.info.clone();
                 let handles = vec![StringHandle(0); Handle::expected_fixed_len(&info)?];
                 let mut backing = Box::new(FixedStrings {
                     handle: self.handle.clone(),
@@ -339,7 +339,7 @@ macro_rules! async_string_access {
                 }))
             }
             fn set_async(&self, values: &[CString]) -> Result<AsyncJob<()>> {
-                let info = self.handle.refresh($storage)?;
+                let info = self.handle.info.clone();
                 if values.len() != Handle::expected_fixed_len(&info)? {
                     return Err(HapiError::Internal("string value count mismatch".into()));
                 }
@@ -378,7 +378,7 @@ macro_rules! async_jagged_string_access {
             type Output = StringJaggedArrayData;
             type Input = (Vec<CString>, Vec<i32>);
             fn get_async(&self) -> Result<AsyncJob<Self::Output>> {
-                let info = self.handle.refresh($storage)?;
+                let info = self.handle.info.clone();
                 let handles = vec![
                     StringHandle(0);
                     usize::try_from(info.total_array_elements()).map_err(|_| {
@@ -415,7 +415,7 @@ macro_rules! async_jagged_string_access {
             }
             fn set_async(&self, input: &(Vec<CString>, Vec<i32>)) -> Result<AsyncJob<()>> {
                 JaggedArrayData::new(vec![(); input.0.len()], input.1.clone())?;
-                let info = self.handle.refresh($storage)?;
+                let info = self.handle.info.clone();
                 if input.1.len() != usize::try_from(info.count()).unwrap_or(usize::MAX) {
                     return Err(HapiError::Internal(
                         "jagged string size count mismatch".into(),
@@ -454,7 +454,7 @@ async_jagged_string_access!(DictionaryAttribute, StorageType::DictionaryArray, t
 
 impl AsyncFixedAttributeAccess<CStr> for StringAttribute<Fixed> {
     fn set_unique_async(&self, value: &CStr) -> Result<AsyncJob<()>> {
-        let info = self.handle.refresh(StorageType::String)?;
+        let info = self.handle.info.clone();
         let mut backing = Box::new(FixedStrings {
             handle: self.handle.clone(),
             info,
@@ -485,7 +485,7 @@ impl AsyncStringAttributeAccess for StringAttribute<Fixed> {
         values: &[V],
         indices: &[i32],
     ) -> Result<AsyncJob<()>> {
-        let info = self.handle.refresh(StorageType::String)?;
+        let info = self.handle.info.clone();
         if indices.len() != Handle::expected_fixed_len(&info)? {
             return Err(HapiError::Internal("string index count mismatch".into()));
         }

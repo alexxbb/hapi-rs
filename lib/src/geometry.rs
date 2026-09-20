@@ -598,7 +598,7 @@ impl Geometry {
         log::debug!("Adding numeric geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
-        Ok(Attribute::<T, S>::new_created(
+        Ok(Attribute::<T, S>::new(
             name,
             info,
             self.node.clone(),
@@ -623,12 +623,7 @@ impl Geometry {
         log::debug!("Adding string geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
-        Ok(StringAttribute::new_created(
-            name,
-            info,
-            self.node.clone(),
-            part_id,
-        ))
+        Ok(StringAttribute::new(name, info, self.node.clone(), part_id))
     }
 
     /// Adds a jagged string array attribute.
@@ -648,12 +643,7 @@ impl Geometry {
         log::debug!("Adding string array geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
-        Ok(StringAttribute::new_created(
-            name,
-            info,
-            self.node.clone(),
-            part_id,
-        ))
+        Ok(StringAttribute::new(name, info, self.node.clone(), part_id))
     }
 
     /// Adds a fixed-tuple JSON dictionary attribute.
@@ -673,7 +663,7 @@ impl Geometry {
         log::debug!("Adding dictionary geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
-        Ok(DictionaryAttribute::new_created(
+        Ok(DictionaryAttribute::new(
             name,
             info,
             self.node.clone(),
@@ -698,7 +688,7 @@ impl Geometry {
         log::debug!("Adding dictionary array geometry attriubute: {name}");
         let name = CString::new(name)?;
         crate::ffi::add_attribute(&self.node, part_id, &name, &info.0)?;
-        Ok(DictionaryAttribute::new_created(
+        Ok(DictionaryAttribute::new(
             name,
             info,
             self.node.clone(),
@@ -1107,7 +1097,7 @@ pub mod extra {
             .with_owner(AttributeOwner::Point)
             .with_storage(StorageType::Float);
         crate::ffi::add_attribute(&geo.node, part.part_id(), &name, &attr_info.0)
-            .map(|()| Attribute::new_created(name, attr_info, geo.node.clone(), part.part_id()))
+            .map(|()| Attribute::new(name, attr_info, geo.node.clone(), part.part_id()))
     }
 
     #[inline]
