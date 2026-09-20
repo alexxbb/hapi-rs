@@ -983,6 +983,10 @@ pub fn cleanup_session(session: &Session) -> Result<()> {
     unsafe { raw::HAPI_Cleanup(session.ptr()).check_err(session, || "Calling HAPI_Cleanup") }
 }
 
+pub(crate) fn cleanup_raw_session(session: &raw::HAPI_Session) -> Result<()> {
+    unsafe { raw::HAPI_Cleanup(std::ptr::from_ref(session)).add_context("Calling HAPI_Cleanup") }
+}
+
 pub fn shutdown_session(session: &Session) -> Result<()> {
     if session.session_type() == raw::SessionType::Inprocess {
         unsafe { raw::HAPI_Shutdown(session.ptr()).check_err(session, || "Calling HAPI_Shutdown") }
@@ -991,9 +995,37 @@ pub fn shutdown_session(session: &Session) -> Result<()> {
     }
 }
 
+pub(crate) fn shutdown_raw_session(session: &raw::HAPI_Session) -> Result<()> {
+    unsafe { raw::HAPI_Shutdown(std::ptr::from_ref(session)).add_context("Calling HAPI_Shutdown") }
+}
+
 pub fn close_session(session: &Session) -> Result<()> {
     unsafe {
         raw::HAPI_CloseSession(session.ptr()).check_err(session, || "Calling HAPI_CloseSession")
+    }
+}
+
+pub(crate) fn close_raw_session(session: &raw::HAPI_Session) -> Result<()> {
+    unsafe {
+        raw::HAPI_CloseSession(std::ptr::from_ref(session)).add_context("Calling HAPI_CloseSession")
+    }
+}
+
+pub(crate) fn is_raw_session_valid(session: &raw::HAPI_Session) -> bool {
+    unsafe {
+        matches!(
+            raw::HAPI_IsSessionValid(std::ptr::from_ref(session)),
+            raw::HapiResult::Success
+        )
+    }
+}
+
+pub(crate) fn is_raw_session_initialized(session: &raw::HAPI_Session) -> bool {
+    unsafe {
+        matches!(
+            raw::HAPI_IsInitialized(std::ptr::from_ref(session)),
+            raw::HapiResult::Success
+        )
     }
 }
 

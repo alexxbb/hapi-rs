@@ -72,7 +72,7 @@ fn session_get_set_time() -> Result<()> {
         CookResult::FatalErrors("fatal error".into()).message(),
         Some("fatal error")
     );
-    session.cleanup()?;
+    session.close()?;
     let _ = std::fs::remove_file(log_file);
     Ok(())
 }
@@ -315,6 +315,7 @@ fn session_create_cop_image_returns_node_handle() -> Result<()> {
 
 #[test]
 fn session_options_and_compositor_helpers() -> Result<()> {
+    assert!(!SessionOptions::default().cleanup);
     let options = SessionOptions::default()
         .houdini_env_files(["/tmp/houdini.env"])
         .otl_search_paths(["/tmp/otls"])

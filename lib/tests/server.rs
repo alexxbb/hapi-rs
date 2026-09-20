@@ -2,6 +2,8 @@ use std::{
     net::{Ipv4Addr, SocketAddrV4, TcpListener},
     num::NonZeroU64,
     path::PathBuf,
+    sync::{Arc, Barrier},
+    thread,
     time::Duration,
 };
 
@@ -173,3 +175,151 @@ fn connect_rejects_pipe_options_for_memory_connect() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn explicit_close_is_shared_and_idempotent() -> Result<()> {
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        server_options_with_temp_log(ServerOptions::shared_memory_with_defaults()),
+    )?;
+    let clone = session.clone();
+    let pid = session.server_pid().expect("owned server pid");
+
+    session.close()?;
+    assert!(!session.is_valid());
+    assert!(!clone.is_valid());
+    clone.close()?;
+    assert_owned_child_reaped(pid);
+    Ok(())
+}
+
+#[test]
+fn concurrent_final_clone_drops_finalize_once() -> Result<()> {
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        server_options_with_temp_log(ServerOptions::shared_memory_with_defaults()),
+    )?;
+    let pid = session.server_pid().expect("owned server pid");
+    let clone = session.clone();
+    let barrier = Arc::new(Barrier::new(3));
+
+    let first_barrier = barrier.clone();
+    let first = thread::spawn(move || {
+        first_barrier.wait();
+        drop(session);
+    });
+    let second_barrier = barrier.clone();
+    let second = thread::spawn(move || {
+        second_barrier.wait();
+        drop(clone);
+    });
+    barrier.wait();
+    first.join().expect("first drop thread");
+    second.join().expect("second drop thread");
+
+    assert_owned_child_reaped(pid);
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn dropping_uninitialized_session_closes_connection() -> Result<()> {
+    let server_options = server_options_with_temp_log(ServerOptions::shared_memory_with_defaults());
+    let pid = start_engine_server(&server_options)?;
+    let uninitialized = connect_to_memory_server(server_options, None)?;
+
+    drop(uninitialized);
+
+    wait_for_test_child_exit(pid);
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn managed_auto_close_false_leaves_hars_running() -> Result<()> {
+    let session = new_thrift_session(
+        SessionOptions::default(),
+        server_options_with_temp_log(
+            ServerOptions::shared_memory_with_defaults().with_auto_close(false),
+        ),
+    )?;
+    let pid = session.server_pid().expect("owned server pid");
+
+    session.close()?;
+
+    let was_running = unsafe { libc::kill(pid as i32, 0) } == 0;
+    terminate_test_child(pid);
+    assert!(was_running, "auto_close=false HARS exited unexpectedly");
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn closing_borrowed_pipe_session_does_not_terminate_external_server() -> Result<()> {
+    let pipe_path = PathBuf::from(format!("/tmp/{}", unique_name("hapi-rs-borrowed")));
+    let server_options = server_options_with_temp_log(
+        ServerOptions::pipe_with_defaults()
+            .with_thrift_transport(ThriftTransport::Pipe(
+                hapi_rs::server::ThriftPipeTransport {
+                    pipe_path: pipe_path.clone(),
+                },
+            ))
+            .with_auto_close(false),
+    );
+    let pid = start_engine_server(&server_options)?;
+
+    let result = (|| -> Result<bool> {
+        let session =
+            connect_to_pipe_server(server_options, None)?.initialize(SessionOptions::default())?;
+        session.close()?;
+        Ok(unsafe { libc::kill(pid as i32, 0) } == 0)
+    })();
+
+    terminate_test_child(pid);
+    let _ = std::fs::remove_file(&pipe_path);
+    assert!(result?, "borrowed HARS process was terminated");
+    Ok(())
+}
+
+#[cfg(unix)]
+fn assert_owned_child_reaped(pid: u32) {
+    let mut status = 0;
+    let result = unsafe { libc::waitpid(pid as i32, &raw mut status, libc::WNOHANG) };
+    assert_eq!(result, -1, "HARS child {pid} was not reaped");
+    assert_eq!(
+        std::io::Error::last_os_error().raw_os_error(),
+        Some(libc::ECHILD),
+        "unexpected waitpid result for HARS child {pid}"
+    );
+}
+
+#[cfg(unix)]
+fn wait_for_test_child_exit(pid: u32) {
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    loop {
+        let mut status = 0;
+        let result = unsafe { libc::waitpid(pid as i32, &raw mut status, libc::WNOHANG) };
+        if result == pid as i32 {
+            return;
+        }
+        assert_eq!(result, 0, "waitpid failed for HARS child {pid}");
+        if std::time::Instant::now() >= deadline {
+            terminate_test_child(pid);
+            panic!("HARS child {pid} did not exit after its uninitialized client was dropped");
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[cfg(unix)]
+fn terminate_test_child(pid: u32) {
+    unsafe {
+        libc::kill(pid as i32, libc::SIGKILL);
+    }
+    let mut status = 0;
+    let result = unsafe { libc::waitpid(pid as i32, &raw mut status, 0) };
+    assert_eq!(result, pid as i32, "failed to reap test HARS child {pid}");
+}
+
+#[cfg(not(unix))]
+fn assert_owned_child_reaped(_pid: u32) {}

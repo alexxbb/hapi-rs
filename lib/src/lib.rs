@@ -62,8 +62,11 @@
 //! `Arc<SessionInner>` so cloning a session is cheap and the connection stays alive until the last clone is
 //! dropped. Houdini guarantees that a single session handle can be used concurrently; consequently the Rust
 //! wrapper is [`Send`] + [`Sync`] and only falls back to a private [`parking_lot::ReentrantMutex`] when HAPI
-//! needs serialized calls. When [`session::SessionOptions::cleanup`] is enabled (the default), dropping the
-//! last clone will automatically clean up the session and shut down the associated server.
+//! needs serialized calls. Dropping the last clone closes the session. Optional HAPI scene cleanup is disabled
+//! by default and can be enabled with [`session::SessionOptions::cleanup`] when orderly Houdini-side teardown
+//! is required. A server started by the crate is then reaped when
+//! `auto_close` is enabled; borrowed servers and servers configured with `auto_close = false` remain owned
+//! by their caller.
 //!
 //! [`session::simple_session`] bootstraps a Thrift shared-memory server via [`session::new_thrift_session`]
 //! and [`server::ServerOptions::shared_memory_with_defaults`]. You can override transports, buffer sizes,

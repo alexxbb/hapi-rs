@@ -16,6 +16,12 @@
 - Add `async-cooking` extension traits and owning `AsyncJob` handles for asynchronous attribute reads, writes,
   unique-value writes, and indexed string writes.
 - Remove the old trait-object/downcasting API, `AttribValueType`, `DataArray`, and compatibility aliases.
+- Make session teardown exactly-once across cloned handles, add idempotent `Session::close`, and roll back
+  uninitialized native sessions and failed managed HARS startup transactions.
+- Track managed versus borrowed HARS processes, terminate and reap managed children, and never remove borrowed
+  pipe endpoints.
+- Keep potentially expensive HAPI cleanup opt-in, restore the official 100 MB shared-memory default, validate
+  public server options, merge server environment settings, and use deadline-based connection retries.
 
 ## [21.0.2]
 - Regenerate with Houdini 21.0.700

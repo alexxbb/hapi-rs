@@ -28,6 +28,15 @@ thiserror = "2.0"
 temp-env = "0.3.6"
 bytecount = "0.6.9"
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+] }
+
 [dev-dependencies]
 env_logger = "0.11.8"
 pastey = "0.1.1"
